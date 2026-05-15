@@ -1,0 +1,18 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+.env.local
+.env.*
+.vite
+
+# Cloudflare Worker secrets — never commit
+worker/.dev.vars
+*.dev.vars
+.wrangler/
+
+# Editor / OS
+.idea/
+.vscode/
+Thumbs.db
