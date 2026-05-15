@@ -2,7 +2,7 @@
 
 **One-line pitch:** A small inhabitable 3D world that *is* your Steam library. The world is AI-generated from a behavioral profile of how you actually play — not from genre tags. Games are launched diegetically by interacting with objects in the world; the launch animation *is* the loading screen.
 
-**Status (2026-05-12):** Committed project, post-pivot. The 2D Phaser prototype (`legacy-2d/`) is preserved as a reference for the ritual flow and the Steam-CDN texture trick. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber.
+**Status (2026-05-12):** Committed project, post-pivot. An earlier 2D Phaser prototype was retired after walking it made clear the LLM-personalisation layer, not the rendering medium, was the missing piece. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber.
 
 ---
 
@@ -24,7 +24,7 @@ It should feel like the start screen to a JRPG that knows you.
 
 ### 2.1 Dimensionality → **3D, low-poly (Three.js + react-three-fiber)**
 
-Decided 2026-05-12 after walking the 2D pixel-art prototype and finding that, even fully polished, the 2D medium couldn't deliver "visually striking" without art investment we don't have. The 2D scaffold remains in `legacy-2d/` as a reference; the new build is 3D from the ground up.
+Decided 2026-05-12 after walking the 2D pixel-art prototype and finding that, even fully polished, the 2D medium couldn't deliver "visually striking" without art investment we don't have. The 2D scaffold has been retired; the new build is 3D from the ground up.
 
 Reference aesthetic: *A Short Hike*, *Alba*, *Townscaper*. Striking on a tiny budget because the medium does most of the heavy lifting — low-poly tolerates rough geometry; lighting, palette, and silhouette do the work. See §12 (Art direction) for how that quality bar actually gets met.
 
@@ -273,7 +273,7 @@ The goal of v0.1 is the smallest *end-to-end committed-build slice* that exercis
 
 Concretely:
 
-1. Vite + React + react-three-fiber + drei + **@react-three/rapier** + TypeScript scaffold at the repo root (legacy Phaser scaffold moved into `legacy-2d/`).
+1. Vite + React + react-three-fiber + drei + **@react-three/rapier** + TypeScript scaffold at the repo root.
 2. One scene template — `seaside_town` — built by hand with **hero objects generated via Meshy or Tripo** (lighthouse, fish market, detective's office, harbour-master's hut, a few lit fishing boats — one coherent prompt suffix, hand-curated). Filler / ground tiles can come from Kenney coastal pack to keep budget in check. drei `Environment` HDRI for dusk lighting, real-time shadows on the hero objects, `EffectComposer` with bloom + ACES + atmospheric fog. The visual bar is exercised in v0.1, not deferred.
 3. Hard-coded library (the same 7-game list from the 2D prototype) and a hard-coded behavioral profile. *No Steam API call, no HLTB call, no IGDB call yet — those land in v0.2+.*
 4. One Claude call (via a Cloudflare Worker proxy) given the profile, returning the world manifest. The first version can map 7 archetypes 1:1 onto 7 games; intelligence comes later.

@@ -10,7 +10,7 @@ The full design doc is **`SPEC.md`** — read it for the broader vision (behavio
 
 ## Current phase
 
-**v0.1 of the committed build — first vertical slice (web).** The 2D Phaser prototype (preserved in `legacy-2d/`) proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
+**v0.1 of the committed build — first vertical slice (web).** An earlier 2D Phaser prototype proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
 
 v0.1 scope: one scene template, one ritual variant, one Claude call, hard-coded library, working `steam://run`. Real Steam auth comes at v0.2.
 
@@ -77,7 +77,6 @@ public/audio/        — baked ambient beds + interaction stings (per template)
 worker/              — Cloudflare Worker (orchestrates Anthropic, Steam, HLTB, IGDB, audio/image/3D providers; all keys live here)
 eval/                — Stage 1 model eval framework (synthetic profiles, runner, blind comparison UI, results)
 desktop/             — native wrapper (Tauri/Electron) — lands at v0.6
-legacy-2d/           — preserved 2D Phaser prototype (reference, not active)
 ```
 
 ## Conventions
@@ -142,5 +141,4 @@ npm run eval -- --models claude-opus,claude-sonnet,gemini-3-pro,qwen3-14b-local
 - Don't put any API key in the frontend bundle. Always proxy via the Worker.
 - Don't bundle large npm packages (>500KB gzipped) into the web build without flagging — the web viewer (share surface) is bandwidth-sensitive. Three.js + r3f + drei is the heavy budget. The native wrapper (v0.6+) has more headroom, but the web bundle still ships and the constraint applies there.
 - Don't break the asset whitelist in the Stage 1 prompt. The LLM must only pick models, rituals, audio, and skyboxes we actually ship; widen the whitelist deliberately, not by editing the prompt to "be more creative."
-- Don't reach into `legacy-2d/`. It's preserved as a reference; not part of the active build. Leave it alone unless we explicitly resurrect a pattern from it.
 - Don't add `Math.random()` anywhere in `src/procedural/`. Determinism is the share-URL contract.
