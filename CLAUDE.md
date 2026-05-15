@@ -2,32 +2,62 @@
 
 ## What this project is
 
-A web-based interactive loader that replaces Steam's library grid with a small inhabitable 3D world, personalised by an LLM based on the user's actual playing behavior. Each significant game in the user's library appears as an archetype-cast object in the world (a lighthouse, a campfire, a bookshelf, a workbench, an arcade cabinet, etc.). Walking up to an object and pressing E — or clicking — triggers a brief diegetic "launch ritual" animation, then fires `steam://run/{appid}` to launch the game in Steam. When the user quits Steam and the browser tab regains focus, a return ritual plays.
+A small inhabitable 3D world that *is* your Steam library — personalised by an LLM from the user's actual playing behavior, not from genre tags. Each significant game appears as an archetype-cast object in the world (a lighthouse, a campfire, a bookshelf, a workbench, an arcade cabinet, etc.). Walking up to an object and pressing E — or clicking — triggers a brief diegetic "launch ritual" animation, then fires `steam://run/{appid}` to launch the game in Steam.
 
-The full design doc is **`SPEC.md`** — read it for the broader vision (behavior-driven AI metaphor, diegetic launch rituals, library-state mapping). **This file is the day-to-day rulebook.**
+**Product direction (revised 2026-05-16):** the destination is a Steam-distributed desktop utility — one-time purchase (~$7–10), distributed via Steam, lives as a live wallpaper / alt-tab destination, walkable in full-screen explore mode, launcher when you want it. The web version (current build) becomes the public-share surface (anyone can view a shared world URL in their browser; making your own requires the Steam app). Steam Workshop for community-built templates is the post-v1.0 long-term moat.
+
+The full design doc is **`SPEC.md`** — read it for the broader vision (behavior-driven AI metaphor, diegetic launch rituals, library-state mapping). Note the SPEC's v0.6+ roadmap is being revised toward the Steam-distributed model — see "Current phase" below. **This file is the day-to-day rulebook.**
 
 ## Current phase
 
-**v0.1 of the committed build — first vertical slice.** The 2D Phaser prototype (preserved in `legacy-2d/`) proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
+**v0.1 of the committed build — first vertical slice (web).** The 2D Phaser prototype (preserved in `legacy-2d/`) proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
 
 v0.1 scope: one scene template, one ritual variant, one Claude call, hard-coded library, working `steam://run`. Real Steam auth comes at v0.2.
+
+**Immediate next work — v0.5 procedural layout layer.** Move position-picking out of the LLM call and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world (shareable); different profile → different world. LLM now only picks archetypes, metaphor, and role text — not positions. New module lives in `src/procedural/`. Detailed scope and order-of-work for this is tracked in a separate build prompt; see `eval/` once committed.
+
+**Beyond v0.5 (revised trajectory toward Steam launch):**
+
+- **v0.6** — native desktop wrapper (Tauri or Electron — TBD), wallpaper mode rendering, Steamworks SDK for library auth.
+- **v0.7–0.9** — performance hardening, multi-monitor support, idle-mode optimisation, audio integration, share-image / share-video export pipeline, web-viewer (read-only walkable view of shared worlds).
+- **v1.0 — Steam launch.** 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet.
+- **v1.x** — Steam Workshop integration, template authoring tool, friend-comparison feature.
 
 ## Stack
 
 - **Three.js + react-three-fiber + drei** for the 3D scene
 - **@react-three/rapier** for physics (real walking, collision, weight)
-- **Vite + React + TypeScript** for build / dev server
-- **Cloudflare Workers** for the backend (proxies Anthropic + Steam + HLTB + IGDB; keeps all keys server-side)
-- **Anthropic Claude Sonnet** for the world-design call
+- **Vite + React + TypeScript** for build / dev server (web build)
+- **Cloudflare Workers** for the backend (orchestrates all AI providers + Steam + HLTB + IGDB; holds all server-side keys)
+- **Native wrapper TBD** (Tauri or Electron, decision pending) — lands at v0.6. Adds wallpaper rendering + Steamworks SDK integration.
 - **HowLongToBeat** for per-game completion-time data (community endpoint; lands at v0.2)
 - **IGDB** (Twitch credentials) for rich game metadata — genres, themes, perspectives, franchises (lands at v0.3)
-- Asset libraries: **Meshy AI** / **Tripo** for custom hero objects per template (baked at build time, hand-curated); **Kenney 3D**, **Quaternius**, **Poly Pizza** (all CC0) for filler dressing
+
+### Multi-model AI orchestration
+
+The pipeline uses different models for different stages — all orchestrated from the Worker, never directly from the frontend. Each provider is best-of-breed for its stage; they are not interchangeable.
+
+| Stage | Output | Production | Dev iteration |
+|---|---|---|---|
+| 1. Metaphor + casting + role text | Structured JSON (creative + schema) | Claude Opus 4.7 (eval pending — see `eval/`) | Qwen 3 14B via local Ollama, or Claude Sonnet 4.6 |
+| 2. Skyboxes (360° HDR) | HDRI | Blockade Labs Skybox AI | same (template-build time only) |
+| 3. Environment textures + decorative 2D | Image | Midjourney v7 or FLUX 2 Pro (curated, baked) | local FLUX.1 Schnell on the 4070 |
+| 4. Hero 3D objects | GLB mesh | Meshy / Tripo / TRELLIS-2 (curated, baked) | same |
+| 5. Ambient audio + interaction stings | WAV/OGG | Stable Audio 2.5 + ElevenLabs Music (curated, baked) | same |
+| 6. Reveal narration TTS (optional) | Speech audio | ElevenLabs | not used until v0.8+ |
+
+**Stages 2–6 are template-build-time only** — runtime never calls a generative API except Stage 1. Same curation discipline as the existing 3D pipeline: generate 5–10 candidates per asset, hand-pick the survivor, bake to `public/`.
+
+### Asset libraries (CC0 filler)
+
+**Kenney 3D**, **Quaternius**, **Poly Pizza** — bundled under `public/models/` for ground tiles, vegetation, generic clutter. Aesthetic-coherence rule still applies (one library per template).
 
 ## File layout
 
 ```
 SPEC.md              — full design doc (read once for context)
 CLAUDE.md            — this file (day-to-day rules)
+IDEAS.md             — parked alternative directions (not on roadmap)
 package.json         — Three.js + r3f + Vite + React + TS
 index.html           — single page; mounts React into #root
 src/main.tsx         — React entry point
@@ -35,37 +65,34 @@ src/App.tsx          — top-level component
 src/scene/           — react-three-fiber scene composition
 src/scene/archetypes/  — per-archetype components (lighthouse, campfire, cabinet, ...)
 src/scene/rituals/   — diegetic launch/return ritual components
+src/procedural/      — deterministic layout layer (v0.5 — terrain, placement, paths, scatter; seeded by profile)
 src/data/            — hard-coded library, asset URL helpers
-src/ai/              — types for the world manifest + Claude prompt + parsing
+src/ai/              — types for the world manifest + Stage 1 prompt + parsing
 src/api/             — fetch wrappers for the Cloudflare Worker backend
+src/state/           — Zustand store (manifest, layout, player position, ritual state)
 src/types.ts         — shared types
-public/models/       — Kenney/Quaternius .glb files
-worker/              — Cloudflare Worker (proxies Anthropic, Steam Web API, HLTB, IGDB; holds all server-side keys)
+public/models/       — Kenney/Quaternius/curated AI .glb files (per template)
+public/textures/     — baked environment textures + skybox HDRIs (per template)
+public/audio/        — baked ambient beds + interaction stings (per template)
+worker/              — Cloudflare Worker (orchestrates Anthropic, Steam, HLTB, IGDB, audio/image/3D providers; all keys live here)
+eval/                — Stage 1 model eval framework (synthetic profiles, runner, blind comparison UI, results)
+desktop/             — native wrapper (Tauri/Electron) — lands at v0.6
 legacy-2d/           — preserved 2D Phaser prototype (reference, not active)
 ```
 
 ## Conventions
 
-- **Per-game art comes from Steam's CDN.** Use `headerImageUrl(appid)` from `src/data/sampleLibrary.ts`. Never generate or commit per-game artwork. Header images are textured onto the relevant face of each archetype object (the screen of an arcade cabinet, the cover of a book, the photo in a locket).
-- **3D models come from CC0 libraries** (Kenney, Quaternius, Poly Pizza), bundled under `public/models/`. The Claude prompt constrains `model` and `ritual` fields to a whitelist of assets we actually ship — never let the AI pick a model we don't have.
-- **The AI never sees real API keys.** Anthropic + Steam Web API calls are made from the Cloudflare Worker in `worker/`. The frontend talks to the Worker; the Worker talks to upstream APIs. Never embed keys in client code.
-- **Aesthetic coherence over scope creep.** Kenney + Quaternius + Poly Pizza ship in different styles. Pick one style per scene template and stick to it. Mixing assets from different libraries in a single scene looks like a stapled-together asset pack.
-- **Rituals are short — 1.5 to 3 seconds max.** They serve as the loading screen, not a cutscene. The first 80% of the ritual is full-power animation; the last 20% is the moment Steam is actually launching.
-- **Game launching is always `window.location.href = 'steam://run/' + appid`.** Don't try to detect Steam install state — fire and let the browser handle the fallback.
-- **Return-trip detection in the web build = `window.addEventListener('focus', …)`.** A small lie (focus fires for any tab-switch). Accepted through v0.9; properly fixed in the v1.0 Tauri wrapper.
+- **Per-game art = Steam CDN, recognition face only.** Use `headerImageUrl(appid)` from `src/data/sampleLibrary.ts` for the *recognition face* of each archetype (the screen of a cabinet, the cover of a book, the photo in a locket, the light of a lighthouse). The rest of the object — wood grain, stone, glass, surrounding scenery — is normal template-asset territory per the whitelist. The recognition face triggers the "oh I own that" beat; substituting generated art for it weakens that beat. For games without usable Steam CDN art (rare), fall back to a neutral placeholder — don't generate a substitute that could mislead recognition. Same rule applies if non-Steam games (itch.io, GOG) are imported in later versions: user-provided art only on the recognition face.
+- **Template assets — 3D, textures, audio, skyboxes — are baked at template-build time** with strict curation discipline. Pipeline: generate 5–10 candidates per asset via the relevant API (Meshy/Tripo/TRELLIS-2 for 3D, Midjourney/FLUX for 2D, Stable Audio/ElevenLabs for audio, Blockade Labs for skyboxes), hand-curate the survivor, bake into `public/{models,textures,audio}/{template_id}/`. The Stage 1 prompt's whitelists for `model`, `ritual`, `audio_id`, and `skybox_id` only reference shipped survivors — the LLM never picks something we don't have.
+- **All AI calls go through the Worker.** Anthropic, Stable Audio, ElevenLabs, Blockade Labs, Meshy, Midjourney — all keys live in `worker/.dev.vars`. The frontend never holds an API key. The Worker is the single AI orchestration surface; new models are added there, not in `src/`.
+- **Local LLM for dev iteration.** [Ollama](https://ollama.com/) with Qwen 3 14B is the recommended dev-time orchestrator for Stage 1. Set `LLM_PROVIDER=local` in `worker/.dev.vars` and the Worker hits `http://localhost:11434` instead of Anthropic. Useful for prompt iteration and running `eval/` offline. **Never ship local LLM to production** — Stage 1 quality is the magic surface and the local ceiling is meaningfully below frontier.
+- **Aesthetic coherence over scope creep.** Pick one asset-library style per scene template and stick to it. Mixing libraries in a single scene looks like a stapled-together asset pack.
+- **Rituals are short — 1.5 to 3 seconds max.** They serve as the loading screen, not a cutscene. First 80% is full-power animation; last 20% is the moment Steam is actually launching.
+- **Game launching is `window.location.href = 'steam://run/' + appid`** in the web build; the native wrapper (v0.6+) uses Steamworks SDK directly. Don't try to detect Steam install state — fire and let the platform handle the fallback.
+- **Return-trip detection in the web build = `window.addEventListener('focus', …)`.** A small lie (focus fires for any tab-switch). Accepted through v0.5; the native wrapper at v0.6 handles this properly.
+- **Determinism in `src/procedural/`.** All randomness goes through a seeded PRNG. No `Math.random()` in that module. Same profile → same world is a hard requirement — the share-URL contract depends on it.
 - **TypeScript strict mode.** Don't disable strict-mode flags without explicit reason.
-- **WebGL is fine.** The 2D-era CANVAS constraint no longer applies. If Steam CDN textures hit cross-origin issues in WebGL, route them through the Worker as a proxy rather than falling back to Canvas.
-- **State machine in `src/state/`** (Zustand or similar) for world manifest, player position, ritual state. Don't put scene state in component-local `useState` past a trivial size.
-
-## Things to NOT do
-
-- **AI asset generation IS allowed at template-build time** — both 2D (skyboxes, environment textures, decorative 2D, UI textures) and 3D (custom hero objects per scene template). Use Meshy/Tripo for 3D, any standard image-gen API for 2D. Generate 5–10 candidates per asset, hand-curate down to one, bake the survivor into `public/models/{template_id}/` (GLB) or `public/textures/{template_id}/` (PNG/EXR). The template's asset whitelist (passed to the scene-composition Claude call) only includes survivors. **Never call Meshy/Tripo/image-gen APIs at runtime** — assets are baked at template-build time only. See SPEC §12 for the full discipline.
-- **Per-game art is the one exception** — it stays Steam CDN (`headerImageUrl(appid)`), never generated. Steam's published per-game art is already recognisable; a generated alternative weakens the "oh I own that game" beat the rituals depend on.
-- Don't try to extract assets from local Steam game files. Copyrighted, sometimes encrypted, a per-game integration nightmare.
-- Don't put API keys (Anthropic, Steam Web) in the frontend bundle. Always proxy via the Worker.
-- Don't bundle large npm packages (>500KB gzipped) without flagging. Three.js + r3f + drei is the heavy budget; pushing past that should be a conscious call.
-- Don't break the asset whitelist in the Claude prompt. The AI must only pick models and rituals we actually ship; widen the whitelist deliberately, not by editing the prompt to "be more creative."
-- Don't reach into `legacy-2d/`. It's preserved as a reference; not part of the active build. Leave it alone unless we explicitly resurrect a pattern from it.
+- **State machine in `src/state/`** (Zustand) for world manifest, procedural layout, player position, ritual state. Don't put scene state in component-local `useState` past a trivial size.
 
 ## How to run
 
@@ -75,12 +102,45 @@ npm run dev       # frontend, http://localhost:5183 (or auto-fallback)
 npm run worker    # local Cloudflare Worker via wrangler, separate terminal
 ```
 
-Both must be running for the LLM call to work. The frontend without the Worker still renders the scene with a stub manifest (useful while iterating on scene visuals).
+Both must be running for the Stage 1 call to work. The frontend without the Worker still renders the scene with a stub manifest (useful while iterating on scene visuals).
 
 You need Steam installed and running for `steam://run/{appid}` to launch a game; otherwise it's a no-op in the browser.
 
+**Local LLM dev mode (optional, recommended for prompt iteration):**
+
+```
+ollama pull qwen3:14b          # one-time, ~9GB
+ollama serve                    # background daemon at http://localhost:11434
+# Set LLM_PROVIDER=local in worker/.dev.vars
+npm run worker                  # now hits Ollama instead of Anthropic
+```
+
+**Running the Stage 1 eval (when `eval/` lands):**
+
+```
+npm run eval -- --models claude-opus,claude-sonnet,gemini-3-pro,qwen3-14b-local
+# Outputs eval/results/{date}/ — open results.html for blind comparison UI
+```
+
 ## Open inputs needed from Harry
 
-- Anthropic API key (set in `worker/.dev.vars` as `ANTHROPIC_API_KEY`)
-- Steam Web API key (set as `STEAM_WEB_API_KEY`, needed from v0.2)
+- Anthropic API key (`ANTHROPIC_API_KEY` in `worker/.dev.vars`)
+- Steam Web API key (`STEAM_WEB_API_KEY`, from v0.2)
+- Twitch Client ID + Secret for IGDB (`TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, from v0.3)
+- Stable Audio API key (`STABLE_AUDIO_API_KEY`, from v0.5 for audio baking)
+- ElevenLabs API key (`ELEVENLABS_API_KEY`, from v0.5 for short stings)
+- Blockade Labs Skybox API key (`SKYBOX_API_KEY`, from v0.5 for template-build skies)
+- (Optional) Gemini and OpenAI keys if including them in the Stage 1 eval
 - Choice of v0.1 scene template — one of: `seaside_town`, `research_station`, `overgrown_city`, `bookshop`, `forest_grove`
+
+## Things to NOT do
+
+- **Default to template-build-time generation; runtime generative API calls require explicit scoping.** Each runtime AI call introduces cost variance, latency variance, and quality variance that have to be designed for. v0.1–v0.5 has exactly one runtime AI call — Stage 1 (Claude, world manifest). Premium-tier features in later versions (custom-prompt remix, narrated reveal, annual moments, on-demand template variations) may add scoped runtime calls — but each one requires its own entry in this file documenting cost model, caching strategy, and fallback before shipping. The principle: don't add runtime AI on instinct or convenience; add it on design.
+- **Don't ship local LLM to production.** Local is for dev iteration only. The Stage 1 quality ceiling on a 12GB-VRAM-class model is meaningfully below frontier; the role text is the magic surface.
+- **Don't conflate the AI stages.** The Stage 1 LLM (Claude) doesn't generate audio, images, or 3D meshes. Each stage has its own specialist model called from the Worker. If a feature seems to need image/audio/3D generation at runtime, it's wrong — push it to template-build time or rework the feature.
+- Don't try to extract assets from local Steam game files. Copyrighted, sometimes encrypted, a per-game integration nightmare.
+- Don't put any API key in the frontend bundle. Always proxy via the Worker.
+- Don't bundle large npm packages (>500KB gzipped) into the web build without flagging — the web viewer (share surface) is bandwidth-sensitive. Three.js + r3f + drei is the heavy budget. The native wrapper (v0.6+) has more headroom, but the web bundle still ships and the constraint applies there.
+- Don't break the asset whitelist in the Stage 1 prompt. The LLM must only pick models, rituals, audio, and skyboxes we actually ship; widen the whitelist deliberately, not by editing the prompt to "be more creative."
+- Don't reach into `legacy-2d/`. It's preserved as a reference; not part of the active build. Leave it alone unless we explicitly resurrect a pattern from it.
+- Don't add `Math.random()` anywhere in `src/procedural/`. Determinism is the share-URL contract.
