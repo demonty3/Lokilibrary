@@ -1,0 +1,20 @@
+name = "libraryworld-worker"
+main = "index.ts"
+compatibility_date = "2026-05-01"
+
+# Local dev: `npm run worker` starts wrangler on :8787.
+# Secrets and provider config live in worker/.dev.vars (gitignored).
+#
+# Required for production:
+#   ANTHROPIC_API_KEY = "sk-ant-..."
+#   LLM_PROVIDER       = "anthropic"   # or "local" for Ollama (dev only)
+#
+# Optional local-dev:
+#   OLLAMA_URL   = "http://localhost:11434"
+#   OLLAMA_MODEL = "qwen3:14b"
+
+[dev]
+port = 8787
+
+# KV namespace for manifest cache lands at v0.2 (per PLAN.md 1.8). For v0.1 the
+# worker is stateless — every page load makes a fresh Stage 1 call.
