@@ -28,12 +28,19 @@ interface AppState {
   manifestError: string | null;
   loadManifest: () => Promise<void>;
 
-  /** Active ritual, if any. Drives the launch animation + steam://run dispatch. */
+  /** Active launch ritual — the 1.8s pre-launch animation, set when the
+   *  player presses E. Cleared when steam://run fires. */
   activeRitual: ActiveRitual | null;
   startRitual: (r: ActiveRitual) => void;
   clearRitual: () => void;
 
-  /** Has the player returned from a launched game (focus event fired)? */
+  /** True between steam://run firing and the tab regaining focus. The window
+   *  is presumed gone in this window of time. */
+  inFlight: boolean;
+  setInFlight: (v: boolean) => void;
+
+  /** Brief return animation flag — toggled on by the focus handler when
+   *  inFlight, cleared after a short tween. */
   returnPending: boolean;
   markReturnPending: () => void;
   clearReturn: () => void;
@@ -74,10 +81,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   activeRitual: null,
   startRitual: (r) => {
-    if (get().activeRitual) return;
-    set({ activeRitual: r });
+    if (get().activeRitual || get().inFlight) return;
+    set({ activeRitual: r, prompt: null });
   },
   clearRitual: () => set({ activeRitual: null }),
+
+  inFlight: false,
+  setInFlight: (v) => set({ inFlight: v }),
 
   returnPending: false,
   markReturnPending: () => set({ returnPending: true }),
