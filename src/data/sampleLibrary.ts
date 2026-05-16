@@ -1,9 +1,9 @@
 import type { GameEntry } from '../types';
 
 /**
- * Hard-coded sample library for v0.1 of the committed build. Same 7 games as the
- * 2D prototype. Replaced by a real Steam Web API library fetch at v0.2.
- * appids are real Steam app IDs so header.jpg loads from Steam's CDN.
+ * Hard-coded sample library for v0.1 of the committed build. Replaced by a real
+ * Steam Web API library fetch at v0.2. appids are real Steam app IDs so
+ * header.jpg loads from Steam's CDN.
  */
 export const SAMPLE_LIBRARY: GameEntry[] = [
   { appid: 1145360, name: 'Hades',           ritualColor: '#7a1f1f' },

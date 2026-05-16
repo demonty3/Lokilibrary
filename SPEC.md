@@ -2,7 +2,9 @@
 
 **One-line pitch:** A small inhabitable 3D world that *is* your Steam library. The world is AI-generated from a behavioral profile of how you actually play — not from genre tags. Games are launched diegetically by interacting with objects in the world; the launch animation *is* the loading screen.
 
-**Status (2026-05-12):** Committed project, post-pivot. The 2D Phaser prototype (`legacy-2d/`) is preserved as a reference for the ritual flow and the Steam-CDN texture trick. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber.
+**Status (2026-05-16):** Committed project, post-pivot, with a revised product direction. An earlier 2D Phaser prototype was retired after walking it made clear the LLM-personalisation layer, not the rendering medium, was the missing piece. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber.
+
+**Product direction (revised 2026-05-16):** the destination is a Steam-distributed desktop utility — one-time purchase (~$7–10), distributed via Steam, lives as a live wallpaper / alt-tab destination, walkable in full-screen explore mode, launcher when you want it. The web version (current build) becomes the public-share surface (anyone can view a shared world URL in their browser; making your own requires the Steam app). Steam Workshop for community-built templates is the post-v1.0 long-term moat. The roadmap in §10 reflects this revision; §2.2 (Platform) and §6 (Tech stack) are revised accordingly.
 
 ---
 
@@ -24,15 +26,20 @@ It should feel like the start screen to a JRPG that knows you.
 
 ### 2.1 Dimensionality → **3D, low-poly (Three.js + react-three-fiber)**
 
-Decided 2026-05-12 after walking the 2D pixel-art prototype and finding that, even fully polished, the 2D medium couldn't deliver "visually striking" without art investment we don't have. The 2D scaffold remains in `legacy-2d/` as a reference; the new build is 3D from the ground up.
+Decided 2026-05-12 after walking the 2D pixel-art prototype and finding that, even fully polished, the 2D medium couldn't deliver "visually striking" without art investment we don't have. The 2D scaffold has been retired; the new build is 3D from the ground up.
 
 Reference aesthetic: *A Short Hike*, *Alba*, *Townscaper*. Striking on a tiny budget because the medium does most of the heavy lifting — low-poly tolerates rough geometry; lighting, palette, and silhouette do the work. See §12 (Art direction) for how that quality bar actually gets met.
 
-### 2.2 Platform → **Web app first; Tauri desktop wrapper at v1.0**
+### 2.2 Platform → **Web for share; native desktop app for the real product (Steam-distributed at v1.0)**
 
-Web app is the right primitive for shareability — "send your library world to a friend" is one of the things that makes this project worth doing. `steam://run/{appid}` works from any web page on a machine with Steam installed. The Tauri desktop wrapper at v1.0 fixes one real limitation: proper return-trip detection (the browser only knows you tab-focused, not that you quit Steam).
+Two surfaces, two jobs.
 
-### 2.3 AI approach → **Claude picks the organising metaphor; Steam's CDN art skins the objects**
+- **Web build** — the public share surface. Anyone with a shared world URL can walk through someone else's library world in their browser, no install. `steam://run/{appid}` works from any web page on a machine with Steam installed, so the web build can still launch games when run by the owner. The web viewer caps at "read-only walkable" past v1.0 — generating *your own* world requires the desktop app.
+- **Native desktop app** — the real product. Lands at v0.6 as a wrapper (Tauri or Electron — decision pending; Tauri is lighter, Electron has the more mature wallpaper/multi-monitor story). Adds three things the browser structurally can't: live-wallpaper rendering behind the OS, multi-monitor + idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without Steam OpenID round-trips, eventual Steam Workshop hooks). v1.0 ships the desktop app on Steam as a one-time ~$7–10 purchase.
+
+The web build is therefore a permanent first-class surface, not a stepping stone. It's the share artifact and the demo; the desktop app is what people buy.
+
+### 2.3 AI approach → **Claude picks the metaphor and casting; procedural code picks positions; Steam's CDN art skins the recognition face**
 
 The LLM piece is no longer deferred — it's the core of v0.1. Walking the polished 2D prototype made clear that without this layer there's nothing personal to test; the rendering medium is downstream of the LLM piece, not upstream of it.
 
@@ -40,58 +47,60 @@ The pipeline:
 
 1. **Behavioral profile build (deterministic).** From `GetOwnedGames` + `GetRecentlyPlayedGames` + `GetPlayerAchievements`, enriched with HowLongToBeat completion times and IGDB metadata, compute: completion *fraction* per game (Steam playtime ÷ HLTB main-story hours), top-N by playtime, last-played decay, binge ratio, session pattern (where available), achievement-chase tendency, and a genre/theme/perspective summary per game. The HLTB cross-reference is what separates "lived in" from "tutorial abandoned" — 210h Civ VI is *well past* the 33h main story; 1.5h Hollow Knight is *still on the first boss*. Steam's playtime alone can't tell you that.
 2. **Organising metaphor (Claude).** Given the profile, pick *one* metaphor for the whole world (e.g. "haunted seaside town," "research station," "overgrown city," "bookshop you live above"). Justify briefly.
-3. **Per-game casting (Claude, same call).** Each top-N game gets cast as an archetype in that metaphor's vocabulary. Hades in a research station = a contained experiment that keeps resetting. Hades in a haunted seaside town = the lighthouse that keeps relighting itself. IGDB's genre + theme summary helps Claude cast intelligently rather than guessing from the name.
-4. **State tagging (deterministic).** Each object gets a state: `loved`, `recent`, `mastered`, `abandoned`, `dusty`. Drives visual treatment.
-5. **Texturing.** Each game-object's "face" — the screen of an arcade cabinet, the cover of a book, the photo in a locket — uses Steam's published `header.jpg` (per-game art is never AI-generated; see §12). Environment textures and decorative 2D are AI-generated and baked at template-build time.
+3. **Per-game casting (Claude, same call).** Each top-N game gets cast as an archetype in that metaphor's vocabulary, with a short role text. Hades in a research station = a contained experiment that keeps resetting. Hades in a haunted seaside town = the lighthouse that keeps relighting itself. IGDB's genre + theme summary helps Claude cast intelligently rather than guessing from the name.
+4. **Procedural layout (deterministic, v0.5+).** Position-picking is *not* an LLM job — a seeded procedural layer in `src/procedural/` takes the behavioral profile as the seed and places each archetype on the chosen scene template (terrain, placement, paths, scatter). Same profile → same world is a hard requirement; the share-URL contract depends on it. Through v0.4 the LLM picks positions too; from v0.5 the LLM only picks archetype, metaphor, and role text. See §10 for the v0.5 cutover.
+5. **State tagging (deterministic).** Each object gets a state: `loved`, `recent`, `mastered`, `abandoned`, `dusty`. Drives visual treatment.
+6. **Texturing.** Each game-object's *recognition face* — the screen of an arcade cabinet, the cover of a book, the photo in a locket, the light of a lighthouse — uses Steam's published `header.jpg`. The rest of the object (wood grain, stone, glass, surrounding scenery) is normal template-asset territory per the whitelist. Per-game art is never AI-generated for the recognition face; see §12.
 
-Cost ceiling: ~one Claude call per regenerate. Plus HLTB + IGDB lookups (free), cached aggressively by appid. Sub-cent per user.
+**Model choice (production):** Claude Opus 4.7 is the working pick for Stage 1, pending the eval framework in `eval/`. **Dev iteration:** Qwen 3 14B via local [Ollama](https://ollama.com/) (`LLM_PROVIDER=local` in `worker/.dev.vars`, Worker hits `http://localhost:11434`). Local LLM is for prompt iteration and offline eval runs only — never ships to production; the Stage 1 quality ceiling on a 12GB-VRAM-class model is meaningfully below frontier and role text is the magic surface.
+
+Cost ceiling: one Claude call per regenerate at runtime. Plus HLTB + IGDB lookups (free), cached aggressively by appid. Sub-cent per user. Template assets (skyboxes, environment textures, hero 3D, audio) are paid for once at template-build time and shipped as static files — see §12 and the multi-stage table in §6.
 
 ---
 
 ## 3. Architecture
 
 ```
-┌────────────────────────┐
-│  Browser (3D app)      │
-│  Three.js + r3f scene  │
-│  Rapier physics        │
-│  Diegetic rituals      │
-└────────┬───────────────┘
-         │ steam://run/<appid>   ← launches games
+┌──────────────────────────────┐        ┌──────────────────────────────┐
+│  Web client OR desktop app   │        │  Template-build pipeline     │
+│  (Three.js + r3f + Rapier)   │        │  (offline, curated, baked)   │
+│  - Procedural layout (v0.5+) │        │  - Stage 2: Blockade Labs    │
+│  - Diegetic rituals          │        │  - Stage 3: Midjourney/FLUX  │
+│  - steam://run or Steamworks │        │  - Stage 4: Meshy/Tripo/     │
+└────────┬─────────────────────┘        │             TRELLIS-2        │
+         │ HTTPS                        │  - Stage 5: Stable Audio +   │
+         ▼                              │             ElevenLabs       │
+┌──────────────────────────────┐        │  Hand-curated survivors      │
+│  Backend (Cloudflare Worker) │        │  baked to public/{models,    │
+│  - Steam OpenID              │        │  textures,audio}/{template}  │
+│  - Profile build             │        └──────────────────────────────┘
+│  - HLTB / IGDB enrichment    │        Stages 2–6 NEVER run at runtime.
+│  - Stage 1 LLM orchestration │
+│  - Holds every server key    │
+└────────┬─────────────────────┘
          │
-         ▼ (HTTPS)
-┌────────────────────────┐    ┌─────────────────────┐
-│  Backend (Cloudflare   │ ─▶ │ Steam Web API       │
-│  Worker)               │    │ (library, recency,  │
-│  - Steam OpenID        │    │  achievements)      │
-│  - Profile build       │    └─────────────────────┘
-│  - HLTB lookup         │    ┌─────────────────────┐
-│  - IGDB enrichment     │ ─▶ │ HowLongToBeat       │
-│  - Claude proxy        │    │ (per-game finish)   │
-│  (all API keys live    │    └─────────────────────┘
-│   server-side)         │    ┌─────────────────────┐
-└────────┬───────────────┘ ─▶ │ IGDB (Twitch)       │
-         │                    │ (rich metadata)     │
-         ▼                    └─────────────────────┘
-┌────────────────────────┐
-│  Anthropic API         │
-│  Claude Sonnet         │
-│  metaphor + casting    │
-└────────────────────────┘
+         ├─▶ Steam Web API     (library, recency, achievements)
+         ├─▶ HowLongToBeat     (per-game completion hours, cached)
+         ├─▶ IGDB (Twitch)     (rich metadata, cached)
+         └─▶ Anthropic API     (Stage 1: Claude Opus 4.7 — metaphor, casting,
+                                role text. Switchable to local Ollama in dev.)
 ```
 
 **Data flow on first load:**
 
-1. User signs in with Steam OpenID → backend gets `steamid64`.
+1. User signs in (Steam OpenID in the web build; Steamworks SDK in the desktop app from v0.6) → backend gets `steamid64`.
 2. Backend calls Steam Web API for owned games, recent activity, achievements.
 3. Backend enriches: for each top-N game, fetch HLTB completion times and IGDB metadata. Cache by appid; these rarely change.
 4. Backend builds the *behavioral profile* deterministically from the combined dataset.
-5. Backend sends profile + enriched top-N games to Claude. Claude returns a `world_manifest`: organising metaphor, atmosphere, object archetypes, game-to-object mapping with per-object role.
+5. Backend calls **Stage 1 LLM** (Claude Opus 4.7 in production, optional local Qwen 3 14B via Ollama in dev) with profile + enriched top-N games. Returns a `world_manifest`: organising metaphor, atmosphere, scene_template, object archetypes, game-to-object mapping with per-object role text. Positions are *not* in the manifest from v0.5 onward.
 6. Backend tags each object with a `state`.
-7. Browser fetches the manifest, loads Three.js, fetches low-poly models from our static asset host, fetches game header images directly from Steam's CDN, builds the scene.
-8. User explores with WASD + mouse (PointerLockControls). Rapier physics handles collision and weight. Interacting with an object triggers the per-archetype diegetic ritual, then fires `steam://run/{appid}`.
+7. Client receives the manifest. From v0.5 the client runs the **procedural layout** layer (`src/procedural/`) — seeded by the behavioral profile, deterministic — to place each archetype on the template. Same profile → same world.
+8. Client loads Three.js, fetches baked template assets (models, textures, audio, skybox HDRI) from `public/`, fetches each game's `header.jpg` from Steam's CDN, builds the scene.
+9. User explores with WASD + mouse (PointerLockControls). Rapier physics handles collision and weight. Interacting with an object triggers the per-archetype diegetic ritual, then fires `steam://run/{appid}` (web) or the Steamworks-SDK launch path (desktop app, v0.6+).
 
-**Re-visit flow:** manifest cached server-side, TTL ~24h. HLTB + IGDB lookups cached separately (per-appid, TTL ~30 days). "Regenerate world" button forces a fresh Claude call.
+**Re-visit flow:** manifest cached server-side, TTL ~24h. HLTB + IGDB lookups cached separately (per-appid, TTL ~30 days). Procedural layout is recomputed client-side from the cached profile seed — no extra call. "Regenerate world" button forces a fresh Stage 1 call.
+
+**Share-URL flow:** a shared world URL encodes the profile seed + manifest. Any browser can open it via the web viewer and walk through the world (read-only — they can't launch the owner's games). Determinism in `src/procedural/` is what makes this work: same profile encodes to the same world for the viewer. First share artifacts (URL + image) ship at v0.5 alongside the procedural layer; the read-only walkable web viewer hardens through v0.7–0.9 and goes public at v1.0.
 
 ---
 
@@ -129,7 +138,7 @@ A starter library of rituals, mapped to archetypes:
 
 Rituals are *short* — 1.5 to 3 seconds — and reuse common animation primitives. The starter library is enough through v0.5; per-game custom rituals come later.
 
-**Return-trip detection.** In the web build, when the browser tab regains focus after `steam://run/` fired, *assume* a return and play the return animation. Good enough early on; the Tauri wrapper at v1.0 fixes it properly.
+**Return-trip detection.** In the web build, when the browser tab regains focus after `steam://run/` fired, *assume* a return and play the return animation. Good enough through v0.5; the v0.6 desktop wrapper uses the Steamworks SDK to detect the actual quit-and-return and fires the animation accurately.
 
 ---
 
@@ -141,17 +150,36 @@ Rituals are *short* — 1.5 to 3 seconds — and reuse common animation primitiv
 | 3D bindings | **react-three-fiber** + **drei** | Declarative scene composition; trivial to compose rituals; massive helper library |
 | Physics | **@react-three/rapier** | Canonical r3f physics integration. Real walking and collision rather than vector math by hand. WASM-backed, fast, free. |
 | Build / dev server | **Vite + React + TypeScript** | Fast HMR; React composes well with r3f |
-| Asset library (3D models) | **Kenney 3D** + **Quaternius** + **Poly Pizza** (all CC0) | Free libraries for prototyping; paid/custom assets become an option past v0.4 — see §12 |
-| Asset library (per-game art) | **Steam CDN** (`header.jpg`, library_hero, trading cards) | Already-published, hotlinkable, recognisable per-game art |
+| Procedural layout (v0.5+) | **In-house `src/procedural/`** with a seeded PRNG | Determinism is the share-URL contract; no `Math.random()` in this module |
+| Asset library (3D filler) | **Kenney 3D** + **Quaternius** + **Poly Pizza** (all CC0) | Ground tiles, vegetation, generic clutter; one library per template (aesthetic coherence) |
+| Asset library (per-game art, recognition face) | **Steam CDN** (`header.jpg`, library_hero, trading cards) | Already-published, hotlinkable, recognisable per-game art; never AI-generated |
 | Controls | r3f `PointerLockControls` for WASD + mouse | "Walk around" feel is core to the spatial-self-portrait pitch |
-| Backend | **Cloudflare Workers** | All API keys (Anthropic, Steam Web, Twitch/IGDB) stay server-side; free tier is plenty at this scale |
-| Auth | **Steam OpenID 2.0** | Standard; no API key from the user |
+| Backend | **Cloudflare Workers** | Single orchestration surface for every AI provider + Steam + HLTB + IGDB; all keys server-side; free tier is plenty at this scale |
+| Auth | **Steam OpenID 2.0** (web) / **Steamworks SDK** (desktop, v0.6+) | Standard for web; Steamworks for the desktop app skips the round-trip and gives proper launch/return signals |
 | Completion-time data | **HowLongToBeat** (community-reverse-engineered JSON endpoint) | Crossed against Steam playtime gives a *completion fraction* — the signal that separates "lived in" from "tutorial abandoned" |
-| Game metadata | **IGDB** (via Twitch developer credentials) | Richer than Steam: genres, themes, perspectives, franchises, narrative. Helps Claude cast each game into the metaphor intelligently. |
-| AI | **Claude Sonnet** via Anthropic API, structured JSON output | Strong at structured creative-with-constraints tasks |
-| Hosting | **Cloudflare Pages** (frontend) + **Workers** (backend) | Same platform; zero-ops; generous free tier |
-| State | Worker-issued JWT, manifest cached in Cloudflare KV | Avoid re-pulling library every visit |
-| Desktop wrapper (v1.0+) | **Tauri** | Rust+web hybrid; much lighter than Electron; real OS integration for return-trip detection |
+| Game metadata | **IGDB** (via Twitch developer credentials) | Richer than Steam: genres, themes, perspectives, franchises, narrative. Helps Stage 1 cast each game into the metaphor intelligently. |
+| Hosting | **Cloudflare Pages** (web frontend + viewer) + **Workers** (backend) | Same platform; zero-ops; generous free tier |
+| State (server) | Worker-issued JWT, manifest cached in Cloudflare KV | Avoid re-pulling library every visit |
+| State (client) | **Zustand** in `src/state/` | World manifest, procedural layout, player position, ritual state |
+| Native wrapper (v0.6+) | **Tauri OR Electron — TBD** | Tauri is lighter (Rust + webview); Electron has the more mature wallpaper/multi-monitor story. Decision pending; lands at v0.6 along with Steamworks SDK and wallpaper rendering. |
+| Distribution (v1.0) | **Steam** — one-time ~$7–10 purchase | The real product. Steam Workshop integration for community templates is the post-v1.0 moat. |
+
+### 6.1 Multi-model AI orchestration
+
+The pipeline uses different models for different stages — all orchestrated from the Worker, never directly from the frontend. Each provider is best-of-breed for its stage; they are not interchangeable.
+
+| Stage | Output | Production | Dev iteration |
+|---|---|---|---|
+| 1. Metaphor + casting + role text | Structured JSON (creative + schema) | Claude Opus 4.7 (eval pending — see `eval/`) | Qwen 3 14B via local Ollama, or Claude Sonnet 4.6 |
+| 2. Skyboxes (360° HDR) | HDRI | Blockade Labs Skybox AI | same (template-build time only) |
+| 3. Environment textures + decorative 2D | Image | Midjourney v7 or FLUX 2 Pro (curated, baked) | local FLUX.1 Schnell on the 4070 |
+| 4. Hero 3D objects | GLB mesh | Meshy / Tripo / TRELLIS-2 (curated, baked) | same |
+| 5. Ambient audio + interaction stings | WAV/OGG | Stable Audio 2.5 + ElevenLabs Music (curated, baked) | same |
+| 6. Reveal narration TTS (optional) | Speech audio | ElevenLabs | not used until v0.8+ |
+
+**Stage 1 is the only runtime AI call** in v0.1–v0.5. Stages 2–6 are template-build-time only, with the same curation discipline: generate 5–10 candidates per asset, hand-pick the survivor, bake into `public/{models,textures,audio}/{template_id}/`. The Stage 1 prompt's whitelists for `model`, `ritual`, `audio_id`, and `skybox_id` only reference shipped survivors — the LLM never picks something we don't have.
+
+Premium-tier features in later versions (custom-prompt remix, narrated reveal, annual moments, on-demand template variations) may add scoped runtime calls — but each one requires its own design entry documenting cost model, caching strategy, and fallback before shipping.
 
 ---
 
@@ -251,19 +279,23 @@ The core Claude call. Profile + enriched top-N games go in; world manifest comes
 >   "metaphor_rationale": "<one sentence on why this profile fits this metaphor>",
 >   "atmosphere": { "time_of_day": "...", "weather": "...", "palette": ["#hex", ...] },
 >   "scene_template": "<one of: seaside_town | research_station | overgrown_city | bookshop | forest_grove>",
+>   "skybox_id": "<one of the shipped survivors for this template>",
+>   "audio_id":  "<one of the shipped ambient beds for this template>",
 >   "object_archetypes": [
->     { "id": "lighthouse", "model": "kenney/lighthouse", "ritual": "lantern" },
+>     { "id": "lighthouse", "model": "seaside_town/lighthouse_v3", "ritual": "lantern" },
 >     ...
 >   ],
 >   "scene_layout": [
->     { "archetype_id": "lighthouse", "appid": 1145360, "role": "the lighthouse that keeps relighting itself", "position": [x,y,z] },
+>     { "archetype_id": "lighthouse", "appid": 1145360, "role": "the lighthouse that keeps relighting itself" },
 >     ...
 >   ],
->   "backlog_treatment": { "container": "crates_under_tarp", "position": [x,y,z] }
+>   "backlog_treatment": { "container": "crates_under_tarp" }
 > }
 > ```
 
-`scene_template`, `model`, and `ritual` are constrained to whitelists of assets and rituals we actually ship. This is how we keep the AI's creativity bounded by what we can render.
+`scene_template`, `model`, `ritual`, `skybox_id`, and `audio_id` are constrained to whitelists of survivors we actually ship. This is how we keep the AI's creativity bounded by what we can render.
+
+**Positions are not in the manifest from v0.5 onward.** The Stage 1 LLM picks archetype, metaphor, role text, and the asset IDs from each whitelist — nothing else. The deterministic procedural layer in `src/procedural/` takes the behavioral profile as seed and assigns each archetype a position on the chosen template (terrain, placement, paths, scatter). Same profile → same world is the share-URL contract; LLM-picked positions would break it.
 
 ---
 
@@ -273,7 +305,7 @@ The goal of v0.1 is the smallest *end-to-end committed-build slice* that exercis
 
 Concretely:
 
-1. Vite + React + react-three-fiber + drei + **@react-three/rapier** + TypeScript scaffold at the repo root (legacy Phaser scaffold moved into `legacy-2d/`).
+1. Vite + React + react-three-fiber + drei + **@react-three/rapier** + TypeScript scaffold at the repo root.
 2. One scene template — `seaside_town` — built by hand with **hero objects generated via Meshy or Tripo** (lighthouse, fish market, detective's office, harbour-master's hut, a few lit fishing boats — one coherent prompt suffix, hand-curated). Filler / ground tiles can come from Kenney coastal pack to keep budget in check. drei `Environment` HDRI for dusk lighting, real-time shadows on the hero objects, `EffectComposer` with bloom + ACES + atmospheric fog. The visual bar is exercised in v0.1, not deferred.
 3. Hard-coded library (the same 7-game list from the 2D prototype) and a hard-coded behavioral profile. *No Steam API call, no HLTB call, no IGDB call yet — those land in v0.2+.*
 4. One Claude call (via a Cloudflare Worker proxy) given the profile, returning the world manifest. The first version can map 7 archetypes 1:1 onto 7 games; intelligence comes later.
@@ -288,32 +320,36 @@ If that lands, v0.2 onwards is layering. If it doesn't land — meaning the 3D +
 
 ## 10. Roadmap
 
-Each version is roughly a week or two of evenings.
+Each version is roughly a week or two of evenings. The roadmap below reflects the 2026-05-16 revision toward a Steam-distributed desktop product; the share-URL feature (formerly v0.6) is now a v0.5+ build-out that depends on procedural determinism, and the desktop wrapper moves up to v0.6 as the real distribution surface.
 
-- **v0.1** — first vertical slice (above). One template, one ritual, one Claude call, hard-coded library, Rapier physics, working `steam://run`.
+- **v0.1** — first vertical slice (above). One template, one ritual, one Stage 1 call, hard-coded library, Rapier physics, working `steam://run` in the web build.
 - **v0.2** — Real Steam OpenID login + real `GetOwnedGames` fetch. HLTB enrichment lands here too — completion fraction starts feeding the state-tagging logic.
-- **v0.3** — IGDB enrichment + multiple scene templates (3–5 hand-built); Claude picks one based on the profile + metadata. Multiple object archetypes per template.
-- **v0.4** — Library-state visual treatment (loved / recent / mastered / abandoned / dusty). Same archetype rendered differently based on state.
-- **v0.5** — Full ritual library — at least 5 ritual variants, mapped from archetypes. Per-game custom rituals for top-played titles.
-- **v0.6** — Shareable world URLs (friends can walk through your world, can't launch your games).
-- **v0.7** — Mobile fallback (probably just a 2D grid view; mobile WebGL is too risky to commit to).
-- **v1.0** — Tauri desktop wrapper. Proper return-trip detection. Real "behind the OS" presence.
-- **Later** — Friend visiting (multiplayer presence). Per-game custom rituals at scale. Controller support. VR mode (cool, not v1).
+- **v0.3** — IGDB enrichment + multiple scene templates (3–5 hand-built, each with its own ritual variant); Stage 1 picks one based on the profile + metadata.
+- **v0.4** — Library-state visual treatment (`loved` / `recent` / `mastered` / `abandoned` / `dusty`). Same archetype rendered differently based on state.
+- **v0.5** — **Procedural layout layer.** Move position-picking out of the Stage 1 call into `src/procedural/`, seeded by the behavioral profile. LLM now picks only archetype, metaphor, role text, and whitelisted asset IDs. Unlocks the share-URL contract: same profile → same world. First public share artifacts (URL + image) ship here. Audio integration (Stage 5 baked assets) also lands so worlds have ambient beds and interaction stings.
+- **v0.6** — **Native desktop wrapper** (Tauri or Electron — decision pending). Adds live-wallpaper rendering behind the OS, multi-monitor support, idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without OpenID round-trips). This is the surface that becomes the v1.0 product.
+- **v0.7–0.9** — Performance hardening, multi-monitor polish, idle-mode optimisation, share-image / share-video export pipeline, web-viewer (read-only walkable view of shared worlds), per-game custom rituals for top-played titles, more ritual variants. Optional Stage 6 (ElevenLabs reveal narration) lands here as a premium toggle.
+- **v1.0 — Steam launch.** Desktop app shipped on Steam as a one-time ~$7–10 purchase. 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet.
+- **v1.x** — Steam Workshop integration (community-built templates — the long-term moat), template authoring tool, friend-comparison feature.
+- **Later** — Friend visiting (multiplayer presence). Controller support. VR mode (cool, not v1).
 
 ---
 
 ## 11. Open questions / risks
 
-- **Steam ToS.** Reading public library data with the user's OpenID + Steam Web API is squarely within ToS. Worth a final sanity check before public launch.
+- **Steam ToS.** Reading public library data with the user's OpenID + Steam Web API is squarely within ToS. Worth a final sanity check before public launch. Steam *distribution* (one-time-purchase desktop app from v1.0) brings its own review and revenue-share terms — surface those before v0.6.
 - **HLTB API is unofficial.** Reverse-engineered endpoint; could break if HLTB changes their internals. Cache aggressively (per-game data changes rarely) and fall back gracefully to playtime-only signals if it 503s. Don't let an HLTB outage break the world generation.
 - **IGDB rate limits.** Free tier is 4 requests/sec, plenty for normal use. Cache per-appid aggressively (TTL ~30 days). Batch where the API allows.
-- **`steam://` browser warnings.** Firefox sometimes confirms protocol handlers. Plan for an inline explanation.
-- **Large libraries.** A 2000-game library won't fit in one scene. Claude picks a top-N; long tail goes into the "dusty crates" backlog treatment.
+- **`steam://` browser warnings.** Firefox sometimes confirms protocol handlers. Plan for an inline explanation. Moot in the v0.6+ desktop app (Steamworks SDK launches directly).
+- **Large libraries.** A 2000-game library won't fit in one scene. Stage 1 picks a top-N; long tail goes into the "dusty crates" backlog treatment.
 - **NSFW artwork in headers.** Filter or fallback to family-friendly capsule.
-- **Performance.** ~50 textured low-poly objects in Three.js is fine on desktop, sketchy on low-end mobile. Plan for instancing and LOD; mobile gets a 2D grid fallback.
+- **Performance.** ~50 textured low-poly objects in Three.js is fine on desktop. The web bundle is bandwidth-sensitive (it's the share surface) — Three.js + r3f + drei is the heavy budget; flag anything >500KB gzipped. The native wrapper (v0.6+) has more headroom but the web bundle still ships and the constraint applies there.
+- **Native wrapper choice (Tauri vs. Electron).** Decision pending at v0.6. Tauri is lighter and feels right for a graphics-heavy app, but Electron has the more mature multi-monitor + live-wallpaper story and the larger pool of working examples. Spike both before committing.
 - **Rapier WASM size.** ~250KB gzipped — within budget but worth noting as the biggest single dep after Three.js.
-- **Cost.** ~1 Claude call per regenerate at runtime. HLTB + IGDB free. AI image-gen + 3D-gen are template-build costs paid once (a few dollars per template). Runtime cost stays sub-cent per user.
-- **The return-trip lie.** In the web build, we infer return from tab-focus. Acceptable through v0.9; properly fixed in the Tauri wrapper.
+- **Cost.** One Stage 1 LLM call per regenerate at runtime. HLTB + IGDB free. Stages 2–6 (skybox / texture / 3D / audio / TTS) are template-build costs paid once per template — bounded, sub-$50 per template at retail rates. Runtime cost stays sub-cent per user.
+- **Local LLM ceiling.** Qwen 3 14B is fine for prompt iteration but ships below frontier on Stage 1 quality. Production must stay on a frontier model; never default `LLM_PROVIDER=local` in any deployed Worker.
+- **Procedural determinism.** Any `Math.random()` in `src/procedural/` silently breaks the share-URL contract. Lint or test-enforced. PRNG must be seeded from a stable hash of the behavioral profile.
+- **The return-trip lie.** In the web build, we infer return from tab-focus. Acceptable through v0.5; the v0.6 desktop wrapper (Steamworks SDK) fixes it properly.
 
 ---
 
@@ -348,9 +384,17 @@ The principle stays: visual quality is craft (curation + lighting + composition 
 
 ## 13. What's needed to keep building
 
-1. **Anthropic API key.** Free to create at console.anthropic.com. Required before the LLM piece can do anything real. Set in `worker/.dev.vars` as `ANTHROPIC_API_KEY`.
+All keys live in `worker/.dev.vars` — the Worker is the single AI orchestration surface; the frontend never holds an API key.
+
+1. **Anthropic API key.** Free to create at console.anthropic.com. Required before Stage 1 can do anything real. Set as `ANTHROPIC_API_KEY`.
 2. **Steam Web API key.** Free at https://steamcommunity.com/dev/apikey. Needed from v0.2 onwards. Set as `STEAM_WEB_API_KEY`.
 3. **Twitch developer credentials** (Client ID + Client Secret) for IGDB. Free at dev.twitch.tv. Needed from v0.3 onwards. Set as `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`.
-4. **Cloudflare account** for Workers + Pages + KV. Free tier is plenty.
-5. **Harry's Steam ID** for the dev loop and permission to use his library as the first real test case.
-6. **A scene-template aesthetic to start with.** Pick one of: `seaside_town`, `research_station`, `overgrown_city`, `bookshop`, `forest_grove` — whichever feels most evocative as the v0.1 single template.
+4. **Stable Audio API key.** Needed from v0.5 for Stage 5 audio baking. Set as `STABLE_AUDIO_API_KEY`.
+5. **ElevenLabs API key.** Needed from v0.5 for short interaction stings; reused for optional reveal narration at v0.8+. Set as `ELEVENLABS_API_KEY`.
+6. **Blockade Labs Skybox API key.** Needed from v0.5 for Stage 2 template-build skies. Set as `SKYBOX_API_KEY`.
+7. **(Optional) Gemini / OpenAI keys** if including them in the Stage 1 eval (`eval/`). Production stays on Claude Opus 4.7 unless the eval flips that.
+8. **(Optional, dev) Ollama running locally** with `qwen3:14b` pulled. Set `LLM_PROVIDER=local` in `worker/.dev.vars` to route Stage 1 to `http://localhost:11434` instead of Anthropic. Never ship to production.
+9. **Cloudflare account** for Workers + Pages + KV. Free tier is plenty.
+10. **Steamworks partner account** (lands with v0.6 work) — required for the desktop app's Steamworks SDK integration and v1.0 Steam distribution. Brings its own NDA / partner-onboarding steps; surface those well before v0.6 ships.
+11. **Harry's Steam ID** for the dev loop and permission to use his library as the first real test case.
+12. **A scene-template aesthetic to start with.** Pick one of: `seaside_town`, `research_station`, `overgrown_city`, `bookshop`, `forest_grove` — whichever feels most evocative as the v0.1 single template.
