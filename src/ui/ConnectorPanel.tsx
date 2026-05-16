@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
+import type { ManifestStatus } from '../state/store';
 import { useAppStore } from '../state/store';
 
 /**
@@ -16,6 +17,10 @@ import { useAppStore } from '../state/store';
 export function ConnectorPanel() {
   const menuOpen = useAppStore((s) => s.menuOpen);
   const closeMenu = useAppStore((s) => s.closeMenu);
+  const manifestStatus = useAppStore((s) => s.manifestStatus);
+  const manifestSource = useAppStore((s) => s.manifestSource);
+  const manifestError = useAppStore((s) => s.manifestError);
+  const manifest = useAppStore((s) => s.manifest);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -53,10 +58,10 @@ export function ConnectorPanel() {
 
         <Section
           title="Claude (Anthropic)"
-          status="worker not built"
-          statusColor="#c8a64a"
-          description="Picks the world's organising metaphor and casts each game as an archetype. API key lives server-side in worker/.dev.vars — never in the client (CLAUDE.md). Next build step: scaffold the Cloudflare Worker."
-          action="Build worker — v0.1 todo"
+          status={claudeStatusLabel(manifestStatus, manifestSource)}
+          statusColor={claudeStatusColor(manifestStatus, manifestSource)}
+          description={claudeStatusDescription(manifestStatus, manifestSource, manifestError, manifest?.metaphor)}
+          action="—"
         />
 
         <Section
@@ -94,6 +99,37 @@ function Section({ title, status, statusColor, description, action }: SectionPro
       <button style={btnDisabledStyle} disabled>{action}</button>
     </section>
   );
+}
+
+function claudeStatusLabel(status: ManifestStatus, source: 'worker' | 'stub' | null): string {
+  if (status === 'loading') return 'calling worker…';
+  if (status === 'loaded' && source === 'worker') return 'live';
+  if (status === 'loaded' && source === 'stub') return 'stub fallback';
+  if (status === 'error') return 'error';
+  return 'idle';
+}
+
+function claudeStatusColor(status: ManifestStatus, source: 'worker' | 'stub' | null): string {
+  if (status === 'loaded' && source === 'worker') return '#7accbf';
+  if (status === 'loaded' && source === 'stub') return '#c8a64a';
+  if (status === 'error') return '#d57a7a';
+  return '#7a6a7a';
+}
+
+function claudeStatusDescription(
+  status: ManifestStatus,
+  source: 'worker' | 'stub' | null,
+  error: string | null,
+  metaphor: string | undefined,
+): string {
+  if (status === 'loading') return 'Stage 1 call in flight — fetching the world manifest from the worker.';
+  if (status === 'loaded' && source === 'worker' && metaphor) {
+    return `Live manifest: "${metaphor}"`;
+  }
+  if (status === 'loaded' && source === 'stub') {
+    return `Worker unreachable (${error ?? 'unknown'}). Falling back to the hard-coded stub manifest so the scene still renders. Start the worker with \`npm run worker\` and refresh.`;
+  }
+  return 'Picks the world\'s organising metaphor and casts each game as an archetype. Key lives in worker/.dev.vars.';
 }
 
 const backdropStyle: CSSProperties = {
