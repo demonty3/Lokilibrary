@@ -2,7 +2,7 @@
 
 **One-line pitch:** A small inhabitable 3D world that *is* your Steam library. The world is AI-generated from a behavioral profile of how you actually play — not from genre tags. Games are launched diegetically by interacting with objects in the world; the launch animation *is* the loading screen.
 
-**Status (2026-05-16):** Committed project, post-pivot, with a revised product direction. An earlier 2D Phaser prototype was retired after walking it made clear the LLM-personalisation layer, not the rendering medium, was the missing piece. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber.
+**Status (2026-05-17):** Committed project, post-pivot, with a revised product direction. An earlier 2D Phaser prototype was retired after walking it made clear the LLM-personalisation layer, not the rendering medium, was the missing piece. The active build is 3D + LLM-personalised, on Three.js + react-three-fiber. The 2026-05-17 revision ratifies Electron as the native wrapper (§2.2, §6.2) and expands v0.5 scope to include the share-URL contract as a first-class deliverable, not a v0.6+ deferral (§10).
 
 **Product direction (revised 2026-05-16):** the destination is a Steam-distributed desktop utility — one-time purchase (~$7–10), distributed via Steam, lives as a live wallpaper / alt-tab destination, walkable in full-screen explore mode, launcher when you want it. The web version (current build) becomes the public-share surface (anyone can view a shared world URL in their browser; making your own requires the Steam app). Steam Workshop for community-built templates is the post-v1.0 long-term moat. The roadmap in §10 reflects this revision; §2.2 (Platform) and §6 (Tech stack) are revised accordingly.
 
@@ -35,7 +35,7 @@ Reference aesthetic: *A Short Hike*, *Alba*, *Townscaper*. Striking on a tiny bu
 Two surfaces, two jobs.
 
 - **Web build** — the public share surface. Anyone with a shared world URL can walk through someone else's library world in their browser, no install. `steam://run/{appid}` works from any web page on a machine with Steam installed, so the web build can still launch games when run by the owner. The web viewer caps at "read-only walkable" past v1.0 — generating *your own* world requires the desktop app.
-- **Native desktop app** — the real product. Lands at v0.6 as a wrapper (Tauri or Electron — decision pending; Tauri is lighter, Electron has the more mature wallpaper/multi-monitor story). Adds three things the browser structurally can't: live-wallpaper rendering behind the OS, multi-monitor + idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without Steam OpenID round-trips, eventual Steam Workshop hooks). v1.0 ships the desktop app on Steam as a one-time ~$7–10 purchase.
+- **Native desktop app** — the real product. Lands at v0.6 as an **Electron wrapper** (decided 2026-05-17, see §6.2). Adds three things the browser structurally can't: live-wallpaper rendering behind the OS, multi-monitor + idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without Steam OpenID round-trips, eventual Steam Workshop hooks). v1.0 ships the desktop app on Steam as a one-time ~$7–10 purchase.
 
 The web build is therefore a permanent first-class surface, not a stepping stone. It's the share artifact and the demo; the desktop app is what people buy.
 
@@ -161,7 +161,7 @@ Rituals are *short* — 1.5 to 3 seconds — and reuse common animation primitiv
 | Hosting | **Cloudflare Pages** (web frontend + viewer) + **Workers** (backend) | Same platform; zero-ops; generous free tier |
 | State (server) | Worker-issued JWT, manifest cached in Cloudflare KV | Avoid re-pulling library every visit |
 | State (client) | **Zustand** in `src/state/` | World manifest, procedural layout, player position, ritual state |
-| Native wrapper (v0.6+) | **Tauri OR Electron — TBD** | Tauri is lighter (Rust + webview); Electron has the more mature wallpaper/multi-monitor story. Decision pending; lands at v0.6 along with Steamworks SDK and wallpaper rendering. |
+| Native wrapper (v0.6+) | **Electron** | Decided 2026-05-17 (see §6.2). Steamworks integration via `steamworks.js` requires a Node.js host runtime — Electron supports it; Tauri (Rust + webview) does not have a production-ready Steamworks path. Lands at v0.6 with wallpaper rendering. |
 | Distribution (v1.0) | **Steam** — one-time ~$7–10 purchase | The real product. Steam Workshop integration for community templates is the post-v1.0 moat. |
 
 ### 6.1 Multi-model AI orchestration
@@ -180,6 +180,18 @@ The pipeline uses different models for different stages — all orchestrated fro
 **Stage 1 is the only runtime AI call** in v0.1–v0.5. Stages 2–6 are template-build-time only, with the same curation discipline: generate 5–10 candidates per asset, hand-pick the survivor, bake into `public/{models,textures,audio}/{template_id}/`. The Stage 1 prompt's whitelists for `model`, `ritual`, `audio_id`, and `skybox_id` only reference shipped survivors — the LLM never picks something we don't have.
 
 Premium-tier features in later versions (custom-prompt remix, narrated reveal, annual moments, on-demand template variations) may add scoped runtime calls — but each one requires its own design entry documenting cost model, caching strategy, and fallback before shipping.
+
+### 6.2 Native wrapper — Electron (decided 2026-05-17)
+
+The v0.6 native wrapper is **Electron**, not Tauri. Reasoning:
+
+- **Steamworks integration is the deciding constraint.** `steamworks.js` (the modern, TypeScript-typed, actively maintained Node.js binding to the Steamworks C SDK) requires a Node.js host runtime. Electron supports it natively; Tauri's Rust process model does not. The community Rust crate (`steamworks-rs`) exists but has no production-ready examples for Workshop upload, overlay integration, or Steam Runtime sniper SDK compatibility — shipping on it would mean being the integration test case, which is not a tradeoff a one-person team should take on.
+- **WebGL/WebGPU consistency.** Electron uses Chromium on every platform. Tauri uses WebView2 on Windows but WebKit on macOS and WebKit2GTK on Linux — WebKit's Three.js performance is notably weaker, which matters for an always-on 3D wallpaper.
+- **The size penalty is real but acceptable.** Electron installers are ~80–180 MB vs Tauri's ~3–12 MB. For a one-time-paid Steam utility this is comparable to a small indie game and not a deciding factor.
+
+**Mitigations for Electron's weight:** lazy-load AI-generated assets from the Cloudflare Workers CDN rather than bundling them; ASAR pack + native module unpacking; keep the renderer process strict on CSP since `steamworks.js` requires `contextIsolation: false`. Standard Electron hardening — see `desktop/` once it lands.
+
+**Reversibility.** If a production-grade Steamworks Rust crate ships with Workshop upload + overlay + Steam Runtime sniper support by mid-2027, re-evaluate before v1.x Workshop work. Until then, this is settled.
 
 ---
 
@@ -326,8 +338,8 @@ Each version is roughly a week or two of evenings. The roadmap below reflects th
 - **v0.2** — Real Steam OpenID login + real `GetOwnedGames` fetch. HLTB enrichment lands here too — completion fraction starts feeding the state-tagging logic.
 - **v0.3** — IGDB enrichment + multiple scene templates (3–5 hand-built, each with its own ritual variant); Stage 1 picks one based on the profile + metadata.
 - **v0.4** — Library-state visual treatment (`loved` / `recent` / `mastered` / `abandoned` / `dusty`). Same archetype rendered differently based on state.
-- **v0.5** — **Procedural layout layer.** Move position-picking out of the Stage 1 call into `src/procedural/`, seeded by the behavioral profile. LLM now picks only archetype, metaphor, role text, and whitelisted asset IDs. Unlocks the share-URL contract: same profile → same world. First public share artifacts (URL + image) ship here. Audio integration (Stage 5 baked assets) also lands so worlds have ambient beds and interaction stings.
-- **v0.6** — **Native desktop wrapper** (Tauri or Electron — decision pending). Adds live-wallpaper rendering behind the OS, multi-monitor support, idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without OpenID round-trips). This is the surface that becomes the v1.0 product.
+- **v0.5** — **Procedural layout layer + share-URL contract.** Move position-picking out of the Stage 1 call into `src/procedural/`, seeded deterministically from the behavioral profile (mulberry32 or seedrandom; no `Math.random()`). LLM now picks only archetype, metaphor, role text, and whitelisted asset IDs. The **share-URL contract** ships here as a first-class feature, not deferred: the URL encodes `{profile_seed, manifest_hash}` and the read-only web viewer reconstructs the same world from those two values alone. Determinism is the contract — any drift breaks shareability and is treated as a regression. First public share artifacts (URL + still image) ship in this milestone. Audio integration (Stage 5 baked assets) also lands so worlds have ambient beds and interaction stings.
+- **v0.6** — **Native desktop wrapper** (**Electron** — decided 2026-05-17, see §6.2). Adds live-wallpaper rendering behind the OS, multi-monitor support, idle-mode optimisation, and Steamworks SDK integration (proper return-trip detection, library auth without OpenID round-trips). This is the surface that becomes the v1.0 product.
 - **v0.7–0.9** — Performance hardening, multi-monitor polish, idle-mode optimisation, share-image / share-video export pipeline, web-viewer (read-only walkable view of shared worlds), per-game custom rituals for top-played titles, more ritual variants. Optional Stage 6 (ElevenLabs reveal narration) lands here as a premium toggle.
 - **v1.0 — Steam launch.** Desktop app shipped on Steam as a one-time ~$7–10 purchase. 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet.
 - **v1.x** — Steam Workshop integration (community-built templates — the long-term moat), template authoring tool, friend-comparison feature.
@@ -344,7 +356,6 @@ Each version is roughly a week or two of evenings. The roadmap below reflects th
 - **Large libraries.** A 2000-game library won't fit in one scene. Stage 1 picks a top-N; long tail goes into the "dusty crates" backlog treatment.
 - **NSFW artwork in headers.** Filter or fallback to family-friendly capsule.
 - **Performance.** ~50 textured low-poly objects in Three.js is fine on desktop. The web bundle is bandwidth-sensitive (it's the share surface) — Three.js + r3f + drei is the heavy budget; flag anything >500KB gzipped. The native wrapper (v0.6+) has more headroom but the web bundle still ships and the constraint applies there.
-- **Native wrapper choice (Tauri vs. Electron).** Decision pending at v0.6. Tauri is lighter and feels right for a graphics-heavy app, but Electron has the more mature multi-monitor + live-wallpaper story and the larger pool of working examples. Spike both before committing.
 - **Rapier WASM size.** ~250KB gzipped — within budget but worth noting as the biggest single dep after Three.js.
 - **Cost.** One Stage 1 LLM call per regenerate at runtime. HLTB + IGDB free. Stages 2–6 (skybox / texture / 3D / audio / TTS) are template-build costs paid once per template — bounded, sub-$50 per template at retail rates. Runtime cost stays sub-cent per user.
 - **Local LLM ceiling.** Qwen 3 14B is fine for prompt iteration but ships below frontier on Stage 1 quality. Production must stay on a frontier model; never default `LLM_PROVIDER=local` in any deployed Worker.

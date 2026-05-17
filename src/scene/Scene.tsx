@@ -5,6 +5,7 @@ import { ToneMappingMode } from 'postprocessing';
 import { Suspense } from 'react';
 import { Player } from './Player';
 import { SeasideTown } from './seaside/Town';
+import { CastedWorld } from './CastedWorld';
 
 /**
  * v0.1 seaside_town scene. Per SPEC §12, four levers carry the visual bar:
@@ -54,6 +55,7 @@ export function Scene() {
       </RigidBody>
 
       <SeasideTown />
+      <CastedWorld />
       <Player />
 
       <EffectComposer>

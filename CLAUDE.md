@@ -6,19 +6,19 @@ A small inhabitable 3D world that *is* your Steam library — personalised by an
 
 **Product direction (revised 2026-05-16):** the destination is a Steam-distributed desktop utility — one-time purchase (~$7–10), distributed via Steam, lives as a live wallpaper / alt-tab destination, walkable in full-screen explore mode, launcher when you want it. The web version (current build) becomes the public-share surface (anyone can view a shared world URL in their browser; making your own requires the Steam app). Steam Workshop for community-built templates is the post-v1.0 long-term moat.
 
-The full design doc is **`SPEC.md`** — read it for the broader vision (behavior-driven AI metaphor, diegetic launch rituals, library-state mapping). Note the SPEC's v0.6+ roadmap is being revised toward the Steam-distributed model — see "Current phase" below. **This file is the day-to-day rulebook.**
+The full design doc is **`SPEC.md`** — read it for the broader vision (behavior-driven AI metaphor, diegetic launch rituals, library-state mapping). **This file is the day-to-day rulebook.**
 
 ## Current phase
 
-**v0.1 of the committed build — first vertical slice (web).** An earlier 2D Phaser prototype proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
+**v0.1 of the committed build — first vertical slice (web).** The 2D Phaser prototype (preserved in `legacy-2d/`) proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
 
 v0.1 scope: one scene template, one ritual variant, one Claude call, hard-coded library, working `steam://run`. Real Steam auth comes at v0.2.
 
-**Immediate next work — v0.5 procedural layout layer.** Move position-picking out of the LLM call and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world (shareable); different profile → different world. LLM now only picks archetypes, metaphor, and role text — not positions. New module lives in `src/procedural/`. Detailed scope and order-of-work for this is tracked in a separate build prompt; see `eval/` once committed.
+**Immediate next work — v0.5 procedural layout layer + share-URL contract.** Move position-picking out of the LLM call and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world; different profile → different world. LLM now only picks archetypes, metaphor, and role text — not positions. The **share-URL contract** ships here as a first-class feature, not deferred: the URL encodes `{profile_seed, manifest_hash}` and the read-only web viewer reconstructs the same world from those two values alone. Determinism is the contract — any drift breaks shareability and is treated as a regression. New module lives in `src/procedural/`. Detailed scope and order-of-work for this is tracked in a separate build prompt.
 
-**Beyond v0.5 (revised trajectory toward Steam launch):**
+**Beyond v0.5 (trajectory toward Steam launch):**
 
-- **v0.6** — native desktop wrapper (Tauri or Electron — TBD), wallpaper mode rendering, Steamworks SDK for library auth.
+- **v0.6** — native desktop wrapper (**Electron** — decided 2026-05-17, see SPEC §6.2), wallpaper mode rendering, Steamworks SDK for library auth.
 - **v0.7–0.9** — performance hardening, multi-monitor support, idle-mode optimisation, audio integration, share-image / share-video export pipeline, web-viewer (read-only walkable view of shared worlds).
 - **v1.0 — Steam launch.** 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet.
 - **v1.x** — Steam Workshop integration, template authoring tool, friend-comparison feature.
@@ -29,7 +29,7 @@ v0.1 scope: one scene template, one ritual variant, one Claude call, hard-coded 
 - **@react-three/rapier** for physics (real walking, collision, weight)
 - **Vite + React + TypeScript** for build / dev server (web build)
 - **Cloudflare Workers** for the backend (orchestrates all AI providers + Steam + HLTB + IGDB; holds all server-side keys)
-- **Native wrapper TBD** (Tauri or Electron, decision pending) — lands at v0.6. Adds wallpaper rendering + Steamworks SDK integration.
+- **Native wrapper: Electron** (decided 2026-05-17; see SPEC §6.2) — lands at v0.6. Adds wallpaper rendering + Steamworks SDK integration via `steamworks.js`.
 - **HowLongToBeat** for per-game completion-time data (community endpoint; lands at v0.2)
 - **IGDB** (Twitch credentials) for rich game metadata — genres, themes, perspectives, franchises (lands at v0.3)
 
@@ -65,7 +65,7 @@ src/App.tsx          — top-level component
 src/scene/           — react-three-fiber scene composition
 src/scene/archetypes/  — per-archetype components (lighthouse, campfire, cabinet, ...)
 src/scene/rituals/   — diegetic launch/return ritual components
-src/procedural/      — deterministic layout layer (v0.5 — terrain, placement, paths, scatter; seeded by profile)
+src/procedural/      — deterministic layout layer (v0.5 — terrain, placement, paths, scatter, share-URL encoder; seeded by profile)
 src/data/            — hard-coded library, asset URL helpers
 src/ai/              — types for the world manifest + Stage 1 prompt + parsing
 src/api/             — fetch wrappers for the Cloudflare Worker backend
@@ -76,7 +76,9 @@ public/textures/     — baked environment textures + skybox HDRIs (per template
 public/audio/        — baked ambient beds + interaction stings (per template)
 worker/              — Cloudflare Worker (orchestrates Anthropic, Steam, HLTB, IGDB, audio/image/3D providers; all keys live here)
 eval/                — Stage 1 model eval framework (synthetic profiles, runner, blind comparison UI, results)
-desktop/             — native wrapper (Tauri/Electron) — lands at v0.6
+desktop/             — Electron wrapper — lands at v0.6
+docs/research/       — dated reference reports (not active rulebook; see SPEC for what became decisions)
+legacy-2d/           — preserved 2D Phaser prototype (reference, not active)
 ```
 
 ## Conventions
@@ -87,8 +89,8 @@ desktop/             — native wrapper (Tauri/Electron) — lands at v0.6
 - **Local LLM for dev iteration.** [Ollama](https://ollama.com/) with Qwen 3 14B is the recommended dev-time orchestrator for Stage 1. Set `LLM_PROVIDER=local` in `worker/.dev.vars` and the Worker hits `http://localhost:11434` instead of Anthropic. Useful for prompt iteration and running `eval/` offline. **Never ship local LLM to production** — Stage 1 quality is the magic surface and the local ceiling is meaningfully below frontier.
 - **Aesthetic coherence over scope creep.** Pick one asset-library style per scene template and stick to it. Mixing libraries in a single scene looks like a stapled-together asset pack.
 - **Rituals are short — 1.5 to 3 seconds max.** They serve as the loading screen, not a cutscene. First 80% is full-power animation; last 20% is the moment Steam is actually launching.
-- **Game launching is `window.location.href = 'steam://run/' + appid`** in the web build; the native wrapper (v0.6+) uses Steamworks SDK directly. Don't try to detect Steam install state — fire and let the platform handle the fallback.
-- **Return-trip detection in the web build = `window.addEventListener('focus', …)`.** A small lie (focus fires for any tab-switch). Accepted through v0.5; the native wrapper at v0.6 handles this properly.
+- **Game launching is `window.location.href = 'steam://run/' + appid`** in the web build; the Electron wrapper (v0.6+) uses Steamworks SDK directly. Don't try to detect Steam install state — fire and let the platform handle the fallback.
+- **Return-trip detection in the web build = `window.addEventListener('focus', …)`.** A small lie (focus fires for any tab-switch). Accepted through v0.5; the Electron wrapper at v0.6 handles this properly.
 - **Determinism in `src/procedural/`.** All randomness goes through a seeded PRNG. No `Math.random()` in that module. Same profile → same world is a hard requirement — the share-URL contract depends on it.
 - **TypeScript strict mode.** Don't disable strict-mode flags without explicit reason.
 - **State machine in `src/state/`** (Zustand) for world manifest, procedural layout, player position, ritual state. Don't put scene state in component-local `useState` past a trivial size.
@@ -139,6 +141,7 @@ npm run eval -- --models claude-opus,claude-sonnet,gemini-3-pro,qwen3-14b-local
 - **Don't conflate the AI stages.** The Stage 1 LLM (Claude) doesn't generate audio, images, or 3D meshes. Each stage has its own specialist model called from the Worker. If a feature seems to need image/audio/3D generation at runtime, it's wrong — push it to template-build time or rework the feature.
 - Don't try to extract assets from local Steam game files. Copyrighted, sometimes encrypted, a per-game integration nightmare.
 - Don't put any API key in the frontend bundle. Always proxy via the Worker.
-- Don't bundle large npm packages (>500KB gzipped) into the web build without flagging — the web viewer (share surface) is bandwidth-sensitive. Three.js + r3f + drei is the heavy budget. The native wrapper (v0.6+) has more headroom, but the web bundle still ships and the constraint applies there.
+- Don't bundle large npm packages (>500KB gzipped) into the web build without flagging — the web viewer (share surface) is bandwidth-sensitive. Three.js + r3f + drei is the heavy budget. The Electron wrapper (v0.6+) has more headroom, but the web bundle still ships and the constraint applies there.
 - Don't break the asset whitelist in the Stage 1 prompt. The LLM must only pick models, rituals, audio, and skyboxes we actually ship; widen the whitelist deliberately, not by editing the prompt to "be more creative."
+- Don't reach into `legacy-2d/`. It's preserved as a reference; not part of the active build. Leave it alone unless we explicitly resurrect a pattern from it.
 - Don't add `Math.random()` anywhere in `src/procedural/`. Determinism is the share-URL contract.

@@ -1,11 +1,15 @@
-import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
+import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import { Boat } from './Boat';
 import { Computer } from './Computer';
 
 /**
- * v0.1 placeholder geometry for the seaside_town template. Procedural primitives
- * carrying the §12 visual stack (HDRI + bloom + ACES) for now. Swap to a real
- * Kenney coastal pack when we commit further — same composition, real meshes.
+ * Surrounding scenery for the seaside_town template — houses, lamp posts,
+ * pier, water, boat, computer. The archetype objects (lighthouse, fish market,
+ * etc.) are placed by the manifest via <CastedWorld>, not here. This file is
+ * pure dressing.
+ *
+ * v0.1 procedural primitives, carrying the SPEC §12 visual stack (HDRI + bloom
+ * + ACES). Kenney coastal pack swap is a later non-blocking improvement.
  */
 
 interface HouseProps {
@@ -53,54 +57,6 @@ function House({ position, footprint, height, wallColor, roofColor, windowLit = 
           />
         </>
       )}
-    </group>
-  );
-}
-
-interface LighthouseProps {
-  position: [number, number, number];
-}
-
-function Lighthouse({ position }: LighthouseProps) {
-  const towerHeight = 7.5;
-  const radius = 1.4;
-  return (
-    <group position={position}>
-      <RigidBody type="fixed" colliders={false} position={[0, towerHeight / 2, 0]}>
-        <CylinderCollider args={[towerHeight / 2, radius]} />
-        <mesh castShadow receiveShadow>
-          <cylinderGeometry args={[radius * 0.85, radius, towerHeight, 20]} />
-          <meshStandardMaterial color="#e8e0cf" roughness={0.85} />
-        </mesh>
-        <mesh position={[0, 0.6, 0]}>
-          <cylinderGeometry args={[radius * 0.92, radius * 0.92, 1.0, 20]} />
-          <meshStandardMaterial color="#8e3434" roughness={0.7} />
-        </mesh>
-      </RigidBody>
-      <mesh position={[0, towerHeight + 0.3, 0]} castShadow>
-        <cylinderGeometry args={[radius * 0.78, radius * 0.78, 1.2, 16]} />
-        <meshStandardMaterial color="#23232a" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, towerHeight + 0.3, 0]}>
-        <sphereGeometry args={[0.6, 18, 18]} />
-        <meshStandardMaterial
-          color="#fff0a0"
-          emissive="#fff0a0"
-          emissiveIntensity={5}
-          toneMapped={false}
-        />
-      </mesh>
-      <pointLight
-        position={[0, towerHeight + 0.3, 0]}
-        intensity={20}
-        distance={28}
-        color="#ffe48a"
-        decay={2}
-      />
-      <mesh position={[0, towerHeight + 1.4, 0]} castShadow>
-        <coneGeometry args={[radius * 0.78, 1.0, 16]} />
-        <meshStandardMaterial color="#8e3434" roughness={0.7} />
-      </mesh>
     </group>
   );
 }
@@ -192,8 +148,6 @@ export function SeasideTown() {
       <House position={[-8, 0, -8]} footprint={3.2} height={2.8} wallColor="#a89878" roofColor="#7a3a2a" windowLit />
       <House position={[ 6, 0,-10]} footprint={3.0} height={3.2} wallColor="#c4a888" roofColor="#5a3a2a" />
       <House position={[-2, 0,-12]} footprint={3.4} height={2.5} wallColor="#b8a080" roofColor="#7a3a2a" windowLit />
-
-      <Lighthouse position={[-14, 0, -7]} />
 
       <LampPost position={[ 0, 0, -1]} />
       <LampPost position={[-5, 0, -6]} />

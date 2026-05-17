@@ -1,0 +1,22 @@
+# Copy to worker/.dev.vars (gitignored) and fill in real values for local dev.
+# CLAUDE.md: API keys NEVER live in the frontend. All AI calls go through here.
+
+# --- Stage 1 provider selection ---
+# "anthropic" (prod) or "local" (dev iteration via Ollama)
+LLM_PROVIDER=anthropic
+
+# --- Anthropic (prod) ---
+# Required when LLM_PROVIDER=anthropic. Get one at console.anthropic.com.
+ANTHROPIC_API_KEY=sk-ant-
+
+# Optional override. Default: claude-opus-4-7 (Stage 1 prod model per CLAUDE.md).
+# ANTHROPIC_MODEL=claude-opus-4-7
+
+# --- Local LLM (dev only — never ship to prod, per CLAUDE.md) ---
+# Used only when LLM_PROVIDER=local.
+# OLLAMA_URL=http://localhost:11434
+# OLLAMA_MODEL=qwen3:14b
+
+# --- CORS ---
+# Comma-separated list of allowed origins. Defaults cover localhost:5183 + 5173.
+# ALLOWED_ORIGINS=http://localhost:5183,http://localhost:5173
