@@ -2,9 +2,10 @@
  * Stage 1 prompt builder. The Worker is the single AI orchestration surface
  * (CLAUDE.md / SPEC §6.1); the frontend never assembles prompts directly.
  *
- * For v0.1 the input is a hard-coded library + an effectively empty profile.
- * Phase 2 fills the profile from real Steam + HLTB data; Phase 3 adds IGDB
- * enrichment; Phase 5 drops `position` from the schema and moves placement to
+ * Phase 2 slice 7 wires this with the user's real library: profile.summary is
+ * the SPEC §8 prompt text built by lib/profile.ts; each game carries its
+ * SPEC §4 state tag from lib/state.ts. Phase 3 will add IGDB enrichment;
+ * Phase 5 drops `position` from the schema and moves placement to
  * `src/procedural/`.
  */
 
@@ -13,13 +14,14 @@ import { TEMPLATE_WHITELIST, type TemplateId } from './whitelist';
 export interface StageOneInput {
   template: TemplateId;
   profile: {
-    /** From Phase 2 — for v0.1 this stays sparse. */
+    /** SPEC §8 prompt text from lib/profile.ts. */
     summary?: string;
   };
   games: Array<{
     appid: number;
     name: string;
-    /** Phase 4 will derive this from playtime + recency; v0.1 leaves it absent. */
+    /** SPEC §4 state tag (lib/state.ts). 'default' is dropped to undefined
+     *  by callers — there's no signal worth surfacing to Claude. */
     state?: 'loved' | 'recent' | 'mastered' | 'abandoned' | 'dusty';
   }>;
 }

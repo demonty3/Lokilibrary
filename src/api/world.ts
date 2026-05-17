@@ -1,44 +1,44 @@
-import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import type { Manifest } from '../ai/manifest';
 
 /**
- * Stage 1 fetch wrapper. Hits the local Worker by default; override via
- * VITE_WORKER_URL for staging/prod. All AI key handling happens server-side —
- * this module only knows about the URL.
+ * Stage 1 fetch wrapper. Slice 7 of Phase 2: /api/world now reads everything
+ * from the session — the request body is gone. Authed users get a manifest
+ * built from their real library; everyone else (no session yet, expired
+ * session, private profile) falls through to the stub manifest so the scene
+ * always renders.
+ *
+ * Same-origin via Vite proxy in dev; production needs both surfaces behind a
+ * single domain or a Workers route. credentials: 'same-origin' carries the
+ * HttpOnly session cookie.
  */
-const WORKER_URL =
-  (import.meta.env.VITE_WORKER_URL as string | undefined) ?? 'http://localhost:8787';
 
 export interface FetchWorldResult {
   manifest: Manifest;
   /** Where the manifest came from — drives a UI hint in the connector panel. */
   source: 'worker' | 'stub';
-  /** When source === 'stub', why we fell back (network down, validation, etc.). */
+  /** When source === 'stub', why we fell back (network down, unauth, etc.). */
   fallbackReason?: string;
 }
 
-export async function fetchWorld(): Promise<FetchWorldResult> {
-  const body = {
-    template: 'seaside_town' as const,
-    profile: { summary: 'v0.1 hard-coded library — no Steam data yet' },
-    games: SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name })),
-  };
+export async function fetchWorld(options: { force?: boolean } = {}): Promise<FetchWorldResult> {
+  const qs = options.force ? '?force=1' : '';
   try {
-    const res = await fetch(`${WORKER_URL}/api/world`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      return fallback(`worker ${res.status}: ${text.slice(0, 120)}`);
-    }
+    const res = await fetch(`/api/world${qs}`, { credentials: 'same-origin' });
+    if (!res.ok) return fallback(await briefError(res));
     const manifest = (await res.json()) as Manifest;
     return { manifest, source: 'worker' };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'unknown';
     return fallback(`network: ${message}`);
   }
+}
+
+async function briefError(res: Response): Promise<string> {
+  if (res.status === 401) return 'sign in to generate your world';
+  if (res.status === 403) return 'profile private — flip game details to public';
+  if (res.status === 429) return 'rate limited by upstream — try again shortly';
+  const text = await res.text().catch(() => '');
+  return `worker ${res.status}: ${text.slice(0, 120)}`;
 }
 
 async function fallback(reason: string): Promise<FetchWorldResult> {

@@ -368,6 +368,22 @@ function libraryErrorHint(reason: LibraryFailureReason, message: string): string
   return message;
 }
 
+/** Stub-fallback messaging routes by what actually went wrong with /api/world.
+ *  Slice 7 added auth-failure paths that aren't "the worker is down." */
+function stubFallbackDescription(error: string | null): string {
+  const reason = error ?? 'unknown';
+  if (reason.includes('sign in')) {
+    return 'Connect Steam to build the world from your real library. Right now you\'re seeing a sample seaside town.';
+  }
+  if (reason.includes('private')) {
+    return 'Your Steam profile is private. Flip game details to Public to generate your own world; sample seaside town rendered in the meantime.';
+  }
+  if (reason.includes('rate')) {
+    return 'Upstream rate-limited the worker. Try again shortly; stub manifest rendered in the meantime.';
+  }
+  return `Worker unreachable (${reason}). Falling back to the hard-coded stub manifest so the scene still renders. Start the worker with \`npm run worker\` and refresh.`;
+}
+
 function claudeStatusLabel(status: ManifestStatus, source: 'worker' | 'stub' | null): string {
   if (status === 'loading') return 'calling worker…';
   if (status === 'loaded' && source === 'worker') return 'live';
@@ -394,7 +410,7 @@ function claudeStatusDescription(
     return `Live manifest: "${metaphor}"`;
   }
   if (status === 'loaded' && source === 'stub') {
-    return `Worker unreachable (${error ?? 'unknown'}). Falling back to the hard-coded stub manifest so the scene still renders. Start the worker with \`npm run worker\` and refresh.`;
+    return stubFallbackDescription(error);
   }
   return 'Picks the world\'s organising metaphor and casts each game as an archetype. Key lives in worker/.dev.vars.';
 }
