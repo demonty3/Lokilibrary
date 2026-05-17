@@ -4,39 +4,37 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import type { Mesh, MeshStandardMaterial } from 'three';
 import { useAppStore } from '../../state/store';
 import { RecognitionFace } from './RecognitionFace';
+import { StateAccents } from './StateAccents';
+import { styleFor } from './stateStyling';
 import { useInteract } from './useInteract';
-
-interface DetectivesOfficeProps {
-  appid: number;
-  name: string;
-  position: [number, number];
-}
+import type { ArchetypeComponentProps } from './index';
 
 /**
  * Small two-storey building with a single window glowing through case-file
  * smoke. Ritual: the window brightens; the door creaks open. v0.1 procedural
  * placeholder; Meshy GLB at Phase 1.7.
  */
-export function DetectivesOffice({ appid, name, position }: DetectivesOfficeProps) {
+export function DetectivesOffice({ appid, name, position, state }: ArchetypeComponentProps) {
   const [x, z] = position;
   const windowRef = useRef<Mesh>(null);
   const startRitual = useAppStore((s) => s.startRitual);
+  const style = styleFor(state);
 
   useInteract(x, z, `[E] open the case file · ${name}`, () => {
     startRitual({ appid, archetype: 'detectives_office', startedAt: performance.now() });
   });
 
   useFrame(() => {
-    const w = windowRef.current;
-    if (!w) return;
+    const win = windowRef.current;
+    if (!win) return;
     const ritual = useAppStore.getState().activeRitual;
-    const mat = w.material as MeshStandardMaterial;
+    const mat = win.material as MeshStandardMaterial;
     if (ritual && ritual.appid === appid && ritual.archetype === 'detectives_office') {
       const dt = (performance.now() - ritual.startedAt) / 1000;
       const k = Math.min(dt / 1.6, 1);
       mat.emissiveIntensity = 2 + 6 * (k * k * (3 - 2 * k));
     } else {
-      mat.emissiveIntensity = 2;
+      mat.emissiveIntensity = 2 * style.interiorIntensity;
     }
   });
 
@@ -44,7 +42,7 @@ export function DetectivesOffice({ appid, name, position }: DetectivesOfficeProp
   const d = 2.2;
   const h = 4.0;
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} scale={style.scale}>
       <RigidBody type="fixed" colliders={false} position={[0, h / 2, 0]}>
         <CuboidCollider args={[w / 2, h / 2, d / 2]} />
         <mesh castShadow receiveShadow>
@@ -63,7 +61,7 @@ export function DetectivesOffice({ appid, name, position }: DetectivesOfficeProp
         <meshStandardMaterial
           color="#ffe0a0"
           emissive="#ffce6a"
-          emissiveIntensity={2}
+          emissiveIntensity={2 * style.interiorIntensity}
           toneMapped={false}
         />
       </mesh>
@@ -78,6 +76,8 @@ export function DetectivesOffice({ appid, name, position }: DetectivesOfficeProp
         position={[w / 2 - 0.05, 1.4, d / 2 + 0.02]}
         width={0.9}
       />
+
+      <StateAccents state={state} topY={h + 1.2} radius={Math.max(w, d) / 2} />
     </group>
   );
 }

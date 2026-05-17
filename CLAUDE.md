@@ -10,18 +10,22 @@ The full design doc is **`SPEC.md`** — read it for the broader vision (behavio
 
 ## Current phase
 
-**v0.1 of the committed build — first vertical slice (web).** The 2D Phaser prototype (preserved in `legacy-2d/`) proved that the loop needs the LLM personalisation piece to feel magical, not just polished visuals. The 3D + LLM combination is what v0.1 is now testing.
+**v0.2 done; v0.4 in flight (state visual treatment).** v0.1 shipped the painted-3D + LLM vertical slice on a hard-coded library; v0.2 swapped that for the player's real Steam library (OpenID + GetOwnedGames + recent activity + achievements + HLTB enrichment + behavioral profile + SPEC §4 state tagger + a session-driven `/api/world` route). Phase 4 layers per-state visual treatment on top — `loved` games glow, `mastered` get plaques, `abandoned` go dark.
 
-v0.1 scope: one scene template, one ritual variant, one Claude call, hard-coded library, working `steam://run`. Real Steam auth comes at v0.2.
+**Immediate next work — finish v0.4, then v0.5 (procedural + share-URL).** v0.4 task list per PLAN.md Phase 4: state material variants (in flight), worn-path decals between `loved` games, and the dusty backlog cluster. The dusty cluster is the only thing that makes `dusty` styling reachable — top-N by definition contains no dusty games.
 
-**Immediate next work — v0.5 procedural layout layer + share-URL contract.** Move position-picking out of the LLM call and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world; different profile → different world. LLM now only picks archetypes, metaphor, and role text — not positions. The **share-URL contract** ships here as a first-class feature, not deferred: the URL encodes `{profile_seed, manifest_hash}` and the read-only web viewer reconstructs the same world from those two values alone. Determinism is the contract — any drift breaks shareability and is treated as a regression. New module lives in `src/procedural/`. Detailed scope and order-of-work for this is tracked in a separate build prompt.
+After v0.4, **v0.5 is the next priority over v0.3.** Move position-picking out of the LLM and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world; different profile → different world. The **share-URL contract** ships here as a first-class feature, not deferred: the URL encodes `{profile_seed, manifest_hash}` and the read-only web viewer reconstructs the same world from those two values alone. Determinism is the contract — any drift breaks shareability and is treated as a regression. New module lives in `src/procedural/`.
+
+v0.3 (IGDB + multiple templates) gets deferred until v0.4 + v0.5 land, primarily because multiple templates each need their own Meshy curation pass; better to nail the visual + procedural primitives on the one template before duplicating.
+
+**Outstanding from v0.1: the Meshy hero-asset curation pass.** The five seaside archetypes still ship as procedural primitives. State styling (v0.4) and procedural placement (v0.5) layer on top, but the visual ceiling is genuinely capped until the Meshy work lands. Curation is hand-pick-1-of-8 work that can't be delegated to the LLM; defer until you're ready to spend the credits.
 
 **Beyond v0.5 (trajectory toward Steam launch):**
 
 - **v0.6** — native desktop wrapper (**Electron** — decided 2026-05-17, see SPEC §6.2), wallpaper mode rendering, Steamworks SDK for library auth.
 - **v0.7–0.9** — performance hardening, multi-monitor support, idle-mode optimisation, audio integration, share-image / share-video export pipeline, web-viewer (read-only walkable view of shared worlds).
-- **v1.0 — Steam launch.** 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet.
-- **v1.x** — Steam Workshop integration, template authoring tool, friend-comparison feature.
+- **v1.0 — Steam launch.** 3–5 hand-built templates, share artifacts, "Year in Library" annual moment. No Workshop yet. Steam Direct paperwork checklist in PLAN.md "Beyond Phase 7."
+- **v1.x** — Steam Workshop integration (free content only — Wallpaper Engine's lesson), template authoring tool, friend-comparison feature. Moderation pipeline is a v1.x prerequisite — see SPEC §11.
 
 ## Stack
 

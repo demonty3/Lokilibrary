@@ -2,6 +2,8 @@
 
 **Status:** Build plan for the painted-3D path (SPEC §9–10), revised 2026-05-16 to reflect the Steam-distribution product direction. Annotated for an LLM-driven workflow at full-weekend cadence (~20h/week). Phase 1's retrospective is the formal moment to verify the painted-3D + LLM combination delivers the magic before the v0.2–v1.0 arc commits.
 
+**Progress (2026-05-17):** Phases 0–2 complete. v0.2 ships the full Steam → enriched library → Stage 1 LLM loop end-to-end (see `RETROS/v0.2.md`). Phase 4 (state visual treatment) is in flight; per CLAUDE.md the next priority after Phase 4 is **Phase 5** (procedural + share-URL), with Phase 3 (IGDB + multiple templates) deferred until then.
+
 This file sequences SPEC.md's roadmap into concrete tasks you can hand to a coding LLM (Claude Code, Cursor, Aider, etc.), with the concepts you'll want to understand at each step so you can verify what the LLM produces. You're not writing the code. You are the project lead and the verifier.
 
 ---
@@ -167,9 +169,11 @@ At the end of Phase 1, write a half-page note in the repo (`RETROS/v0.1.md`): *d
 
 ---
 
-## Phase 2 — v0.2: Real Steam + HLTB (2 weekends)
+## Phase 2 — v0.2: Real Steam + HLTB (2 weekends) — **COMPLETE**
 
 **Goal:** Replace the hard-coded library. You sign in with Steam, the worker fetches your real owned games, HLTB completion times come back, and the world is now made of *your* library.
+
+**Shipped 2026-05-17** across slices 1–7 (PRs #4–#6, #8–#11, plus #7 for launch-obligations docs). Retro in `RETROS/v0.2.md`.
 
 ### Tasks
 1. **Steam OpenID flow in the worker.** Standard OpenID 2.0 — Steam is one of the few major sites still on the old spec, but every guide on the web has working examples and the LLM will know the pattern cold.
@@ -210,7 +214,7 @@ At the end of Phase 1, write a half-page note in the repo (`RETROS/v0.1.md`): *d
 
 ---
 
-## Phase 4 — v0.4: Library-state visual treatment (2 weekends)
+## Phase 4 — v0.4: Library-state visual treatment (2 weekends) — **in flight**
 
 **Goal:** Same archetype, different state, different visual. The lighthouse that's `loved` glows and has worn paths leading to it. The lighthouse that's `dusty` is a covered ruin.
 
