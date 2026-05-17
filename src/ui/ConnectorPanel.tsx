@@ -4,7 +4,7 @@ import type { AuthStatus, LibraryStatus, ManifestStatus } from '../state/store';
 import { useAppStore } from '../state/store';
 import { STEAM_LOGIN_PATH } from '../api/auth';
 import type { LibraryFailureReason } from '../api/library';
-import type { LibraryGame, SteamPersona } from '../types';
+import type { LibraryGame, Profile, SteamPersona } from '../types';
 
 /**
  * Overlay panel summoned by the in-world computer. v0.1 surfaces the three
@@ -33,6 +33,7 @@ export function ConnectorPanel() {
   const libraryError = useAppStore((s) => s.libraryError);
   const totalGames = useAppStore((s) => s.totalGames);
   const topN = useAppStore((s) => s.topN);
+  const profile = useAppStore((s) => s.profile);
   const loadLibrary = useAppStore((s) => s.loadLibrary);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export function ConnectorPanel() {
           libraryError={libraryError}
           totalGames={totalGames}
           topN={topN}
+          profile={profile}
           onSignOut={() => { void signOut(); }}
           onReload={() => { void loadLibrary({ force: true }); }}
         />
@@ -128,6 +130,7 @@ interface SteamSectionProps {
   libraryError: { reason: LibraryFailureReason; message: string } | null;
   totalGames: number | null;
   topN: number;
+  profile: Profile | null;
   onSignOut: () => void;
   onReload: () => void;
 }
@@ -141,6 +144,7 @@ function SteamSection({
   libraryError,
   totalGames,
   topN,
+  profile,
   onSignOut,
   onReload,
 }: SteamSectionProps) {
@@ -181,7 +185,12 @@ function SteamSection({
             <div style={{ color: '#9990a3', fontSize: 11 }}>
               {libraryStatus === 'loading' && 'Loading library…'}
               {libraryStatus === 'loaded' && library && totalGames !== null && (
-                <LibrarySummary library={library} totalGames={totalGames} topN={topN} />
+                <LibrarySummary
+                  library={library}
+                  totalGames={totalGames}
+                  topN={topN}
+                  profile={profile}
+                />
               )}
               {libraryStatus === 'error' && libraryError && (
                 <span style={{ color: '#d57a7a' }}>
@@ -223,10 +232,12 @@ function LibrarySummary({
   library,
   totalGames,
   topN,
+  profile,
 }: {
   library: LibraryGame[];
   totalGames: number;
   topN: number;
+  profile: Profile | null;
 }) {
   const enriched = library.slice(0, topN);
   const playedThisWeek = enriched.filter((g) => g.recent).length;
@@ -254,6 +265,55 @@ function LibrarySummary({
           {' · '}HLTB matched {hltbHits}/{enriched.length}
         </span>
       )}
+      {profile && <ProfilePreview profile={profile} />}
+    </>
+  );
+}
+
+/**
+ * Slice 5 preview: shows the behavioral-profile headline numbers + a
+ * collapsible <details> revealing the exact prompt-ready text that Stage 1
+ * will receive at slice 7. Mostly a debug surface — useful for sanity-checking
+ * what the LLM is going to see before it actually goes out.
+ */
+function ProfilePreview({ profile }: { profile: Profile }) {
+  const bingePct = Math.round(profile.bingeRatio * 100);
+  const bingeLabel =
+    profile.bingeRatio >= 0.7 ? 'very high'
+      : profile.bingeRatio >= 0.5 ? 'high'
+      : profile.bingeRatio >= 0.3 ? 'moderate'
+      : 'low';
+  return (
+    <>
+      <br />
+      <span style={{ color: '#9aa6b4' }}>
+        {profile.totalPlaytimeHours.toLocaleString()}h total · binge {bingePct}% ({bingeLabel})
+        {profile.completionRateAvg !== undefined && (
+          <> · avg completion {profile.completionRateAvg}%</>
+        )}
+        {' · '}{profile.dustyGames} dusty
+      </span>
+      <details style={{ marginTop: 6 }}>
+        <summary style={{ cursor: 'pointer', color: '#7a6a7a', fontSize: 11 }}>
+          Stage 1 prompt preview
+        </summary>
+        <pre
+          style={{
+            background: '#15121d',
+            border: '1px solid #2a232f',
+            padding: '8px 10px',
+            marginTop: 6,
+            borderRadius: 3,
+            fontSize: 11,
+            lineHeight: 1.4,
+            color: '#bdb3c4',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {profile.summary}
+        </pre>
+      </details>
     </>
   );
 }

@@ -3,7 +3,7 @@ import { fetchWorld } from '../api/world';
 import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
 import type { Manifest } from '../ai/manifest';
-import type { LibraryGame, SteamPersona } from '../types';
+import type { LibraryGame, Profile, SteamPersona } from '../types';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
@@ -50,6 +50,9 @@ interface AppState {
   libraryError: { reason: LibraryFailureReason; message: string } | null;
   totalGames: number | null;
   topN: number;
+  /** Behavioral profile (slice 5). Stage 1 prompt at slice 7 will consume
+   *  profile.summary; the panel surfaces a preview now. */
+  profile: Profile | null;
   loadLibrary: (options?: { force?: boolean }) => Promise<void>;
 
   /** Active launch ritual — the 1.8s pre-launch animation, set when the
@@ -126,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       libraryStatus: 'idle',
       libraryError: null,
       totalGames: null,
+      profile: null,
     });
   },
 
@@ -134,6 +138,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   libraryError: null,
   totalGames: null,
   topN: 15,
+  profile: null,
   loadLibrary: async (options) => {
     if (get().libraryStatus === 'loading') return;
     set({ libraryStatus: 'loading', libraryError: null });
@@ -144,6 +149,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         totalGames: result.library.totalGames,
         topN: result.library.topN,
         persona: result.library.persona ?? get().persona,
+        profile: result.library.profile,
         libraryStatus: 'loaded',
         libraryError: null,
       });

@@ -45,6 +45,7 @@ import {
   HLTB_RESULT_TTL_S,
   type HltbResult,
 } from './lib/hltb';
+import { buildProfile } from './lib/profile';
 import { kvGet } from './lib/cache';
 
 interface Env extends ProviderEnv {
@@ -352,6 +353,11 @@ export default {
       const topGames = await enrichTopGames(env, steamId, apiKey, games.slice(0, TOP_N));
       const enrichedGames: EnrichedGame[] = [...topGames, ...games.slice(TOP_N)];
 
+      // Slice 5: aggregate the per-game signals into a behavioral profile.
+      // The profile.summary feeds Stage 1's prompt at slice 7; profile itself
+      // becomes the seed for Phase 5's procedural layout layer.
+      const profile = buildProfile(enrichedGames, TOP_N);
+
       const persona = await cachedPersona(env, steamId);
 
       return json(
@@ -361,6 +367,7 @@ export default {
           totalGames: games.length,
           topN: TOP_N,
           games: enrichedGames,
+          profile,
         },
         { status: 200 },
         cors,

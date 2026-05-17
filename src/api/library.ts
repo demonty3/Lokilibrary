@@ -7,7 +7,7 @@
  * what's here as a visible side-effect of sign-in.
  */
 
-import type { LibraryGame, SteamPersona } from '../types';
+import type { LibraryGame, Profile, SteamPersona } from '../types';
 
 export interface LibraryResponse {
   steamId: string;
@@ -17,6 +17,9 @@ export interface LibraryResponse {
   topN: number;
   /** All owned games, sorted by playtime_forever desc. */
   games: LibraryGame[];
+  /** Aggregate behavioral profile (slice 5). Drives Stage 1's prompt at
+   *  slice 7 and seeds the procedural layer at Phase 5. */
+  profile: Profile;
 }
 
 export type LibraryFailureReason =
