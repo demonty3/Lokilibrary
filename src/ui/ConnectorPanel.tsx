@@ -231,6 +231,10 @@ function LibrarySummary({
   const enriched = library.slice(0, topN);
   const playedThisWeek = enriched.filter((g) => g.recent).length;
   const mastered = enriched.filter((g) => g.achievements && g.achievements.percent >= 80).length;
+  const pastMain = enriched.filter(
+    (g) => typeof g.completion_fraction === 'number' && g.completion_fraction >= 1,
+  ).length;
+  const hltbHits = enriched.filter((g) => g.hltb).length;
   const top = library[0];
   return (
     <>
@@ -244,7 +248,12 @@ function LibrarySummary({
         </>
       )}
       <br />
-      {playedThisWeek} played this week · {mastered} mastered (≥80% achievements)
+      {playedThisWeek} played this week · {mastered} mastered · {pastMain} past main story
+      {hltbHits < enriched.length && (
+        <span style={{ color: '#7a6a7a' }}>
+          {' · '}HLTB matched {hltbHits}/{enriched.length}
+        </span>
+      )}
     </>
   );
 }

@@ -41,6 +41,23 @@ export interface LibraryGame {
   /** True if the game has been played in the last 7 days (or appears in
    *  GetRecentlyPlayedGames, which catches free-to-play / family-share). */
   recent?: boolean;
+
+  // --- Slice 4 enrichment, only set on the top-N games when HLTB matched. ---
+
+  /** Community completion-time data from HowLongToBeat. Absent if HLTB had
+   *  no match for the name, the HLTB endpoint was unreachable, or HLTB
+   *  doesn't have figures for this title (rare for popular games). */
+  hltb?: {
+    matchedName: string;
+    hltbId: number;
+    mainStoryHours: number;
+    mainExtrasHours: number;
+    completionistHours: number;
+  };
+  /** Steam playtime hours ÷ HLTB main-story hours. >1.0 means past the main
+   *  story (SPEC §7.2 — the signal that separates "lived in" from "tutorial
+   *  abandoned"). Only set when both inputs are available. */
+  completion_fraction?: number;
 }
 
 export interface SteamPersona {

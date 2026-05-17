@@ -38,6 +38,13 @@ import {
   type Persona,
   type RecentlyPlayedEntry,
 } from './lib/steam';
+import {
+  discoverHltbEndpoint,
+  searchHltb,
+  HLTB_ENDPOINT_TTL_S,
+  HLTB_RESULT_TTL_S,
+  type HltbResult,
+} from './lib/hltb';
 import { kvGet } from './lib/cache';
 
 interface Env extends ProviderEnv {
@@ -124,21 +131,53 @@ async function cachedPersona(env: Env, steamId: string): Promise<Persona | null>
   }
 }
 
-/** One enriched game row. Top-N games get `achievements` and `recent`
- *  populated; the rest of the library returns the minimal OwnedGame shape. */
+/** One enriched game row. Top-N games may get `achievements`, `recent`, and
+ *  HLTB-derived fields populated; the rest of the library returns the
+ *  minimal OwnedGame shape. Each enrichment is independent — none of them
+ *  failing should cascade into another. */
 interface EnrichedGame extends OwnedGame {
   achievements?: AchievementsSummary;
   recent?: boolean;
+  hltb?: HltbResult;
+  /** Steam playtime hours ÷ HLTB main-story hours. > 1.0 means past main. */
+  completion_fraction?: number;
+}
+
+/** Cached HLTB lookup. Endpoint discovery is cached separately (1h) from the
+ *  per-name search result (30d, per SPEC §7.2). Any failure returns null so
+ *  one missing game can't break the library load — playtime alone still
+ *  drives state tagging in that case. */
+async function cachedHltb(env: Env, name: string): Promise<HltbResult | null> {
+  const key = `hltb:name:${name.toLowerCase()}`;
+  try {
+    return await kvGet<HltbResult | null>(env.CACHE, key, HLTB_RESULT_TTL_S, async () => {
+      const endpoint = await kvGet<string | null>(
+        env.CACHE,
+        'hltb:endpoint',
+        HLTB_ENDPOINT_TTL_S,
+        discoverHltbEndpoint,
+      );
+      if (!endpoint) return null;
+      return searchHltb(name, endpoint);
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Slice 3 enrichment for the top-N games:
- *   - recently_played cross-reference (one call, cached 30min)
- *   - per-appid achievement summary in parallel (each cached 1h, allSettled
- *     so one private-stats game doesn't fail the whole library)
- *   - `recent` boolean derived from rtime_last_played OR the recently-played
- *     list (the latter covers free-to-play / family-share titles that
- *     GetOwnedGames may not include).
+ * Slice 3 + slice 4 enrichment for the top-N games. Each enrichment runs in
+ * parallel and is allSettled-style — one failure (private achievement stats,
+ * HLTB outage, missing recently-played row) never cascades.
+ *
+ *   - recently_played cross-reference (one call, 30min cache)
+ *   - per-appid achievement summary (each 1h cache)
+ *   - per-name HLTB lookup (each 30d cache, endpoint discovery 1h cache)
+ *
+ * Derived signals:
+ *   - `recent` from rtime_last_played within 7d OR appid in recently-played
+ *   - `completion_fraction` from Steam playtime ÷ HLTB main-story hours
+ *     (per SPEC §7.2 — what separates "lived in" from "tutorial abandoned")
  */
 async function enrichTopGames(
   env: Env,
@@ -165,7 +204,13 @@ async function enrichTopGames(
     ).catch(() => null),
   );
 
-  const [recent, ...achievements] = await Promise.all([recentPromise, ...achievementPromises]);
+  const hltbPromises = top.map((game) => cachedHltb(env, game.name));
+
+  const [recent, achievements, hltbs] = await Promise.all([
+    recentPromise,
+    Promise.all(achievementPromises),
+    Promise.all(hltbPromises),
+  ]);
   const recentAppids = new Set(recent.map((g) => g.appid));
 
   return top.map((game, i) => {
@@ -173,10 +218,17 @@ async function enrichTopGames(
       recentAppids.has(game.appid) ||
       (typeof game.rtime_last_played === 'number' && game.rtime_last_played >= recentCutoff);
     const ach = achievements[i];
+    const hltb = hltbs[i];
+    const completionFraction =
+      hltb && hltb.mainStoryHours > 0 && game.playtime_forever > 0
+        ? Math.round(((game.playtime_forever / 60) / hltb.mainStoryHours) * 100) / 100
+        : undefined;
     return {
       ...game,
       ...(ach && { achievements: ach }),
       ...(isRecent && { recent: true }),
+      ...(hltb && { hltb }),
+      ...(completionFraction !== undefined && { completion_fraction: completionFraction }),
     };
   });
 }
