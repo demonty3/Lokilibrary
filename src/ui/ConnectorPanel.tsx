@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
-import type { AuthStatus, ManifestStatus } from '../state/store';
+import type { AuthStatus, LibraryStatus, ManifestStatus } from '../state/store';
 import { useAppStore } from '../state/store';
 import { STEAM_LOGIN_PATH } from '../api/auth';
+import type { LibraryFailureReason } from '../api/library';
+import type { LibraryGame, SteamPersona } from '../types';
 
 /**
  * Overlay panel summoned by the in-world computer. v0.1 surfaces the three
@@ -24,7 +26,14 @@ export function ConnectorPanel() {
   const manifest = useAppStore((s) => s.manifest);
   const authStatus = useAppStore((s) => s.authStatus);
   const steamId = useAppStore((s) => s.steamId);
+  const persona = useAppStore((s) => s.persona);
   const signOut = useAppStore((s) => s.signOut);
+  const library = useAppStore((s) => s.library);
+  const libraryStatus = useAppStore((s) => s.libraryStatus);
+  const libraryError = useAppStore((s) => s.libraryError);
+  const totalGames = useAppStore((s) => s.totalGames);
+  const topN = useAppStore((s) => s.topN);
+  const loadLibrary = useAppStore((s) => s.loadLibrary);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -55,7 +64,14 @@ export function ConnectorPanel() {
         <SteamSection
           status={authStatus}
           steamId={steamId}
+          persona={persona}
+          library={library}
+          libraryStatus={libraryStatus}
+          libraryError={libraryError}
+          totalGames={totalGames}
+          topN={topN}
           onSignOut={() => { void signOut(); }}
+          onReload={() => { void loadLibrary({ force: true }); }}
         />
 
         <Section
@@ -106,39 +122,141 @@ function Section({ title, status, statusColor, description, action }: SectionPro
 interface SteamSectionProps {
   status: AuthStatus;
   steamId: string | null;
+  persona: SteamPersona | null;
+  library: LibraryGame[] | null;
+  libraryStatus: LibraryStatus;
+  libraryError: { reason: LibraryFailureReason; message: string } | null;
+  totalGames: number | null;
+  topN: number;
   onSignOut: () => void;
+  onReload: () => void;
 }
 
-function SteamSection({ status, steamId, onSignOut }: SteamSectionProps) {
+function SteamSection({
+  status,
+  steamId,
+  persona,
+  library,
+  libraryStatus,
+  libraryError,
+  totalGames,
+  topN,
+  onSignOut,
+  onReload,
+}: SteamSectionProps) {
   const isAuthed = status === 'authenticated' && steamId;
-  const statusLabel =
-    status === 'loading' ? 'checking…'
-      : status === 'authenticated' ? 'connected'
-      : status === 'anonymous' ? 'not connected'
-      : 'idle';
-  const statusColor =
-    status === 'authenticated' ? '#7accbf'
-      : status === 'loading' ? '#c8a64a'
-      : '#7a6a7a';
-  const description = isAuthed
-    ? `Signed in as Steam ID ${steamId}. Library + HLTB enrichment wire up in the next slices; right now we only know who you are.`
-    : 'Sign in with Steam OpenID. Slice 1 of Phase 2 — establishes the session. Library fetch (GetOwnedGames + recently played + achievements) and HLTB enrichment land in the slices after.';
+  const statusLabel = libraryStatusLabel(status, libraryStatus, libraryError);
+  const statusColor = libraryStatusColor(status, libraryStatus, libraryError);
+
   return (
     <section style={sectionStyle}>
       <div style={sectionHeaderStyle}>
         <div style={sectionTitleStyle}>Steam Library</div>
         <div style={{ ...statusBadgeStyle, color: statusColor }}>{statusLabel}</div>
       </div>
-      <p style={sectionBodyStyle}>{description}</p>
-      {isAuthed ? (
-        <button style={btnBaseStyle} onClick={onSignOut}>Sign out</button>
-      ) : (
-        <a href={STEAM_LOGIN_PATH} style={{ ...btnBaseStyle, textDecoration: 'none', display: 'inline-block' }}>
-          Connect Steam
-        </a>
+
+      {!isAuthed && (
+        <p style={sectionBodyStyle}>
+          Sign in with Steam OpenID. Slice 1 establishes the session; slice 2
+          (this build) pulls your owned games + persona via the Steam Web API,
+          cached server-side for an hour.
+        </p>
       )}
+
+      {isAuthed && (
+        <div style={{ ...sectionBodyStyle, display: 'flex', gap: 12, alignItems: 'center' }}>
+          {persona?.avatarUrl && (
+            <img
+              src={persona.avatarUrl}
+              alt=""
+              width={48}
+              height={48}
+              style={{ borderRadius: 4, border: '1px solid #3a2f48' }}
+            />
+          )}
+          <div style={{ lineHeight: 1.55 }}>
+            <div style={{ color: '#dadbe6' }}>
+              {persona?.name ?? `Steam ID ${steamId}`}
+            </div>
+            <div style={{ color: '#9990a3', fontSize: 11 }}>
+              {libraryStatus === 'loading' && 'Loading library…'}
+              {libraryStatus === 'loaded' && library && totalGames !== null && (
+                <>
+                  {totalGames} games · top {Math.min(topN, library.length)} surface in the world
+                  {library[0] && (
+                    <>
+                      {' · '}top played:{' '}
+                      <span style={{ color: '#dadbe6' }}>
+                        {library[0].name} ({Math.round(library[0].playtime_forever / 60)}h)
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+              {libraryStatus === 'error' && libraryError && (
+                <span style={{ color: '#d57a7a' }}>
+                  {libraryErrorHint(libraryError.reason, libraryError.message)}
+                </span>
+              )}
+              {libraryStatus === 'idle' && 'Library fetch will start automatically.'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        {isAuthed ? (
+          <>
+            <button style={btnBaseStyle} onClick={onReload} disabled={libraryStatus === 'loading'}>
+              {libraryStatus === 'loading' ? 'Loading…' : 'Reload library'}
+            </button>
+            <button style={btnGhostStyle} onClick={onSignOut}>Sign out</button>
+          </>
+        ) : (
+          <a
+            href={STEAM_LOGIN_PATH}
+            style={{ ...btnBaseStyle, textDecoration: 'none', display: 'inline-block' }}
+          >
+            Connect Steam
+          </a>
+        )}
+      </div>
     </section>
   );
+}
+
+function libraryStatusLabel(
+  auth: AuthStatus,
+  lib: LibraryStatus,
+  err: { reason: LibraryFailureReason; message: string } | null,
+): string {
+  if (auth === 'loading') return 'checking…';
+  if (auth === 'anonymous') return 'not connected';
+  if (auth !== 'authenticated') return 'idle';
+  if (lib === 'loading') return 'loading library…';
+  if (lib === 'loaded') return 'connected';
+  if (lib === 'error' && err) return err.reason === 'private_profile' ? 'profile private' : 'library error';
+  return 'connected';
+}
+
+function libraryStatusColor(
+  auth: AuthStatus,
+  lib: LibraryStatus,
+  err: { reason: LibraryFailureReason; message: string } | null,
+): string {
+  if (auth === 'loading' || lib === 'loading') return '#c8a64a';
+  if (auth === 'authenticated' && lib === 'loaded') return '#7accbf';
+  if (lib === 'error' && err) return '#d57a7a';
+  return '#7a6a7a';
+}
+
+function libraryErrorHint(reason: LibraryFailureReason, message: string): string {
+  if (reason === 'private_profile') {
+    return "Profile or game details are private — flip 'Game details' to Public in Steam → Edit Profile → Privacy.";
+  }
+  if (reason === 'rate_limited') return 'Steam rate-limited the worker. Try again in a minute.';
+  if (reason === 'unauthenticated') return 'Session expired — sign in again.';
+  return message;
 }
 
 function claudeStatusLabel(status: ManifestStatus, source: 'worker' | 'stub' | null): string {

@@ -5,8 +5,9 @@
  *   GET  /healthz                  — liveness + provider config sanity
  *   GET  /api/auth/steam/login     — redirect to Steam OpenID checkid_setup
  *   GET  /api/auth/steam/return    — verify Steam OpenID response, set cookie
- *   GET  /api/auth/me              — read session cookie, return {steamId}
+ *   GET  /api/auth/me              — session check; returns {steamId, persona?}
  *   POST /api/auth/logout          — clear session cookie
+ *   GET  /api/library              — authed user's owned games (top-sorted)
  *   POST /api/world                — Stage 1: world manifest from games + profile
  *
  * The frontend never holds an API key. All Anthropic / Ollama / (future)
@@ -24,7 +25,16 @@ import {
   setSessionCookieHeader,
   signSession,
   verifySession,
+  type SessionClaims,
 } from './lib/session';
+import {
+  fetchOwnedGames,
+  fetchPersona,
+  SteamError,
+  type OwnedGame,
+  type Persona,
+} from './lib/steam';
+import { kvGet } from './lib/cache';
 
 interface Env extends ProviderEnv {
   /** Comma-separated list of allowed origins for CORS. Local dev defaults below. */
@@ -34,10 +44,18 @@ interface Env extends ProviderEnv {
   /** User-facing origin (e.g. http://localhost:5183). Used to build the OpenID
    *  return URL and to decide whether the session cookie is Secure. */
   PUBLIC_BASE_URL?: string;
-  /** First used in slice 2 (GetOwnedGames). Acknowledged here so wrangler stops
-   *  warning about an unknown var once it's set in .dev.vars. */
+  /** Slice 2: required for /api/library and the persona fetch in /api/auth/me. */
   STEAM_WEB_API_KEY?: string;
+  /** Read-through cache for Steam (slice 2), HLTB (slice 4), IGDB (Phase 3),
+   *  and the Stage 1 manifest. See worker/wrangler.toml. */
+  CACHE?: KVNamespace;
 }
+
+const OWNED_GAMES_TTL_S = 60 * 60;        // 1h, per SPEC §7.1 + PLAN.md task 2
+const PERSONA_TTL_S = 60 * 60 * 24;       // 24h — personas barely change
+
+/** Top-N games we'll enrich / surface in the world (PLAN.md Phase 2 task 3). */
+const TOP_N = 15;
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5183',
@@ -73,6 +91,28 @@ function json(body: unknown, init: ResponseInit, headers: Record<string, string>
     ...init,
     headers: { ...headers, 'content-type': 'application/json' },
   });
+}
+
+async function readSession(req: Request, env: Env): Promise<SessionClaims | null> {
+  if (!env.SESSION_SECRET) return null;
+  const token = readSessionCookie(req);
+  if (!token) return null;
+  return verifySession(token, env.SESSION_SECRET);
+}
+
+/** Cached persona lookup. Returns null if the key is missing or Steam errors;
+ *  callers decide whether that's worth surfacing — for /api/auth/me we just
+ *  omit persona so the auth check itself stays fast. */
+async function cachedPersona(env: Env, steamId: string): Promise<Persona | null> {
+  if (!env.STEAM_WEB_API_KEY) return null;
+  const key = env.STEAM_WEB_API_KEY;
+  try {
+    return await kvGet(env.CACHE, `steam:persona:${steamId}`, PERSONA_TTL_S, () =>
+      fetchPersona(steamId, key),
+    );
+  } catch {
+    return null;
+  }
 }
 
 interface WorldRequestBody {
@@ -134,14 +174,14 @@ export default {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/auth/me') {
-      if (!env.SESSION_SECRET) {
-        return json({ authenticated: false }, { status: 200 }, cors);
-      }
-      const token = readSessionCookie(req);
-      if (!token) return json({ authenticated: false }, { status: 200 }, cors);
-      const claims = await verifySession(token, env.SESSION_SECRET);
+      const claims = await readSession(req, env);
       if (!claims) return json({ authenticated: false }, { status: 200 }, cors);
-      return json({ authenticated: true, steamId: claims.sub }, { status: 200 }, cors);
+      const persona = await cachedPersona(env, claims.sub);
+      return json(
+        { authenticated: true, steamId: claims.sub, ...(persona && { persona }) },
+        { status: 200 },
+        cors,
+      );
     }
 
     if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
@@ -150,6 +190,58 @@ export default {
         status: 204,
         headers: { ...cors, 'set-cookie': clearSessionCookieHeader(cookieIsSecure(base)) },
       });
+    }
+
+    // --- Library --------------------------------------------------------------
+    // Slice 2 of Phase 2 (PLAN.md tasks 2). Returns the signed-in user's owned
+    // games, sorted desc by playtime. Cached per-steamid in KV with a 1h TTL.
+    // ?force=1 bypasses the read but still writes — developer escape hatch.
+
+    if (req.method === 'GET' && url.pathname === '/api/library') {
+      const claims = await readSession(req, env);
+      if (!claims) return json({ error: 'unauthenticated' }, { status: 401 }, cors);
+      if (!env.STEAM_WEB_API_KEY) {
+        return json({ error: 'STEAM_WEB_API_KEY not configured' }, { status: 500 }, cors);
+      }
+
+      const force = url.searchParams.get('force') === '1';
+      const apiKey = env.STEAM_WEB_API_KEY;
+      const steamId = claims.sub;
+
+      let games: OwnedGame[];
+      try {
+        games = await kvGet<OwnedGame[]>(
+          env.CACHE,
+          `steam:owned:${steamId}`,
+          OWNED_GAMES_TTL_S,
+          () => fetchOwnedGames(steamId, apiKey),
+          { force },
+        );
+      } catch (e) {
+        if (e instanceof SteamError) {
+          const status = e.reason === 'private_profile' ? 403
+            : e.reason === 'unauthorized' ? 502
+            : e.reason === 'rate_limited' ? 429
+            : 502;
+          return json({ error: e.reason, message: e.message }, { status }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown steam error';
+        return json({ error: 'upstream', message }, { status: 502 }, cors);
+      }
+
+      const persona = await cachedPersona(env, steamId);
+
+      return json(
+        {
+          steamId,
+          ...(persona && { persona }),
+          totalGames: games.length,
+          topN: TOP_N,
+          games,
+        },
+        { status: 200 },
+        cors,
+      );
     }
 
     if (req.method === 'POST' && url.pathname === '/api/world') {

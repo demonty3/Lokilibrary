@@ -16,5 +16,17 @@ compatibility_date = "2026-05-01"
 [dev]
 port = 8787
 
-# KV namespace for manifest cache lands at v0.2 (per PLAN.md 1.8). For v0.1 the
-# worker is stateless — every page load makes a fresh Stage 1 call.
+# KV-backed read-through cache for Steam Web API responses (Phase 2 slice 2+)
+# and the Stage 1 manifest. Lands here at v0.2.
+#
+# Local dev: `wrangler dev` uses a local sqlite simulation regardless of `id`,
+# so the placeholder below is fine for `npm run worker`. No setup required.
+#
+# Production: create a real namespace once via
+#   wrangler kv namespace create CACHE --config worker/wrangler.toml
+# then paste the returned id below. Until that's done, deploys will use the
+# placeholder and KV calls will fail at runtime (the worker degrades to
+# uncached fetches — see worker/lib/cache.ts).
+[[kv_namespaces]]
+binding = "CACHE"
+id = "local_dev_placeholder"

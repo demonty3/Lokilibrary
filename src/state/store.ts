@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { fetchWorld } from '../api/world';
 import { fetchMe, logout as logoutRequest } from '../api/auth';
+import { fetchLibrary, type LibraryFailureReason } from '../api/library';
 import type { Manifest } from '../ai/manifest';
+import type { LibraryGame, SteamPersona } from '../types';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
+export type LibraryStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
 /**
  * Top-level UI + world state. Connection state for Steam / Claude / asset
@@ -35,8 +38,19 @@ interface AppState {
    *  loadAuth() asks the worker. */
   authStatus: AuthStatus;
   steamId: string | null;
+  persona: SteamPersona | null;
   loadAuth: () => Promise<void>;
   signOut: () => Promise<void>;
+
+  /** Owned-games list from /api/library (Phase 2 slice 2). Renderer still uses
+   *  the hard-coded library through slice 6; this surfaces in the connector
+   *  panel and feeds the profile builder in slice 5. */
+  library: LibraryGame[] | null;
+  libraryStatus: LibraryStatus;
+  libraryError: { reason: LibraryFailureReason; message: string } | null;
+  totalGames: number | null;
+  topN: number;
+  loadLibrary: (options?: { force?: boolean }) => Promise<void>;
 
   /** Active launch ritual — the 1.8s pre-launch animation, set when the
    *  player presses E. Cleared when steam://run fires. */
@@ -91,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   authStatus: 'idle',
   steamId: null,
+  persona: null,
   loadAuth: async () => {
     if (get().authStatus === 'loading') return;
     set({ authStatus: 'loading' });
@@ -98,11 +113,46 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       authStatus: me.authenticated ? 'authenticated' : 'anonymous',
       steamId: me.steamId ?? null,
+      persona: me.persona ?? null,
     });
   },
   signOut: async () => {
     await logoutRequest();
-    set({ authStatus: 'anonymous', steamId: null });
+    set({
+      authStatus: 'anonymous',
+      steamId: null,
+      persona: null,
+      library: null,
+      libraryStatus: 'idle',
+      libraryError: null,
+      totalGames: null,
+    });
+  },
+
+  library: null,
+  libraryStatus: 'idle',
+  libraryError: null,
+  totalGames: null,
+  topN: 15,
+  loadLibrary: async (options) => {
+    if (get().libraryStatus === 'loading') return;
+    set({ libraryStatus: 'loading', libraryError: null });
+    const result = await fetchLibrary(options);
+    if (result.ok) {
+      set({
+        library: result.library.games,
+        totalGames: result.library.totalGames,
+        topN: result.library.topN,
+        persona: result.library.persona ?? get().persona,
+        libraryStatus: 'loaded',
+        libraryError: null,
+      });
+    } else {
+      set({
+        libraryStatus: 'error',
+        libraryError: { reason: result.reason, message: result.message },
+      });
+    }
   },
 
   activeRitual: null,
