@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
-import type { AuthStatus, LibraryStatus, ManifestStatus } from '../state/store';
+import type { AuthStatus, LibraryStatus, ManifestStatus, ShareCreateStatus } from '../state/store';
 import { useAppStore } from '../state/store';
 import { STEAM_LOGIN_PATH } from '../api/auth';
 import type { LibraryFailureReason } from '../api/library';
@@ -35,6 +35,12 @@ export function ConnectorPanel() {
   const topN = useAppStore((s) => s.topN);
   const profile = useAppStore((s) => s.profile);
   const loadLibrary = useAppStore((s) => s.loadLibrary);
+  const viewOnly = useAppStore((s) => s.viewOnly);
+  const shareCreateStatus = useAppStore((s) => s.shareCreateStatus);
+  const shareUrl = useAppStore((s) => s.shareUrl);
+  const shareError = useAppStore((s) => s.shareError);
+  const createCurrentShare = useAppStore((s) => s.createCurrentShare);
+  const resetShareCreate = useAppStore((s) => s.resetShareCreate);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -57,10 +63,19 @@ export function ConnectorPanel() {
         <header style={headerStyle}>
           <div>
             <div style={eyebrowStyle}>LIBRARYWORLD</div>
-            <div style={titleStyle}>System</div>
+            <div style={titleStyle}>{viewOnly ? `Viewing ${persona?.name ?? 'someone'}'s world` : 'System'}</div>
           </div>
           <button onClick={closeMenu} style={btnGhostStyle}>close · esc</button>
         </header>
+
+        {viewOnly && (
+          <p style={viewOnlyBannerStyle}>
+            You're walking a shared world. Pressing E on an archetype shows what
+            it represents, but won't launch a game on your machine.
+            {' '}
+            <a href="/" style={{ color: '#7accbf' }}>Build your own →</a>
+          </p>
+        )}
 
         <SteamSection
           status={authStatus}
@@ -72,6 +87,7 @@ export function ConnectorPanel() {
           totalGames={totalGames}
           topN={topN}
           profile={profile}
+          viewOnly={viewOnly}
           onSignOut={() => { void signOut(); }}
           onReload={() => { void loadLibrary({ force: true }); }}
         />
@@ -83,6 +99,17 @@ export function ConnectorPanel() {
           description={claudeStatusDescription(manifestStatus, manifestSource, manifestError, manifest?.metaphor)}
           action="—"
         />
+
+        {!viewOnly && authStatus === 'authenticated' && (
+          <ShareSection
+            status={shareCreateStatus}
+            url={shareUrl}
+            error={shareError}
+            canShare={Boolean(profile)}
+            onShare={() => { void createCurrentShare(); }}
+            onReset={resetShareCreate}
+          />
+        )}
 
         <Section
           title="Asset Pipeline"
@@ -131,6 +158,7 @@ interface SteamSectionProps {
   totalGames: number | null;
   topN: number;
   profile: Profile | null;
+  viewOnly: boolean;
   onSignOut: () => void;
   onReload: () => void;
 }
@@ -145,21 +173,27 @@ function SteamSection({
   totalGames,
   topN,
   profile,
+  viewOnly,
   onSignOut,
   onReload,
 }: SteamSectionProps) {
   const isAuthed = status === 'authenticated' && steamId;
-  const statusLabel = libraryStatusLabel(status, libraryStatus, libraryError);
-  const statusColor = libraryStatusColor(status, libraryStatus, libraryError);
+  const statusLabel = viewOnly
+    ? 'shared world'
+    : libraryStatusLabel(status, libraryStatus, libraryError);
+  const statusColor = viewOnly ? '#7accbf' : libraryStatusColor(status, libraryStatus, libraryError);
+  const showLibrarySummary = (viewOnly || isAuthed) && libraryStatus === 'loaded' && library && totalGames !== null;
 
   return (
     <section style={sectionStyle}>
       <div style={sectionHeaderStyle}>
-        <div style={sectionTitleStyle}>Steam Library</div>
+        <div style={sectionTitleStyle}>
+          {viewOnly ? 'Their library' : 'Steam Library'}
+        </div>
         <div style={{ ...statusBadgeStyle, color: statusColor }}>{statusLabel}</div>
       </div>
 
-      {!isAuthed && (
+      {!viewOnly && !isAuthed && (
         <p style={sectionBodyStyle}>
           Sign in with Steam OpenID. Slice 1 establishes the session; slice 2
           (this build) pulls your owned games + persona via the Steam Web API,
@@ -167,7 +201,7 @@ function SteamSection({
         </p>
       )}
 
-      {isAuthed && (
+      {(viewOnly || isAuthed) && (
         <div style={{ ...sectionBodyStyle, display: 'flex', gap: 12, alignItems: 'center' }}>
           {persona?.avatarUrl && (
             <img
@@ -180,11 +214,11 @@ function SteamSection({
           )}
           <div style={{ lineHeight: 1.55 }}>
             <div style={{ color: '#dadbe6' }}>
-              {persona?.name ?? `Steam ID ${steamId}`}
+              {persona?.name ?? (steamId ? `Steam ID ${steamId}` : 'Someone')}
             </div>
             <div style={{ color: '#9990a3', fontSize: 11 }}>
-              {libraryStatus === 'loading' && 'Loading library…'}
-              {libraryStatus === 'loaded' && library && totalGames !== null && (
+              {!viewOnly && libraryStatus === 'loading' && 'Loading library…'}
+              {showLibrarySummary && library && totalGames !== null && (
                 <LibrarySummary
                   library={library}
                   totalGames={totalGames}
@@ -192,34 +226,36 @@ function SteamSection({
                   profile={profile}
                 />
               )}
-              {libraryStatus === 'error' && libraryError && (
+              {!viewOnly && libraryStatus === 'error' && libraryError && (
                 <span style={{ color: '#d57a7a' }}>
                   {libraryErrorHint(libraryError.reason, libraryError.message)}
                 </span>
               )}
-              {libraryStatus === 'idle' && 'Library fetch will start automatically.'}
+              {!viewOnly && libraryStatus === 'idle' && 'Library fetch will start automatically.'}
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        {isAuthed ? (
-          <>
-            <button style={btnBaseStyle} onClick={onReload} disabled={libraryStatus === 'loading'}>
-              {libraryStatus === 'loading' ? 'Loading…' : 'Reload library'}
-            </button>
-            <button style={btnGhostStyle} onClick={onSignOut}>Sign out</button>
-          </>
-        ) : (
-          <a
-            href={STEAM_LOGIN_PATH}
-            style={{ ...btnBaseStyle, textDecoration: 'none', display: 'inline-block' }}
-          >
-            Connect Steam
-          </a>
-        )}
-      </div>
+      {!viewOnly && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isAuthed ? (
+            <>
+              <button style={btnBaseStyle} onClick={onReload} disabled={libraryStatus === 'loading'}>
+                {libraryStatus === 'loading' ? 'Loading…' : 'Reload library'}
+              </button>
+              <button style={btnGhostStyle} onClick={onSignOut}>Sign out</button>
+            </>
+          ) : (
+            <a
+              href={STEAM_LOGIN_PATH}
+              style={{ ...btnBaseStyle, textDecoration: 'none', display: 'inline-block' }}
+            >
+              Connect Steam
+            </a>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -523,3 +559,91 @@ const kbdStyle: CSSProperties = {
   borderRadius: 2,
   fontFamily: 'inherit',
 };
+
+const viewOnlyBannerStyle: CSSProperties = {
+  fontSize: 12,
+  color: '#bdb3c4',
+  lineHeight: 1.55,
+  margin: '0 0 12px',
+  padding: '10px 12px',
+  background: 'rgba(122, 204, 191, 0.07)',
+  border: '1px solid rgba(122, 204, 191, 0.25)',
+  borderRadius: 4,
+};
+
+interface ShareSectionProps {
+  status: ShareCreateStatus;
+  url: string | null;
+  error: string | null;
+  canShare: boolean;
+  onShare: () => void;
+  onReset: () => void;
+}
+
+/**
+ * "Share this world" surface. POSTs to /api/share, copies the resulting
+ * /w/:id URL to the clipboard, surfaces status + the URL inline.
+ */
+function ShareSection({ status, url, error, canShare, onShare, onReset }: ShareSectionProps) {
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Clipboard API unavailable (older browsers, insecure context) —
+      // the URL is still visible inline so the user can copy by hand.
+    }
+  };
+  return (
+    <section style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <div style={sectionTitleStyle}>Share this world</div>
+        <div style={{ ...statusBadgeStyle, color: shareStatusColor(status) }}>
+          {shareStatusLabel(status)}
+        </div>
+      </div>
+      <p style={sectionBodyStyle}>
+        Generate a /w/:id URL that opens this world for anyone — they don't need
+        a Steam account or a LibraryWorld build of their own. Read-only: clicking
+        an archetype shows what it represents, never launches a game.
+      </p>
+      {status === 'done' && url && (
+        <div style={{ ...sectionBodyStyle, color: '#dadbe6' }}>
+          <code style={{ background: '#15121d', padding: '2px 6px', borderRadius: 2 }}>{url}</code>
+        </div>
+      )}
+      {status === 'error' && error && (
+        <p style={{ ...sectionBodyStyle, color: '#d57a7a' }}>{error}</p>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {status === 'done' && url ? (
+          <>
+            <button style={btnBaseStyle} onClick={() => { void copy(); }}>Copy URL</button>
+            <button style={btnGhostStyle} onClick={onReset}>Generate another</button>
+          </>
+        ) : (
+          <button
+            style={canShare && status !== 'creating' ? btnBaseStyle : btnDisabledStyle}
+            onClick={onShare}
+            disabled={!canShare || status === 'creating'}
+          >
+            {status === 'creating' ? 'Saving…' : 'Share this world'}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function shareStatusLabel(s: ShareCreateStatus): string {
+  if (s === 'creating') return 'saving…';
+  if (s === 'done') return 'ready';
+  if (s === 'error') return 'error';
+  return 'idle';
+}
+function shareStatusColor(s: ShareCreateStatus): string {
+  if (s === 'creating') return '#c8a64a';
+  if (s === 'done') return '#7accbf';
+  if (s === 'error') return '#d57a7a';
+  return '#7a6a7a';
+}

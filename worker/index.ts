@@ -10,6 +10,8 @@
  *   GET  /api/library              — authed user's enriched + tagged library + profile
  *   GET  /api/world                — Stage 1 manifest from the session library
  *                                    (?template=... ?force=1; cached 24h)
+ *   POST /api/share                — save current world as a /w/:id share record
+ *   GET  /api/share/:id            — fetch a public share record (no auth)
  *
  * The frontend never holds an API key. All Anthropic / Ollama / (future)
  * Stable Audio / ElevenLabs / Meshy traffic terminates here.
@@ -48,6 +50,14 @@ import {
 } from './lib/hltb';
 import { buildProfile } from './lib/profile';
 import { tagLibrary, type LibraryState } from './lib/state';
+import {
+  newShareId,
+  shareKvKey,
+  SHARE_SCHEMA_VERSION,
+  SHARE_TTL_S,
+  type ShareRecord,
+  type SharedLibraryGame,
+} from './lib/share';
 import { kvGet } from './lib/cache';
 
 interface Env extends ProviderEnv {
@@ -487,6 +497,125 @@ export default {
         );
       }
       return json(result.manifest, { status: 200 }, cors);
+    }
+
+    // --- Share-URL save + fetch ----------------------------------------------
+    // Phase 5 slice 3. The /w/:id viewer reconstructs a world from {manifest,
+    // profile_seed, top-N states} — no worker round-trip beyond the GET.
+
+    if (req.method === 'POST' && url.pathname === '/api/share') {
+      const claims = await readSession(req, env);
+      if (!claims) return json({ error: 'unauthenticated' }, { status: 401 }, cors);
+
+      // Caller POSTs only the profileSeed — everything else the worker has
+      // (or can rebuild) from the session. Body parsing is tolerant: an empty
+      // body works for clients that didn't bother sending one.
+      let body: { profileSeed?: unknown } = {};
+      try {
+        body = (await req.json()) as { profileSeed?: unknown };
+      } catch {
+        // empty / non-JSON body — fall through with body = {}
+      }
+      const seed = typeof body.profileSeed === 'number' ? body.profileSeed >>> 0 : null;
+      if (seed === null) {
+        return json({ error: 'profileSeed required' }, { status: 400 }, cors);
+      }
+
+      // Rebuild the user's library from the session. Reuses the same caches
+      // as /api/library and /api/world, so this is cheap on a warm visit.
+      const assembled = await assembleLibrary(env, req, cors, { force: false });
+      if (!assembled.ok) return assembled.response;
+      const { steamId, taggedGames, profile, persona } = assembled.bundle;
+
+      // Pull the current manifest from cache. If it's missing (cold worker /
+      // 24h expired), do a Stage 1 call so the share record reflects a real
+      // world rather than failing.
+      const template: TemplateId = 'seaside_town';
+      const cacheKey = `manifest:v2:${steamId}:${template}`;
+      const topN = taggedGames.slice(0, TOP_N);
+      const promptGames = topN.map((g) => ({
+        appid: g.appid,
+        name: g.name,
+        ...(g.state !== 'default' && { state: g.state }),
+      }));
+      const allowedAppids = new Set(promptGames.map((g) => g.appid));
+
+      let parsed: unknown;
+      try {
+        parsed = await kvGet<unknown>(env.CACHE, cacheKey, MANIFEST_TTL_S, async () => {
+          const { system, user } = buildStageOnePrompt({
+            template,
+            profile: { summary: profile.summary },
+            games: promptGames,
+          });
+          const text = await callStageOne(env, system, user);
+          return JSON.parse(extractJson(text)) as unknown;
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'stage1', message }, { status: 502 }, cors);
+      }
+
+      const result = validateManifest(template, allowedAppids, parsed);
+      if (!result.ok) {
+        return json({ error: `manifest validation failed: ${result.reason}` }, { status: 502 }, cors);
+      }
+
+      const topLibrary: SharedLibraryGame[] = topN.map((g) => ({
+        appid: g.appid,
+        name: g.name,
+        ...(g.state !== undefined && { state: g.state }),
+        playtime_forever: g.playtime_forever,
+      }));
+
+      const record: ShareRecord = {
+        v: SHARE_SCHEMA_VERSION,
+        manifest: result.manifest,
+        profileSeed: seed,
+        topLibrary,
+        dustyCount: profile.stateCounts?.dusty ?? 0,
+        ...(persona && { persona }),
+        createdAt: Math.floor(Date.now() / 1000),
+      };
+
+      const id = newShareId();
+      if (env.CACHE) {
+        try {
+          await env.CACHE.put(shareKvKey(id), JSON.stringify(record), {
+            expirationTtl: SHARE_TTL_S,
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'kv put failed';
+          return json({ error: 'storage', message }, { status: 500 }, cors);
+        }
+      } else {
+        // Without KV we can't actually persist; fail loud so the user sees
+        // why their share URL isn't showing up.
+        return json({ error: 'share storage not configured (CACHE binding)' }, { status: 503 }, cors);
+      }
+
+      const base = publicBaseUrl(env);
+      return json({ id, url: `${base}/w/${id}` }, { status: 201 }, cors);
+    }
+
+    if (req.method === 'GET' && url.pathname.startsWith('/api/share/')) {
+      const id = url.pathname.slice('/api/share/'.length);
+      if (!id || !/^[a-f0-9]{8,32}$/.test(id)) {
+        return json({ error: 'invalid share id' }, { status: 400 }, cors);
+      }
+      if (!env.CACHE) {
+        return json({ error: 'share storage not configured' }, { status: 503 }, cors);
+      }
+      try {
+        const raw = await env.CACHE.get(shareKvKey(id), 'json');
+        if (raw === null) return json({ error: 'share not found' }, { status: 404 }, cors);
+        // Echo back the record verbatim. Schema version mismatch handled
+        // client-side — newer viewer reading older record can pick fields.
+        return json(raw, { status: 200 }, cors);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'kv read failed';
+        return json({ error: 'storage', message }, { status: 500 }, cors);
+      }
     }
 
     return json({ error: 'not found' }, { status: 404 }, cors);

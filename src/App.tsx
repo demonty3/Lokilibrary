@@ -23,11 +23,19 @@ const LAUNCH_MS = 1800;
 const RITUAL_TOTAL_MS = 2200;
 const RETURN_MS = 1200;
 
+/** Match /w/:id paths — share-URL viewer entry point. */
+function shareIdFromPath(): string | null {
+  const m = /^\/w\/([a-f0-9]{8,32})$/.exec(window.location.pathname);
+  return m ? m[1] : null;
+}
+
 export function App() {
   const loadManifest = useAppStore((s) => s.loadManifest);
   const loadAuth = useAppStore((s) => s.loadAuth);
   const loadLibrary = useAppStore((s) => s.loadLibrary);
+  const loadSharedWorld = useAppStore((s) => s.loadSharedWorld);
   const authStatus = useAppStore((s) => s.authStatus);
+  const viewOnly = useAppStore((s) => s.viewOnly);
   const markReturnPending = useAppStore((s) => s.markReturnPending);
   const setInFlight = useAppStore((s) => s.setInFlight);
   const clearRitual = useAppStore((s) => s.clearRitual);
@@ -36,28 +44,38 @@ export function App() {
   const inFlight = useAppStore((s) => s.inFlight);
   const returnPending = useAppStore((s) => s.returnPending);
 
-  // Phase 2.1: check the session cookie on boot so the connector panel knows
-  // whether the user is signed in without waiting for them to open it.
+  // Boot path branch (Phase 5 slice 3):
+  //   /w/:id  →  view someone else's world (no auth round-trip, no Stage 1)
+  //   else    →  the normal authed flow
   useEffect(() => {
-    void loadAuth();
-  }, [loadAuth]);
+    const id = shareIdFromPath();
+    if (id) {
+      void loadSharedWorld(id);
+    } else {
+      void loadAuth();
+    }
+  }, [loadAuth, loadSharedWorld]);
 
   // Slice 7: fire the Stage 1 call once auth has resolved. Authed users get
   // a manifest built from their real library; anon users get 401 and the
   // fetcher falls back to the stub manifest so the scene still renders.
   // Re-fires when the user signs in or out — manifest swaps stub <-> real.
+  // Skipped entirely in view-only mode; the share record already populated
+  // everything the renderer needs.
   useEffect(() => {
+    if (viewOnly) return;
     if (authStatus === 'authenticated' || authStatus === 'anonymous') {
       void loadManifest();
     }
-  }, [authStatus, loadManifest]);
+  }, [viewOnly, authStatus, loadManifest]);
 
   // Slice 2: as soon as auth resolves to authenticated, pull the library for
   // the connector panel preview. The manifest call above does its own library
   // build server-side; this one is for visibility.
   useEffect(() => {
+    if (viewOnly) return;
     if (authStatus === 'authenticated') void loadLibrary();
-  }, [authStatus, loadLibrary]);
+  }, [viewOnly, authStatus, loadLibrary]);
 
   // Phase 1.9: launch ritual orchestration. When activeRitual flips on, schedule
   // steam://run at LAUNCH_MS and clear the ritual at RITUAL_TOTAL_MS. The

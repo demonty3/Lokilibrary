@@ -22,7 +22,7 @@ export function FishingBoat({ appid, name, position, state }: ArchetypeComponent
 
   useInteract(x, z, `[E] cast off · ${name}`, () => {
     startRitual({ appid, archetype: 'fishing_boat', startedAt: performance.now() });
-  });
+  }, appid);
 
   useFrame((s) => {
     const sail = sailRef.current;

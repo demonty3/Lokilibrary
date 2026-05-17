@@ -22,7 +22,7 @@ export function HarbourMastersHut({ appid, name, position, state }: ArchetypeCom
 
   useInteract(x, z, `[E] sign the logbook · ${name}`, () => {
     startRitual({ appid, archetype: 'harbour_masters_hut', startedAt: performance.now() });
-  });
+  }, appid);
 
   useFrame(() => {
     const g = boardRef.current;

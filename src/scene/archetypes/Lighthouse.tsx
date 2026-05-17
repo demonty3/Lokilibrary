@@ -30,7 +30,7 @@ export function Lighthouse({ appid, name, position, state }: ArchetypeComponentP
 
   useInteract(x, z, `[E] light the lantern · ${name}`, () => {
     startRitual({ appid, archetype: 'lighthouse', startedAt: performance.now() });
-  });
+  }, appid);
 
   // Drive the lantern emissive + point-light intensity from any active ritual
   // targeting this archetype instance. Outside a ritual: gentle flicker scaled

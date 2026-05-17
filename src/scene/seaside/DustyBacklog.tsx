@@ -38,11 +38,16 @@ interface CrateInstance {
 
 export function DustyBacklog() {
   const library = useAppStore((s) => s.library);
+  const viewOnly = useAppStore((s) => s.viewOnly);
+  const sharedDustyCount = useAppStore((s) => s.sharedDustyCount);
 
   const dustyCount = useMemo(() => {
+    // View-only mode: the share record carries an explicit dusty count
+    // without the full owned-games array — read it directly.
+    if (viewOnly) return sharedDustyCount;
     if (!library) return 0;
     return library.filter((g) => g.state === 'dusty').length;
-  }, [library]);
+  }, [library, viewOnly, sharedDustyCount]);
 
   const visibleCount = Math.min(dustyCount, MAX_VISIBLE);
 
