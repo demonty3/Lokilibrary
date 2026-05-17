@@ -6,8 +6,10 @@
  * whitelist; we trust the shape here and treat unexpected fields defensively
  * only at parse time.
  *
- * Phase 5 will drop `position` from this contract and move placement to a
- * deterministic procedural layer seeded by the behavioral profile.
+ * Phase 5 slice 2: `position` is gone. Positions are derived deterministically
+ * client-side from the behavioral profile via src/procedural/seaside.ts. The
+ * share-URL contract depends on the renderer NOT trusting position data from
+ * the manifest — same profile must give the same world, every time.
  */
 
 export type TemplateId = 'seaside_town';
@@ -23,7 +25,6 @@ export interface ManifestCastingEntry {
   appid: number;
   archetype: SeasideArchetype;
   role: string;
-  position: [number, number];
 }
 
 export interface Manifest {

@@ -2,6 +2,13 @@
  * Manifest validation. The LLM is constrained by the prompt, but constraints
  * are advisory — we validate every field server-side before handing the
  * manifest to the frontend.
+ *
+ * Phase 5 slice 2: `position` is no longer part of the manifest contract.
+ * Placement is derived client-side from the behavioral profile
+ * (src/procedural/seaside.ts). If the LLM hallucinates a position field
+ * anyway, the validator silently drops it — the renderer doesn't read it.
+ * Cache key bumped from `manifest:` to `manifest:v2:` in worker/index.ts so
+ * pre-Phase-5 cached manifests are orphaned.
  */
 
 import { isValidArchetype, type TemplateId } from './whitelist';
@@ -10,7 +17,6 @@ export interface ManifestCastingEntry {
   appid: number;
   archetype: string;
   role: string;
-  position: [number, number];
 }
 
 export interface Manifest {
@@ -62,20 +68,12 @@ export function validateManifest(
     if (typeof e.role !== 'string' || e.role.length === 0) {
       return { ok: false, reason: `missing role for appid ${e.appid}` };
     }
-    const pos = e.position;
-    if (
-      !Array.isArray(pos) ||
-      pos.length !== 2 ||
-      typeof pos[0] !== 'number' ||
-      typeof pos[1] !== 'number'
-    ) {
-      return { ok: false, reason: `bad position for appid ${e.appid}` };
-    }
+    // Any `position` field the LLM hallucinates is silently dropped — we don't
+    // put it on the validated manifest. Phase 5 procedural layer owns placement.
     casting.push({
       appid: e.appid,
       archetype: e.archetype,
       role: e.role,
-      position: [pos[0], pos[1]],
     });
   }
   if (casting.length === 0) return { ok: false, reason: 'casting is empty' };

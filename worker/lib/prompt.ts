@@ -36,8 +36,7 @@ You MUST return JSON only. No prose, no markdown fence, no commentary. The outpu
     {
       "appid": number,             // exactly matches one game in input
       "archetype": string,         // one of the template's archetype IDs
-      "role": string,              // 1-2 sentence in-world role text, second person
-      "position": [number, number] // [x, z] in meters, -16 to 16; y is derived
+      "role": string               // 1-2 sentence in-world role text, second person
     }
   ]
 }
@@ -46,7 +45,7 @@ Hard rules:
 - archetype MUST be drawn from the supplied whitelist for the template. If a game doesn't fit naturally, pick the closest fit — never invent.
 - Distinct games can share an archetype (two lighthouses, one for each long-loved game).
 - role text is diegetic ("you tend the lantern here") — never names the game, never breaks frame.
-- positions must not overlap (keep >=4 meters between any two).
+- Do NOT include a "position" field. Placement is handled deterministically by the renderer from the behavioral profile; any position you provide is ignored.
 - Output MUST be a single JSON object. No prefix, no suffix, no trailing comma.`;
 
 export function buildStageOnePrompt(input: StageOneInput): { system: string; user: string } {
