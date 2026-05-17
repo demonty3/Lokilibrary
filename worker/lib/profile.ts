@@ -20,6 +20,7 @@
 
 import type { AchievementsSummary } from './steam';
 import type { HltbResult } from './hltb';
+import type { LibraryState } from './state';
 
 /** Mirrors the EnrichedGame shape worker/index.ts assembles. */
 export interface ProfileInputGame {
@@ -32,6 +33,9 @@ export interface ProfileInputGame {
   recent?: boolean;
   hltb?: HltbResult;
   completion_fraction?: number;
+  /** Slice 6 — tagState() output. Available when tagLibrary() ran before
+   *  the profile build (current /api/library flow). */
+  state?: LibraryState;
 }
 
 export type Engagement =
@@ -66,6 +70,9 @@ export interface Profile {
   completionRateAvg?: number;
   /** Count of top-N games with recent === true. */
   recentlyActiveCount: number;
+  /** Per-state counts across the whole library (slice 6). Absent if state
+   *  wasn't tagged before the profile build. */
+  stateCounts?: Record<LibraryState, number>;
   /** Prompt-ready text summary, matching SPEC §8's shape. */
   summary: string;
 }
@@ -111,6 +118,18 @@ export function buildProfile(
 
   const recentlyActiveCount = topGames.filter((g) => g.recent).length;
 
+  // State counts (slice 6) — only meaningful if tagLibrary() ran before this.
+  let stateCounts: Record<LibraryState, number> | undefined;
+  const tagged = library.filter((g): g is ProfileInputGame & { state: LibraryState } =>
+    typeof g.state === 'string',
+  );
+  if (tagged.length > 0) {
+    stateCounts = {
+      loved: 0, recent: 0, mastered: 0, abandoned: 0, dusty: 0, default: 0,
+    };
+    for (const g of tagged) stateCounts[g.state]++;
+  }
+
   const summary = summarize({
     totalGames,
     playedGames,
@@ -120,6 +139,7 @@ export function buildProfile(
     bingeRatio,
     ...(completionRateAvg !== undefined && { completionRateAvg }),
     recentlyActiveCount,
+    ...(stateCounts && { stateCounts }),
   });
 
   return {
@@ -131,6 +151,7 @@ export function buildProfile(
     bingeRatio,
     ...(completionRateAvg !== undefined && { completionRateAvg }),
     recentlyActiveCount,
+    ...(stateCounts && { stateCounts }),
     summary,
   };
 }
@@ -201,6 +222,22 @@ function summarize(p: Omit<Profile, 'summary'>): string {
   }
 
   lines.push(`- Dusty backlog (owned, never opened): ${p.dustyGames} titles`);
+
+  if (p.stateCounts) {
+    const c = p.stateCounts;
+    const interesting: Array<[LibraryState, string]> = [
+      ['loved', 'loved'],
+      ['mastered', 'mastered'],
+      ['recent', 'recently played'],
+      ['abandoned', 'abandoned partway'],
+    ];
+    const parts = interesting
+      .map(([k, label]) => (c[k] > 0 ? `${c[k]} ${label}` : null))
+      .filter((s): s is string => s !== null);
+    if (parts.length > 0) {
+      lines.push(`- Library states: ${parts.join(', ')}`);
+    }
+  }
 
   return lines.join('\n');
 }

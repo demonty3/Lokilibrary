@@ -283,6 +283,14 @@ function ProfilePreview({ profile }: { profile: Profile }) {
       : profile.bingeRatio >= 0.5 ? 'high'
       : profile.bingeRatio >= 0.3 ? 'moderate'
       : 'low';
+  const sc = profile.stateCounts;
+  const stateParts: string[] = [];
+  if (sc) {
+    if (sc.loved) stateParts.push(`${sc.loved} loved`);
+    if (sc.mastered) stateParts.push(`${sc.mastered} mastered`);
+    if (sc.recent) stateParts.push(`${sc.recent} recent`);
+    if (sc.abandoned) stateParts.push(`${sc.abandoned} abandoned`);
+  }
   return (
     <>
       <br />
@@ -293,6 +301,14 @@ function ProfilePreview({ profile }: { profile: Profile }) {
         )}
         {' · '}{profile.dustyGames} dusty
       </span>
+      {stateParts.length > 0 && (
+        <>
+          <br />
+          <span style={{ color: '#9aa6b4' }}>
+            Library states: {stateParts.join(' · ')}
+          </span>
+        </>
+      )}
       <details style={{ marginTop: 6 }}>
         <summary style={{ cursor: 'pointer', color: '#7a6a7a', fontSize: 11 }}>
           Stage 1 prompt preview
