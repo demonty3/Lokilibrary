@@ -4,13 +4,10 @@ import { CylinderCollider, RigidBody } from '@react-three/rapier';
 import type { Mesh, MeshStandardMaterial, PointLight } from 'three';
 import { useAppStore } from '../../state/store';
 import { RecognitionFace } from './RecognitionFace';
+import { StateAccents } from './StateAccents';
+import { styleFor } from './stateStyling';
 import { useInteract } from './useInteract';
-
-interface LighthouseProps {
-  appid: number;
-  name: string;
-  position: [number, number]; // [x, z] from manifest; y is derived
-}
+import type { ArchetypeComponentProps } from './index';
 
 const TOWER_HEIGHT = 7.5;
 const RADIUS = 1.4;
@@ -24,42 +21,43 @@ const RITUAL_PEAK_EMISSIVE = 22;
  * Recognition face: the lantern panel just below the light dome — that's where
  * the game's Steam header.jpg goes (CLAUDE.md recognition-face rule).
  */
-export function Lighthouse({ appid, name, position }: LighthouseProps) {
+export function Lighthouse({ appid, name, position, state }: ArchetypeComponentProps) {
   const [x, z] = position;
   const lanternRef = useRef<Mesh>(null);
   const pointRef = useRef<PointLight>(null);
   const startRitual = useAppStore((s) => s.startRitual);
+  const style = styleFor(state);
 
   useInteract(x, z, `[E] light the lantern · ${name}`, () => {
     startRitual({ appid, archetype: 'lighthouse', startedAt: performance.now() });
   });
 
   // Drive the lantern emissive + point-light intensity from any active ritual
-  // targeting this archetype instance. Outside a ritual: gentle flicker.
-  useFrame((state) => {
+  // targeting this archetype instance. Outside a ritual: gentle flicker scaled
+  // by state — `loved` lanterns burn brighter, `abandoned` ones are snuffed.
+  useFrame((s) => {
     const lantern = lanternRef.current;
     const light = pointRef.current;
     if (!lantern || !light) return;
     const ritual = useAppStore.getState().activeRitual;
-    const t = state.clock.elapsedTime;
+    const t = s.clock.elapsedTime;
+    const mat = lantern.material as MeshStandardMaterial;
     if (ritual && ritual.appid === appid && ritual.archetype === 'lighthouse') {
       const dt = (performance.now() - ritual.startedAt) / 1000;
       // First 1.6s: ramp up. Last 0.4s: hold and bloom out.
       const k = dt < 1.6 ? dt / 1.6 : 1.0;
       const eased = k * k * (3 - 2 * k); // smoothstep
-      const mat = lantern.material as MeshStandardMaterial;
       mat.emissiveIntensity = BASE_EMISSIVE + (RITUAL_PEAK_EMISSIVE - BASE_EMISSIVE) * eased;
       light.intensity = 20 + 80 * eased;
     } else {
       const flicker = 1 + Math.sin(t * 6.7) * 0.08;
-      const mat = lantern.material as MeshStandardMaterial;
-      mat.emissiveIntensity = BASE_EMISSIVE * flicker;
-      light.intensity = 20 * flicker;
+      mat.emissiveIntensity = BASE_EMISSIVE * flicker * style.interiorIntensity;
+      light.intensity = 20 * flicker * style.interiorIntensity;
     }
   });
 
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} scale={style.scale}>
       <RigidBody type="fixed" colliders={false} position={[0, TOWER_HEIGHT / 2, 0]}>
         <CylinderCollider args={[TOWER_HEIGHT / 2, RADIUS]} />
         <mesh castShadow receiveShadow>
@@ -84,14 +82,14 @@ export function Lighthouse({ appid, name, position }: LighthouseProps) {
         <meshStandardMaterial
           color="#fff0a0"
           emissive="#fff0a0"
-          emissiveIntensity={BASE_EMISSIVE}
+          emissiveIntensity={BASE_EMISSIVE * style.interiorIntensity}
           toneMapped={false}
         />
       </mesh>
       <pointLight
         ref={pointRef}
         position={[0, TOWER_HEIGHT + 0.3, 0]}
-        intensity={20}
+        intensity={20 * style.interiorIntensity}
         distance={32}
         color="#ffe48a"
         decay={2}
@@ -111,6 +109,8 @@ export function Lighthouse({ appid, name, position }: LighthouseProps) {
         width={1.6}
         emissive
       />
+
+      <StateAccents state={state} topY={TOWER_HEIGHT + 1.8} radius={RADIUS} />
     </group>
   );
 }

@@ -1,15 +1,20 @@
 import type { ComponentType } from 'react';
 import type { SeasideArchetype } from '../../ai/manifest';
+import type { LibraryState } from '../../types';
 import { Lighthouse } from './Lighthouse';
 import { FishMarket } from './FishMarket';
 import { DetectivesOffice } from './DetectivesOffice';
 import { HarbourMastersHut } from './HarbourMastersHut';
 import { FishingBoat } from './FishingBoat';
 
-interface ArchetypeComponentProps {
+export interface ArchetypeComponentProps {
   appid: number;
   name: string;
   position: [number, number];
+  /** SPEC §4 library state. Drives the per-archetype visual treatment
+   *  introduced in Phase 4 — loved games glow, abandoned ones go dark,
+   *  mastered games get a plaque. */
+  state?: LibraryState;
 }
 
 /**

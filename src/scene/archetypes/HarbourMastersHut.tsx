@@ -4,23 +4,21 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import type { Group } from 'three';
 import { useAppStore } from '../../state/store';
 import { RecognitionFace } from './RecognitionFace';
+import { StateAccents } from './StateAccents';
+import { styleFor } from './stateStyling';
 import { useInteract } from './useInteract';
-
-interface HarbourMastersHutProps {
-  appid: number;
-  name: string;
-  position: [number, number];
-}
+import type { ArchetypeComponentProps } from './index';
 
 /**
  * A wider single-storey hut, slightly squat, with a board outside listing the
  * ships in harbour. Ritual: the logbook on the wall illuminates and pages
  * riffle. v0.1 procedural; Meshy at Phase 1.7.
  */
-export function HarbourMastersHut({ appid, name, position }: HarbourMastersHutProps) {
+export function HarbourMastersHut({ appid, name, position, state }: ArchetypeComponentProps) {
   const [x, z] = position;
   const boardRef = useRef<Group>(null);
   const startRitual = useAppStore((s) => s.startRitual);
+  const style = styleFor(state);
 
   useInteract(x, z, `[E] sign the logbook · ${name}`, () => {
     startRitual({ appid, archetype: 'harbour_masters_hut', startedAt: performance.now() });
@@ -46,7 +44,7 @@ export function HarbourMastersHut({ appid, name, position }: HarbourMastersHutPr
   const d = 2.4;
   const h = 2.6;
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} scale={style.scale}>
       <RigidBody type="fixed" colliders={false} position={[0, h / 2, 0]}>
         <CuboidCollider args={[w / 2, h / 2, d / 2]} />
         <mesh castShadow receiveShadow>
@@ -72,6 +70,8 @@ export function HarbourMastersHut({ appid, name, position }: HarbourMastersHutPr
         </mesh>
         <RecognitionFace appid={appid} position={[0, 0, 0.03]} width={0.78} />
       </group>
+
+      <StateAccents state={state} topY={h + 0.3} radius={Math.max(w, d) / 2} />
     </group>
   );
 }

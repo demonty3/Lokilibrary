@@ -4,29 +4,27 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import type { PointLight } from 'three';
 import { useAppStore } from '../../state/store';
 import { RecognitionFace } from './RecognitionFace';
+import { StateAccents } from './StateAccents';
+import { styleFor } from './stateStyling';
 import { useInteract } from './useInteract';
-
-interface FishMarketProps {
-  appid: number;
-  name: string;
-  position: [number, number];
-}
+import type { ArchetypeComponentProps } from './index';
 
 /**
  * Open-air stall with a signboard. Ritual: lanterns string up and the boards
  * flip from "closed" to "open". v0.1 placeholder geometry — Meshy GLB swap at
  * Phase 1.7.
  */
-export function FishMarket({ appid, name, position }: FishMarketProps) {
+export function FishMarket({ appid, name, position, state }: ArchetypeComponentProps) {
   const [x, z] = position;
   const lightRef = useRef<PointLight>(null);
   const startRitual = useAppStore((s) => s.startRitual);
+  const style = styleFor(state);
 
   useInteract(x, z, `[E] open the stall · ${name}`, () => {
     startRitual({ appid, archetype: 'fish_market', startedAt: performance.now() });
   });
 
-  useFrame((state) => {
+  useFrame((s) => {
     const light = lightRef.current;
     if (!light) return;
     const ritual = useAppStore.getState().activeRitual;
@@ -35,12 +33,12 @@ export function FishMarket({ appid, name, position }: FishMarketProps) {
       const k = Math.min(dt / 1.6, 1);
       light.intensity = 3 + 25 * (k * k * (3 - 2 * k));
     } else {
-      light.intensity = 3 + Math.sin(state.clock.elapsedTime * 2.0) * 0.4;
+      light.intensity = (3 + Math.sin(s.clock.elapsedTime * 2.0) * 0.4) * style.interiorIntensity;
     }
   });
 
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} scale={style.scale}>
       {/* Counter / table */}
       <RigidBody type="fixed" colliders={false} position={[0, 0.55, 0]}>
         <CuboidCollider args={[1.4, 0.55, 0.7]} />
@@ -74,9 +72,23 @@ export function FishMarket({ appid, name, position }: FishMarketProps) {
       {/* Warm pendant light hung from the awning */}
       <mesh position={[0, 2.3, 0]}>
         <sphereGeometry args={[0.12, 12, 12]} />
-        <meshStandardMaterial color="#ffd47a" emissive="#ffd47a" emissiveIntensity={4} toneMapped={false} />
+        <meshStandardMaterial
+          color="#ffd47a"
+          emissive="#ffd47a"
+          emissiveIntensity={4 * style.interiorIntensity}
+          toneMapped={false}
+        />
       </mesh>
-      <pointLight ref={lightRef} position={[0, 2.3, 0]} intensity={3} distance={8} color="#ffd47a" decay={2} />
+      <pointLight
+        ref={lightRef}
+        position={[0, 2.3, 0]}
+        intensity={3 * style.interiorIntensity}
+        distance={8}
+        color="#ffd47a"
+        decay={2}
+      />
+
+      <StateAccents state={state} topY={3.5} radius={1.6} />
     </group>
   );
 }
