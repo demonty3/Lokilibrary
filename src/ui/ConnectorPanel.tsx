@@ -181,17 +181,7 @@ function SteamSection({
             <div style={{ color: '#9990a3', fontSize: 11 }}>
               {libraryStatus === 'loading' && 'Loading library…'}
               {libraryStatus === 'loaded' && library && totalGames !== null && (
-                <>
-                  {totalGames} games · top {Math.min(topN, library.length)} surface in the world
-                  {library[0] && (
-                    <>
-                      {' · '}top played:{' '}
-                      <span style={{ color: '#dadbe6' }}>
-                        {library[0].name} ({Math.round(library[0].playtime_forever / 60)}h)
-                      </span>
-                    </>
-                  )}
-                </>
+                <LibrarySummary library={library} totalGames={totalGames} topN={topN} />
               )}
               {libraryStatus === 'error' && libraryError && (
                 <span style={{ color: '#d57a7a' }}>
@@ -222,6 +212,40 @@ function SteamSection({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Slice 3 enrichment summary. The worker only enriches the top-N games with
+ * achievements + recency, so this counts within `library.slice(0, topN)`.
+ */
+function LibrarySummary({
+  library,
+  totalGames,
+  topN,
+}: {
+  library: LibraryGame[];
+  totalGames: number;
+  topN: number;
+}) {
+  const enriched = library.slice(0, topN);
+  const playedThisWeek = enriched.filter((g) => g.recent).length;
+  const mastered = enriched.filter((g) => g.achievements && g.achievements.percent >= 80).length;
+  const top = library[0];
+  return (
+    <>
+      {totalGames} games · top {Math.min(topN, library.length)} enriched
+      {top && (
+        <>
+          {' · '}top played:{' '}
+          <span style={{ color: '#dadbe6' }}>
+            {top.name} ({Math.round(top.playtime_forever / 60)}h)
+          </span>
+        </>
+      )}
+      <br />
+      {playedThisWeek} played this week · {mastered} mastered (≥80% achievements)
+    </>
   );
 }
 
