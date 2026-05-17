@@ -25,6 +25,7 @@ const RETURN_MS = 1200;
 
 export function App() {
   const loadManifest = useAppStore((s) => s.loadManifest);
+  const loadAuth = useAppStore((s) => s.loadAuth);
   const markReturnPending = useAppStore((s) => s.markReturnPending);
   const setInFlight = useAppStore((s) => s.setInFlight);
   const clearRitual = useAppStore((s) => s.clearRitual);
@@ -38,6 +39,12 @@ export function App() {
   useEffect(() => {
     void loadManifest();
   }, [loadManifest]);
+
+  // Phase 2.1: check the session cookie on boot so the connector panel knows
+  // whether the user is signed in without waiting for them to open it.
+  useEffect(() => {
+    void loadAuth();
+  }, [loadAuth]);
 
   // Phase 1.9: launch ritual orchestration. When activeRitual flips on, schedule
   // steam://run at LAUNCH_MS and clear the ritual at RITUAL_TOTAL_MS. The

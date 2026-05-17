@@ -20,3 +20,20 @@ ANTHROPIC_API_KEY=sk-ant-
 # --- CORS ---
 # Comma-separated list of allowed origins. Defaults cover localhost:5183 + 5173.
 # ALLOWED_ORIGINS=http://localhost:5183,http://localhost:5173
+
+# --- Steam (Phase 2) ---
+# Required for v0.2. The OpenID handshake itself does NOT need this key — it
+# becomes load-bearing at slice 2 when the worker calls GetOwnedGames /
+# GetRecentlyPlayedGames / GetPlayerAchievements. Free at:
+#   https://steamcommunity.com/dev/apikey
+STEAM_WEB_API_KEY=
+
+# HMAC secret for the session cookie. Generate something long and random, e.g.
+#   openssl rand -base64 48
+# Rotating it invalidates every existing session — fine in dev, plan in prod.
+SESSION_SECRET=
+
+# User-facing origin where the browser sees the app. In dev this is Vite
+# (which proxies /api/* to the worker on :8787). In prod it's your deployed
+# domain. Used to build the OpenID return_to / realm and cookie scope.
+PUBLIC_BASE_URL=http://localhost:5183
