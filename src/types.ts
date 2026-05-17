@@ -65,3 +65,40 @@ export interface SteamPersona {
   name: string;
   avatarUrl: string;
 }
+
+/**
+ * Phase 2 slice 5 — behavioral profile. Mirrors worker/lib/profile.ts. Built
+ * server-side from the enriched library and exposed on /api/library mainly so
+ * the connector panel can preview what Stage 1 will see at slice 7. The
+ * worker also re-builds it internally when /api/world fires.
+ */
+export type Engagement =
+  | 'deeply_lived_in'
+  | 'past_main'
+  | 'engaged'
+  | 'tried'
+  | 'just_opened'
+  | 'unplayed';
+
+export interface ProfileGameSummary {
+  appid: number;
+  name: string;
+  playtimeHours: number;
+  completionFraction?: number;
+  engagement: Engagement;
+  achievementPercent?: number;
+  recent: boolean;
+}
+
+export interface Profile {
+  totalGames: number;
+  playedGames: number;
+  dustyGames: number;
+  totalPlaytimeHours: number;
+  topGames: ProfileGameSummary[];
+  bingeRatio: number;
+  completionRateAvg?: number;
+  recentlyActiveCount: number;
+  /** Prompt-ready text, matches SPEC §8's shape. Fed into Stage 1 at slice 7. */
+  summary: string;
+}
