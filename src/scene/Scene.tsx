@@ -1,10 +1,11 @@
 import { Environment } from '@react-three/drei';
-import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { Suspense } from 'react';
 import { Player } from './Player';
 import { SeasideTown } from './seaside/Town';
+import { Terrain } from './seaside/Terrain';
+import { Paths } from './seaside/Paths';
 import { DustyBacklog } from './seaside/DustyBacklog';
 import { CastedWorld } from './CastedWorld';
 
@@ -16,6 +17,10 @@ import { CastedWorld } from './CastedWorld';
  *      directional sunlight, point lights on lamps + lighthouse top.
  *   3. post-FX — EffectComposer with bloom on emissives, ACES tonemap, vignette.
  *   4. camera — first-person with PointerLockControls (mounted in App).
+ *
+ * Ground (slice 4): undulating terrain via Terrain; worn paths between
+ * `loved` archetypes via Paths. Both seed off the profile so the share-URL
+ * contract reaches the ground plane too.
  */
 export function Scene() {
   return (
@@ -47,13 +52,8 @@ export function Scene() {
         />
       </Suspense>
 
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[100, 0.1, 100]} position={[0, -0.1, 0]} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[200, 200]} />
-          <meshStandardMaterial color="#2a2734" roughness={0.95} />
-        </mesh>
-      </RigidBody>
+      <Terrain />
+      <Paths />
 
       <SeasideTown />
       <CastedWorld />
