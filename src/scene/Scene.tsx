@@ -5,6 +5,7 @@ import { ToneMappingMode } from 'postprocessing';
 import { Suspense } from 'react';
 import { Player } from './Player';
 import { SeasideTown } from './seaside/Town';
+import { DustyBacklog } from './seaside/DustyBacklog';
 import { CastedWorld } from './CastedWorld';
 
 /**
@@ -56,6 +57,7 @@ export function Scene() {
 
       <SeasideTown />
       <CastedWorld />
+      <DustyBacklog />
       <Player />
 
       <EffectComposer>
