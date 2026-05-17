@@ -28,11 +28,15 @@ import {
   type SessionClaims,
 } from './lib/session';
 import {
+  fetchAchievements,
   fetchOwnedGames,
   fetchPersona,
+  fetchRecentlyPlayed,
   SteamError,
+  type AchievementsSummary,
   type OwnedGame,
   type Persona,
+  type RecentlyPlayedEntry,
 } from './lib/steam';
 import { kvGet } from './lib/cache';
 
@@ -53,9 +57,14 @@ interface Env extends ProviderEnv {
 
 const OWNED_GAMES_TTL_S = 60 * 60;        // 1h, per SPEC §7.1 + PLAN.md task 2
 const PERSONA_TTL_S = 60 * 60 * 24;       // 24h — personas barely change
+const RECENT_TTL_S = 60 * 30;             // 30min — playtime accrues mid-session
+const ACHIEVEMENTS_TTL_S = 60 * 60;       // 1h — unlocks happen mid-session
 
 /** Top-N games we'll enrich / surface in the world (PLAN.md Phase 2 task 3). */
 const TOP_N = 15;
+
+/** Recency window for the `recent` state tag (SPEC §4). */
+const RECENT_WINDOW_S = 60 * 60 * 24 * 7; // 7 days
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5183',
@@ -113,6 +122,63 @@ async function cachedPersona(env: Env, steamId: string): Promise<Persona | null>
   } catch {
     return null;
   }
+}
+
+/** One enriched game row. Top-N games get `achievements` and `recent`
+ *  populated; the rest of the library returns the minimal OwnedGame shape. */
+interface EnrichedGame extends OwnedGame {
+  achievements?: AchievementsSummary;
+  recent?: boolean;
+}
+
+/**
+ * Slice 3 enrichment for the top-N games:
+ *   - recently_played cross-reference (one call, cached 30min)
+ *   - per-appid achievement summary in parallel (each cached 1h, allSettled
+ *     so one private-stats game doesn't fail the whole library)
+ *   - `recent` boolean derived from rtime_last_played OR the recently-played
+ *     list (the latter covers free-to-play / family-share titles that
+ *     GetOwnedGames may not include).
+ */
+async function enrichTopGames(
+  env: Env,
+  steamId: string,
+  apiKey: string,
+  top: OwnedGame[],
+): Promise<EnrichedGame[]> {
+  const nowS = Math.floor(Date.now() / 1000);
+  const recentCutoff = nowS - RECENT_WINDOW_S;
+
+  const recentPromise = kvGet<RecentlyPlayedEntry[]>(
+    env.CACHE,
+    `steam:recent:${steamId}`,
+    RECENT_TTL_S,
+    () => fetchRecentlyPlayed(steamId, apiKey),
+  ).catch((): RecentlyPlayedEntry[] => []);
+
+  const achievementPromises = top.map((game) =>
+    kvGet<AchievementsSummary | null>(
+      env.CACHE,
+      `steam:ach:${steamId}:${game.appid}`,
+      ACHIEVEMENTS_TTL_S,
+      () => fetchAchievements(steamId, game.appid, apiKey),
+    ).catch(() => null),
+  );
+
+  const [recent, ...achievements] = await Promise.all([recentPromise, ...achievementPromises]);
+  const recentAppids = new Set(recent.map((g) => g.appid));
+
+  return top.map((game, i) => {
+    const isRecent =
+      recentAppids.has(game.appid) ||
+      (typeof game.rtime_last_played === 'number' && game.rtime_last_played >= recentCutoff);
+    const ach = achievements[i];
+    return {
+      ...game,
+      ...(ach && { achievements: ach }),
+      ...(isRecent && { recent: true }),
+    };
+  });
 }
 
 interface WorldRequestBody {
@@ -229,6 +295,11 @@ export default {
         return json({ error: 'upstream', message }, { status: 502 }, cors);
       }
 
+      // Enrich the top-N in place; the long tail stays minimal so the JSON
+      // payload doesn't balloon for 500-game libraries.
+      const topGames = await enrichTopGames(env, steamId, apiKey, games.slice(0, TOP_N));
+      const enrichedGames: EnrichedGame[] = [...topGames, ...games.slice(TOP_N)];
+
       const persona = await cachedPersona(env, steamId);
 
       return json(
@@ -237,7 +308,7 @@ export default {
           ...(persona && { persona }),
           totalGames: games.length,
           topN: TOP_N,
-          games,
+          games: enrichedGames,
         },
         { status: 200 },
         cors,
