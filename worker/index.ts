@@ -46,6 +46,7 @@ import {
   type HltbResult,
 } from './lib/hltb';
 import { buildProfile } from './lib/profile';
+import { tagLibrary, type LibraryState } from './lib/state';
 import { kvGet } from './lib/cache';
 
 interface Env extends ProviderEnv {
@@ -135,13 +136,18 @@ async function cachedPersona(env: Env, steamId: string): Promise<Persona | null>
 /** One enriched game row. Top-N games may get `achievements`, `recent`, and
  *  HLTB-derived fields populated; the rest of the library returns the
  *  minimal OwnedGame shape. Each enrichment is independent — none of them
- *  failing should cascade into another. */
+ *  failing should cascade into another. Every game gets a `state` from the
+ *  slice-6 tagger. */
 interface EnrichedGame extends OwnedGame {
   achievements?: AchievementsSummary;
   recent?: boolean;
   hltb?: HltbResult;
   /** Steam playtime hours ÷ HLTB main-story hours. > 1.0 means past main. */
   completion_fraction?: number;
+  /** SPEC §4 library state — loved / recent / mastered / abandoned / dusty
+   *  / default. Drives in-world visual treatment at Phase 4 and feeds into
+   *  the Stage 1 prompt at slice 7. */
+  state?: LibraryState;
 }
 
 /** Cached HLTB lookup. Endpoint discovery is cached separately (1h) from the
@@ -353,10 +359,17 @@ export default {
       const topGames = await enrichTopGames(env, steamId, apiKey, games.slice(0, TOP_N));
       const enrichedGames: EnrichedGame[] = [...topGames, ...games.slice(TOP_N)];
 
+      // Slice 6: SPEC §4 state tagging. Runs over the whole library so the
+      // long-tail `dusty` count is honest; the top-N pick up `loved` /
+      // `mastered` / `abandoned` / `recent` / `default`. Per PLAN.md task 6,
+      // Stage 1 will see `state: "loved"` rather than raw playtime numbers
+      // when slice 7 wires the prompt.
+      const taggedGames = tagLibrary(enrichedGames, Math.floor(Date.now() / 1000));
+
       // Slice 5: aggregate the per-game signals into a behavioral profile.
       // The profile.summary feeds Stage 1's prompt at slice 7; profile itself
       // becomes the seed for Phase 5's procedural layout layer.
-      const profile = buildProfile(enrichedGames, TOP_N);
+      const profile = buildProfile(taggedGames, TOP_N);
 
       const persona = await cachedPersona(env, steamId);
 
@@ -366,7 +379,7 @@ export default {
           ...(persona && { persona }),
           totalGames: games.length,
           topN: TOP_N,
-          games: enrichedGames,
+          games: taggedGames,
           profile,
         },
         { status: 200 },

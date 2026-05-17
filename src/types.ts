@@ -58,7 +58,23 @@ export interface LibraryGame {
    *  story (SPEC §7.2 — the signal that separates "lived in" from "tutorial
    *  abandoned"). Only set when both inputs are available. */
   completion_fraction?: number;
+
+  // --- Slice 6 — applied to every game by the state tagger. ---------------
+
+  /** SPEC §4 library state. Drives in-world visual treatment at Phase 4
+   *  and feeds the Stage 1 prompt at slice 7 in place of raw playtime
+   *  numbers (PLAN.md task 6). */
+  state?: LibraryState;
 }
+
+/** Mirrors worker/lib/state.ts. SPEC §4 enumeration. */
+export type LibraryState =
+  | 'loved'
+  | 'recent'
+  | 'mastered'
+  | 'abandoned'
+  | 'dusty'
+  | 'default';
 
 export interface SteamPersona {
   steamId: string;
@@ -99,6 +115,8 @@ export interface Profile {
   bingeRatio: number;
   completionRateAvg?: number;
   recentlyActiveCount: number;
+  /** Slice 6 — per-state counts across the whole library. */
+  stateCounts?: Record<LibraryState, number>;
   /** Prompt-ready text, matches SPEC §8's shape. Fed into Stage 1 at slice 7. */
   summary: string;
 }
