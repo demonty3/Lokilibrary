@@ -6,9 +6,13 @@
  * host this module is the one place that needs to know.
  */
 
+import type { SteamPersona } from '../types';
+
 export interface MeResponse {
   authenticated: boolean;
   steamId?: string;
+  /** Cached server-side (24h TTL) — surfaces the moment auth resolves. */
+  persona?: SteamPersona;
 }
 
 /** Full URL for the "Connect Steam" button. Top-level navigation, not fetch. */

@@ -10,3 +10,25 @@ export interface GameEntry {
    */
   ritualColor?: string;
 }
+
+/**
+ * One game as returned by /api/library (Phase 2 slice 2). Kept distinct from
+ * GameEntry — the renderer consumes GameEntry; behavioral signals live here
+ * and feed the profile builder + state tagger in later slices.
+ */
+export interface LibraryGame {
+  appid: number;
+  name: string;
+  /** Total Steam playtime, minutes. */
+  playtime_forever: number;
+  /** Playtime in the last two weeks, minutes. Often absent if zero. */
+  playtime_2weeks?: number;
+  /** Unix seconds. Absent if the game has never been launched. */
+  rtime_last_played?: number;
+}
+
+export interface SteamPersona {
+  steamId: string;
+  name: string;
+  avatarUrl: string;
+}

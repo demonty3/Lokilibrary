@@ -16,5 +16,23 @@ compatibility_date = "2026-05-01"
 [dev]
 port = 8787
 
-# KV namespace for manifest cache lands at v0.2 (per PLAN.md 1.8). For v0.1 the
-# worker is stateless — every page load makes a fresh Stage 1 call.
+# KV-backed read-through cache for Steam Web API responses (Phase 2 slice 2+)
+# and the Stage 1 manifest. The worker degrades gracefully when CACHE is
+# unbound — kvGet (worker/lib/cache.ts) falls through to an uncached fetch.
+# That keeps slice 2 deployable on Cloudflare without provisioning anything;
+# the cost is one extra Steam call per `/api/library` hit.
+#
+# To enable the cache before going live:
+#   1. wrangler kv namespace create CACHE --config worker/wrangler.toml
+#   2. Paste the returned id into the block below (uncomment it).
+#   3. Re-deploy.
+#
+# Local `wrangler dev` does not need this — miniflare simulates KV via sqlite.
+# You can uncomment the block with id = "local_dev_placeholder" if you want
+# the binding present locally, but it MUST be commented out (or carry a real
+# id) before pushing to Cloudflare Workers Builds — Cloudflare rejects
+# placeholder ids at deploy time.
+#
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID"

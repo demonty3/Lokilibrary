@@ -26,6 +26,8 @@ const RETURN_MS = 1200;
 export function App() {
   const loadManifest = useAppStore((s) => s.loadManifest);
   const loadAuth = useAppStore((s) => s.loadAuth);
+  const loadLibrary = useAppStore((s) => s.loadLibrary);
+  const authStatus = useAppStore((s) => s.authStatus);
   const markReturnPending = useAppStore((s) => s.markReturnPending);
   const setInFlight = useAppStore((s) => s.setInFlight);
   const clearRitual = useAppStore((s) => s.clearRitual);
@@ -45,6 +47,13 @@ export function App() {
   useEffect(() => {
     void loadAuth();
   }, [loadAuth]);
+
+  // Phase 2.2: as soon as auth resolves to authenticated, pull the library.
+  // Slice 7 wires this into the world manifest call; for now it surfaces in
+  // the connector panel as visible proof the auth + cache plumbing works.
+  useEffect(() => {
+    if (authStatus === 'authenticated') void loadLibrary();
+  }, [authStatus, loadLibrary]);
 
   // Phase 1.9: launch ritual orchestration. When activeRitual flips on, schedule
   // steam://run at LAUNCH_MS and clear the ritual at RITUAL_TOTAL_MS. The
