@@ -22,7 +22,7 @@ export function DetectivesOffice({ appid, name, position, state }: ArchetypeComp
 
   useInteract(x, z, `[E] open the case file · ${name}`, () => {
     startRitual({ appid, archetype: 'detectives_office', startedAt: performance.now() });
-  });
+  }, appid);
 
   useFrame(() => {
     const win = windowRef.current;

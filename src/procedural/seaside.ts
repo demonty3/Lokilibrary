@@ -65,6 +65,19 @@ export function layoutFor(
   casting: readonly ManifestCastingEntry[],
 ): LayoutResult {
   const seed = profile ? profileSeed(profile) : STUB_SEED;
+  return layoutForSeed(seed, casting);
+}
+
+/**
+ * Same layout algorithm, but seeded directly. Used by the share-URL viewer,
+ * which carries a precomputed seed in the share record (the creator's machine
+ * computed it from their profile at share time, and the viewer feeds it
+ * here verbatim to reproduce the exact world the creator was looking at).
+ */
+export function layoutForSeed(
+  seed: number,
+  casting: readonly ManifestCastingEntry[],
+): LayoutResult {
   const prng = mulberry32(seed);
   const positions = new Map<number, [number, number]>();
   const placed: Array<[number, number]> = [];

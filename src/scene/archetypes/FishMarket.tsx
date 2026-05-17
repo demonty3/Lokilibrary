@@ -22,7 +22,7 @@ export function FishMarket({ appid, name, position, state }: ArchetypeComponentP
 
   useInteract(x, z, `[E] open the stall · ${name}`, () => {
     startRitual({ appid, archetype: 'fish_market', startedAt: performance.now() });
-  });
+  }, appid);
 
   useFrame((s) => {
     const light = lightRef.current;

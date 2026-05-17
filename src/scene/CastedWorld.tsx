@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAppStore } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { ARCHETYPE_COMPONENTS } from './archetypes';
-import { layoutFor } from '../procedural/seaside';
+import { layoutFor, layoutForSeed } from '../procedural/seaside';
 import type { LibraryState } from '../types';
 
 /**
@@ -22,6 +22,8 @@ export function CastedWorld() {
   const manifest = useAppStore((s) => s.manifest);
   const library = useAppStore((s) => s.library);
   const profile = useAppStore((s) => s.profile);
+  const viewOnly = useAppStore((s) => s.viewOnly);
+  const sharedSeed = useAppStore((s) => s.sharedSeed);
 
   const gameByAppid = useMemo(() => {
     const m = new Map<number, { name: string; state?: LibraryState }>();
@@ -35,8 +37,14 @@ export function CastedWorld() {
 
   const layout = useMemo(() => {
     if (!manifest) return null;
+    // View-only mode: drive the layout from the share record's precomputed
+    // seed. The creator's machine hashed their profile to this value at
+    // share time; reusing it verbatim reproduces the same world.
+    if (viewOnly && sharedSeed !== null) {
+      return layoutForSeed(sharedSeed, manifest.casting);
+    }
     return layoutFor(profile, manifest.casting);
-  }, [manifest, profile]);
+  }, [manifest, profile, viewOnly, sharedSeed]);
 
   if (!manifest || !layout) return null;
 

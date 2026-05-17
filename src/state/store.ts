@@ -2,12 +2,14 @@ import { create } from 'zustand';
 import { fetchWorld } from '../api/world';
 import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
+import { createShare, fetchShare } from '../api/share';
 import type { Manifest } from '../ai/manifest';
 import type { LibraryGame, Profile, SteamPersona } from '../types';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
 export type LibraryStatus = 'idle' | 'loading' | 'loaded' | 'error';
+export type ShareCreateStatus = 'idle' | 'creating' | 'done' | 'error';
 
 /**
  * Top-level UI + world state. Connection state for Steam / Claude / asset
@@ -71,6 +73,32 @@ interface AppState {
   returnPending: boolean;
   markReturnPending: () => void;
   clearReturn: () => void;
+
+  // --- Phase 5 slice 3 — share-URL viewer / creator. -----------------------
+
+  /** True when rendering someone else's world. Pressing E doesn't fire
+   *  steam:// in this mode — it surfaces a tooltip. */
+  viewOnly: boolean;
+  /** When viewOnly, this is the procedural seed the creator's machine
+   *  computed. The renderer feeds it to layoutForSeed() to reproduce the
+   *  same world the creator was looking at. */
+  sharedSeed: number | null;
+  /** When viewOnly, the dusty count from the creator's library — drives the
+   *  backlog cluster size without needing the full owned-games array. */
+  sharedDustyCount: number;
+  /** When viewOnly, the share id that was opened (for telemetry / UI). */
+  sharedId: string | null;
+  /** loadSharedWorld swaps the store into view-only mode rather than
+   *  triggering an auth round-trip. Called from App.tsx when the path
+   *  matches /w/:id. */
+  loadSharedWorld: (id: string) => Promise<void>;
+
+  /** Share-button state in the connector panel. */
+  shareCreateStatus: ShareCreateStatus;
+  shareUrl: string | null;
+  shareError: string | null;
+  createCurrentShare: () => Promise<void>;
+  resetShareCreate: () => void;
 }
 
 export interface ActiveRitual {
@@ -174,4 +202,74 @@ export const useAppStore = create<AppState>((set, get) => ({
   returnPending: false,
   markReturnPending: () => set({ returnPending: true }),
   clearReturn: () => set({ returnPending: false }),
+
+  viewOnly: false,
+  sharedSeed: null,
+  sharedDustyCount: 0,
+  sharedId: null,
+  loadSharedWorld: async (id) => {
+    set({ manifestStatus: 'loading' });
+    const share = await fetchShare(id);
+    if (!share) {
+      set({
+        manifestStatus: 'error',
+        manifestError: `share ${id} not found`,
+        manifestSource: 'stub',
+      });
+      return;
+    }
+    // Populate the store like the user's own world, but flipped to view-only.
+    // Library is just the shared top-N — enough for name + state lookups in
+    // CastedWorld; the dusty cluster reads sharedDustyCount instead of
+    // filtering the library array.
+    set({
+      manifest: share.manifest,
+      manifestStatus: 'loaded',
+      manifestSource: 'worker',
+      manifestError: null,
+      library: share.topLibrary,
+      libraryStatus: 'loaded',
+      totalGames: share.topLibrary.length + share.dustyCount,
+      topN: share.topLibrary.length,
+      persona: share.persona ?? null,
+      profile: null,
+      viewOnly: true,
+      sharedSeed: share.profileSeed,
+      sharedDustyCount: share.dustyCount,
+      sharedId: id,
+    });
+  },
+
+  shareCreateStatus: 'idle',
+  shareUrl: null,
+  shareError: null,
+  createCurrentShare: async () => {
+    const { profile, shareCreateStatus } = get();
+    if (shareCreateStatus === 'creating') return;
+    if (!profile) {
+      set({ shareCreateStatus: 'error', shareError: 'profile not loaded' });
+      return;
+    }
+    // Compute the seed client-side. The worker accepts it verbatim — see
+    // the design note in worker/lib/share.ts: this is a user-initiated
+    // share of their own world; no security gain from worker-side recompute.
+    const { profileSeed } = await import('../procedural/seed');
+    const seed = profileSeed(profile);
+    set({ shareCreateStatus: 'creating', shareError: null });
+    const result = await createShare(seed);
+    if (result.ok) {
+      set({
+        shareCreateStatus: 'done',
+        shareUrl: result.share.url,
+        shareError: null,
+      });
+    } else {
+      set({
+        shareCreateStatus: 'error',
+        shareError: result.message,
+        shareUrl: null,
+      });
+    }
+  },
+  resetShareCreate: () => set({ shareCreateStatus: 'idle', shareUrl: null, shareError: null }),
 }));
