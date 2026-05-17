@@ -7,8 +7,9 @@
  *   GET  /api/auth/steam/return    — verify Steam OpenID response, set cookie
  *   GET  /api/auth/me              — session check; returns {steamId, persona?}
  *   POST /api/auth/logout          — clear session cookie
- *   GET  /api/library              — authed user's owned games (top-sorted)
- *   POST /api/world                — Stage 1: world manifest from games + profile
+ *   GET  /api/library              — authed user's enriched + tagged library + profile
+ *   GET  /api/world                — Stage 1 manifest from the session library
+ *                                    (?template=... ?force=1; cached 24h)
  *
  * The frontend never holds an API key. All Anthropic / Ollama / (future)
  * Stable Audio / ElevenLabs / Meshy traffic terminates here.
@@ -68,6 +69,7 @@ const OWNED_GAMES_TTL_S = 60 * 60;        // 1h, per SPEC §7.1 + PLAN.md task 2
 const PERSONA_TTL_S = 60 * 60 * 24;       // 24h — personas barely change
 const RECENT_TTL_S = 60 * 30;             // 30min — playtime accrues mid-session
 const ACHIEVEMENTS_TTL_S = 60 * 60;       // 1h — unlocks happen mid-session
+const MANIFEST_TTL_S = 60 * 60 * 24;      // 24h, per PLAN.md task 1.8
 
 /** Top-N games we'll enrich / surface in the world (PLAN.md Phase 2 task 3). */
 const TOP_N = 15;
@@ -240,10 +242,78 @@ async function enrichTopGames(
   });
 }
 
-interface WorldRequestBody {
-  template?: string;
-  profile?: { summary?: string };
-  games?: Array<{ appid?: number; name?: string; state?: string }>;
+/**
+ * Shared library-loading pipeline. Both /api/library and /api/world need
+ * the full enriched + tagged + profiled view; we run it once and let the
+ * routes decide what to do with it. Errors come back as a structured
+ * Response rather than thrown, so each route can attach its own cors headers.
+ */
+interface LibraryBundle {
+  steamId: string;
+  apiKey: string;
+  totalGames: number;
+  taggedGames: Array<EnrichedGame & { state: ReturnType<typeof tagLibrary>[number]['state'] }>;
+  profile: ReturnType<typeof buildProfile>;
+  persona: Persona | null;
+}
+
+async function assembleLibrary(
+  env: Env,
+  req: Request,
+  cors: Record<string, string>,
+  opts: { force: boolean },
+): Promise<{ ok: true; bundle: LibraryBundle } | { ok: false; response: Response }> {
+  const claims = await readSession(req, env);
+  if (!claims) {
+    return { ok: false, response: json({ error: 'unauthenticated' }, { status: 401 }, cors) };
+  }
+  if (!env.STEAM_WEB_API_KEY) {
+    return {
+      ok: false,
+      response: json({ error: 'STEAM_WEB_API_KEY not configured' }, { status: 500 }, cors),
+    };
+  }
+
+  const steamId = claims.sub;
+  const apiKey = env.STEAM_WEB_API_KEY;
+
+  let games: OwnedGame[];
+  try {
+    games = await kvGet<OwnedGame[]>(
+      env.CACHE,
+      `steam:owned:${steamId}`,
+      OWNED_GAMES_TTL_S,
+      () => fetchOwnedGames(steamId, apiKey),
+      { force: opts.force },
+    );
+  } catch (e) {
+    if (e instanceof SteamError) {
+      const status = e.reason === 'private_profile' ? 403
+        : e.reason === 'unauthorized' ? 502
+        : e.reason === 'rate_limited' ? 429
+        : 502;
+      return {
+        ok: false,
+        response: json({ error: e.reason, message: e.message }, { status }, cors),
+      };
+    }
+    const message = e instanceof Error ? e.message : 'unknown steam error';
+    return {
+      ok: false,
+      response: json({ error: 'upstream', message }, { status: 502 }, cors),
+    };
+  }
+
+  const topGames = await enrichTopGames(env, steamId, apiKey, games.slice(0, TOP_N));
+  const enrichedGames: EnrichedGame[] = [...topGames, ...games.slice(TOP_N)];
+  const taggedGames = tagLibrary(enrichedGames, Math.floor(Date.now() / 1000));
+  const profile = buildProfile(taggedGames, TOP_N);
+  const persona = await cachedPersona(env, steamId);
+
+  return {
+    ok: true,
+    bundle: { steamId, apiKey, totalGames: games.length, taggedGames, profile, persona },
+  };
 }
 
 export default {
@@ -318,66 +388,21 @@ export default {
     }
 
     // --- Library --------------------------------------------------------------
-    // Slice 2 of Phase 2 (PLAN.md tasks 2). Returns the signed-in user's owned
-    // games, sorted desc by playtime. Cached per-steamid in KV with a 1h TTL.
-    // ?force=1 bypasses the read but still writes — developer escape hatch.
+    // Slices 2–6 of Phase 2. Returns the signed-in user's owned games + the
+    // top-N enrichment (achievements / HLTB / state tags) + the aggregate
+    // behavioral profile. The pipeline is shared with /api/world; see
+    // assembleLibrary().
 
     if (req.method === 'GET' && url.pathname === '/api/library') {
-      const claims = await readSession(req, env);
-      if (!claims) return json({ error: 'unauthenticated' }, { status: 401 }, cors);
-      if (!env.STEAM_WEB_API_KEY) {
-        return json({ error: 'STEAM_WEB_API_KEY not configured' }, { status: 500 }, cors);
-      }
-
       const force = url.searchParams.get('force') === '1';
-      const apiKey = env.STEAM_WEB_API_KEY;
-      const steamId = claims.sub;
-
-      let games: OwnedGame[];
-      try {
-        games = await kvGet<OwnedGame[]>(
-          env.CACHE,
-          `steam:owned:${steamId}`,
-          OWNED_GAMES_TTL_S,
-          () => fetchOwnedGames(steamId, apiKey),
-          { force },
-        );
-      } catch (e) {
-        if (e instanceof SteamError) {
-          const status = e.reason === 'private_profile' ? 403
-            : e.reason === 'unauthorized' ? 502
-            : e.reason === 'rate_limited' ? 429
-            : 502;
-          return json({ error: e.reason, message: e.message }, { status }, cors);
-        }
-        const message = e instanceof Error ? e.message : 'unknown steam error';
-        return json({ error: 'upstream', message }, { status: 502 }, cors);
-      }
-
-      // Enrich the top-N in place; the long tail stays minimal so the JSON
-      // payload doesn't balloon for 500-game libraries.
-      const topGames = await enrichTopGames(env, steamId, apiKey, games.slice(0, TOP_N));
-      const enrichedGames: EnrichedGame[] = [...topGames, ...games.slice(TOP_N)];
-
-      // Slice 6: SPEC §4 state tagging. Runs over the whole library so the
-      // long-tail `dusty` count is honest; the top-N pick up `loved` /
-      // `mastered` / `abandoned` / `recent` / `default`. Per PLAN.md task 6,
-      // Stage 1 will see `state: "loved"` rather than raw playtime numbers
-      // when slice 7 wires the prompt.
-      const taggedGames = tagLibrary(enrichedGames, Math.floor(Date.now() / 1000));
-
-      // Slice 5: aggregate the per-game signals into a behavioral profile.
-      // The profile.summary feeds Stage 1's prompt at slice 7; profile itself
-      // becomes the seed for Phase 5's procedural layout layer.
-      const profile = buildProfile(taggedGames, TOP_N);
-
-      const persona = await cachedPersona(env, steamId);
-
+      const result = await assembleLibrary(env, req, cors, { force });
+      if (!result.ok) return result.response;
+      const { steamId, totalGames, taggedGames, profile, persona } = result.bundle;
       return json(
         {
           steamId,
           ...(persona && { persona }),
-          totalGames: games.length,
+          totalGames,
           topN: TOP_N,
           games: taggedGames,
           profile,
@@ -387,52 +412,71 @@ export default {
       );
     }
 
-    if (req.method === 'POST' && url.pathname === '/api/world') {
-      let body: WorldRequestBody;
-      try {
-        body = (await req.json()) as WorldRequestBody;
-      } catch {
-        return json({ error: 'invalid json' }, { status: 400 }, cors);
-      }
+    // --- World manifest (Stage 1 LLM call) ------------------------------------
+    // Slice 7 of Phase 2 (PLAN.md task 7). Reads the session, runs the same
+    // assembly pipeline as /api/library, strips top-N games down to
+    // {appid, name, state} (PLAN.md task 6: Claude sees state tags, not raw
+    // playtime), feeds Stage 1, validates, caches the manifest 24h per
+    // (steamid, template). ?force=1 bypasses the manifest cache; lower-level
+    // Steam / HLTB caches still apply.
 
-      const template = body.template ?? 'seaside_town';
+    if (req.method === 'GET' && url.pathname === '/api/world') {
+      const force = url.searchParams.get('force') === '1';
+      const template = (url.searchParams.get('template') ?? 'seaside_town') as TemplateId;
       if (!(template in TEMPLATE_WHITELIST)) {
         return json({ error: `unknown template "${template}"` }, { status: 400 }, cors);
       }
-      const games = (body.games ?? []).filter(
-        (g): g is { appid: number; name: string } =>
-          typeof g.appid === 'number' && typeof g.name === 'string',
-      );
-      if (games.length === 0) return json({ error: 'no games provided' }, { status: 400 }, cors);
 
-      const { system, user } = buildStageOnePrompt({
-        template: template as TemplateId,
-        profile: { summary: body.profile?.summary },
-        games,
-      });
+      const assembled = await assembleLibrary(env, req, cors, { force });
+      if (!assembled.ok) return assembled.response;
+      const { steamId, taggedGames, profile } = assembled.bundle;
 
-      let text: string;
-      try {
-        text = await callStageOne(env, system, user);
-      } catch (e) {
-        const status = e instanceof ProviderError ? e.status : 500;
-        const message = e instanceof Error ? e.message : 'unknown provider error';
-        return json({ error: message }, { status }, cors);
+      const topN = taggedGames.slice(0, TOP_N);
+      if (topN.length === 0) {
+        return json({ error: 'no games to cast' }, { status: 400 }, cors);
       }
 
+      // PLAN.md task 6: Claude only ever sees the tagged state, never the raw
+      // playtime numbers it would have to reinterpret. 'default' carries no
+      // signal worth mentioning — drop it to undefined so the prompt skips
+      // the tag entirely for those games.
+      const promptGames = topN.map((g) => ({
+        appid: g.appid,
+        name: g.name,
+        ...(g.state !== 'default' && { state: g.state }),
+      }));
+      const allowedAppids = new Set(promptGames.map((g) => g.appid));
+
+      const cacheKey = `manifest:${steamId}:${template}`;
       let parsed: unknown;
       try {
-        parsed = JSON.parse(extractJson(text));
-      } catch {
-        return json(
-          { error: 'model returned invalid json', raw: text.slice(0, 500) },
-          { status: 502 },
-          cors,
+        parsed = await kvGet<unknown>(
+          env.CACHE,
+          cacheKey,
+          MANIFEST_TTL_S,
+          async () => {
+            const { system, user } = buildStageOnePrompt({
+              template,
+              profile: { summary: profile.summary },
+              games: promptGames,
+            });
+            const text = await callStageOne(env, system, user);
+            return JSON.parse(extractJson(text)) as unknown;
+          },
+          { force },
         );
+      } catch (e) {
+        if (e instanceof ProviderError) {
+          return json({ error: e.message }, { status: e.status }, cors);
+        }
+        if (e instanceof SyntaxError) {
+          return json({ error: 'model returned invalid json' }, { status: 502 }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'stage1', message }, { status: 502 }, cors);
       }
 
-      const allowedAppids = new Set(games.map((g) => g.appid));
-      const result = validateManifest(template as TemplateId, allowedAppids, parsed);
+      const result = validateManifest(template, allowedAppids, parsed);
       if (!result.ok) {
         return json(
           { error: `manifest validation failed: ${result.reason}`, raw: parsed },

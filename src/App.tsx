@@ -36,21 +36,25 @@ export function App() {
   const inFlight = useAppStore((s) => s.inFlight);
   const returnPending = useAppStore((s) => s.returnPending);
 
-  // Phase 1.8: fire the Stage 1 call on first mount. Falls back to the stub
-  // manifest if the worker isn't reachable.
-  useEffect(() => {
-    void loadManifest();
-  }, [loadManifest]);
-
   // Phase 2.1: check the session cookie on boot so the connector panel knows
   // whether the user is signed in without waiting for them to open it.
   useEffect(() => {
     void loadAuth();
   }, [loadAuth]);
 
-  // Phase 2.2: as soon as auth resolves to authenticated, pull the library.
-  // Slice 7 wires this into the world manifest call; for now it surfaces in
-  // the connector panel as visible proof the auth + cache plumbing works.
+  // Slice 7: fire the Stage 1 call once auth has resolved. Authed users get
+  // a manifest built from their real library; anon users get 401 and the
+  // fetcher falls back to the stub manifest so the scene still renders.
+  // Re-fires when the user signs in or out — manifest swaps stub <-> real.
+  useEffect(() => {
+    if (authStatus === 'authenticated' || authStatus === 'anonymous') {
+      void loadManifest();
+    }
+  }, [authStatus, loadManifest]);
+
+  // Slice 2: as soon as auth resolves to authenticated, pull the library for
+  // the connector panel preview. The manifest call above does its own library
+  // build server-side; this one is for visibility.
   useEffect(() => {
     if (authStatus === 'authenticated') void loadLibrary();
   }, [authStatus, loadLibrary]);
