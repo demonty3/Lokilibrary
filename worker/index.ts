@@ -2,8 +2,12 @@
  * LibraryWorld Cloudflare Worker — single AI orchestration surface.
  *
  * Endpoints:
- *   POST /api/world  — Stage 1: world manifest from games + profile
- *   GET  /healthz    — liveness + provider config sanity
+ *   GET  /healthz                  — liveness + provider config sanity
+ *   GET  /api/auth/steam/login     — redirect to Steam OpenID checkid_setup
+ *   GET  /api/auth/steam/return    — verify Steam OpenID response, set cookie
+ *   GET  /api/auth/me              — read session cookie, return {steamId}
+ *   POST /api/auth/logout          — clear session cookie
+ *   POST /api/world                — Stage 1: world manifest from games + profile
  *
  * The frontend never holds an API key. All Anthropic / Ollama / (future)
  * Stable Audio / ElevenLabs / Meshy traffic terminates here.
@@ -13,10 +17,26 @@ import { buildStageOnePrompt } from './lib/prompt';
 import { extractJson, validateManifest } from './lib/manifest';
 import { callStageOne, ProviderError, type ProviderEnv } from './lib/providers';
 import { TEMPLATE_WHITELIST, type TemplateId } from './lib/whitelist';
+import { buildSteamLoginUrl, verifySteamReturn } from './lib/steam-openid';
+import {
+  clearSessionCookieHeader,
+  readSessionCookie,
+  setSessionCookieHeader,
+  signSession,
+  verifySession,
+} from './lib/session';
 
 interface Env extends ProviderEnv {
   /** Comma-separated list of allowed origins for CORS. Local dev defaults below. */
   ALLOWED_ORIGINS?: string;
+  /** HMAC secret for the session JWT. Required for any /api/auth route. */
+  SESSION_SECRET?: string;
+  /** User-facing origin (e.g. http://localhost:5183). Used to build the OpenID
+   *  return URL and to decide whether the session cookie is Secure. */
+  PUBLIC_BASE_URL?: string;
+  /** First used in slice 2 (GetOwnedGames). Acknowledged here so wrangler stops
+   *  warning about an unknown var once it's set in .dev.vars. */
+  STEAM_WEB_API_KEY?: string;
 }
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -34,9 +54,18 @@ function corsHeaders(env: Env, origin: string | null): Record<string, string> {
     'access-control-allow-origin': allow,
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-headers': 'content-type',
+    'access-control-allow-credentials': 'true',
     'access-control-max-age': '86400',
     vary: 'origin',
   };
+}
+
+function publicBaseUrl(env: Env): string {
+  return (env.PUBLIC_BASE_URL ?? 'http://localhost:5183').replace(/\/$/, '');
+}
+
+function cookieIsSecure(base: string): boolean {
+  return base.startsWith('https://');
 }
 
 function json(body: unknown, init: ResponseInit, headers: Record<string, string>): Response {
@@ -66,10 +95,61 @@ export default {
           ok: true,
           provider: env.LLM_PROVIDER ?? 'anthropic',
           anthropic_configured: Boolean(env.ANTHROPIC_API_KEY),
+          steam_configured: Boolean(env.STEAM_WEB_API_KEY),
+          session_configured: Boolean(env.SESSION_SECRET),
         },
         { status: 200 },
         cors,
       );
+    }
+
+    // --- Steam OpenID + session ----------------------------------------------
+    // Slice 1 of Phase 2 (SPEC §7.1). The Steam Web API key is NOT needed for
+    // the handshake itself; it becomes load-bearing at slice 2.
+
+    if (req.method === 'GET' && url.pathname === '/api/auth/steam/login') {
+      const base = publicBaseUrl(env);
+      const returnTo = `${base}/api/auth/steam/return`;
+      const realm = `${base}/`;
+      return Response.redirect(buildSteamLoginUrl(returnTo, realm), 302);
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/auth/steam/return') {
+      if (!env.SESSION_SECRET) {
+        return json({ error: 'SESSION_SECRET not configured' }, { status: 500 }, cors);
+      }
+      const result = await verifySteamReturn(url.searchParams);
+      if (!result.ok) {
+        return json({ error: `steam openid: ${result.reason}` }, { status: 401 }, cors);
+      }
+      const base = publicBaseUrl(env);
+      const token = await signSession(result.steamId, env.SESSION_SECRET);
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: `${base}/`,
+          'set-cookie': setSessionCookieHeader(token, cookieIsSecure(base)),
+        },
+      });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/auth/me') {
+      if (!env.SESSION_SECRET) {
+        return json({ authenticated: false }, { status: 200 }, cors);
+      }
+      const token = readSessionCookie(req);
+      if (!token) return json({ authenticated: false }, { status: 200 }, cors);
+      const claims = await verifySession(token, env.SESSION_SECRET);
+      if (!claims) return json({ authenticated: false }, { status: 200 }, cors);
+      return json({ authenticated: true, steamId: claims.sub }, { status: 200 }, cors);
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
+      const base = publicBaseUrl(env);
+      return new Response(null, {
+        status: 204,
+        headers: { ...cors, 'set-cookie': clearSessionCookieHeader(cookieIsSecure(base)) },
+      });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/world') {

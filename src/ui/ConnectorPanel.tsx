@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import { useEffect } from 'react';
-import type { ManifestStatus } from '../state/store';
+import type { AuthStatus, ManifestStatus } from '../state/store';
 import { useAppStore } from '../state/store';
+import { STEAM_LOGIN_PATH } from '../api/auth';
 
 /**
  * Overlay panel summoned by the in-world computer. v0.1 surfaces the three
@@ -21,6 +22,9 @@ export function ConnectorPanel() {
   const manifestSource = useAppStore((s) => s.manifestSource);
   const manifestError = useAppStore((s) => s.manifestError);
   const manifest = useAppStore((s) => s.manifest);
+  const authStatus = useAppStore((s) => s.authStatus);
+  const steamId = useAppStore((s) => s.steamId);
+  const signOut = useAppStore((s) => s.signOut);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -48,12 +52,10 @@ export function ConnectorPanel() {
           <button onClick={closeMenu} style={btnGhostStyle}>close · esc</button>
         </header>
 
-        <Section
-          title="Steam Library"
-          status="not connected"
-          statusColor="#7a6a7a"
-          description="Sign in with Steam OpenID. Pulls owned games, playtime, recent activity, achievements. Wires up at v0.2 — for v0.1 the library is hard-coded."
-          action="Connect Steam — v0.2"
+        <SteamSection
+          status={authStatus}
+          steamId={steamId}
+          onSignOut={() => { void signOut(); }}
         />
 
         <Section
@@ -97,6 +99,44 @@ function Section({ title, status, statusColor, description, action }: SectionPro
       </div>
       <p style={sectionBodyStyle}>{description}</p>
       <button style={btnDisabledStyle} disabled>{action}</button>
+    </section>
+  );
+}
+
+interface SteamSectionProps {
+  status: AuthStatus;
+  steamId: string | null;
+  onSignOut: () => void;
+}
+
+function SteamSection({ status, steamId, onSignOut }: SteamSectionProps) {
+  const isAuthed = status === 'authenticated' && steamId;
+  const statusLabel =
+    status === 'loading' ? 'checking…'
+      : status === 'authenticated' ? 'connected'
+      : status === 'anonymous' ? 'not connected'
+      : 'idle';
+  const statusColor =
+    status === 'authenticated' ? '#7accbf'
+      : status === 'loading' ? '#c8a64a'
+      : '#7a6a7a';
+  const description = isAuthed
+    ? `Signed in as Steam ID ${steamId}. Library + HLTB enrichment wire up in the next slices; right now we only know who you are.`
+    : 'Sign in with Steam OpenID. Slice 1 of Phase 2 — establishes the session. Library fetch (GetOwnedGames + recently played + achievements) and HLTB enrichment land in the slices after.';
+  return (
+    <section style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <div style={sectionTitleStyle}>Steam Library</div>
+        <div style={{ ...statusBadgeStyle, color: statusColor }}>{statusLabel}</div>
+      </div>
+      <p style={sectionBodyStyle}>{description}</p>
+      {isAuthed ? (
+        <button style={btnBaseStyle} onClick={onSignOut}>Sign out</button>
+      ) : (
+        <a href={STEAM_LOGIN_PATH} style={{ ...btnBaseStyle, textDecoration: 'none', display: 'inline-block' }}>
+          Connect Steam
+        </a>
+      )}
     </section>
   );
 }

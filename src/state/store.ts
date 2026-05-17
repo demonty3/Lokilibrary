@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { fetchWorld } from '../api/world';
+import { fetchMe, logout as logoutRequest } from '../api/auth';
 import type { Manifest } from '../ai/manifest';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
+export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
 
 /**
  * Top-level UI + world state. Connection state for Steam / Claude / asset
@@ -27,6 +29,14 @@ interface AppState {
   manifestSource: 'worker' | 'stub' | null;
   manifestError: string | null;
   loadManifest: () => Promise<void>;
+
+  /** Steam OpenID auth state. Phase 2 slice 1; library + profile arrive in
+   *  later slices. The cookie is HttpOnly so we can't read it directly —
+   *  loadAuth() asks the worker. */
+  authStatus: AuthStatus;
+  steamId: string | null;
+  loadAuth: () => Promise<void>;
+  signOut: () => Promise<void>;
 
   /** Active launch ritual — the 1.8s pre-launch animation, set when the
    *  player presses E. Cleared when steam://run fires. */
@@ -77,6 +87,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       manifestStatus: 'loaded',
       manifestError: fallbackReason ?? null,
     });
+  },
+
+  authStatus: 'idle',
+  steamId: null,
+  loadAuth: async () => {
+    if (get().authStatus === 'loading') return;
+    set({ authStatus: 'loading' });
+    const me = await fetchMe();
+    set({
+      authStatus: me.authenticated ? 'authenticated' : 'anonymous',
+      steamId: me.steamId ?? null,
+    });
+  },
+  signOut: async () => {
+    await logoutRequest();
+    set({ authStatus: 'anonymous', steamId: null });
   },
 
   activeRitual: null,
