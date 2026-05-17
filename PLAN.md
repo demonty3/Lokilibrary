@@ -263,15 +263,14 @@ This phase is a real cutover, not a feature addition. The Stage 1 prompt stops r
 
 **Goal:** Move the real product onto the desktop. Live-wallpaper rendering behind the OS, multi-monitor support, Steamworks SDK integration so launches and returns are detected accurately (no more focus-event lie). This is the surface that becomes the v1.0 Steam product.
 
-This is the biggest single phase. Spike before you commit; the wrapper choice is hard to undo.
+This is the biggest single phase.
 
 ### Tasks
-1. **Native wrapper decision (Tauri vs. Electron).** Spike both in a half-weekend. Decision criteria: wallpaper-mode behavior on macOS + Windows, multi-monitor handling, Steamworks SDK binding maturity, bundle size, hot-reload-during-dev experience. Document the decision in `desktop/DECISION.md` so future-you remembers why.
-2. **Project skeleton in `desktop/`.** Whatever the wrapper choice was, get it building the existing web bundle as the embedded view, and round-trip a simple "Hello from native" IPC call so you've proven both sides talk.
-3. **Wallpaper mode.** Render behind the desktop, click-through, ignored by Alt+Tab in idle mode. Different APIs on Windows (the `Progman` / WorkerW trick) vs. macOS (`NSWindow` window level). Expect a real chunk of platform-specific code here; the LLM will need explicit references to the Win32 / Cocoa snippets — copy them in.
-4. **Steamworks SDK integration.** Steam library auth (skip the OpenID round-trip — the user is already logged into Steam), proper launch (`IApps::LaunchGame` or similar — the LLM will pick the right call), proper launch/return callbacks. Replace `window.location.href = 'steam://run/...'` for desktop builds; web build keeps it for the share-viewer surface.
-5. **Multi-monitor support.** Let the user pick which monitor the wallpaper lives on; remember the choice across restarts.
-6. **Idle-mode optimisation.** Drop to ~10fps and pause physics when nothing is interacting; pop back to 60fps on user input. r3f's `frameloop="demand"` is the right primitive.
+1. **Project skeleton in `desktop/` (Electron).** The wrapper choice is settled — SPEC §6.2 ratifies Electron on 2026-05-17, driven by `steamworks.js`'s Node-runtime requirement and Chromium-rendering consistency across platforms. No spike needed; build it. Get Electron loading the existing web bundle as the embedded view, round-trip a "Hello from native" IPC call to prove both sides talk. Set `contextIsolation: false` and copy the `steam_api64.dll` / `libsteam_api.dylib` / `libsteam_api.so` redistributable into the build root — these are non-negotiable for `steamworks.js`.
+2. **Wallpaper mode.** Render behind the desktop, click-through, ignored by Alt+Tab in idle mode. Different APIs on Windows (the `Progman` / `WorkerW` reparenting trick — see Lively Wallpaper's open-source source as the documented reference) vs. macOS (`NSWindow.level = kCGDesktopWindowLevel`). Expect a real chunk of platform-specific code here; the LLM will need explicit references to the Win32 / Cocoa snippets — copy them in.
+3. **Steamworks SDK integration.** Steam library auth (skip the OpenID round-trip — the user is already logged into Steam, use `client.localplayer.getSteamId()`), proper launch (`IApps::LaunchGame` or `client.apps.launchGame`), proper launch/return callbacks. Replace `window.location.href = 'steam://run/...'` for desktop builds; web build keeps it for the share-viewer surface. Call `electronEnableSteamOverlay()` at the end of `main.js` so the Steam overlay attaches.
+4. **Multi-monitor support.** Let the user pick which monitor the wallpaper lives on; remember the choice across restarts.
+5. **Three-tier render loop** (Wallpaper Engine's most-copied feature). Three states: **full speed** when the desktop is visible and the user is interacting, **throttled** (~10–15fps, physics paused) when the wallpaper is partially occluded, **fully paused** when a fullscreen game is in the foreground. r3f's `frameloop="demand"` is the right primitive for the throttled tier; detect fullscreen game via Steamworks `IFriends::GetFriendGamePlayed` on the local player. This is the single biggest "trust signal" a wallpaper utility can ship — without it, users disable it after a week.
 
 ### Concepts to learn
 - **Native wrappers** — Tauri's IPC model (Rust commands invoked from JS) vs. Electron's main/renderer split (Node.js main process vs. Chromium renderer). Both work for this; the tradeoff is mostly bundle size, binding maturity, and platform-API ergonomics.
@@ -309,9 +308,34 @@ This is the biggest single phase. Spike before you commit; the wrapper choice is
 
 ## Beyond Phase 7: v1.0 Steam launch and v1.x Workshop
 
-These are out of scope for this plan. **v1.0** (Steam launch, 3–5 hand-built templates, "Year in Library" annual moment, Steamworks partner-account work, store-page assets, EULA, refund-policy review) is a multi-month effort that depends on Phase 7 polish landing and Steamworks partner approval. **v1.x** (Steam Workshop integration, template authoring tool, friend-comparison feature) is a separate plan to write once v1.0 ships.
+These are out of scope for the build plan above, but the launch is gated by paperwork as much as code — here's what that paperwork actually is so it doesn't surprise you on the run-up.
 
-Start the Steamworks partner application in parallel with Phase 6 — the review queue is the long pole, and you can't ship without it.
+### v1.0 Steam launch — the paperwork checklist
+
+Surface these the moment Phase 6 starts; the Steamworks queue is the long pole and Steam Direct's 30-day clock can't be hurried.
+
+1. **Steamworks partner application.** Start in parallel with Phase 6 (native wrapper). Onboarding includes identity verification, tax interview, bank details. Takes 1–4 weeks; cannot be parallelised with anything inside Steam.
+2. **Steam Direct fee — $100 USD, non-refundable.** Recoupable as credit against your first $1,000 in adjusted gross revenue. Paid in Steam's checkout. **Triggers the 30-day mandatory wait** between fee payment and release-eligible status.
+3. **Coming Soon page — must be public for ≥2 weeks** before launch. This is your wishlist-accumulation window and the algorithm signal Valve weighs heaviest. Median Steam Next Fest gains ~200 wishlists; top 5% gain ~7,000; games entering launch with <2,000 wishlists get little algorithmic lift. Plan a 6–8 week pre-launch run where every post drives wishlist clicks.
+4. **AI Content Survey** (per SPEC §6.1 + §11). Disclose both **Pre-Generated** (Stages 2–6 baked assets — Blockade Labs / Midjourney-FLUX / Meshy / Stable Audio / ElevenLabs) and **Live-Generated** (Stage 1 — Claude at runtime). Live-Generated requires the guardrails description: structured-JSON-only output, server-side whitelist validation, no free-form runtime image/audio/3D generation, Anthropic's content-safety layer. Word it as a feature, not a confession.
+5. **Store-page assets** — capsule images (231×87, 467×181, 616×353, 1232×706), header (460×215), library hero/capsule, screenshot set (1280×720 or 1920×1080, ≥5), trailer (≥30s), short description (~300 chars), long description (no length cap but expect skim-reading). Build these from real generated worlds; nothing screenshot-able means nothing on the store page.
+6. **EULA + refund-policy review** — Steam's standard 14-day / <2-hour refund applies; nothing custom needed unless we want to layer on top.
+7. **Review process — 1–5 business days** after submission. Common rejection reasons: store assets misleading vs. actual product, build crashes on launch, undisclosed AI content. Submit at least a week before your target launch date to absorb a re-submit.
+
+Plan ~6–8 weeks between "feature-freeze on Phase 7" and "release day" — Coming Soon clock + Steamworks queue + AI disclosure paperwork + store-page asset production all run inside that window.
+
+### v1.x Steam Workshop — moderation pipeline is a prerequisite, not a follow-up
+
+Workshop opening is the long-term moat (SPEC §10) but on day one it imports every UGC platform's chronic problems — NSFW content, IP-infringing fan art, malicious "application" templates, harassment via custom content. The moderation pipeline has to exist *before* Workshop opens. Specifically:
+
+1. **Workshop templates ship as static baked assets only.** No live AI generation from community templates — that path runs only for our own first-party Stage 1 pipeline. Community templates carry pre-baked GLB / KTX2 / WAV / scene JSON; nothing executable, no prompts that run on someone else's machine.
+2. **Pre-publish moderation queue.** Image-moderation API on every preview image — Cloudflare Images' built-in moderation, Hive, or AWS Rekognition. Auto-reject obvious NSFW; route ambiguous flags to a manual queue. Don't auto-publish.
+3. **Polycount + file-size + asset-type validation** at submission. Reject templates over a poly/texture/audio budget (defends against perf-tanking content and against attempts to smuggle large binaries).
+4. **DMCA flow on our own site**, supplementing Valve's. Valve's Workshop moderation is light-touch and slow; we need a faster path for clear infringement.
+5. **Remote kill-switch.** Cloudflare Workers endpoint the desktop app checks on launch; blocked template ids refuse to load. Lets us yank a published template the moment a report lands without waiting for Valve.
+6. **No revenue share for Workshop content.** Per SPEC §10, Workshop stays free — Wallpaper Engine tried a paid Workshop store and abandoned it for exactly the problems above plus codec/licensing/buyer-confusion. Don't repeat that.
+
+The right time to design this pipeline is at the *end* of Phase 7, before Steam launch — once we have v0.9 stable enough to know what a "template" actually looks like as a payload. Building it earlier wastes work; building it later turns Workshop opening into a months-long crisis.
 
 ---
 
