@@ -2,20 +2,18 @@ import { useMemo } from 'react';
 import { useAppStore } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { ARCHETYPE_COMPONENTS } from './archetypes';
+import { layoutFor } from '../procedural/seaside';
 import type { LibraryState } from '../types';
 
 /**
- * Renders the manifest's casting as actual archetype components. The
- * "template-agnostic scene assembly" PLAN.md 1.8 calls out — same code reads
- * any manifest regardless of which template the LLM picked.
+ * Renders the manifest's casting as actual archetype components.
  *
- * Source for game names (slice 7): the real library when authed, otherwise
- * SAMPLE_LIBRARY for the stub manifest path. Both maps are keyed by appid
- * so the lookup is identical from the render's POV.
- *
- * Per-game state (Phase 4): comes from the real library when present, drives
- * the per-archetype visual treatment in stateStyling.ts. Stub manifests have
- * no state — archetypes render in their default style.
+ * Sources:
+ *   - **name + state per appid:** real library when authed, SAMPLE_LIBRARY
+ *     when not. Same Map<appid, …> shape either way.
+ *   - **positions:** computed deterministically by src/procedural/seaside.ts
+ *     from the profile seed (Phase 5 slice 2). The manifest no longer carries
+ *     positions; this code can't read them even if the LLM hallucinated some.
  *
  * Falls back to nothing while the manifest is loading; the surrounding scenery
  * (houses, lamp posts, water) in Town.tsx is independent and renders either way.
@@ -23,6 +21,7 @@ import type { LibraryState } from '../types';
 export function CastedWorld() {
   const manifest = useAppStore((s) => s.manifest);
   const library = useAppStore((s) => s.library);
+  const profile = useAppStore((s) => s.profile);
 
   const gameByAppid = useMemo(() => {
     const m = new Map<number, { name: string; state?: LibraryState }>();
@@ -34,7 +33,20 @@ export function CastedWorld() {
     return m;
   }, [library]);
 
-  if (!manifest) return null;
+  const layout = useMemo(() => {
+    if (!manifest) return null;
+    return layoutFor(profile, manifest.casting);
+  }, [manifest, profile]);
+
+  if (!manifest || !layout) return null;
+
+  if (import.meta.env.DEV && layout.dropped.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `procedural layout dropped ${layout.dropped.length} archetype(s):`,
+      layout.dropped,
+    );
+  }
 
   return (
     <>
@@ -51,12 +63,14 @@ export function CastedWorld() {
         }
         const game = gameByAppid.get(entry.appid);
         if (!game) return null;
+        const position = layout.positions.get(entry.appid);
+        if (!position) return null;
         return (
           <Component
             key={`${entry.appid}-${idx}`}
             appid={entry.appid}
             name={game.name}
-            position={entry.position}
+            position={position}
             state={game.state}
           />
         );

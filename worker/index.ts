@@ -447,7 +447,9 @@ export default {
       }));
       const allowedAppids = new Set(promptGames.map((g) => g.appid));
 
-      const cacheKey = `manifest:${steamId}:${template}`;
+      // Phase 5 slice 2 bumped the schema (no `position`). Cache key tag
+      // `v2` orphans pre-Phase-5 entries — they expire on their original TTL.
+      const cacheKey = `manifest:v2:${steamId}:${template}`;
       let parsed: unknown;
       try {
         parsed = await kvGet<unknown>(
