@@ -1,0 +1,16 @@
+node_modules
+dist
+
+# Steamworks SDK redistributable binaries — not redistributable; user must
+# download from partner.steamgames.com and drop into sdk/redistributable_bin/<platform>/
+sdk/
+
+# Per-environment appid file. 480 (SpaceWar) in dev; real appid in prod.
+steam_appid.txt
+
+# Native build artifacts (slice 6's electron-builder output)
+out/
+release/
+
+*.log
+.DS_Store
