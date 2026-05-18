@@ -111,6 +111,16 @@ Both must be running for the Stage 1 call to work. The frontend without the Work
 
 You need Steam installed and running for `steam://run/{appid}` to launch a game; otherwise it's a no-op in the browser.
 
+**Desktop wrapper (v0.6+, third terminal — must be Windows-native Node on Windows, not WSL):**
+
+```
+cd desktop
+npm install
+npm run dev       # tsc + electron pointing at localhost:5183
+```
+
+WSL Ubuntu can build and lint `desktop/` but **cannot run the Electron app**: WSL Linux can't reach Windows Steam (steamworks.js init fails on `steamclient.so`), and WSLg's GPU passthrough chokes Chromium. Frontend (Vite) + Worker (wrangler) can stay in WSL; the desktop terminal needs to be a Windows-native PowerShell/cmd with Windows Node installed. One-time setup per `desktop/STEAMWORKS_SDK_LICENSE.txt` neighbours: drop the Steamworks SDK's `redistributable_bin/<platform>/` into `desktop/sdk/redistributable_bin/<platform>/`, create `desktop/steam_appid.txt` containing `480` (SpaceWar) for dev or your real appid post-partner-approval.
+
 **Local LLM dev mode (optional, recommended for prompt iteration):**
 
 ```
@@ -151,3 +161,4 @@ npm run eval -- --models claude-opus,claude-sonnet,gemini-3-pro,qwen3-14b-local
 - Don't add `Math.random()` anywhere in `src/procedural/`. Determinism is the share-URL contract.
 - **Don't ship Suno or Udio audio in any committed build.** The legal situation around their training data is actively contested as of 2025–2026 and Steam has flagged submissions using these outputs. Stable Audio 2.5 + ElevenLabs Music both have clear commercial-use terms and stay our defaults for Stage 5 baking; if a track needs to come from anywhere else, use Epidemic Sound / Artlist (subscription, broad license) — never Suno/Udio.
 - **Don't monetize Workshop content** (when v1.x lands). Workshop templates stay free, full stop. Wallpaper Engine tried a paid item store and shut it down over verification / codec-licensing / buyer-confusion problems; we don't repeat that. Monetization is on the base-app price and (later, if needed) on first-party DLC template packs we curate ourselves — not on community content.
+- **Don't run the Electron desktop wrapper from WSL.** Linux Electron-in-WSL can't reach the Windows Steam client, so `steamworks.init()` always fails on `steamclient.so`; WSLg's graphics passthrough also chokes the renderer's GPU process. Use Windows-native Node for `desktop/` (frontend + worker can stay in WSL). Reach for `\\wsl.localhost\Ubuntu\…` from a PowerShell window if you want a single project copy; cleaner long-term is a Windows-side clone for Windows-native dev.
