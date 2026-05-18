@@ -2,7 +2,7 @@
 
 **Status:** Build plan for the painted-3D path (SPEC §9–10), revised 2026-05-16 to reflect the Steam-distribution product direction. Annotated for an LLM-driven workflow at full-weekend cadence (~20h/week). Phase 1's retrospective is the formal moment to verify the painted-3D + LLM combination delivers the magic before the v0.2–v1.0 arc commits.
 
-**Progress (2026-05-17):** Phases 0–2 complete. v0.2 ships the full Steam → enriched library → Stage 1 LLM loop end-to-end (see `RETROS/v0.2.md`). Phase 4 (state visual treatment) is in flight; per CLAUDE.md the next priority after Phase 4 is **Phase 5** (procedural + share-URL), with Phase 3 (IGDB + multiple templates) deferred until then.
+**Progress (2026-05-17):** Phases 0–2, 4, and 5 complete. v0.2 ships the full Steam → enriched library → Stage 1 LLM loop end-to-end (`RETROS/v0.2.md`). v0.4 ships per-state visual treatment + the dusty backlog cluster. v0.5 ships procedural layout + share-URL contract + terrain + worn paths + scatter (`RETROS/v0.5.md`). **Phase 6 (Electron wrapper) is next** — the v1.0 product surface. Phase 3 (IGDB + multiple templates) remains deferred until v0.6 lands.
 
 This file sequences SPEC.md's roadmap into concrete tasks you can hand to a coding LLM (Claude Code, Cursor, Aider, etc.), with the concepts you'll want to understand at each step so you can verify what the LLM produces. You're not writing the code. You are the project lead and the verifier.
 
@@ -214,7 +214,11 @@ At the end of Phase 1, write a half-page note in the repo (`RETROS/v0.1.md`): *d
 
 ---
 
-## Phase 4 — v0.4: Library-state visual treatment (2 weekends) — **in flight**
+## Phase 4 — v0.4: Library-state visual treatment (2 weekends) — **COMPLETE**
+
+Shipped across PRs #12 (per-state styling) and #13 (dusty backlog cluster).
+Worn-path decals (task 2 of this phase) absorbed into Phase 5 slice 4
+because they share the ground geometry with terrain.
 
 **Goal:** Same archetype, different state, different visual. The lighthouse that's `loved` glows and has worn paths leading to it. The lighthouse that's `dusty` is a covered ruin.
 
@@ -237,7 +241,12 @@ At the end of Phase 1, write a half-page note in the repo (`RETROS/v0.1.md`): *d
 
 ---
 
-## Phase 5 — v0.5: Procedural layout + first share artifacts (3 weekends)
+## Phase 5 — v0.5: Procedural layout + first share artifacts (3 weekends) — **COMPLETE**
+
+Shipped across PRs #14 (PRNG + seed), #15 (procedural layout / drop `position`),
+#16 (share-URL + view-only), #17 (terrain + worn paths), #18 (scatter).
+Stage 5 audio baking + OG meta-tag HTML route lifted out to their own
+follow-up phases — see `RETROS/v0.5.md`.
 
 **Goal:** Move position-picking out of the Stage 1 call into a deterministic procedural layer in `src/procedural/`, seeded by the behavioral profile. Same profile → same world is a hard requirement — the share-URL contract depends on it. First share artifacts (URL + screenshot) ship here, because determinism is what makes them meaningful. Stage 5 audio baking lands alongside so worlds also have ambient beds + interaction stings.
 
@@ -263,7 +272,7 @@ This phase is a real cutover, not a feature addition. The Stage 1 prompt stops r
 
 ---
 
-## Phase 6 — v0.6: Native desktop wrapper + Steamworks SDK (3 weekends)
+## Phase 6 — v0.6: Native desktop wrapper + Steamworks SDK (3 weekends) — **NEXT**
 
 **Goal:** Move the real product onto the desktop. Live-wallpaper rendering behind the OS, multi-monitor support, Steamworks SDK integration so launches and returns are detected accurately (no more focus-event lie). This is the surface that becomes the v1.0 Steam product.
 
