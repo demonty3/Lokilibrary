@@ -1,5 +1,4 @@
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
-import { Boat } from './Boat';
 import { Computer } from './Computer';
 
 /**
@@ -180,13 +179,6 @@ export function SeasideTown() {
       <Pier start={[4, 0, 6]} end={[10, 0, 14]} />
 
       <Water />
-
-      <Boat
-        position={[11.5, 3.0, 14]}
-        rotation={Math.PI / 5}
-        scale={30}
-        collider={[9.5, 3.0, 4.5]}
-      />
 
       <Computer />
     </>
