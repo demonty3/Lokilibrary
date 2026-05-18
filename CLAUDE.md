@@ -10,15 +10,15 @@ The full design doc is **`SPEC.md`** — read it for the broader vision (behavio
 
 ## Current phase
 
-**v0.2 done; v0.4 in flight (state visual treatment).** v0.1 shipped the painted-3D + LLM vertical slice on a hard-coded library; v0.2 swapped that for the player's real Steam library (OpenID + GetOwnedGames + recent activity + achievements + HLTB enrichment + behavioral profile + SPEC §4 state tagger + a session-driven `/api/world` route). Phase 4 layers per-state visual treatment on top — `loved` games glow, `mastered` get plaques, `abandoned` go dark.
+**v0.2–v0.5 done. v0.6 (Electron wrapper) is the next major.** v0.1 shipped the painted-3D + LLM slice on a hard-coded library. v0.2 swapped in the player's real Steam library (OpenID + GetOwnedGames + recency + achievements + HLTB + behavioral profile + SPEC §4 state tags + session-driven `/api/world`). v0.4 added per-state visual treatment + the dusty backlog cluster. v0.5 moved position-picking out of the LLM into a deterministic seeded procedural layer (`src/procedural/`), shipped the share-URL contract via `/w/:id`, and layered terrain undulation + worn paths between `loved` games + scatter on top. **Same profile → same world** — the share-URL contract holds across browsers, devices, and time.
 
-**Immediate next work — finish v0.4, then v0.5 (procedural + share-URL).** v0.4 task list per PLAN.md Phase 4: state material variants (in flight), worn-path decals between `loved` games, and the dusty backlog cluster. The dusty cluster is the only thing that makes `dusty` styling reachable — top-N by definition contains no dusty games.
+**Immediate next work — v0.6: Electron wrapper.** Native desktop app, wallpaper-mode rendering, Steamworks SDK for library auth + accurate launch/return-trip detection. PLAN.md Phase 6 has the task list; SPEC §6.2 has the architectural decisions (Electron, not Tauri — settled 2026-05-17 over `steamworks.js`'s Node-runtime requirement). Start the Steamworks partner application early — the review queue is the long pole, per the launch-obligations checklist in PLAN.md "Beyond Phase 7."
 
-After v0.4, **v0.5 is the next priority over v0.3.** Move position-picking out of the LLM and into a deterministic procedural system seeded by the behavioral profile. Same profile → same world; different profile → different world. The **share-URL contract** ships here as a first-class feature, not deferred: the URL encodes `{profile_seed, manifest_hash}` and the read-only web viewer reconstructs the same world from those two values alone. Determinism is the contract — any drift breaks shareability and is treated as a regression. New module lives in `src/procedural/`.
+**v0.3 (IGDB + multiple templates) stays deferred** behind v0.6. Multiple templates each need their own Meshy curation pass; better to land Electron + wallpaper mode on the one template before duplicating.
 
-v0.3 (IGDB + multiple templates) gets deferred until v0.4 + v0.5 land, primarily because multiple templates each need their own Meshy curation pass; better to nail the visual + procedural primitives on the one template before duplicating.
+**Stage 5 audio baking + OG meta-tag HTML route are lifted out of Phase 5.** Both are small phases of their own — audio when ready to spend Stable Audio / ElevenLabs credit, OG HTML when first prod deployment lands. Neither blocks v0.6.
 
-**Outstanding from v0.1: the Meshy hero-asset curation pass.** The five seaside archetypes still ship as procedural primitives. State styling (v0.4) and procedural placement (v0.5) layer on top, but the visual ceiling is genuinely capped until the Meshy work lands. Curation is hand-pick-1-of-8 work that can't be delegated to the LLM; defer until you're ready to spend the credits.
+**Outstanding from v0.1: the Meshy hero-asset curation pass.** Five seaside archetypes still ship as procedural primitives. All the v0.4/v0.5 polish (state styling, terrain, paths, scatter) layers on top of cubes-pretending-to-be-lighthouses. The visual ceiling is genuinely capped until Meshy lands. Right before v1.0 is when those credits pay off most.
 
 **Beyond v0.5 (trajectory toward Steam launch):**
 

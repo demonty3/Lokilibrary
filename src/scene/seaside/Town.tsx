@@ -140,6 +140,29 @@ function Water() {
   );
 }
 
+/**
+ * Footprints the procedural dressing scatter must avoid (Phase 5 slice 5).
+ * Single source of truth — if a house or lamp moves in SeasideTown, update
+ * here too so scatter avoids the new location. Radii include a small skirt
+ * past the visible footprint so rocks aren't kissing walls.
+ */
+export const SEASIDE_TOWN_KEEPOUTS: ReadonlyArray<{ x: number; z: number; r: number }> = [
+  // Houses — footprint is the *side length* of a square base; r = half + skirt.
+  { x: -4, z:  -3, r: 2.3 },
+  { x:  4, z:  -5, r: 2.6 },
+  { x: -8, z:  -8, r: 2.4 },
+  { x:  6, z: -10, r: 2.3 },
+  { x: -2, z: -12, r: 2.5 },
+  // Lamp posts — thin verticals, small radius.
+  { x:  0, z: -1, r: 0.6 },
+  { x: -5, z: -6, r: 0.6 },
+  { x:  6, z: -3, r: 0.6 },
+  { x:  4, z:  6, r: 0.6 },
+  // Pier extends from the shore out into the water — long thin footprint.
+  // Approximate as one wider radius at the centroid.
+  { x:  6, z: 14, r: 4.0 },
+];
+
 export function SeasideTown() {
   return (
     <>

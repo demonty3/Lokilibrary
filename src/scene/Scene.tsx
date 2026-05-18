@@ -6,6 +6,7 @@ import { Player } from './Player';
 import { SeasideTown } from './seaside/Town';
 import { Terrain } from './seaside/Terrain';
 import { Paths } from './seaside/Paths';
+import { Scatter } from './seaside/Scatter';
 import { DustyBacklog } from './seaside/DustyBacklog';
 import { CastedWorld } from './CastedWorld';
 
@@ -54,6 +55,7 @@ export function Scene() {
 
       <Terrain />
       <Paths />
+      <Scatter />
 
       <SeasideTown />
       <CastedWorld />
