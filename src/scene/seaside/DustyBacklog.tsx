@@ -3,6 +3,10 @@ import { Instances, Instance } from '@react-three/drei';
 import { DoubleSide } from 'three';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import { useAppStore } from '../../state/store';
+import { profileSeed } from '../../procedural/seed';
+import { sampleHeight } from '../../procedural/terrain';
+
+const STUB_SEED = 0xc0ffee;
 
 /**
  * The dusty backlog — every `dusty`-tagged game (owned, never opened) lives
@@ -38,7 +42,9 @@ interface CrateInstance {
 
 export function DustyBacklog() {
   const library = useAppStore((s) => s.library);
+  const profile = useAppStore((s) => s.profile);
   const viewOnly = useAppStore((s) => s.viewOnly);
+  const sharedSeed = useAppStore((s) => s.sharedSeed);
   const sharedDustyCount = useAppStore((s) => s.sharedDustyCount);
 
   const dustyCount = useMemo(() => {
@@ -48,6 +54,16 @@ export function DustyBacklog() {
     if (!library) return 0;
     return library.filter((g) => g.state === 'dusty').length;
   }, [library, viewOnly, sharedDustyCount]);
+
+  // Lift the cluster to the terrain height at its xz so the pile sits on
+  // the visual ground (slice 4 — terrain now undulates by ±0.3m around
+  // the cluster's corner at (15, -15)).
+  const clusterY = useMemo(() => {
+    const seed = viewOnly && sharedSeed !== null
+      ? sharedSeed
+      : profile ? profileSeed(profile) : STUB_SEED;
+    return sampleHeight(seed, CLUSTER_ORIGIN[0], CLUSTER_ORIGIN[2]);
+  }, [viewOnly, sharedSeed, profile]);
 
   const visibleCount = Math.min(dustyCount, MAX_VISIBLE);
 
@@ -81,7 +97,7 @@ export function DustyBacklog() {
   const footprintD = LAYER_D * (CRATE_SIZE + GAP);
 
   return (
-    <group position={CLUSTER_ORIGIN}>
+    <group position={[CLUSTER_ORIGIN[0], CLUSTER_ORIGIN[1] + clusterY, CLUSTER_ORIGIN[2]]}>
       {/* Single static collider over the whole pile footprint — cheap, and
           stops the player walking through the stack. Phase 5's procedural
           layer might switch this to per-crate if we want more permissive

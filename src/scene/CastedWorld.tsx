@@ -3,7 +3,11 @@ import { useAppStore } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { ARCHETYPE_COMPONENTS } from './archetypes';
 import { layoutFor, layoutForSeed } from '../procedural/seaside';
+import { profileSeed } from '../procedural/seed';
+import { sampleHeight } from '../procedural/terrain';
 import type { LibraryState } from '../types';
+
+const STUB_SEED = 0xc0ffee; // matches src/procedural/seaside.ts + Terrain.tsx
 
 /**
  * Renders the manifest's casting as actual archetype components.
@@ -35,15 +39,16 @@ export function CastedWorld() {
     return m;
   }, [library]);
 
-  const layout = useMemo(() => {
-    if (!manifest) return null;
+  const { layout, terrainSeed } = useMemo(() => {
+    if (!manifest) return { layout: null, terrainSeed: STUB_SEED };
     // View-only mode: drive the layout from the share record's precomputed
     // seed. The creator's machine hashed their profile to this value at
     // share time; reusing it verbatim reproduces the same world.
     if (viewOnly && sharedSeed !== null) {
-      return layoutForSeed(sharedSeed, manifest.casting);
+      return { layout: layoutForSeed(sharedSeed, manifest.casting), terrainSeed: sharedSeed };
     }
-    return layoutFor(profile, manifest.casting);
+    const seed = profile ? profileSeed(profile) : STUB_SEED;
+    return { layout: layoutFor(profile, manifest.casting), terrainSeed: seed };
   }, [manifest, profile, viewOnly, sharedSeed]);
 
   if (!manifest || !layout) return null;
@@ -73,14 +78,20 @@ export function CastedWorld() {
         if (!game) return null;
         const position = layout.positions.get(entry.appid);
         if (!position) return null;
+        // Lift the archetype to the terrain height at its (x, z) so it sits
+        // on the visual ground instead of clipping into a hill or floating
+        // over a valley. Each archetype's own outer <group> is at y=0
+        // locally, so wrapping in a y-only group puts its base at terrainY.
+        const terrainY = sampleHeight(terrainSeed, position[0], position[1]);
         return (
-          <Component
-            key={`${entry.appid}-${idx}`}
-            appid={entry.appid}
-            name={game.name}
-            position={position}
-            state={game.state}
-          />
+          <group key={`${entry.appid}-${idx}`} position-y={terrainY}>
+            <Component
+              appid={entry.appid}
+              name={game.name}
+              position={position}
+              state={game.state}
+            />
+          </group>
         );
       })}
     </>
