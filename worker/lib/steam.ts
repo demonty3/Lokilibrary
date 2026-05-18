@@ -215,3 +215,69 @@ export async function fetchPersona(steamId: string, apiKey: string): Promise<Per
     avatarUrl: player.avatarfull,
   };
 }
+
+interface AuthTicketResponseOk {
+  response: {
+    params: {
+      result: 'OK';
+      steamid: string;
+      ownersteamid: string;
+      vacbanned?: boolean;
+      publisherbanned?: boolean;
+    };
+  };
+}
+interface AuthTicketResponseError {
+  response: {
+    error: { errorcode: number; errordesc: string };
+  };
+}
+type AuthTicketResponse = AuthTicketResponseOk | AuthTicketResponseError;
+
+/**
+ * Verify a Steamworks AuthSessionTicket against Steam Web API. Phase 6 slice 2.
+ *
+ * The desktop app generates a ticket via steamworks.js's
+ * `auth.getSessionTicket()`, sends the hex-encoded bytes to our worker, and
+ * we cross-check it with Steam's `AuthenticateUserTicket` endpoint. On
+ * success Steam returns the steamid the ticket belongs to — we trust that
+ * and mint a session cookie. On failure Steam returns a structured error;
+ * surface as SteamError so the route can map it to a 4xx.
+ *
+ * The ticket is single-use-ish — Steam expects us to call EndAuthSession
+ * after, but for slice 2 the validation alone is enough. Tickets expire
+ * server-side anyway.
+ */
+export async function verifyAuthSessionTicket(
+  ticketHex: string,
+  apiKey: string,
+  appId: number,
+): Promise<string> {
+  if (!apiKey) throw new SteamError('no_api_key', 'STEAM_WEB_API_KEY not configured');
+  if (!ticketHex || !/^[0-9a-fA-F]+$/.test(ticketHex)) {
+    throw new SteamError('upstream', 'ticket must be a hex string');
+  }
+
+  const url = new URL(`${STEAM_API}/ISteamUserAuth/AuthenticateUserTicket/v1/`);
+  url.searchParams.set('key', apiKey);
+  url.searchParams.set('appid', String(appId));
+  url.searchParams.set('ticket', ticketHex);
+
+  const res = await fetch(url.toString());
+  if (res.status === 401 || res.status === 403) {
+    throw new SteamError('unauthorized', `steam ${res.status} — check STEAM_WEB_API_KEY`);
+  }
+  if (res.status === 429) throw new SteamError('rate_limited', 'steam 429');
+  if (!res.ok) throw new SteamError('upstream', `steam ${res.status}`);
+
+  const data = (await res.json()) as AuthTicketResponse;
+  if ('error' in data.response) {
+    const err = data.response.error;
+    throw new SteamError('upstream', `steam ticket rejected: ${err.errordesc} (${err.errorcode})`);
+  }
+  const { result, steamid } = data.response.params;
+  if (result !== 'OK' || !steamid) {
+    throw new SteamError('upstream', `steam ticket not OK: ${result}`);
+  }
+  return steamid;
+}

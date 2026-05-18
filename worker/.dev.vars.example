@@ -37,3 +37,10 @@ SESSION_SECRET=
 # (which proxies /api/* to the worker on :8787). In prod it's your deployed
 # domain. Used to build the OpenID return_to / realm and cookie scope.
 PUBLIC_BASE_URL=http://localhost:5183
+
+# --- Steamworks SDK appid (Phase 6 slice 2) ---
+# Appid the desktop wrapper's AuthSessionTickets are generated for. Must
+# match desktop/steam_appid.txt — otherwise Steam Web API rejects ticket
+# verification with "AppId mismatch". Defaults to 480 (SpaceWar) for dev;
+# replace with your real appid after Steamworks partner approval.
+STEAM_APP_ID=480

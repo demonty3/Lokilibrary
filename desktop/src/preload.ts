@@ -28,6 +28,12 @@ export interface ElectronAPI {
   /** Whether the main process successfully initialised steamworks.js.
    *  False means Steamworks-dependent features should be hidden in the UI. */
   isSteamworksAvailable(): Promise<boolean>;
+
+  /** Phase 6 slice 2: hex-encoded Steamworks AuthSessionTicket. The renderer
+   *  POSTs this to /api/auth/steamticket on the worker, which verifies it
+   *  via Steam Web API and mints the same lw_session cookie the OpenID flow
+   *  uses. Null if Steamworks isn't available or the ticket call failed. */
+  getAuthTicket(): Promise<string | null>;
 }
 
 declare global {
@@ -40,6 +46,7 @@ const api: ElectronAPI = {
   isElectron: true,
   getSteamId: () => ipcRenderer.invoke('steam:getSteamId') as Promise<string | null>,
   isSteamworksAvailable: () => ipcRenderer.invoke('steam:isAvailable') as Promise<boolean>,
+  getAuthTicket: () => ipcRenderer.invoke('steam:getAuthTicket') as Promise<string | null>,
 };
 
 window.electronAPI = api;

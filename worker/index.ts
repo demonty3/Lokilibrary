@@ -5,6 +5,8 @@
  *   GET  /healthz                  — liveness + provider config sanity
  *   GET  /api/auth/steam/login     — redirect to Steam OpenID checkid_setup
  *   GET  /api/auth/steam/return    — verify Steam OpenID response, set cookie
+ *   POST /api/auth/steamticket     — verify Steamworks AuthSessionTicket from
+ *                                    desktop wrapper, mint same lw_session cookie
  *   GET  /api/auth/me              — session check; returns {steamId, persona?}
  *   POST /api/auth/logout          — clear session cookie
  *   GET  /api/library              — authed user's enriched + tagged library + profile
@@ -36,6 +38,7 @@ import {
   fetchPersona,
   fetchRecentlyPlayed,
   SteamError,
+  verifyAuthSessionTicket,
   type AchievementsSummary,
   type OwnedGame,
   type Persona,
@@ -70,6 +73,10 @@ interface Env extends ProviderEnv {
   PUBLIC_BASE_URL?: string;
   /** Slice 2: required for /api/library and the persona fetch in /api/auth/me. */
   STEAM_WEB_API_KEY?: string;
+  /** Phase 6 slice 2: appid the desktop app's AuthSessionTickets are
+   *  generated for. Steam Web API rejects ticket-verify calls where this
+   *  doesn't match the ticket. Defaults to SpaceWar (480) for dev. */
+  STEAM_APP_ID?: string;
   /** Read-through cache for Steam (slice 2), HLTB (slice 4), IGDB (Phase 3),
    *  and the Stage 1 manifest. See worker/wrangler.toml. */
   CACHE?: KVNamespace;
@@ -373,6 +380,54 @@ export default {
         status: 302,
         headers: {
           location: `${base}/`,
+          'set-cookie': setSessionCookieHeader(token, cookieIsSecure(base)),
+        },
+      });
+    }
+
+    // Phase 6 slice 2: desktop apps skip OpenID. steamworks.js generates an
+    // AuthSessionTicket locally; the renderer POSTs it here; we verify with
+    // Steam Web API and mint the same lw_session cookie as the OpenID path.
+    if (req.method === 'POST' && url.pathname === '/api/auth/steamticket') {
+      if (!env.SESSION_SECRET) {
+        return json({ error: 'SESSION_SECRET not configured' }, { status: 500 }, cors);
+      }
+      if (!env.STEAM_WEB_API_KEY) {
+        return json({ error: 'STEAM_WEB_API_KEY not configured' }, { status: 500 }, cors);
+      }
+
+      let body: { ticket?: unknown };
+      try {
+        body = (await req.json()) as { ticket?: unknown };
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      if (typeof body.ticket !== 'string' || body.ticket.length === 0) {
+        return json({ error: 'ticket (hex string) required' }, { status: 400 }, cors);
+      }
+
+      const appId = Number(env.STEAM_APP_ID) || 480; // SpaceWar default for dev
+      let steamId: string;
+      try {
+        steamId = await verifyAuthSessionTicket(body.ticket, env.STEAM_WEB_API_KEY, appId);
+      } catch (e) {
+        if (e instanceof SteamError) {
+          const status = e.reason === 'unauthorized' ? 502
+            : e.reason === 'rate_limited' ? 429
+            : 401;
+          return json({ error: e.reason, message: e.message }, { status }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'upstream', message }, { status: 502 }, cors);
+      }
+
+      const base = publicBaseUrl(env);
+      const token = await signSession(steamId, env.SESSION_SECRET);
+      return new Response(JSON.stringify({ authenticated: true, steamId }), {
+        status: 200,
+        headers: {
+          ...cors,
+          'content-type': 'application/json',
           'set-cookie': setSessionCookieHeader(token, cookieIsSecure(base)),
         },
       });

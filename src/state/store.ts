@@ -3,6 +3,7 @@ import { fetchWorld } from '../api/world';
 import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
 import { createShare, fetchShare } from '../api/share';
+import { signInWithSteamTicket } from '../api/electron';
 import type { Manifest } from '../ai/manifest';
 import type { LibraryGame, Profile, SteamPersona } from '../types';
 
@@ -140,6 +141,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadAuth: async () => {
     if (get().authStatus === 'loading') return;
     set({ authStatus: 'loading' });
+    // Phase 6 slice 2: in the Electron wrapper, exchange a Steamworks
+    // AuthSessionTicket for an lw_session cookie before fetchMe() reads
+    // it. No-op in the web build (signInWithSteamTicket returns early
+    // when window.electronAPI is absent).
+    await signInWithSteamTicket();
     const me = await fetchMe();
     set({
       authStatus: me.authenticated ? 'authenticated' : 'anonymous',
