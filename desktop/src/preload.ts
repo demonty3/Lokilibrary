@@ -81,6 +81,19 @@ export interface ElectronAPI {
    *  If wallpaper mode is active, the window re-reparents to the new
    *  display immediately; otherwise the choice is saved for next time. */
   setDisplayId(id: number | null): Promise<boolean>;
+
+  /** Slice 6: whether wallpaper is currently lifted into the foreground
+   *  via the peek hotkey. */
+  getPeeking(): Promise<boolean>;
+  /** Slice 6: toggle peek. Returns the new peek state. No-op when the
+   *  persisted mode is 'window'. */
+  togglePeek(): Promise<boolean>;
+  /** Slice 6: the accelerator string ("Ctrl+Alt+L" etc.) so the renderer
+   *  can render an accurate hint without hard-coding it. */
+  getPeekAccelerator(): Promise<string>;
+  /** Slice 6: subscribe to peek state changes (hotkey press, tray click).
+   *  Returns an unsubscribe function. */
+  onPeekChanged(cb: (peeking: boolean) => void): () => void;
 }
 
 declare global {
@@ -106,6 +119,14 @@ const api: ElectronAPI = {
   getDisplays: () => ipcRenderer.invoke('wallpaper:getDisplays') as Promise<DisplayInfo[]>,
   getDisplayId: () => ipcRenderer.invoke('wallpaper:getDisplayId') as Promise<number | null>,
   setDisplayId: (id) => ipcRenderer.invoke('wallpaper:setDisplayId', id) as Promise<boolean>,
+  getPeeking: () => ipcRenderer.invoke('wallpaper:getPeeking') as Promise<boolean>,
+  togglePeek: () => ipcRenderer.invoke('wallpaper:togglePeek') as Promise<boolean>,
+  getPeekAccelerator: () => ipcRenderer.invoke('wallpaper:getPeekAccelerator') as Promise<string>,
+  onPeekChanged: (cb) => {
+    const handler = (_e: IpcRendererEvent, peeking: boolean): void => cb(peeking);
+    ipcRenderer.on('wallpaper:peekChanged', handler);
+    return () => ipcRenderer.off('wallpaper:peekChanged', handler);
+  },
 };
 
 window.electronAPI = api;

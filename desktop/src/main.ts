@@ -17,7 +17,7 @@
  * will pack that dist alongside the desktop binary.
  */
 
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { createTray, type TrayHandle } from './tray';
@@ -88,6 +88,17 @@ function rendererUrl(): string {
 let mainWindow: BrowserWindow | null = null;
 let trayHandle: TrayHandle | null = null;
 
+/** Slice 6: "peek" — the user hit the global hotkey to temporarily lift the
+ *  wallpaper into an interactive, foreground window without changing the
+ *  persisted mode. Reset when applyMode() runs (real mode change should
+ *  always win over a transient peek). */
+let peeking = false;
+
+/** Slice 6: global shortcut for the peek toggle. Ctrl+Alt+L on Win/Linux,
+ *  Cmd+Alt+L on macOS. Three-key combinations are unlikely to clash with
+ *  game keybinds or the OS. Configurable in a later slice if needed. */
+const PEEK_ACCELERATOR = 'CmdOrCtrl+Alt+L';
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
@@ -139,6 +150,14 @@ function resolveTargetDisplay(): Electron.Display {
 
 function applyMode(mode: Mode): void {
   if (!mainWindow) return;
+  // An explicit mode change always wins over a transient peek. Clear the
+  // flag + drop alwaysOnTop before re-entering so we don't leave the window
+  // pinned above other apps after the user toggles back to wallpaper.
+  if (peeking) {
+    peeking = false;
+    mainWindow.setAlwaysOnTop(false);
+    notifyPeek();
+  }
   if (mode === 'wallpaper') {
     enterWallpaper(mainWindow, resolveTargetDisplay());
   } else {
@@ -154,6 +173,37 @@ function applyMode(mode: Mode): void {
   } catch {
     // webContents may not be ready on very early startup; the renderer
     // calls getWallpaperMode() on mount as a backstop.
+  }
+}
+
+/**
+ * Slice 6: lift wallpaper into a foreground interactive window, or restore
+ * it. Persisted mode stays 'wallpaper' the whole time — peek is a transient
+ * UI affordance, not a real mode change. No-op when the persisted mode is
+ * 'window' (the window is already interactive; nothing to peek into).
+ */
+function togglePeek(): void {
+  if (!mainWindow) return;
+  if (getMode() !== 'wallpaper') return;
+  peeking = !peeking;
+  if (peeking) {
+    exitWallpaper(mainWindow);
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.focus();
+  } else {
+    mainWindow.setAlwaysOnTop(false);
+    enterWallpaper(mainWindow, resolveTargetDisplay());
+  }
+  trayHandle?.rebuild();
+  notifyPeek();
+}
+
+function notifyPeek(): void {
+  if (!mainWindow) return;
+  try {
+    mainWindow.webContents.send('wallpaper:peekChanged', peeking);
+  } catch {
+    // pre-load: renderer reads getPeeking() on mount as a backstop.
   }
 }
 
@@ -238,6 +288,17 @@ ipcMain.handle('wallpaper:setDisplayId', (_event, id: unknown) => {
   return true;
 });
 
+// Slice 6: peek bridge. The renderer rarely needs to drive this — the
+// hotkey + tray cover it — but exposing the toggle makes it possible for
+// the connector panel to surface a "press Ctrl+Alt+L to peek" hint and to
+// dismiss peek with a click.
+ipcMain.handle('wallpaper:getPeeking', () => peeking);
+ipcMain.handle('wallpaper:togglePeek', () => {
+  togglePeek();
+  return peeking;
+});
+ipcMain.handle('wallpaper:getPeekAccelerator', () => PEEK_ACCELERATOR);
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -274,7 +335,18 @@ void app.whenReady().then(() => {
     applyMode,
     getDisplayId: () => getDisplayId() ?? null,
     applyDisplay,
+    getPeeking: () => peeking,
+    togglePeek,
+    peekAccelerator: PEEK_ACCELERATOR,
   });
+
+  // Slice 6: register the peek hotkey. Returns false when another app
+  // already owns the combo — log and continue so the tray item still works.
+  const ok = globalShortcut.register(PEEK_ACCELERATOR, togglePeek);
+  if (!ok) {
+    // eslint-disable-next-line no-console
+    console.warn(`[peek] global shortcut ${PEEK_ACCELERATOR} already claimed; use the tray to peek`);
+  }
 
   const initialMode = getMode();
   if (initialMode === 'wallpaper') {
@@ -286,6 +358,14 @@ void app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// Slice 6: globalShortcut bindings persist until Electron explicitly tears
+// them down — leaving the combo registered after quit would prevent the
+// next launch from re-registering cleanly. unregisterAll is safe to call
+// even if nothing was registered.
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {

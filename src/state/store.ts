@@ -104,6 +104,12 @@ interface AppState {
   wallpaperMode: boolean;
   setWallpaperMode: (v: boolean) => void;
 
+  /** Slice 6: true when the user has lifted the wallpaper into the
+   *  foreground via the global peek hotkey. PointerLockControls + footer
+   *  come back in this state because the window is interactive again. */
+  peeking: boolean;
+  setPeeking: (v: boolean) => void;
+
   /** Share-button state in the connector panel. */
   shareCreateStatus: ShareCreateStatus;
   shareUrl: string | null;
@@ -259,6 +265,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   wallpaperMode: false,
   setWallpaperMode: (v) => {
     if (get().wallpaperMode !== v) set({ wallpaperMode: v });
+  },
+
+  peeking: false,
+  setPeeking: (v) => {
+    if (get().peeking !== v) set({ peeking: v });
   },
 
   shareCreateStatus: 'idle',

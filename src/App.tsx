@@ -2,11 +2,19 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { KeyboardControls, PointerLockControls } from '@react-three/drei';
 import type { KeyboardControlsEntry } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Scene } from './scene/Scene';
 import { ConnectorPanel } from './ui/ConnectorPanel';
 import { useAppStore } from './state/store';
-import { getWallpaperMode, launchSteamGame, subscribeWallpaperMode } from './api/electron';
+import {
+  getPeekAccelerator,
+  getPeeking,
+  getWallpaperMode,
+  launchSteamGame,
+  subscribePeek,
+  subscribeWallpaperMode,
+  togglePeek,
+} from './api/electron';
 
 export type Movement = 'forward' | 'backward' | 'left' | 'right';
 
@@ -43,6 +51,9 @@ export function App() {
   const viewOnly = useAppStore((s) => s.viewOnly);
   const wallpaperMode = useAppStore((s) => s.wallpaperMode);
   const setWallpaperModeAction = useAppStore((s) => s.setWallpaperMode);
+  const peeking = useAppStore((s) => s.peeking);
+  const setPeekingAction = useAppStore((s) => s.setPeeking);
+  const [peekAccelerator, setPeekAccelerator] = useState<string | null>(null);
   const markReturnPending = useAppStore((s) => s.markReturnPending);
   const setInFlight = useAppStore((s) => s.setInFlight);
   const clearRitual = useAppStore((s) => s.clearRitual);
@@ -95,6 +106,18 @@ export function App() {
     return unsubscribe;
   }, [setWallpaperModeAction]);
 
+  // Slice 6: peek state. Seed from main, subscribe to broadcasts (hotkey
+  // press, tray click), and grab the accelerator string for the on-screen
+  // hint. Web build short-circuits all three calls.
+  useEffect(() => {
+    void getPeeking().then((v) => setPeekingAction(v));
+    void getPeekAccelerator().then((accel) => {
+      if (accel) setPeekAccelerator(accel);
+    });
+    const unsubscribe = subscribePeek((v) => setPeekingAction(v));
+    return unsubscribe;
+  }, [setPeekingAction]);
+
   // Phase 1.9: launch ritual orchestration. When activeRitual flips on, schedule
   // steam://run at LAUNCH_MS and clear the ritual at RITUAL_TOTAL_MS. The
   // archetype components animate against the ritual.startedAt timestamp
@@ -139,37 +162,69 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [returnPending, clearReturn]);
 
+  // Slice 6: the window is interactive when not in wallpaper mode, OR when
+  // in wallpaper mode but currently peeking. Peeking lifts the window into
+  // the foreground (main process drops alwaysOnTop + focuses) so all the
+  // normal interaction layers come back.
+  const interactive = !wallpaperMode || peeking;
   return (
     <KeyboardControls map={keyMap}>
       {/* Slice 5: drop r3f to demand-driven rendering when the window is a
-          live wallpaper — the user can't interact with it, so we only need
-          to redraw periodically for ambient animations (lighthouse flicker,
-          wave bob). WallpaperThrottle below kicks invalidate() at 10fps. */}
+          live wallpaper the user can't interact with. Peek flips us back to
+          'always' because the user is actively looking + clicking. */}
       <Canvas
         shadows
         camera={{ position: [0, 1.7, 6], fov: 70 }}
-        frameloop={wallpaperMode ? 'demand' : 'always'}
+        frameloop={interactive ? 'always' : 'demand'}
       >
         <Physics>
           <Scene />
         </Physics>
-        {wallpaperMode && <WallpaperThrottle fps={WALLPAPER_FPS} />}
-        {/* PointerLockControls requires the window to have focus and accept
-            clicks — neither is true in wallpaper mode (the BrowserWindow is
-            reparented under WorkerW and click-through). Skip it entirely. */}
-        {!wallpaperMode && <PointerLockControls />}
+        {!interactive && <WallpaperThrottle fps={WALLPAPER_FPS} />}
+        {/* PointerLockControls needs window focus + mouse events. Skipped
+            in ambient wallpaper; re-mounts during peek. */}
+        {interactive && <PointerLockControls />}
       </Canvas>
-      {/* In wallpaper mode the world is ambient — no footer prompt, no
-          connector panel (the in-world Computer can't be clicked anyway).
-          The mode-switch surface is the system tray. */}
-      {!wallpaperMode && <Footer />}
-      {!wallpaperMode && <ConnectorPanel />}
+      {interactive && <Footer />}
+      {interactive && <ConnectorPanel />}
+      {peeking && peekAccelerator && <PeekHint accelerator={peekAccelerator} />}
       {(activeRitual || inFlight || returnPending) && (
         <RitualOverlay
           phase={returnPending ? 'returning' : inFlight ? 'in-flight' : 'launching'}
         />
       )}
     </KeyboardControls>
+  );
+}
+
+/**
+ * Slice 6 hint shown while peeking. The wallpaper is in foreground +
+ * interactive, but visually identical to wallpaper mode — without a hint
+ * the user has no signal that the same hotkey returns them to ambient. The
+ * label clicks-through to togglePeek() so users who forgot the hotkey have
+ * an obvious dismiss target.
+ */
+function PeekHint({ accelerator }: { accelerator: string }) {
+  return (
+    <button
+      onClick={() => void togglePeek()}
+      style={{
+        position: 'fixed',
+        top: 16,
+        right: 16,
+        background: 'rgba(0, 0, 0, 0.55)',
+        color: '#ffe6a8',
+        border: '1px solid rgba(255, 230, 168, 0.35)',
+        borderRadius: 6,
+        padding: '6px 10px',
+        fontSize: 12,
+        letterSpacing: 0.4,
+        cursor: 'pointer',
+        zIndex: 60,
+      }}
+    >
+      Peek · {accelerator} to return
+    </button>
   );
 }
 

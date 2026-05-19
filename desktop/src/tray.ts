@@ -39,6 +39,13 @@ export interface TrayDeps {
   getDisplayId: () => number | null;
   /** Pass `undefined` for "primary"; otherwise the chosen Display.id. */
   applyDisplay: (displayId: number | undefined) => void;
+  /** Slice 6: whether the user is currently peeking — wallpaper temporarily
+   *  lifted into the foreground. The menu surfaces "Exit peek" / "Peek" so
+   *  the user has a non-hotkey way out. */
+  getPeeking: () => boolean;
+  togglePeek: () => void;
+  /** Slice 6: shown next to the peek item so users learn the shortcut. */
+  peekAccelerator: string;
 }
 
 function trayIconPath(): string {
@@ -83,6 +90,18 @@ export function createTray(deps: TrayDeps): TrayHandle {
   const rebuild = (): void => {
     if (!tray) return;
     const current = deps.getMode();
+    const isPeeking = deps.getPeeking();
+    // The peek item only appears in wallpaper mode — in window mode the
+    // window is already interactive, so the menu item would be a no-op.
+    const peekItem: MenuItemConstructorOptions | null =
+      current === 'wallpaper'
+        ? {
+            label: isPeeking
+              ? `Exit peek (${deps.peekAccelerator})`
+              : `Peek (${deps.peekAccelerator})`,
+            click: () => deps.togglePeek(),
+          }
+        : null;
     tray.setContextMenu(
       Menu.buildFromTemplate([
         {
@@ -97,6 +116,7 @@ export function createTray(deps: TrayDeps): TrayHandle {
           checked: current === 'wallpaper',
           click: () => deps.applyMode('wallpaper'),
         },
+        ...(peekItem ? [{ type: 'separator' as const }, peekItem] : []),
         { type: 'separator' },
         { label: 'Display', submenu: buildDisplaySubmenu(deps) },
         { type: 'separator' },
