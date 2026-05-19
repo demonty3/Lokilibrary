@@ -17,11 +17,11 @@
  * will pack that dist alongside the desktop binary.
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { createTray, type TrayHandle } from './tray';
-import { getMode, setMode, type Mode } from './config';
+import { getDisplayId, getMode, setDisplayId, setMode, type Mode } from './config';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -121,10 +121,26 @@ function createWindow(): BrowserWindow {
  * Broadcasts the change to the renderer so the UI can hide/show its
  * interaction layer.
  */
+/**
+ * Resolve the user's chosen display, falling back to primary if the
+ * persisted id no longer matches a connected monitor (unplugged, swapped).
+ * Slice 5.
+ */
+function resolveTargetDisplay(): Electron.Display {
+  const id = getDisplayId();
+  if (id !== undefined) {
+    const match = screen.getAllDisplays().find((d) => d.id === id);
+    if (match) return match;
+    // eslint-disable-next-line no-console
+    console.warn(`[wallpaper] saved displayId ${id} not found; using primary`);
+  }
+  return screen.getPrimaryDisplay();
+}
+
 function applyMode(mode: Mode): void {
   if (!mainWindow) return;
   if (mode === 'wallpaper') {
-    enterWallpaper(mainWindow);
+    enterWallpaper(mainWindow, resolveTargetDisplay());
   } else {
     exitWallpaper(mainWindow);
   }
@@ -139,6 +155,25 @@ function applyMode(mode: Mode): void {
     // webContents may not be ready on very early startup; the renderer
     // calls getWallpaperMode() on mount as a backstop.
   }
+}
+
+/**
+ * Move the wallpaper to a different monitor without leaving wallpaper mode.
+ * Persists the choice immediately so the next launch lands on the same
+ * display. No-op if we're currently in window mode — the new id is still
+ * saved and will be honored next time the user flips to wallpaper.
+ */
+function applyDisplay(displayId: number | undefined): void {
+  setDisplayId(displayId);
+  trayHandle?.rebuild();
+  if (!mainWindow) return;
+  if (getMode() !== 'wallpaper') return;
+  // Re-enter to pick up the new bounds. exit-then-enter is heavier than a
+  // bare setBounds, but it also re-runs the SetParent/style-flip path,
+  // which is the right reset if the WorkerW situation changed under us
+  // (display hot-plug, Explorer restart).
+  exitWallpaper(mainWindow);
+  enterWallpaper(mainWindow, resolveTargetDisplay());
 }
 
 // --- IPC bridge ----------------------------------------------------------
@@ -185,6 +220,24 @@ ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
   return true;
 });
 
+// Slice 5: multi-monitor picker. The renderer reads the display list to
+// show a chooser in the connector panel; both renderer and tray can change
+// the chosen display.
+ipcMain.handle('wallpaper:getDisplays', () =>
+  screen.getAllDisplays().map((d) => ({
+    id: d.id,
+    label: d.label || `Display ${d.id}`,
+    bounds: d.bounds,
+    isPrimary: d.id === screen.getPrimaryDisplay().id,
+  })),
+);
+ipcMain.handle('wallpaper:getDisplayId', () => getDisplayId() ?? null);
+ipcMain.handle('wallpaper:setDisplayId', (_event, id: unknown) => {
+  if (id !== null && id !== undefined && typeof id !== 'number') return false;
+  applyDisplay(typeof id === 'number' ? id : undefined);
+  return true;
+});
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -216,7 +269,12 @@ void app.whenReady().then(() => {
   // Tray + initial mode application. Tray gives the user a way out of
   // wallpaper mode (in-world UI is unreachable when the window is
   // click-through). Initial mode comes from persisted config.
-  trayHandle = createTray(getMode, applyMode);
+  trayHandle = createTray({
+    getMode,
+    applyMode,
+    getDisplayId: () => getDisplayId() ?? null,
+    applyDisplay,
+  });
 
   const initialMode = getMode();
   if (initialMode === 'wallpaper') {

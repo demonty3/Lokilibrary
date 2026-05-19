@@ -23,7 +23,7 @@
  * `npm install` doesn't need MSVC build tools.
  */
 
-import { screen, type BrowserWindow, type Rectangle } from 'electron';
+import { screen, type BrowserWindow, type Display, type Rectangle } from 'electron';
 
 // koffi doesn't ship a .d.ts; we use a minimal shape that covers the calls
 // we actually make. The runtime contract is stable across koffi 3.x.
@@ -170,7 +170,7 @@ function flipToPopupStyle(hwnd: Buffer): void {
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
 }
 
-export function enterWallpaper(win: BrowserWindow): void {
+export function enterWallpaper(win: BrowserWindow, display?: Display): void {
   try {
     const target = findWallpaperParent();
     if (!target) {
@@ -206,10 +206,17 @@ export function enterWallpaper(win: BrowserWindow): void {
     // 125%/150%). Bounds applied twice — once immediately, once after
     // 100ms — because some Windows builds defer the WorkerW reparent and
     // the first setBounds doesn't take effect.
-    const primary = screen.getPrimaryDisplay();
-    const { x, y, width, height } = primary.bounds;
+    //
+    // Slice 5: target display is whichever the caller picked (multi-
+    // monitor). null/undefined falls back to the primary display so
+    // single-monitor users keep the old behavior unchanged.
+    const targetDisplay = display ?? screen.getPrimaryDisplay();
+    const { x, y, width, height } = targetDisplay.bounds;
     // eslint-disable-next-line no-console
-    console.log(`[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); scale ${primary.scaleFactor}`);
+    console.log(
+      `[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); ` +
+        `scale ${targetDisplay.scaleFactor}; display id ${targetDisplay.id}`,
+    );
     win.setBounds({ x, y, width, height });
     setTimeout(() => {
       if (!win.isDestroyed()) win.setBounds({ x, y, width, height });

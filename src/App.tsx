@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { KeyboardControls, PointerLockControls } from '@react-three/drei';
 import type { KeyboardControlsEntry } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
@@ -23,6 +23,10 @@ const keyMap: KeyboardControlsEntry<Movement>[] = [
 const LAUNCH_MS = 1800;
 const RITUAL_TOTAL_MS = 2200;
 const RETURN_MS = 1200;
+
+/** Slice 5: wallpaper-mode redraw cadence. 10fps is enough for the ambient
+ *  motion (terrain bob, ritual flicker) without burning GPU like 'always'. */
+const WALLPAPER_FPS = 10;
 
 /** Match /w/:id paths — share-URL viewer entry point. */
 function shareIdFromPath(): string | null {
@@ -137,10 +141,19 @@ export function App() {
 
   return (
     <KeyboardControls map={keyMap}>
-      <Canvas shadows camera={{ position: [0, 1.7, 6], fov: 70 }}>
+      {/* Slice 5: drop r3f to demand-driven rendering when the window is a
+          live wallpaper — the user can't interact with it, so we only need
+          to redraw periodically for ambient animations (lighthouse flicker,
+          wave bob). WallpaperThrottle below kicks invalidate() at 10fps. */}
+      <Canvas
+        shadows
+        camera={{ position: [0, 1.7, 6], fov: 70 }}
+        frameloop={wallpaperMode ? 'demand' : 'always'}
+      >
         <Physics>
           <Scene />
         </Physics>
+        {wallpaperMode && <WallpaperThrottle fps={WALLPAPER_FPS} />}
         {/* PointerLockControls requires the window to have focus and accept
             clicks — neither is true in wallpaper mode (the BrowserWindow is
             reparented under WorkerW and click-through). Skip it entirely. */}
@@ -183,6 +196,22 @@ function Footer() {
       {prompt ?? 'click to capture mouse · WASD to walk · esc to release'}
     </div>
   );
+}
+
+/**
+ * Slice 5 throttle. Lives inside <Canvas> so it can grab the r3f invalidate
+ * function. With frameloop="demand" set on the Canvas, no frames render
+ * until someone calls invalidate() — this calls it at WALLPAPER_FPS so the
+ * scene still breathes (sun moves slightly, lighthouse pulses) at a
+ * fraction of the GPU cost of a free-running 60fps loop.
+ */
+function WallpaperThrottle({ fps }: { fps: number }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const id = window.setInterval(() => invalidate(), Math.max(1, Math.floor(1000 / fps)));
+    return () => window.clearInterval(id);
+  }, [fps, invalidate]);
+  return null;
 }
 
 // Diegetic dimming layer drawn over the canvas. The 3D-side archetype
