@@ -1,9 +1,9 @@
 /**
  * Tiny per-user config persistence. JSON file in Electron's userData dir.
  *
- * Slice 4 only needs `mode` (window | wallpaper), so a 25-line homegrown
- * implementation beats the electron-store dep — saves us a pure-ESM
- * dependency that would otherwise force our CJS main process onto ESM.
+ * Slice 4 stored `mode` (window | wallpaper). Slice 5 adds `displayId` for
+ * the multi-monitor picker — Electron's display IDs are stable across runs
+ * on the same hardware, so the user's chosen monitor survives restarts.
  *
  * On disk: <userData>/config.json — `%APPDATA%\libraryworld-desktop\config.json`
  * on Windows, `~/Library/Application Support/libraryworld-desktop/` on Mac.
@@ -16,31 +16,59 @@ import * as path from 'node:path';
 
 export type Mode = 'window' | 'wallpaper';
 
-const DEFAULT_MODE: Mode = 'window';
+export interface Config {
+  mode: Mode;
+  /** Electron Display.id — null/undefined means "use primary display".
+   *  Persisting the id rather than (x, y) bounds means a monitor swap
+   *  reassigns the wallpaper to the primary instead of crashing into a
+   *  no-longer-existent display. */
+  displayId?: number;
+}
+
+const DEFAULT_CONFIG: Config = { mode: 'window' };
 
 function configPath(): string {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
-export function getMode(): Mode {
+function readConfig(): Config {
   try {
     const raw = fs.readFileSync(configPath(), 'utf8');
-    const cfg = JSON.parse(raw) as { mode?: unknown };
-    return cfg.mode === 'wallpaper' ? 'wallpaper' : 'window';
+    const cfg = JSON.parse(raw) as Partial<Config>;
+    return {
+      mode: cfg.mode === 'wallpaper' ? 'wallpaper' : 'window',
+      displayId: typeof cfg.displayId === 'number' ? cfg.displayId : undefined,
+    };
   } catch {
-    // First run, corrupted file, or permissions issue — default mode.
-    return DEFAULT_MODE;
+    return { ...DEFAULT_CONFIG };
   }
 }
 
-export function setMode(mode: Mode): void {
+function writeConfig(cfg: Config): void {
   try {
     fs.mkdirSync(path.dirname(configPath()), { recursive: true });
-    fs.writeFileSync(configPath(), JSON.stringify({ mode }, null, 2));
+    fs.writeFileSync(configPath(), JSON.stringify(cfg, null, 2));
   } catch (e) {
-    // Non-fatal — the mode still applies for the current session, just
-    // won't persist across restart.
     // eslint-disable-next-line no-console
     console.warn('[config] persist failed:', (e as Error).message);
   }
+}
+
+export function getMode(): Mode {
+  return readConfig().mode;
+}
+
+export function setMode(mode: Mode): void {
+  writeConfig({ ...readConfig(), mode });
+}
+
+export function getDisplayId(): number | undefined {
+  return readConfig().displayId;
+}
+
+export function setDisplayId(displayId: number | undefined): void {
+  const cfg = readConfig();
+  if (displayId === undefined) delete cfg.displayId;
+  else cfg.displayId = displayId;
+  writeConfig(cfg);
 }

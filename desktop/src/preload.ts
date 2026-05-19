@@ -17,6 +17,14 @@ import { ipcRenderer, type IpcRendererEvent } from 'electron';
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
+/** Slice 5: a display the user can pick for wallpaper-mode rendering. */
+export interface DisplayInfo {
+  id: number;
+  label: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  isPrimary: boolean;
+}
+
 export interface ElectronAPI {
   /** Always true. The renderer checks for presence of window.electronAPI
    *  to switch on Electron-specific code paths (auth, launch). */
@@ -60,6 +68,19 @@ export interface ElectronAPI {
    *  (tray menu click, or another renderer if multi-window ever lands).
    *  Returns an unsubscribe function. */
   onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
+
+  /** Slice 5: list of all connected displays, useful for an in-app monitor
+   *  picker in the connector panel. The tray exposes the same list via its
+   *  Display submenu. */
+  getDisplays(): Promise<DisplayInfo[]>;
+
+  /** Slice 5: the currently-persisted display id, or null for "primary". */
+  getDisplayId(): Promise<number | null>;
+
+  /** Slice 5: change the target display. Pass null/undefined for "primary".
+   *  If wallpaper mode is active, the window re-reparents to the new
+   *  display immediately; otherwise the choice is saved for next time. */
+  setDisplayId(id: number | null): Promise<boolean>;
 }
 
 declare global {
@@ -82,6 +103,9 @@ const api: ElectronAPI = {
     ipcRenderer.on('wallpaper:modeChanged', handler);
     return () => ipcRenderer.off('wallpaper:modeChanged', handler);
   },
+  getDisplays: () => ipcRenderer.invoke('wallpaper:getDisplays') as Promise<DisplayInfo[]>,
+  getDisplayId: () => ipcRenderer.invoke('wallpaper:getDisplayId') as Promise<number | null>,
+  setDisplayId: (id) => ipcRenderer.invoke('wallpaper:setDisplayId', id) as Promise<boolean>,
 };
 
 window.electronAPI = api;

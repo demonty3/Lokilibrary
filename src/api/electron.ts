@@ -8,6 +8,14 @@
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
+/** Slice 5: a display the user can pick for wallpaper rendering. */
+export interface DisplayInfo {
+  id: number;
+  label: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  isPrimary: boolean;
+}
+
 export interface ElectronAPI {
   readonly isElectron: true;
   getSteamId(): Promise<string | null>;
@@ -26,6 +34,12 @@ export interface ElectronAPI {
   /** Slice 4: subscribe to mode changes coming from the main process
    *  (typically a tray menu click). Returns an unsubscribe function. */
   onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
+  /** Slice 5: list connected displays for the in-app monitor picker. */
+  getDisplays(): Promise<DisplayInfo[]>;
+  /** Slice 5: the currently-persisted display id, or null for "primary". */
+  getDisplayId(): Promise<number | null>;
+  /** Slice 5: change the target display. null means "primary". */
+  setDisplayId(id: number | null): Promise<boolean>;
 }
 
 declare global {
@@ -129,4 +143,40 @@ export function subscribeWallpaperMode(
   const api = getElectronAPI();
   if (!api) return () => undefined;
   return api.onWallpaperModeChanged(cb);
+}
+
+/**
+ * Slice 5 helpers. The multi-monitor picker only exists in the desktop
+ * wrapper — the web build returns empty/null so the connector panel can
+ * cleanly hide the picker section.
+ */
+
+export async function getDisplays(): Promise<DisplayInfo[]> {
+  const api = getElectronAPI();
+  if (!api) return [];
+  try {
+    return await api.getDisplays();
+  } catch {
+    return [];
+  }
+}
+
+export async function getDisplayId(): Promise<number | null> {
+  const api = getElectronAPI();
+  if (!api) return null;
+  try {
+    return await api.getDisplayId();
+  } catch {
+    return null;
+  }
+}
+
+export async function setDisplayId(id: number | null): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  try {
+    return await api.setDisplayId(id);
+  } catch {
+    return false;
+  }
 }
