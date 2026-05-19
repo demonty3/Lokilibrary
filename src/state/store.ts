@@ -94,6 +94,16 @@ interface AppState {
    *  matches /w/:id. */
   loadSharedWorld: (id: string) => Promise<void>;
 
+  // --- Phase 6 slice 4 — wallpaper mode (Electron only). ------------------
+
+  /** True when the Electron desktop wrapper is rendering as a live wallpaper
+   *  behind the desktop. In this mode the renderer skips PointerLockControls,
+   *  Footer, ConnectorPanel — the canvas is click-through and we have no
+   *  reliable way to drive interaction. Mode-switching happens via the
+   *  system tray. Always false in the web build. */
+  wallpaperMode: boolean;
+  setWallpaperMode: (v: boolean) => void;
+
   /** Share-button state in the connector panel. */
   shareCreateStatus: ShareCreateStatus;
   shareUrl: string | null;
@@ -244,6 +254,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       sharedDustyCount: share.dustyCount,
       sharedId: id,
     });
+  },
+
+  wallpaperMode: false,
+  setWallpaperMode: (v) => {
+    if (get().wallpaperMode !== v) set({ wallpaperMode: v });
   },
 
   shareCreateStatus: 'idle',

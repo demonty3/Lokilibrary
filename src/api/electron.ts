@@ -6,6 +6,8 @@
  * before fetchMe() on boot in the desktop wrapper.
  */
 
+export type WallpaperMode = 'window' | 'wallpaper';
+
 export interface ElectronAPI {
   readonly isElectron: true;
   getSteamId(): Promise<string | null>;
@@ -17,6 +19,13 @@ export interface ElectronAPI {
    *  build this path doesn't exist; use launchSteamGame() below for a
    *  surface-agnostic launcher. */
   launchGame(appid: number): Promise<boolean>;
+  /** Slice 4: read the current wallpaper-mode state. */
+  getWallpaperMode(): Promise<WallpaperMode>;
+  /** Slice 4: request a mode change. Tray + connector panel both call this. */
+  setWallpaperMode(mode: WallpaperMode): Promise<boolean>;
+  /** Slice 4: subscribe to mode changes coming from the main process
+   *  (typically a tray menu click). Returns an unsubscribe function. */
+  onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
 }
 
 declare global {
@@ -85,4 +94,39 @@ export function launchSteamGame(appid: number): void {
   } else {
     window.location.href = `steam://run/${appid}`;
   }
+}
+
+/**
+ * Slice 4 helpers. Wallpaper mode only exists in the desktop wrapper; web
+ * build callers safely no-op.
+ */
+
+export async function getWallpaperMode(): Promise<WallpaperMode> {
+  const api = getElectronAPI();
+  if (!api) return 'window';
+  try {
+    return await api.getWallpaperMode();
+  } catch {
+    return 'window';
+  }
+}
+
+export async function setWallpaperMode(mode: WallpaperMode): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  try {
+    return await api.setWallpaperMode(mode);
+  } catch {
+    return false;
+  }
+}
+
+/** Subscribe to wallpaper-mode changes from the main process. Returns an
+ *  unsubscribe function. No-op in the web build. */
+export function subscribeWallpaperMode(
+  cb: (mode: WallpaperMode) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api) return () => undefined;
+  return api.onWallpaperModeChanged(cb);
 }

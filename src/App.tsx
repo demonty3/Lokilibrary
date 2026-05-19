@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { Scene } from './scene/Scene';
 import { ConnectorPanel } from './ui/ConnectorPanel';
 import { useAppStore } from './state/store';
-import { launchSteamGame } from './api/electron';
+import { getWallpaperMode, launchSteamGame, subscribeWallpaperMode } from './api/electron';
 
 export type Movement = 'forward' | 'backward' | 'left' | 'right';
 
@@ -37,6 +37,8 @@ export function App() {
   const loadSharedWorld = useAppStore((s) => s.loadSharedWorld);
   const authStatus = useAppStore((s) => s.authStatus);
   const viewOnly = useAppStore((s) => s.viewOnly);
+  const wallpaperMode = useAppStore((s) => s.wallpaperMode);
+  const setWallpaperModeAction = useAppStore((s) => s.setWallpaperMode);
   const markReturnPending = useAppStore((s) => s.markReturnPending);
   const setInFlight = useAppStore((s) => s.setInFlight);
   const clearRitual = useAppStore((s) => s.clearRitual);
@@ -77,6 +79,17 @@ export function App() {
     if (viewOnly) return;
     if (authStatus === 'authenticated') void loadLibrary();
   }, [viewOnly, authStatus, loadLibrary]);
+
+  // Phase 6 slice 4: in Electron, seed the store with the persisted mode
+  // and subscribe to future changes (tray menu, IPC). No-op in the web
+  // build — the helpers short-circuit when window.electronAPI is absent.
+  useEffect(() => {
+    void getWallpaperMode().then((mode) => setWallpaperModeAction(mode === 'wallpaper'));
+    const unsubscribe = subscribeWallpaperMode((mode) => {
+      setWallpaperModeAction(mode === 'wallpaper');
+    });
+    return unsubscribe;
+  }, [setWallpaperModeAction]);
 
   // Phase 1.9: launch ritual orchestration. When activeRitual flips on, schedule
   // steam://run at LAUNCH_MS and clear the ritual at RITUAL_TOTAL_MS. The
@@ -128,10 +141,16 @@ export function App() {
         <Physics>
           <Scene />
         </Physics>
-        <PointerLockControls />
+        {/* PointerLockControls requires the window to have focus and accept
+            clicks — neither is true in wallpaper mode (the BrowserWindow is
+            reparented under WorkerW and click-through). Skip it entirely. */}
+        {!wallpaperMode && <PointerLockControls />}
       </Canvas>
-      <Footer />
-      <ConnectorPanel />
+      {/* In wallpaper mode the world is ambient — no footer prompt, no
+          connector panel (the in-world Computer can't be clicked anyway).
+          The mode-switch surface is the system tray. */}
+      {!wallpaperMode && <Footer />}
+      {!wallpaperMode && <ConnectorPanel />}
       {(activeRitual || inFlight || returnPending) && (
         <RitualOverlay
           phase={returnPending ? 'returning' : inFlight ? 'in-flight' : 'launching'}
