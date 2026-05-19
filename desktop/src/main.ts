@@ -32,12 +32,19 @@ const DEFAULT_APP_ID = 480;
 interface SteamworksClient {
   localplayer: { getSteamId: () => { steamId64: bigint; accountId: number } };
   auth?: {
-    /** Returns a ticket object whose getBytes() yields the raw bytes the
-     *  worker hex-encodes for Steam Web API verification. Shape varies
-     *  slightly between steamworks.js versions — we handle both. */
-    getSessionTicket?: () => { getBytes?: () => Uint8Array | Buffer };
+    /** Web-API-verifiable auth ticket. The identity string must match the
+     *  `identity` param the worker sends to Steam's AuthenticateUserTicket
+     *  endpoint, or Steam rejects the ticket as cross-identity. */
+    getAuthTicketForWebApi?: (
+      identity: string,
+      timeoutSeconds?: number | null,
+    ) => Promise<{ getBytes: () => Buffer | Uint8Array }>;
   };
 }
+
+/** Shared between this file's getAuthTicket IPC and the worker's
+ *  verifyAuthSessionTicket call. Keep both ends in sync. */
+const WEB_API_IDENTITY = 'libraryworld';
 
 let steamClient: SteamworksClient | null = null;
 
@@ -109,12 +116,11 @@ ipcMain.handle('steam:isAvailable', () => steamClient !== null);
 // Phase 6 slice 2: hand the renderer a hex-encoded AuthSessionTicket so it
 // can POST /api/auth/steamticket to the worker and get an lw_session cookie
 // without going through the OpenID flow the web build uses.
-ipcMain.handle('steam:getAuthTicket', () => {
-  if (!steamClient || !steamClient.auth?.getSessionTicket) return null;
+ipcMain.handle('steam:getAuthTicket', async () => {
+  if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
-    const ticket = steamClient.auth.getSessionTicket();
-    const bytes = ticket?.getBytes?.();
-    if (!bytes) return null;
+    const ticket = await steamClient.auth.getAuthTicketForWebApi(WEB_API_IDENTITY);
+    const bytes = ticket.getBytes();
     return Buffer.from(bytes).toString('hex');
   } catch (e) {
     // eslint-disable-next-line no-console
