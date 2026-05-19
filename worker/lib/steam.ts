@@ -235,14 +235,21 @@ interface AuthTicketResponseError {
 type AuthTicketResponse = AuthTicketResponseOk | AuthTicketResponseError;
 
 /**
+ * Identity string both ends of the ticket exchange agree on. The desktop
+ * client calls `auth.getAuthTicketForWebApi(WEB_API_IDENTITY)` and we send
+ * the same value to Steam — otherwise Steam rejects the ticket as
+ * cross-identity. Treat as a shared protocol constant.
+ */
+export const WEB_API_IDENTITY = 'libraryworld';
+
+/**
  * Verify a Steamworks AuthSessionTicket against Steam Web API. Phase 6 slice 2.
  *
  * The desktop app generates a ticket via steamworks.js's
- * `auth.getSessionTicket()`, sends the hex-encoded bytes to our worker, and
- * we cross-check it with Steam's `AuthenticateUserTicket` endpoint. On
- * success Steam returns the steamid the ticket belongs to — we trust that
- * and mint a session cookie. On failure Steam returns a structured error;
- * surface as SteamError so the route can map it to a 4xx.
+ * `auth.getAuthTicketForWebApi(identity)`, sends the hex-encoded bytes to
+ * our worker, and we cross-check via Steam's `AuthenticateUserTicket`
+ * endpoint with the matching `identity` param. Steam returns the steamid
+ * the ticket belongs to on success.
  *
  * The ticket is single-use-ish — Steam expects us to call EndAuthSession
  * after, but for slice 2 the validation alone is enough. Tickets expire
@@ -262,6 +269,7 @@ export async function verifyAuthSessionTicket(
   url.searchParams.set('key', apiKey);
   url.searchParams.set('appid', String(appId));
   url.searchParams.set('ticket', ticketHex);
+  url.searchParams.set('identity', WEB_API_IDENTITY);
 
   const res = await fetch(url.toString());
   if (res.status === 401 || res.status === 403) {
