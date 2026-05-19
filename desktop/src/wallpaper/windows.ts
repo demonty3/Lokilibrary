@@ -53,6 +53,15 @@ const SendMessageTimeoutW = user32.func(
 const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewParent)');
 const ShowWindow = user32.func('bool ShowWindow(void* hWnd, int nCmdShow)');
 const GetSystemMetrics = user32.func('int GetSystemMetrics(int nIndex)');
+// Window styles need to flip from WS_POPUP → WS_CHILD after SetParent so
+// the reparented Electron window actually behaves as a child of WorkerW.
+// SetWindowLongPtrW is the 64-bit-safe variant of SetWindowLongW.
+const SetWindowLongPtrW = user32.func(
+  'intptr SetWindowLongPtrW(void* hWnd, int nIndex, intptr dwNewLong)',
+);
+const GetWindowLongPtrW = user32.func(
+  'intptr GetWindowLongPtrW(void* hWnd, int nIndex)',
+);
 
 // --- Constants --------------------------------------------------------------
 
@@ -61,6 +70,14 @@ const SMTO_NORMAL = 0x0000;
 const SW_SHOW = 5;
 const SM_CXSCREEN = 0;
 const SM_CYSCREEN = 1;
+
+// Window style constants (winuser.h).
+const GWL_STYLE = -16;
+const GWL_EXSTYLE = -20;
+const WS_POPUP = 0x80000000n;
+const WS_CHILD = 0x40000000n;
+const WS_EX_APPWINDOW = 0x00040000n;
+const WS_EX_TOOLWINDOW = 0x00000080n;
 
 // Remember the bounds we had before entering wallpaper mode so we can put
 // the window back exactly where it was when the user toggles out.
@@ -72,12 +89,30 @@ function electronHwnd(win: BrowserWindow): Buffer {
   return win.getNativeWindowHandle();
 }
 
-function findOurWorkerW(): Buffer | null {
+/**
+ * Locate a window suitable to be our wallpaper parent. Three fallback
+ * strategies — Windows builds disagree about where SHELLDLL_DefView lives:
+ *
+ *   1. The canonical Lively pattern: find a top-level WorkerW that owns
+ *      SHELLDLL_DefView, and use the NEXT WorkerW sibling. This works on
+ *      Win10 + most Win11 builds.
+ *   2. If no DefView-owning WorkerW exists, pick the LAST top-level WorkerW
+ *      that exists after the SendMessage. On some Win11 configs DefView
+ *      stays a direct child of Progman, but Explorer still spawns a fresh
+ *      WorkerW we can reparent under.
+ *   3. Fall back to Progman itself. Reparenting under Progman puts us
+ *      behind the icons but in front of the wallpaper. Less clean (icons
+ *      will composite on top of us only because they're a higher child of
+ *      Progman) but reliable: Progman always exists on a shelled session.
+ *
+ * Returns the picked HWND + a label for diagnostic logging.
+ */
+function findWallpaperParent(): { hwnd: Buffer; via: string } | null {
   const progman = FindWindowW('Progman', null) as Buffer | null;
   if (!progman) return null;
 
-  // Step 2: ask Progman to spawn the WorkerW. Idempotent — Progman won't
-  // create duplicates if one already exists for our session.
+  // Send the magic message asking Explorer to spawn the WorkerW that sits
+  // between the wallpaper layer and the icons. Idempotent across calls.
   const result = [BigInt(0)];
   SendMessageTimeoutW(
     progman,
@@ -89,57 +124,89 @@ function findOurWorkerW(): Buffer | null {
     result,
   );
 
-  // Step 3: walk the top-level WorkerW siblings to find the one Progman
-  // tucked behind SHELLDLL_DefView. The standard pattern: iterate WorkerWs
-  // and check each for a SHELLDLL_DefView child. The WorkerW we want is
-  // the OTHER one (sibling of the WorkerW that owns the icons).
+  // Strategy 1: WorkerW that owns SHELLDLL_DefView → use its next sibling.
   let prev: Buffer | null = null;
-  let target: Buffer | null = null;
+  let lastTopLevel: Buffer | null = null;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const workerW = FindWindowExW(null as unknown as Buffer, prev as unknown as Buffer, 'WorkerW', null) as Buffer | null;
-    if (!workerW) break;
-    const shellView = FindWindowExW(workerW, null as unknown as Buffer, 'SHELLDLL_DefView', null) as Buffer | null;
+    const wW = FindWindowExW(null, prev, 'WorkerW', null) as Buffer | null;
+    if (!wW) break;
+    lastTopLevel = wW;
+    const shellView = FindWindowExW(wW, null, 'SHELLDLL_DefView', null) as Buffer | null;
     if (shellView) {
-      // This WorkerW owns the icons; the next sibling is ours.
-      target = FindWindowExW(null as unknown as Buffer, workerW, 'WorkerW', null) as Buffer | null;
-      break;
+      const next = FindWindowExW(null, wW, 'WorkerW', null) as Buffer | null;
+      if (next) return { hwnd: next, via: 'WorkerW-after-DefView' };
     }
-    prev = workerW;
+    prev = wW;
   }
-  return target;
+
+  // Strategy 2: just pick the last top-level WorkerW we saw above.
+  if (lastTopLevel) return { hwnd: lastTopLevel, via: 'last-top-level-WorkerW' };
+
+  // Strategy 3: fall back to Progman.
+  return { hwnd: progman, via: 'Progman-fallback' };
+}
+
+/**
+ * After SetParent, the window needs WS_CHILD style (was WS_POPUP). Also
+ * remove WS_EX_APPWINDOW (otherwise it still appears in Alt-Tab/taskbar)
+ * and set WS_EX_TOOLWINDOW (hides from taskbar). This is the canonical
+ * Electron + WorkerW gotcha — SetParent alone doesn't flip these styles.
+ */
+function flipToChildStyle(hwnd: Buffer): void {
+  const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
+  const newStyle = (BigInt(style) & ~WS_POPUP) | WS_CHILD;
+  SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+
+  const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
+  const newExStyle = (BigInt(exStyle) & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
+  SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
+}
+
+function flipToPopupStyle(hwnd: Buffer): void {
+  const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
+  const newStyle = (BigInt(style) & ~WS_CHILD) | WS_POPUP;
+  SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+
+  const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
+  const newExStyle = (BigInt(exStyle) & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW;
+  SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
 }
 
 export function enterWallpaper(win: BrowserWindow): void {
   try {
-    const target = findOurWorkerW();
+    const target = findWallpaperParent();
     if (!target) {
       // eslint-disable-next-line no-console
-      console.warn('[wallpaper:windows] could not locate WorkerW; staying in window mode');
+      console.warn('[wallpaper:windows] could not locate Progman; staying in window mode');
       return;
     }
+    // eslint-disable-next-line no-console
+    console.log(`[wallpaper:windows] reparenting via ${target.via}`);
 
     preWallpaperBounds = win.getBounds();
 
-    // Pre-reparent window styling: frameless, ignore alt-tab/taskbar, no
-    // border. Some of these must be set before SetParent for stability.
     win.setSkipTaskbar(true);
     win.setIgnoreMouseEvents(true);
 
     const hwnd = electronHwnd(win);
-    const prevParent = SetParent(hwnd, target);
+    const prevParent = SetParent(hwnd, target.hwnd);
     if (!prevParent) {
       // eslint-disable-next-line no-console
-      console.warn('[wallpaper:windows] SetParent returned null; reparenting may have failed');
+      console.warn('[wallpaper:windows] SetParent returned null; reparenting likely failed');
     }
 
-    // Resize to fill the primary monitor. Multi-monitor support is slice 5.
+    // Critical: flip WS_POPUP → WS_CHILD. Without this the reparented
+    // window stays a popup logically and floats on top of WorkerW siblings.
+    // This is the Lively/Wallpaper-Engine step most "just call SetParent"
+    // tutorials skip — and the most likely cause of "tray toggled but
+    // window didn't move."
+    flipToChildStyle(hwnd);
+
     const screenW = Number(GetSystemMetrics(SM_CXSCREEN)) || 1920;
     const screenH = Number(GetSystemMetrics(SM_CYSCREEN)) || 1080;
     win.setBounds({ x: 0, y: 0, width: screenW, height: screenH });
 
-    // Show explicitly — reparenting can leave the window in a state where
-    // it's drawn but not present.
     ShowWindow(hwnd, SW_SHOW);
   } catch (e) {
     // eslint-disable-next-line no-console
@@ -150,7 +217,11 @@ export function enterWallpaper(win: BrowserWindow): void {
 export function exitWallpaper(win: BrowserWindow): void {
   try {
     const hwnd = electronHwnd(win);
-    SetParent(hwnd, null as unknown as Buffer);
+
+    // Restore WS_POPUP before unparenting so the window is a proper
+    // standalone again after SetParent(NULL).
+    flipToPopupStyle(hwnd);
+    SetParent(hwnd, null);
 
     win.setIgnoreMouseEvents(false);
     win.setSkipTaskbar(false);
