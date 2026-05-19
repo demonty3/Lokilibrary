@@ -23,7 +23,7 @@
  * `npm install` doesn't need MSVC build tools.
  */
 
-import type { BrowserWindow, Rectangle } from 'electron';
+import { screen, type BrowserWindow, type Rectangle } from 'electron';
 
 // koffi doesn't ship a .d.ts; we use a minimal shape that covers the calls
 // we actually make. The runtime contract is stable across koffi 3.x.
@@ -52,7 +52,6 @@ const SendMessageTimeoutW = user32.func(
 );
 const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewParent)');
 const ShowWindow = user32.func('bool ShowWindow(void* hWnd, int nCmdShow)');
-const GetSystemMetrics = user32.func('int GetSystemMetrics(int nIndex)');
 // Window styles need to flip from WS_POPUP → WS_CHILD after SetParent so
 // the reparented Electron window actually behaves as a child of WorkerW.
 // SetWindowLongPtrW is the 64-bit-safe variant of SetWindowLongW.
@@ -68,8 +67,6 @@ const GetWindowLongPtrW = user32.func(
 const SPAWN_WORKERW_MESSAGE = 0x052c;
 const SMTO_NORMAL = 0x0000;
 const SW_SHOW = 5;
-const SM_CXSCREEN = 0;
-const SM_CYSCREEN = 1;
 
 // Window style constants (winuser.h).
 const GWL_STYLE = -16;
@@ -203,9 +200,20 @@ export function enterWallpaper(win: BrowserWindow): void {
     // window didn't move."
     flipToChildStyle(hwnd);
 
-    const screenW = Number(GetSystemMetrics(SM_CXSCREEN)) || 1920;
-    const screenH = Number(GetSystemMetrics(SM_CYSCREEN)) || 1080;
-    win.setBounds({ x: 0, y: 0, width: screenW, height: screenH });
+    // Use Electron's screen API (DIPs, DPI-aware) instead of
+    // GetSystemMetrics(SM_CXSCREEN) which returns physical pixels and
+    // gives wrong sizes on scaled displays (most modern laptops run at
+    // 125%/150%). Bounds applied twice — once immediately, once after
+    // 100ms — because some Windows builds defer the WorkerW reparent and
+    // the first setBounds doesn't take effect.
+    const primary = screen.getPrimaryDisplay();
+    const { x, y, width, height } = primary.bounds;
+    // eslint-disable-next-line no-console
+    console.log(`[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); scale ${primary.scaleFactor}`);
+    win.setBounds({ x, y, width, height });
+    setTimeout(() => {
+      if (!win.isDestroyed()) win.setBounds({ x, y, width, height });
+    }, 100);
 
     ShowWindow(hwnd, SW_SHOW);
   } catch (e) {
