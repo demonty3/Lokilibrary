@@ -17,7 +17,7 @@
  * will pack that dist alongside the desktop binary.
  */
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import * as path from 'node:path';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
@@ -112,6 +112,23 @@ ipcMain.handle('steam:getSteamId', () => {
 });
 
 ipcMain.handle('steam:isAvailable', () => steamClient !== null);
+
+// Phase 6 slice 3: launch a Steam game via the OS protocol handler instead
+// of letting the renderer set window.location.href (which would navigate
+// the Electron window AWAY from our app to a steam:// URL — Chromium
+// handles that awkwardly). shell.openExternal hands the URL to the OS,
+// which routes to the Steam client cleanly.
+//
+// Return-trip detection stays focus-event-based for now (App.tsx). Steamworks
+// proper game-launch/quit callbacks aren't exposed by steamworks.js v0.4 —
+// re-evaluate at Phase 7 polish if a polling-based detection is worth it.
+ipcMain.handle('steam:launchGame', (_event, appid: unknown) => {
+  if (typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0) {
+    return false;
+  }
+  void shell.openExternal(`steam://run/${appid}`);
+  return true;
+});
 
 // Phase 6 slice 2: hand the renderer a hex-encoded AuthSessionTicket so it
 // can POST /api/auth/steamticket to the worker and get an lw_session cookie

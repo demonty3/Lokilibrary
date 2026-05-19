@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Scene } from './scene/Scene';
 import { ConnectorPanel } from './ui/ConnectorPanel';
 import { useAppStore } from './state/store';
+import { launchSteamGame } from './api/electron';
 
 export type Movement = 'forward' | 'backward' | 'left' | 'right';
 
@@ -85,7 +86,11 @@ export function App() {
     if (!activeRitual) return;
     const appid = activeRitual.appid;
     const launchTimer = window.setTimeout(() => {
-      window.location.href = `steam://run/${appid}`;
+      // Slice 6.3: in Electron the helper dispatches via IPC →
+      // shell.openExternal so the renderer window stays put; web build
+      // keeps using window.location.href which the browser's protocol
+      // handler routes to Steam.
+      launchSteamGame(appid);
       setInFlight(true);
     }, LAUNCH_MS);
     const clearTimer = window.setTimeout(() => clearRitual(), RITUAL_TOTAL_MS);
