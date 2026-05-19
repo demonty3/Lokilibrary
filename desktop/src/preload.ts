@@ -34,6 +34,13 @@ export interface ElectronAPI {
    *  via Steam Web API and mints the same lw_session cookie the OpenID flow
    *  uses. Null if Steamworks isn't available or the ticket call failed. */
   getAuthTicket(): Promise<string | null>;
+
+  /** Phase 6 slice 3: launch a Steam game via the OS protocol handler.
+   *  The main process calls shell.openExternal('steam://run/<appid>'), which
+   *  is the only safe way to do this from Electron — assigning
+   *  window.location.href in the renderer navigates the window away. Returns
+   *  true on a well-formed request; the launch itself is fire-and-forget. */
+  launchGame(appid: number): Promise<boolean>;
 }
 
 declare global {
@@ -47,6 +54,7 @@ const api: ElectronAPI = {
   getSteamId: () => ipcRenderer.invoke('steam:getSteamId') as Promise<string | null>,
   isSteamworksAvailable: () => ipcRenderer.invoke('steam:isAvailable') as Promise<boolean>,
   getAuthTicket: () => ipcRenderer.invoke('steam:getAuthTicket') as Promise<string | null>,
+  launchGame: (appid: number) => ipcRenderer.invoke('steam:launchGame', appid) as Promise<boolean>,
 };
 
 window.electronAPI = api;

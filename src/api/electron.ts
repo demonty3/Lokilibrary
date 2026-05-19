@@ -13,6 +13,10 @@ export interface ElectronAPI {
   /** Hex-encoded Steamworks AuthSessionTicket. Pass to /api/auth/steamticket
    *  on the worker, which verifies + mints lw_session. Null on failure. */
   getAuthTicket(): Promise<string | null>;
+  /** Slice 3: launch a Steam game via the OS protocol handler. In the web
+   *  build this path doesn't exist; use launchSteamGame() below for a
+   *  surface-agnostic launcher. */
+  launchGame(appid: number): Promise<boolean>;
 }
 
 declare global {
@@ -60,5 +64,25 @@ export async function signInWithSteamTicket(): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Slice 3 launcher. In the desktop wrapper, dispatches via IPC so
+ * shell.openExternal in the main process passes the URL to the OS — keeps
+ * the Electron renderer window from navigating away. In the web build,
+ * falls back to window.location.href = 'steam://run/<appid>', which the
+ * browser hands to its own protocol handler. Same effect either way; the
+ * code path is the implementation difference.
+ *
+ * Fire-and-forget. Doesn't await the OS-level routing — by the time Steam
+ * actually launches the game, the in-flight UI state has already started.
+ */
+export function launchSteamGame(appid: number): void {
+  const api = getElectronAPI();
+  if (api) {
+    void api.launchGame(appid);
+  } else {
+    window.location.href = `steam://run/${appid}`;
   }
 }
