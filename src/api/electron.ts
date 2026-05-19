@@ -40,6 +40,11 @@ export interface ElectronAPI {
   getDisplayId(): Promise<number | null>;
   /** Slice 5: change the target display. null means "primary". */
   setDisplayId(id: number | null): Promise<boolean>;
+  /** Slice 6: peek state + toggle. See main.ts togglePeek for behavior. */
+  getPeeking(): Promise<boolean>;
+  togglePeek(): Promise<boolean>;
+  getPeekAccelerator(): Promise<string>;
+  onPeekChanged(cb: (peeking: boolean) => void): () => void;
 }
 
 declare global {
@@ -179,4 +184,46 @@ export async function setDisplayId(id: number | null): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Slice 6 helpers. Peek = wallpaper temporarily lifted into the foreground
+ * via the global hotkey. The renderer uses these to surface a "Press X to
+ * peek" hint and to show a dismiss target while peeking.
+ */
+
+export async function getPeeking(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  try {
+    return await api.getPeeking();
+  } catch {
+    return false;
+  }
+}
+
+export async function togglePeek(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  try {
+    return await api.togglePeek();
+  } catch {
+    return false;
+  }
+}
+
+export async function getPeekAccelerator(): Promise<string | null> {
+  const api = getElectronAPI();
+  if (!api) return null;
+  try {
+    return await api.getPeekAccelerator();
+  } catch {
+    return null;
+  }
+}
+
+export function subscribePeek(cb: (peeking: boolean) => void): () => void {
+  const api = getElectronAPI();
+  if (!api) return () => undefined;
+  return api.onPeekChanged(cb);
 }
