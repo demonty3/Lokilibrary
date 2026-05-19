@@ -13,7 +13,9 @@
  * switch to `contextBridge.exposeInMainWorld`.
  */
 
-import { ipcRenderer } from 'electron';
+import { ipcRenderer, type IpcRendererEvent } from 'electron';
+
+export type WallpaperMode = 'window' | 'wallpaper';
 
 export interface ElectronAPI {
   /** Always true. The renderer checks for presence of window.electronAPI
@@ -41,6 +43,23 @@ export interface ElectronAPI {
    *  window.location.href in the renderer navigates the window away. Returns
    *  true on a well-formed request; the launch itself is fire-and-forget. */
   launchGame(appid: number): Promise<boolean>;
+
+  /** Phase 6 slice 4: read the current wallpaper-mode state. Either
+   *  'window' (regular floating BrowserWindow) or 'wallpaper' (reparented
+   *  behind the desktop, click-through, hidden from Alt-Tab). The renderer
+   *  uses this to gate PointerLockControls / ConnectorPanel / Footer. */
+  getWallpaperMode(): Promise<WallpaperMode>;
+
+  /** Slice 4: request a mode change. Main process performs the platform-
+   *  specific reparent, persists the new mode, and broadcasts via
+   *  onWallpaperModeChanged so the renderer's state flips too. Tray menu
+   *  drives this same path. */
+  setWallpaperMode(mode: WallpaperMode): Promise<boolean>;
+
+  /** Slice 4: subscribe to mode changes coming from the main process
+   *  (tray menu click, or another renderer if multi-window ever lands).
+   *  Returns an unsubscribe function. */
+  onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
 }
 
 declare global {
@@ -55,6 +74,14 @@ const api: ElectronAPI = {
   isSteamworksAvailable: () => ipcRenderer.invoke('steam:isAvailable') as Promise<boolean>,
   getAuthTicket: () => ipcRenderer.invoke('steam:getAuthTicket') as Promise<string | null>,
   launchGame: (appid: number) => ipcRenderer.invoke('steam:launchGame', appid) as Promise<boolean>,
+  getWallpaperMode: () => ipcRenderer.invoke('wallpaper:getMode') as Promise<WallpaperMode>,
+  setWallpaperMode: (mode) =>
+    ipcRenderer.invoke('wallpaper:setMode', mode) as Promise<boolean>,
+  onWallpaperModeChanged: (cb) => {
+    const handler = (_e: IpcRendererEvent, mode: WallpaperMode): void => cb(mode);
+    ipcRenderer.on('wallpaper:modeChanged', handler);
+    return () => ipcRenderer.off('wallpaper:modeChanged', handler);
+  },
 };
 
 window.electronAPI = api;

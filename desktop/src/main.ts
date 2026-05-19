@@ -19,6 +19,9 @@
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import * as path from 'node:path';
+import { enterWallpaper, exitWallpaper } from './wallpaper';
+import { createTray, type TrayHandle } from './tray';
+import { getMode, setMode, type Mode } from './config';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -77,12 +80,21 @@ function rendererUrl(): string {
   return `file://${bundled}`;
 }
 
+/**
+ * The active main window. Module-scoped so applyMode() (mode transitions)
+ * and the tray menu can act on it without passing it around. Set by
+ * createWindow(); cleared in window-all-closed.
+ */
+let mainWindow: BrowserWindow | null = null;
+let trayHandle: TrayHandle | null = null;
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     backgroundColor: '#15121d',
     show: false, // unhide after the renderer signals first paint to avoid white flash
+    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       // steamworks.js requires nodeIntegration + contextIsolation: false
@@ -95,7 +107,38 @@ function createWindow(): BrowserWindow {
 
   win.once('ready-to-show', () => win.show());
   void win.loadURL(rendererUrl());
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
   return win;
+}
+
+/**
+ * Apply a mode transition: reparent under WorkerW (or platform equivalent)
+ * for wallpaper mode, or restore the normal floating window for window mode.
+ * Persists the chosen mode so the next launch starts in the same state.
+ * Broadcasts the change to the renderer so the UI can hide/show its
+ * interaction layer.
+ */
+function applyMode(mode: Mode): void {
+  if (!mainWindow) return;
+  if (mode === 'wallpaper') {
+    enterWallpaper(mainWindow);
+  } else {
+    exitWallpaper(mainWindow);
+  }
+  setMode(mode);
+  trayHandle?.rebuild();
+  // Broadcast to the renderer so the frontend store can flip its
+  // wallpaperMode flag (which gates PointerLockControls / ConnectorPanel /
+  // Footer rendering in App.tsx).
+  try {
+    mainWindow.webContents.send('wallpaper:modeChanged', mode);
+  } catch {
+    // webContents may not be ready on very early startup; the renderer
+    // calls getWallpaperMode() on mount as a backstop.
+  }
 }
 
 // --- IPC bridge ----------------------------------------------------------
@@ -133,6 +176,15 @@ ipcMain.handle('steam:launchGame', (_event, appid: unknown) => {
 // Phase 6 slice 2: hand the renderer a hex-encoded AuthSessionTicket so it
 // can POST /api/auth/steamticket to the worker and get an lw_session cookie
 // without going through the OpenID flow the web build uses.
+// Phase 6 slice 4: wallpaper mode bridge. Renderer reads + sets the mode;
+// main process handles the platform-specific reparenting + persistence.
+ipcMain.handle('wallpaper:getMode', () => getMode());
+ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
+  if (mode !== 'window' && mode !== 'wallpaper') return false;
+  applyMode(mode);
+  return true;
+});
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -161,12 +213,26 @@ void app.whenReady().then(() => {
     console.warn('[steamworks] overlay enable failed:', (e as Error).message);
   }
 
+  // Tray + initial mode application. Tray gives the user a way out of
+  // wallpaper mode (in-world UI is unreachable when the window is
+  // click-through). Initial mode comes from persisted config.
+  trayHandle = createTray(getMode, applyMode);
+
+  const initialMode = getMode();
+  if (initialMode === 'wallpaper') {
+    // Wait for the renderer to be ready before reparenting — fresh WorkerW
+    // SetParent on a not-yet-shown window can leave it invisible.
+    mainWindow?.once('ready-to-show', () => applyMode('wallpaper'));
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
+  trayHandle?.destroy();
+  trayHandle = null;
   if (steamClient) {
     try {
       steamworks.shutdown?.();

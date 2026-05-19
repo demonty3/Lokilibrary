@@ -10,6 +10,7 @@
     "dev": "tsc && cross-env LIBRARYWORLD_RENDERER_URL=http://localhost:5183 electron ."
   },
   "dependencies": {
+    "koffi": "^3.0.0",
     "steamworks.js": "^0.4.0"
   },
   "devDependencies": {
