@@ -12,6 +12,8 @@
  *   GET  /api/library              — authed user's enriched + tagged library + profile
  *   GET  /api/world                — Stage 1 manifest from the session library
  *                                    (?template=... ?force=1; cached 24h)
+ *   POST /api/agent/tick           — Tier 1 micro-action call for one agent
+ *                                    given its state + perception payload
  *
  * The frontend never holds an API key. All Anthropic / Ollama / (future)
  * Stable Audio / ElevenLabs / Meshy traffic terminates here.
@@ -19,7 +21,7 @@
 
 import { buildStageOnePrompt } from './lib/prompt';
 import { extractJson, validateManifest } from './lib/manifest';
-import { callStageOne, ProviderError, type ProviderEnv } from './lib/providers';
+import { callStageOne, callTier1Agent, ProviderError, type ProviderEnv } from './lib/providers';
 import { TEMPLATE_WHITELIST, type TemplateId } from './lib/whitelist';
 import { buildSteamLoginUrl, verifySteamReturn } from './lib/steam-openid';
 import {
@@ -542,6 +544,74 @@ export default {
         );
       }
       return json(result.manifest, { status: 200 }, cors);
+    }
+
+    // --- Tier 1 agent micro-action (Phase 0 spike) ---------------------------
+    // POST /api/agent/tick — given an agent snapshot + perception payload,
+    // ask the Tier 1 model for the next short action. Hello-world for the
+    // agent runtime that lands properly in Phase 2; this endpoint exists in
+    // Phase 0 just to prove the renderer → worker → Ollama (or Anthropic
+    // Haiku) → renderer loop completes end-to-end.
+    if (req.method === 'POST' && url.pathname === '/api/agent/tick') {
+      let body: { agent?: unknown; perception?: unknown };
+      try {
+        body = (await req.json()) as { agent?: unknown; perception?: unknown };
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      if (!body.agent || !body.perception) {
+        return json({ error: 'agent + perception required' }, { status: 400 }, cors);
+      }
+
+      const system =
+        'You are an agent in a 2D memory palace populated by short-lived sprites. ' +
+        'Given your own state and what you currently perceive, choose your next ' +
+        'short action. Respond with ONLY valid JSON in this exact shape:\n' +
+        '  {"action": "<verb phrase, ≤60 chars>", "intent": "<one sentence, ≤120 chars>"}\n' +
+        'No extra fields, no prose outside the JSON.';
+      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nperception: ${JSON.stringify(body.perception)}`;
+
+      const startedAt = Date.now();
+      let result: { text: string; model: string; provider: string };
+      try {
+        result = await callTier1Agent(env, system, userPrompt);
+      } catch (e) {
+        if (e instanceof ProviderError) {
+          return json({ error: e.message }, { status: e.status }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'tier1', message }, { status: 502 }, cors);
+      }
+      const latencyMs = Date.now() - startedAt;
+
+      let parsed: { action?: unknown; intent?: unknown };
+      try {
+        parsed = JSON.parse(result.text) as { action?: unknown; intent?: unknown };
+      } catch {
+        return json(
+          { error: 'tier1 returned invalid json', raw: result.text.slice(0, 400) },
+          { status: 502 },
+          cors,
+        );
+      }
+      if (typeof parsed.action !== 'string' || typeof parsed.intent !== 'string') {
+        return json(
+          { error: 'tier1 missing action/intent', raw: parsed },
+          { status: 502 },
+          cors,
+        );
+      }
+      return json(
+        {
+          action: parsed.action,
+          intent: parsed.intent,
+          model: result.model,
+          provider: result.provider,
+          latencyMs,
+        },
+        { status: 200 },
+        cors,
+      );
     }
 
     return json({ error: 'not found' }, { status: 404 }, cors);
