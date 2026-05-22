@@ -1,4 +1,4 @@
-# LibraryWorld Worker — deployment
+# lokilibrary Worker — deployment
 
 The Cloudflare Worker at `worker/index.ts` is the single AI orchestration
 surface (CLAUDE.md / SPEC §6.1). All API keys live server-side here; the
@@ -25,7 +25,7 @@ This repo keeps `wrangler.toml` co-located with the worker code under
 `worker/`, not at the repo root. Cloudflare Workers Builds defaults to the
 root, so it needs to be pointed at `worker/`:
 
-1. Cloudflare dashboard → Workers & Pages → `libraryworld` → Settings → Builds
+1. Cloudflare dashboard → Workers & Pages → `lokilibrary` → Settings → Builds
 2. Set **Root directory** to `worker`
 3. Save
 
@@ -34,17 +34,17 @@ root, so it needs to be pointed at `worker/`:
 `.dev.vars` is local-only. Production secrets must be set explicitly:
 
 ```
-wrangler secret put ANTHROPIC_API_KEY --name libraryworld
+wrangler secret put ANTHROPIC_API_KEY --name lokilibrary
 # (paste the sk-ant-... key when prompted)
 ```
 
-Or via dashboard → Workers & Pages → `libraryworld` → Settings → Variables
+Or via dashboard → Workers & Pages → `lokilibrary` → Settings → Variables
 and Secrets → "Add" → type: secret.
 
 Verify with:
 
 ```
-curl https://libraryworld.<your-subdomain>.workers.dev/healthz
+curl https://lokilibrary.<your-subdomain>.workers.dev/healthz
 # should return {"ok":true,"provider":"anthropic","anthropic_configured":true}
 ```
 
@@ -54,7 +54,7 @@ The web frontend defaults to `http://localhost:8787` for the worker. For
 production builds, set `VITE_WORKER_URL` at build time:
 
 ```
-VITE_WORKER_URL=https://libraryworld.<your-subdomain>.workers.dev npm run build
+VITE_WORKER_URL=https://lokilibrary.<your-subdomain>.workers.dev npm run build
 ```
 
 (Not needed for the dev server, which uses the local worker.)
