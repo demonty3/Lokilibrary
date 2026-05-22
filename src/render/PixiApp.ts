@@ -1,21 +1,28 @@
-import { Application, BitmapText } from 'pixi.js';
+import { Application } from 'pixi.js';
 import type { Theme } from '../themes/types';
-import {
-  COZETTE_FONT_FAMILY,
-  COZETTE_FONT_SIZE,
-  hexToInt,
-  waitForCozette,
-} from './fonts';
+import type { Profile } from '../types';
+import { layoutCell } from '../procedural/cell';
+import { profileSeed } from '../procedural/seed';
+import { useAppStore } from '../state/store';
+import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
+import { mountCell } from './levels/cell';
+import { waitForCozette } from './fonts';
 
 /**
- * Phase 1 PixiJS bootstrap. Mounts a PIXI.Application into the given DOM
- * container, paints the theme background, and renders a box-drawing-glyph
- * panel using the Cozette bitmap font (woff2 + CSS @font-face from
- * index.html; PixiJS v8's BitmapText lazily bakes the atlas).
+ * Phase 1C PixiJS bootstrap. Creates the PIXI.Application once, awaits
+ * Cozette, then dispatches to the active scale level's renderer. Phase
+ * 1C implements `cell` only; Phase 1D adds the scale-ladder state
+ * machine + district + stub levels and wires the subscribe-and-remount
+ * path.
  *
- * Phase 1C/1D promotes this into a level router (cell / district / stub)
- * driven by the Zustand `scale` slice; for Phase 1B the panel still just
- * proves the bitmap font path works end-to-end.
+ * Profile + library data is read from the Zustand store at mount; if
+ * the user is anonymous (no profile yet), we fall back to SAMPLE_LIBRARY
+ * + a stable demo seed so the renderer has something to draw on first
+ * boot.
+ *
+ * Returns a teardown that destroys the Application + its canvas. Per
+ * CLAUDE.md the Application stays alive for the full React mount; level
+ * transitions only destroy the level's Container, not the Application.
  */
 export async function mountPalace(
   container: HTMLDivElement,
@@ -29,40 +36,46 @@ export async function mountPalace(
     resolution: window.devicePixelRatio || 1,
     autoDensity: true,
   });
-
   container.appendChild(app.canvas);
 
   await waitForCozette();
 
-  const panel = new BitmapText({
-    text:
-      '╔══════════════════════════════════════╗\n' +
-      '║                                      ║\n' +
-      '║         memory palace                ║\n' +
-      '║         phase 1B                     ║\n' +
-      '║                                      ║\n' +
-      `║         theme: ${theme.id.padEnd(22)}║\n` +
-      '║                                      ║\n' +
-      '╚══════════════════════════════════════╝',
-    style: {
-      fontFamily: COZETTE_FONT_FAMILY,
-      fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.fg),
-    },
-  });
-  app.stage.addChild(panel);
+  const { profile, spines, seed } = snapshotLibraryState();
+  void profile; // unused at Phase 1C — reserved for the scale subscriber
 
-  const position = () => {
-    panel.x = Math.floor((app.screen.width - panel.width) / 2);
-    panel.y = Math.floor((app.screen.height - panel.height) / 2);
-  };
-  position();
-  app.renderer.on('resize', position);
+  const layout = layoutCell(seed);
+  const teardownLevel = mountCell(app, theme, layout, spines);
 
   return () => {
-    app.renderer.off('resize', position);
-    // app.destroy(true, …) detaches the canvas from the DOM and nulls the
-    // renderer. Don't reach for app.canvas afterwards — the getter throws.
+    teardownLevel();
     app.destroy(true, { children: true, texture: true });
+  };
+}
+
+interface LibrarySnapshot {
+  profile: Profile | null;
+  spines: string[];
+  seed: number;
+}
+
+/** Anonymous-user seed. Picked to give a visually interesting WFC
+ *  outcome on the sample library; changing this changes every
+ *  not-signed-in demo. */
+const ANONYMOUS_SEED = 0xa11ce11 >>> 0;
+
+function snapshotLibraryState(): LibrarySnapshot {
+  const state = useAppStore.getState();
+  const profile = state.profile;
+  if (profile) {
+    return {
+      profile,
+      spines: profile.topGames.map((g) => g.name),
+      seed: profileSeed(profile),
+    };
+  }
+  return {
+    profile: null,
+    spines: SAMPLE_LIBRARY.map((g) => g.name),
+    seed: ANONYMOUS_SEED,
   };
 }
