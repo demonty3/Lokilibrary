@@ -13,7 +13,9 @@
  * to `contextBridge.exposeInMainWorld`.
  */
 
-import { ipcRenderer } from 'electron';
+import { ipcRenderer, type IpcRendererEvent } from 'electron';
+
+export type WallpaperMode = 'window' | 'wallpaper';
 
 export interface ElectronAPI {
   /** Always true. Renderer checks for presence of window.electronAPI to
@@ -38,6 +40,22 @@ export interface ElectronAPI {
    *  way from Electron, since assigning window.location.href in the
    *  renderer navigates the window away. */
   launchGame(appid: number): Promise<boolean>;
+
+  /** Read the current wallpaper-mode state. Either 'window' (regular
+   *  floating BrowserWindow) or 'wallpaper' (reparented behind the
+   *  desktop, click-through, hidden from Alt-Tab). Used by the
+   *  renderer to gate any mode-aware UI. */
+  getWallpaperMode(): Promise<WallpaperMode>;
+
+  /** Request a mode change. Main process performs the platform-
+   *  specific reparent, persists the new mode, rebuilds the tray, and
+   *  broadcasts via onWallpaperModeChanged. Tray menu drives the same
+   *  path. */
+  setWallpaperMode(mode: WallpaperMode): Promise<boolean>;
+
+  /** Subscribe to mode changes coming from the main process (tray
+   *  click, startup restore). Returns an unsubscribe function. */
+  onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
 }
 
 declare global {
@@ -52,6 +70,15 @@ const api: ElectronAPI = {
   isSteamworksAvailable: () => ipcRenderer.invoke('steam:isAvailable') as Promise<boolean>,
   getAuthTicket: () => ipcRenderer.invoke('steam:getAuthTicket') as Promise<string | null>,
   launchGame: (appid: number) => ipcRenderer.invoke('steam:launchGame', appid) as Promise<boolean>,
+  getWallpaperMode: () =>
+    ipcRenderer.invoke('wallpaper:getMode') as Promise<WallpaperMode>,
+  setWallpaperMode: (mode) =>
+    ipcRenderer.invoke('wallpaper:setMode', mode) as Promise<boolean>,
+  onWallpaperModeChanged: (cb) => {
+    const handler = (_e: IpcRendererEvent, mode: WallpaperMode): void => cb(mode);
+    ipcRenderer.on('wallpaper:modeChanged', handler);
+    return () => ipcRenderer.off('wallpaper:modeChanged', handler);
+  },
 };
 
 window.electronAPI = api;
