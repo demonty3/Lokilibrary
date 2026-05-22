@@ -34,6 +34,6 @@ port = 8787
 # so a placeholder id works locally. But Cloudflare Workers Builds rejects
 # placeholder ids at deploy time — the id MUST be real before pushing.
 #
-# [[kv_namespaces]]
-# binding = "CACHE"
-# id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+[[kv_namespaces]]
+binding = "CACHE"
+id = "b8b189b962a84dfaa3b6489bfbb0603a"
