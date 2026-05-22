@@ -44,9 +44,6 @@ interface AppState {
 
   wallpaperMode: boolean;
   setWallpaperMode: (v: boolean) => void;
-
-  peeking: boolean;
-  setPeeking: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -134,10 +131,5 @@ export const useAppStore = create<AppState>((set, get) => ({
   wallpaperMode: false,
   setWallpaperMode: (v) => {
     if (get().wallpaperMode !== v) set({ wallpaperMode: v });
-  },
-
-  peeking: false,
-  setPeeking: (v) => {
-    if (get().peeking !== v) set({ peeking: v });
   },
 }));

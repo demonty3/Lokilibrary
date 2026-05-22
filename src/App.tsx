@@ -1,11 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  getPeekAccelerator,
-  getPeeking,
-  getWallpaperMode,
-  subscribePeek,
-  subscribeWallpaperMode,
-} from './api/electron';
+import { getWallpaperMode, subscribeWallpaperMode } from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
 import { mountPalace } from './render/PixiApp';
@@ -21,7 +15,6 @@ import type { Theme } from './themes/types';
 export function App() {
   const loadAuth = useAppStore((s) => s.loadAuth);
   const setWallpaperMode = useAppStore((s) => s.setWallpaperMode);
-  const setPeeking = useAppStore((s) => s.setPeeking);
   const canvasHost = useRef<HTMLDivElement | null>(null);
   const tickFired = useRef(false);
 
@@ -33,12 +26,6 @@ export function App() {
     void getWallpaperMode().then((mode) => setWallpaperMode(mode === 'wallpaper'));
     return subscribeWallpaperMode((mode) => setWallpaperMode(mode === 'wallpaper'));
   }, [setWallpaperMode]);
-
-  useEffect(() => {
-    void getPeeking().then(setPeeking);
-    void getPeekAccelerator();
-    return subscribePeek(setPeeking);
-  }, [setPeeking]);
 
   useEffect(() => {
     if (!canvasHost.current) return;
