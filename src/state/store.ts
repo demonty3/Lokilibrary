@@ -4,7 +4,7 @@ import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
 import { signInWithSteamTicket } from '../api/electron';
 import type { Manifest } from '../ai/manifest';
-import type { LibraryGame, Profile, SteamPersona } from '../types';
+import type { LibraryGame, Profile, ScaleLevel, SteamPersona } from '../types';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
@@ -44,6 +44,12 @@ interface AppState {
 
   wallpaperMode: boolean;
   setWallpaperMode: (v: boolean) => void;
+
+  /** Scale-ladder level. Phase 1 implements `cell` + `district`; the
+   *  other four mount a "not yet built" stub. The level renderer
+   *  subscribes to this slice and tears down + remounts on change. */
+  scale: ScaleLevel;
+  setScale: (level: ScaleLevel) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -131,5 +137,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   wallpaperMode: false,
   setWallpaperMode: (v) => {
     if (get().wallpaperMode !== v) set({ wallpaperMode: v });
+  },
+
+  scale: 'cell',
+  setScale: (level) => {
+    if (get().scale !== level) set({ scale: level });
   },
 }));

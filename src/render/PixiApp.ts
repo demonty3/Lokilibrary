@@ -1,28 +1,29 @@
 import { Application } from 'pixi.js';
 import type { Theme } from '../themes/types';
-import type { Profile } from '../types';
+import type { Profile, ScaleLevel } from '../types';
 import { layoutCell } from '../procedural/cell';
 import { profileSeed } from '../procedural/seed';
 import { useAppStore } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { mountCell } from './levels/cell';
+import { mountDistrict } from './levels/district';
+import { mountStubLevel } from './levels/stub';
 import { waitForCozette } from './fonts';
 
 /**
- * Phase 1C PixiJS bootstrap. Creates the PIXI.Application once, awaits
- * Cozette, then dispatches to the active scale level's renderer. Phase
- * 1C implements `cell` only; Phase 1D adds the scale-ladder state
- * machine + district + stub levels and wires the subscribe-and-remount
- * path.
+ * Phase 1D PixiJS bootstrap + level router. Creates the PIXI.Application
+ * once, awaits Cozette, mounts the level matching the Zustand `scale`
+ * slice, and subscribes to slice changes to tear down + remount on
+ * transition. **The Application stays alive across level changes**
+ * (CLAUDE.md rule); only the per-level Container is destroyed.
  *
- * Profile + library data is read from the Zustand store at mount; if
- * the user is anonymous (no profile yet), we fall back to SAMPLE_LIBRARY
- * + a stable demo seed so the renderer has something to draw on first
- * boot.
- *
- * Returns a teardown that destroys the Application + its canvas. Per
- * CLAUDE.md the Application stays alive for the full React mount; level
- * transitions only destroy the level's Container, not the Application.
+ * Profile + library data is read from the Zustand store at each mount;
+ * if the user is anonymous (no profile yet), we fall back to
+ * SAMPLE_LIBRARY + a stable demo seed so the renderer has something to
+ * draw on first boot. When the profile loads later (from /api/library),
+ * the cell does NOT auto-remount — the scale slice is the only
+ * remount trigger in Phase 1. Phase 2 will subscribe to profile
+ * changes too so signing in actually re-seeds the room.
  */
 export async function mountPalace(
   container: HTMLDivElement,
@@ -40,16 +41,35 @@ export async function mountPalace(
 
   await waitForCozette();
 
-  const { profile, spines, seed } = snapshotLibraryState();
-  void profile; // unused at Phase 1C — reserved for the scale subscriber
+  let teardownLevel: () => void = mountLevel(app, theme, useAppStore.getState().scale);
 
-  const layout = layoutCell(seed);
-  const teardownLevel = mountCell(app, theme, layout, spines);
+  const unsubscribe = useAppStore.subscribe((state, prev) => {
+    if (state.scale === prev.scale) return;
+    teardownLevel();
+    teardownLevel = mountLevel(app, theme, state.scale);
+  });
 
   return () => {
+    unsubscribe();
     teardownLevel();
     app.destroy(true, { children: true, texture: true });
   };
+}
+
+function mountLevel(
+  app: Application,
+  theme: Theme,
+  scale: ScaleLevel,
+): () => void {
+  if (scale === 'cell') {
+    const { spines, seed } = snapshotLibraryState();
+    const layout = layoutCell(seed);
+    return mountCell(app, theme, layout, spines, seed);
+  }
+  if (scale === 'district') {
+    return mountDistrict(app, theme);
+  }
+  return mountStubLevel(app, theme, scale);
 }
 
 interface LibrarySnapshot {

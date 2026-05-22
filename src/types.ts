@@ -67,6 +67,28 @@ export interface LibraryGame {
   state?: LibraryState;
 }
 
+/**
+ * Scale-ladder level. Phase 1 implements `cell` + `district`; the other
+ * four are stubbed by `mountStubLevel`. Per SPEC §4 (scale ladder),
+ * each level has its own rendering vocabulary + agent-perception scope.
+ */
+export type ScaleLevel =
+  | 'cell'
+  | 'district'
+  | 'island'
+  | 'continent'
+  | 'planet'
+  | 'solar_system';
+
+export const SCALE_ORDER: readonly ScaleLevel[] = [
+  'cell',
+  'district',
+  'island',
+  'continent',
+  'planet',
+  'solar_system',
+];
+
 /** Mirrors worker/lib/state.ts. SPEC §4 enumeration. */
 export type LibraryState =
   | 'loved'
