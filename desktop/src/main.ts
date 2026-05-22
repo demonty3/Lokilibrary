@@ -349,6 +349,10 @@ void app.whenReady().then(() => {
   }
 
   const initialMode = getMode();
+  // eslint-disable-next-line no-console
+  console.log(
+    `[startup] userData=${app.getPath('userData')} initialMode=${initialMode}`,
+  );
   if (initialMode === 'wallpaper') {
     // Wait for the renderer to be ready before reparenting — fresh WorkerW
     // SetParent on a not-yet-shown window can leave it invisible.

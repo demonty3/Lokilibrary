@@ -51,6 +51,8 @@ const SendMessageTimeoutW = user32.func(
   'long SendMessageTimeoutW(void* hWnd, uint Msg, uintptr wParam, intptr lParam, uint fuFlags, uint uTimeout, _Out_ uintptr* lpdwResult)',
 );
 const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewParent)');
+const GetParent = user32.func('void* GetParent(void* hWnd)');
+const GetLastError = koffi.load('kernel32.dll').func('uint32 GetLastError()');
 const ShowWindow = user32.func('bool ShowWindow(void* hWnd, int nCmdShow)');
 // Window styles need to flip from WS_POPUP → WS_CHILD after SetParent so
 // the reparented Electron window actually behaves as a child of WorkerW.
@@ -214,38 +216,56 @@ export function enterWallpaper(win: BrowserWindow, display?: Display): void {
 
     const hwnd = electronHwnd(win);
 
-    // Try each candidate parent in priority order. SetParent can return
-    // null even when the candidate HWND is valid (Win11 has tightened
-    // parent-window restrictions on certain WorkerW instances), so locating
-    // is necessary but not sufficient — we need to actually verify the
-    // reparent took. The previous code committed to whichever candidate
-    // findWallpaperParent picked first and ate the failure.
+    // Try each candidate parent in priority order. Verifying success is
+    // tricky: SetParent's return value is the PREVIOUS parent HWND, which is
+    // NULL for a top-level window that had no prior parent — same as the
+    // failure return. So we can't use the return value alone. Instead we
+    // call GetParent(hwnd) after and compare it to our target; if it
+    // matches, the reparent committed. Some Win11 builds also require the
+    // window to be WS_CHILD style BEFORE SetParent will accept it as a
+    // child, so we try a second variant with the style flipped first.
     let success: { via: string } | null = null;
     for (const target of candidates) {
-      const prevParent = SetParent(hwnd, target.hwnd);
-      if (prevParent) {
+      // Attempt 1: SetParent first, flip style after (original ordering).
+      SetParent(hwnd, target.hwnd);
+      let actualParent = GetParent(hwnd) as Buffer | null;
+      let bound = actualParent && Buffer.compare(actualParent, target.hwnd) === 0;
+      if (!bound) {
+        // Attempt 2: flip to WS_CHILD style first, then SetParent.
+        flipToChildStyle(hwnd);
+        SetParent(hwnd, target.hwnd);
+        actualParent = GetParent(hwnd) as Buffer | null;
+        bound = actualParent && Buffer.compare(actualParent, target.hwnd) === 0;
+      }
+      if (bound) {
         success = target;
         // eslint-disable-next-line no-console
         console.log(`[wallpaper:windows] reparented via ${target.via}`);
         break;
       }
       // eslint-disable-next-line no-console
-      console.warn(`[wallpaper:windows] SetParent failed for ${target.via}; trying next`);
+      const lastErr = GetLastError() as number;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[wallpaper:windows] SetParent failed for ${target.via} ` +
+          `(GetParent=${actualParent ? 'non-null but mismatched' : 'null'}, ` +
+          `GetLastError=${lastErr}); trying next`,
+      );
     }
     if (!success) {
       // eslint-disable-next-line no-console
       console.warn('[wallpaper:windows] all reparent strategies failed; staying in window mode');
+      // Style may have been flipped to WS_CHILD during retry; flip it back
+      // so the window can render as a normal popup again.
+      flipToPopupStyle(hwnd);
       win.setSkipTaskbar(false);
       win.setIgnoreMouseEvents(false);
       preWallpaperBounds = null;
       return;
     }
 
-    // Critical: flip WS_POPUP → WS_CHILD. Without this the reparented
-    // window stays a popup logically and floats on top of WorkerW siblings.
-    // This is the Lively/Wallpaper-Engine step most "just call SetParent"
-    // tutorials skip — and the most likely cause of "tray toggled but
-    // window didn't move."
+    // Make sure WS_POPUP → WS_CHILD is applied (might already be flipped
+    // from the retry path above, but flipping twice is idempotent).
     flipToChildStyle(hwnd);
 
     // Use Electron's screen API (DIPs, DPI-aware) instead of
