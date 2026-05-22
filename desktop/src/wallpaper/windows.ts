@@ -1,23 +1,33 @@
 /**
- * Windows WorkerW reparenting — the "draw behind desktop icons" trick.
+ * Windows wallpaper mode — bottom-of-z-order strategy.
  *
- * The canonical pattern (used by Wallpaper Engine, Lively Wallpaper, every
- * open-source live-wallpaper tool):
+ * The "canonical" approach (Wallpaper Engine, Lively, slice-4 of this
+ * project) is Progman/WorkerW reparenting via SetParent. That fails with
+ * ERROR_INVALID_WINDOW_HANDLE (1400) on Win11 22H2+ where cross-process
+ * SetParent against Progman/WorkerW is blocked by tightened UIPI
+ * restrictions. We confirmed this on the developer's machine: SetParent
+ * rejected both WorkerW and Progman as invalid even after restarting
+ * Explorer to clear zombie WorkerWs.
  *
- *   1. FindWindow("Progman", null) — the desktop shell's root window.
- *   2. SendMessageTimeout(Progman, 0x052C, 0, 0, ...) — the magic message
- *      that asks Progman to spawn a new WorkerW positioned between the
- *      wallpaper layer and the icons. Undocumented officially but stable
- *      across Windows 10/11.
- *   3. Enumerate top-level WorkerW siblings. The one we want is the WorkerW
- *      that comes immediately AFTER a WorkerW whose child is SHELLDLL_DefView.
- *      (Progman owns SHELLDLL_DefView, which contains the icons. The new
- *      WorkerW from step 2 is its sibling.)
- *   4. SetParent(electronHwnd, workerW) — reparent our Electron window.
- *   5. Resize the window to fill the primary monitor.
+ * This implementation skips reparenting entirely and uses the always-
+ * available `SetWindowPos(hwnd, HWND_BOTTOM, …, SWP_NOACTIVATE)` to push
+ * the Electron window to the BOTTOM of the regular z-order. A 2-second
+ * watchdog re-applies the bottom-pin so apps that grab the foreground
+ * don't permanently float above us.
  *
- * Exiting is simpler: SetParent(electronHwnd, NULL) re-attaches our window
- * to the desktop, then we restore the window's pre-wallpaper bounds.
+ * Tradeoffs vs true WorkerW reparenting:
+ *   - Not in the actual wallpaper layer. Minimised windows briefly cover
+ *     us during the minimise animation. Apps that explicitly set
+ *     HWND_TOPMOST stay above us until they release topmost.
+ *   - No desktop-transparency compositing — taskbar transparency etc.
+ *     looks through to a regular window, not the wallpaper, so the visual
+ *     stack is slightly different.
+ *   - On the upside: works on any Windows version, no Win32 hacks, no
+ *     cross-process restrictions.
+ *
+ * WS_EX_TOOLWINDOW is applied to hide the window from Alt+Tab and the
+ * taskbar (in addition to Electron's `setSkipTaskbar(true)`, which only
+ * affects the taskbar layer in some configurations).
  *
  * koffi handles the FFI. It ships prebuilt binaries for win32-x64 so
  * `npm install` doesn't need MSVC build tools.
@@ -36,27 +46,15 @@ interface Koffi {
 const koffi = require('koffi') as Koffi;
 
 // --- Win32 type bindings ----------------------------------------------------
-// koffi's syntax: types are strings or `koffi.pointer(...)`. We model HWND
-// as an opaque void pointer.
 
 const user32 = koffi.load('user32.dll');
 
-const FindWindowW = user32.func(
-  'void* FindWindowW(str16 lpClassName, str16 lpWindowName)',
+// `hWndInsertAfter` is intptr because the API uses sentinel values
+// (HWND_BOTTOM = 1, HWND_TOP = 0, HWND_TOPMOST = -1, HWND_NOTOPMOST = -2).
+// `hWnd` stays void* because we always pass a real Buffer-wrapped HWND there.
+const SetWindowPos = user32.func(
+  'bool SetWindowPos(void* hWnd, intptr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags)',
 );
-const FindWindowExW = user32.func(
-  'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpClassName, str16 lpWindowName)',
-);
-const SendMessageTimeoutW = user32.func(
-  'long SendMessageTimeoutW(void* hWnd, uint Msg, uintptr wParam, intptr lParam, uint fuFlags, uint uTimeout, _Out_ uintptr* lpdwResult)',
-);
-const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewParent)');
-const GetParent = user32.func('void* GetParent(void* hWnd)');
-const GetLastError = koffi.load('kernel32.dll').func('uint32 GetLastError()');
-const ShowWindow = user32.func('bool ShowWindow(void* hWnd, int nCmdShow)');
-// Window styles need to flip from WS_POPUP → WS_CHILD after SetParent so
-// the reparented Electron window actually behaves as a child of WorkerW.
-// SetWindowLongPtrW is the 64-bit-safe variant of SetWindowLongW.
 const SetWindowLongPtrW = user32.func(
   'intptr SetWindowLongPtrW(void* hWnd, int nIndex, intptr dwNewLong)',
 );
@@ -66,21 +64,30 @@ const GetWindowLongPtrW = user32.func(
 
 // --- Constants --------------------------------------------------------------
 
-const SPAWN_WORKERW_MESSAGE = 0x052c;
-const SMTO_NORMAL = 0x0000;
-const SW_SHOW = 5;
+// SetWindowPos sentinels (winuser.h)
+const HWND_BOTTOM = 1n;
+const HWND_NOTOPMOST = -2n;
 
-// Window style constants (winuser.h).
-const GWL_STYLE = -16;
+// SetWindowPos flags
+const SWP_NOSIZE = 0x0001;
+const SWP_NOMOVE = 0x0002;
+const SWP_NOACTIVATE = 0x0010;
+
+// Window style constants (winuser.h)
 const GWL_EXSTYLE = -20;
-const WS_POPUP = 0x80000000n;
-const WS_CHILD = 0x40000000n;
 const WS_EX_APPWINDOW = 0x00040000n;
 const WS_EX_TOOLWINDOW = 0x00000080n;
 
-// Remember the bounds we had before entering wallpaper mode so we can put
-// the window back exactly where it was when the user toggles out.
+// 2 seconds — frequent enough to recover quickly when another app pushes
+// us up the z-order, rare enough that SetWindowPos overhead is negligible.
+const REPIN_INTERVAL_MS = 2000;
+
+// --- Module state -----------------------------------------------------------
+
 let preWallpaperBounds: Rectangle | null = null;
+let repinInterval: NodeJS.Timeout | null = null;
+
+// --- Helpers ----------------------------------------------------------------
 
 function electronHwnd(win: BrowserWindow): Buffer {
   // Electron's getNativeWindowHandle returns a Buffer; on Windows it's
@@ -88,196 +95,51 @@ function electronHwnd(win: BrowserWindow): Buffer {
   return win.getNativeWindowHandle();
 }
 
-/**
- * Locate candidate windows for wallpaper reparenting. Three fallback
- * strategies — Windows builds disagree about where SHELLDLL_DefView lives:
- *
- *   1. The canonical Lively pattern: find a top-level WorkerW that owns
- *      SHELLDLL_DefView, and use the NEXT WorkerW sibling. This works on
- *      Win10 + most Win11 builds.
- *   2. If no DefView-owning WorkerW exists, pick the LAST top-level WorkerW
- *      that exists after the SendMessage. On some Win11 configs DefView
- *      stays a direct child of Progman, but Explorer still spawns a fresh
- *      WorkerW we can reparent under.
- *   3. Fall back to Progman itself. Reparenting under Progman puts us
- *      behind the icons but in front of the wallpaper. Less clean (icons
- *      will composite on top of us only because they're a higher child of
- *      Progman) but reliable: Progman always exists on a shelled session.
- *
- * Returns ALL viable candidates in priority order. The caller tries each
- * in turn until SetParent actually succeeds — locating an HWND isn't the
- * same as Win32 accepting it as a parent. On some Win11 builds the chosen
- * WorkerW disallows reparenting and only Progman works.
- */
-function findWallpaperParents(): Array<{ hwnd: Buffer; via: string }> {
-  const progman = FindWindowW('Progman', null) as Buffer | null;
-  if (!progman) return [];
-
-  // Ask Explorer to spawn the WorkerW that sits between the wallpaper layer
-  // and the icons. Windows builds disagree about the right wParam — 0x0D is
-  // the most-documented value (Lively, Wallpaper-Engine teardowns), 0x0A is
-  // the second-most. Sending BOTH (and previously 0, which is what we did
-  // and which silently no-ops on some builds) maximises coverage. The call
-  // is idempotent: Explorer reuses the spawned WorkerW if it already exists.
-  const result = [BigInt(0)];
-  for (const wparam of [BigInt(0x0d), BigInt(0x0a)]) {
-    SendMessageTimeoutW(
-      progman,
-      SPAWN_WORKERW_MESSAGE,
-      wparam,
-      BigInt(0),
-      SMTO_NORMAL,
-      1000,
-      result,
-    );
-  }
-
-  const candidates: Array<{ hwnd: Buffer; via: string }> = [];
-
-  // Strategy 1: WorkerW that owns SHELLDLL_DefView → use its next sibling.
-  // Walk the full WorkerW chain, logging each so we can diagnose which
-  // build we're on if reparenting still goes wrong.
-  let prev: Buffer | null = null;
-  let lastTopLevel: Buffer | null = null;
-  let count = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const wW = FindWindowExW(null, prev, 'WorkerW', null) as Buffer | null;
-    if (!wW) break;
-    count += 1;
-    lastTopLevel = wW;
-    const shellView = FindWindowExW(wW, null, 'SHELLDLL_DefView', null) as Buffer | null;
-    // eslint-disable-next-line no-console
-    console.log(
-      `[wallpaper:windows]   WorkerW #${count}${shellView ? ' (owns SHELLDLL_DefView)' : ''}`,
-    );
-    if (shellView) {
-      const next = FindWindowExW(null, wW, 'WorkerW', null) as Buffer | null;
-      if (next) candidates.push({ hwnd: next, via: 'WorkerW-after-DefView' });
-    }
-    prev = wW;
-  }
-  // eslint-disable-next-line no-console
-  console.log(`[wallpaper:windows] enumerated ${count} top-level WorkerW(s)`);
-
-  // Strategy 2: the last top-level WorkerW we saw above. Different HWND
-  // from strategy 1's pick (strategy 1 returns the *sibling* of the DefView
-  // owner). Has caused false positives on some Win11 builds where the last
-  // WorkerW is a foreground animation surface rather than the wallpaper
-  // layer — SetParent succeeds but you end up on top of icons. We try it
-  // anyway so the retry loop can fall through to Progman if it goes wrong.
-  if (lastTopLevel) candidates.push({ hwnd: lastTopLevel, via: 'last-top-level-WorkerW' });
-
-  // Strategy 3: Progman itself. Always exists; last resort.
-  candidates.push({ hwnd: progman, via: 'Progman-fallback' });
-
-  return candidates;
-}
-
-/**
- * After SetParent, the window needs WS_CHILD style (was WS_POPUP). Also
- * remove WS_EX_APPWINDOW (otherwise it still appears in Alt-Tab/taskbar)
- * and set WS_EX_TOOLWINDOW (hides from taskbar). This is the canonical
- * Electron + WorkerW gotcha — SetParent alone doesn't flip these styles.
- */
-function flipToChildStyle(hwnd: Buffer): void {
-  const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
-  const newStyle = (BigInt(style) & ~WS_POPUP) | WS_CHILD;
-  SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
-
+/** WS_EX_APPWINDOW → WS_EX_TOOLWINDOW removes the window from Alt+Tab and
+ *  the taskbar via the window's extended style, complementing Electron's
+ *  setSkipTaskbar(true). The two together are belt-and-braces. */
+function applyToolWindowStyle(hwnd: Buffer): void {
   const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
   const newExStyle = (BigInt(exStyle) & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
 }
 
-function flipToPopupStyle(hwnd: Buffer): void {
-  const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
-  const newStyle = (BigInt(style) & ~WS_CHILD) | WS_POPUP;
-  SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
-
+function restoreAppWindowStyle(hwnd: Buffer): void {
   const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
   const newExStyle = (BigInt(exStyle) & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW;
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
 }
 
+function pinToBottom(hwnd: Buffer): void {
+  // X/Y/cx/cy are ignored because SWP_NOMOVE + SWP_NOSIZE are set; we just
+  // shuffle the z-order without disturbing position or size. SWP_NOACTIVATE
+  // is critical: without it, pinning to bottom would steal focus from the
+  // user's actual foreground app every time the watchdog ticks.
+  SetWindowPos(
+    hwnd,
+    HWND_BOTTOM,
+    0,
+    0,
+    0,
+    0,
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+  );
+}
+
+// --- Public API -------------------------------------------------------------
+
 export function enterWallpaper(win: BrowserWindow, display?: Display): void {
   try {
-    const candidates = findWallpaperParents();
-    if (candidates.length === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[wallpaper:windows] could not locate Progman; staying in window mode');
-      return;
-    }
-
     preWallpaperBounds = win.getBounds();
-
     win.setSkipTaskbar(true);
     win.setIgnoreMouseEvents(true);
 
     const hwnd = electronHwnd(win);
+    applyToolWindowStyle(hwnd);
 
-    // Try each candidate parent in priority order. Verifying success is
-    // tricky: SetParent's return value is the PREVIOUS parent HWND, which is
-    // NULL for a top-level window that had no prior parent — same as the
-    // failure return. So we can't use the return value alone. Instead we
-    // call GetParent(hwnd) after and compare it to our target; if it
-    // matches, the reparent committed. Some Win11 builds also require the
-    // window to be WS_CHILD style BEFORE SetParent will accept it as a
-    // child, so we try a second variant with the style flipped first.
-    let success: { via: string } | null = null;
-    for (const target of candidates) {
-      // Attempt 1: SetParent first, flip style after (original ordering).
-      SetParent(hwnd, target.hwnd);
-      let actualParent = GetParent(hwnd) as Buffer | null;
-      let bound = actualParent && Buffer.compare(actualParent, target.hwnd) === 0;
-      if (!bound) {
-        // Attempt 2: flip to WS_CHILD style first, then SetParent.
-        flipToChildStyle(hwnd);
-        SetParent(hwnd, target.hwnd);
-        actualParent = GetParent(hwnd) as Buffer | null;
-        bound = actualParent && Buffer.compare(actualParent, target.hwnd) === 0;
-      }
-      if (bound) {
-        success = target;
-        // eslint-disable-next-line no-console
-        console.log(`[wallpaper:windows] reparented via ${target.via}`);
-        break;
-      }
-      // eslint-disable-next-line no-console
-      const lastErr = GetLastError() as number;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[wallpaper:windows] SetParent failed for ${target.via} ` +
-          `(GetParent=${actualParent ? 'non-null but mismatched' : 'null'}, ` +
-          `GetLastError=${lastErr}); trying next`,
-      );
-    }
-    if (!success) {
-      // eslint-disable-next-line no-console
-      console.warn('[wallpaper:windows] all reparent strategies failed; staying in window mode');
-      // Style may have been flipped to WS_CHILD during retry; flip it back
-      // so the window can render as a normal popup again.
-      flipToPopupStyle(hwnd);
-      win.setSkipTaskbar(false);
-      win.setIgnoreMouseEvents(false);
-      preWallpaperBounds = null;
-      return;
-    }
-
-    // Make sure WS_POPUP → WS_CHILD is applied (might already be flipped
-    // from the retry path above, but flipping twice is idempotent).
-    flipToChildStyle(hwnd);
-
-    // Use Electron's screen API (DIPs, DPI-aware) instead of
-    // GetSystemMetrics(SM_CXSCREEN) which returns physical pixels and
-    // gives wrong sizes on scaled displays (most modern laptops run at
-    // 125%/150%). Bounds applied twice — once immediately, once after
-    // 100ms — because some Windows builds defer the WorkerW reparent and
-    // the first setBounds doesn't take effect.
-    //
     // Slice 5: target display is whichever the caller picked (multi-
     // monitor). null/undefined falls back to the primary display so
-    // single-monitor users keep the old behavior unchanged.
+    // single-monitor users keep the old behaviour unchanged.
     const targetDisplay = display ?? screen.getPrimaryDisplay();
     const { x, y, width, height } = targetDisplay.bounds;
     // eslint-disable-next-line no-console
@@ -286,11 +148,32 @@ export function enterWallpaper(win: BrowserWindow, display?: Display): void {
         `scale ${targetDisplay.scaleFactor}; display id ${targetDisplay.id}`,
     );
     win.setBounds({ x, y, width, height });
+    // Apply bounds twice — once now, once after 100ms — because some
+    // Windows builds defer the style change and the first setBounds gets
+    // discarded if it lands during the WM_STYLECHANGED propagation.
     setTimeout(() => {
       if (!win.isDestroyed()) win.setBounds({ x, y, width, height });
     }, 100);
 
-    ShowWindow(hwnd, SW_SHOW);
+    pinToBottom(hwnd);
+    // eslint-disable-next-line no-console
+    console.log('[wallpaper:windows] pinned to bottom of z-order');
+
+    // Watchdog: re-pin every REPIN_INTERVAL_MS. When the user clicks
+    // another app, Windows promotes that app's window up the z-order
+    // without affecting ours, so this is usually a no-op. But when the
+    // foreground app explicitly raises z-order (e.g. some installers,
+    // some games' fullscreen-borderless), our window can end up not at
+    // bottom; the next tick re-asserts bottom-pin without stealing focus.
+    if (repinInterval) clearInterval(repinInterval);
+    repinInterval = setInterval(() => {
+      if (win.isDestroyed()) {
+        if (repinInterval) clearInterval(repinInterval);
+        repinInterval = null;
+        return;
+      }
+      pinToBottom(hwnd);
+    }, REPIN_INTERVAL_MS);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[wallpaper:windows] enter failed:', (e as Error).message);
@@ -299,12 +182,26 @@ export function enterWallpaper(win: BrowserWindow, display?: Display): void {
 
 export function exitWallpaper(win: BrowserWindow): void {
   try {
-    const hwnd = electronHwnd(win);
+    if (repinInterval) {
+      clearInterval(repinInterval);
+      repinInterval = null;
+    }
 
-    // Restore WS_POPUP before unparenting so the window is a proper
-    // standalone again after SetParent(NULL).
-    flipToPopupStyle(hwnd);
-    SetParent(hwnd, null);
+    const hwnd = electronHwnd(win);
+    restoreAppWindowStyle(hwnd);
+
+    // HWND_NOTOPMOST lifts the window OUT of bottom-pin into normal z-order.
+    // The window doesn't gain focus (SWP_NOACTIVATE) — togglePeek calls
+    // setAlwaysOnTop(true) + focus() afterwards if it wants foreground.
+    SetWindowPos(
+      hwnd,
+      HWND_NOTOPMOST,
+      0,
+      0,
+      0,
+      0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+    );
 
     win.setIgnoreMouseEvents(false);
     win.setSkipTaskbar(false);
@@ -312,8 +209,6 @@ export function exitWallpaper(win: BrowserWindow): void {
       win.setBounds(preWallpaperBounds);
       preWallpaperBounds = null;
     }
-
-    ShowWindow(hwnd, SW_SHOW);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[wallpaper:windows] exit failed:', (e as Error).message);
