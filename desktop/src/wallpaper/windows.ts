@@ -87,7 +87,7 @@ function electronHwnd(win: BrowserWindow): Buffer {
 }
 
 /**
- * Locate a window suitable to be our wallpaper parent. Three fallback
+ * Locate candidate windows for wallpaper reparenting. Three fallback
  * strategies — Windows builds disagree about where SHELLDLL_DefView lives:
  *
  *   1. The canonical Lively pattern: find a top-level WorkerW that owns
@@ -102,11 +102,14 @@ function electronHwnd(win: BrowserWindow): Buffer {
  *      will composite on top of us only because they're a higher child of
  *      Progman) but reliable: Progman always exists on a shelled session.
  *
- * Returns the picked HWND + a label for diagnostic logging.
+ * Returns ALL viable candidates in priority order. The caller tries each
+ * in turn until SetParent actually succeeds — locating an HWND isn't the
+ * same as Win32 accepting it as a parent. On some Win11 builds the chosen
+ * WorkerW disallows reparenting and only Progman works.
  */
-function findWallpaperParent(): { hwnd: Buffer; via: string } | null {
+function findWallpaperParents(): Array<{ hwnd: Buffer; via: string }> {
   const progman = FindWindowW('Progman', null) as Buffer | null;
-  if (!progman) return null;
+  if (!progman) return [];
 
   // Send the magic message asking Explorer to spawn the WorkerW that sits
   // between the wallpaper layer and the icons. Idempotent across calls.
@@ -121,6 +124,8 @@ function findWallpaperParent(): { hwnd: Buffer; via: string } | null {
     result,
   );
 
+  const candidates: Array<{ hwnd: Buffer; via: string }> = [];
+
   // Strategy 1: WorkerW that owns SHELLDLL_DefView → use its next sibling.
   let prev: Buffer | null = null;
   let lastTopLevel: Buffer | null = null;
@@ -132,16 +137,20 @@ function findWallpaperParent(): { hwnd: Buffer; via: string } | null {
     const shellView = FindWindowExW(wW, null, 'SHELLDLL_DefView', null) as Buffer | null;
     if (shellView) {
       const next = FindWindowExW(null, wW, 'WorkerW', null) as Buffer | null;
-      if (next) return { hwnd: next, via: 'WorkerW-after-DefView' };
+      if (next) candidates.push({ hwnd: next, via: 'WorkerW-after-DefView' });
     }
     prev = wW;
   }
 
-  // Strategy 2: just pick the last top-level WorkerW we saw above.
-  if (lastTopLevel) return { hwnd: lastTopLevel, via: 'last-top-level-WorkerW' };
+  // Strategy 2: the last top-level WorkerW we saw above. Different HWND
+  // from strategy 1's pick (strategy 1 returns the *sibling* of the DefView
+  // owner), so worth trying separately.
+  if (lastTopLevel) candidates.push({ hwnd: lastTopLevel, via: 'last-top-level-WorkerW' });
 
-  // Strategy 3: fall back to Progman.
-  return { hwnd: progman, via: 'Progman-fallback' };
+  // Strategy 3: Progman itself. Always exists; last resort.
+  candidates.push({ hwnd: progman, via: 'Progman-fallback' });
+
+  return candidates;
 }
 
 /**
@@ -172,14 +181,12 @@ function flipToPopupStyle(hwnd: Buffer): void {
 
 export function enterWallpaper(win: BrowserWindow, display?: Display): void {
   try {
-    const target = findWallpaperParent();
-    if (!target) {
+    const candidates = findWallpaperParents();
+    if (candidates.length === 0) {
       // eslint-disable-next-line no-console
       console.warn('[wallpaper:windows] could not locate Progman; staying in window mode');
       return;
     }
-    // eslint-disable-next-line no-console
-    console.log(`[wallpaper:windows] reparenting via ${target.via}`);
 
     preWallpaperBounds = win.getBounds();
 
@@ -187,10 +194,32 @@ export function enterWallpaper(win: BrowserWindow, display?: Display): void {
     win.setIgnoreMouseEvents(true);
 
     const hwnd = electronHwnd(win);
-    const prevParent = SetParent(hwnd, target.hwnd);
-    if (!prevParent) {
+
+    // Try each candidate parent in priority order. SetParent can return
+    // null even when the candidate HWND is valid (Win11 has tightened
+    // parent-window restrictions on certain WorkerW instances), so locating
+    // is necessary but not sufficient — we need to actually verify the
+    // reparent took. The previous code committed to whichever candidate
+    // findWallpaperParent picked first and ate the failure.
+    let success: { via: string } | null = null;
+    for (const target of candidates) {
+      const prevParent = SetParent(hwnd, target.hwnd);
+      if (prevParent) {
+        success = target;
+        // eslint-disable-next-line no-console
+        console.log(`[wallpaper:windows] reparented via ${target.via}`);
+        break;
+      }
       // eslint-disable-next-line no-console
-      console.warn('[wallpaper:windows] SetParent returned null; reparenting likely failed');
+      console.warn(`[wallpaper:windows] SetParent failed for ${target.via}; trying next`);
+    }
+    if (!success) {
+      // eslint-disable-next-line no-console
+      console.warn('[wallpaper:windows] all reparent strategies failed; staying in window mode');
+      win.setSkipTaskbar(false);
+      win.setIgnoreMouseEvents(false);
+      preWallpaperBounds = null;
+      return;
     }
 
     // Critical: flip WS_POPUP → WS_CHILD. Without this the reparented
