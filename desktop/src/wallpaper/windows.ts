@@ -45,6 +45,7 @@ const koffi = require('koffi') as Koffi;
 
 const user32 = koffi.load('user32.dll');
 const shell32 = koffi.load('shell32.dll');
+const kernel32 = koffi.load('kernel32.dll');
 
 // hWndInsertAfter is void* not intptr: we always pass a real HWND
 // (SHELLDLL_DefView) here, which comes back from FindWindowExW as a
@@ -74,6 +75,7 @@ const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewPar
 const GetShellWindow = user32.func('void* GetShellWindow()');
 const IsWindow = user32.func('bool IsWindow(void* hWnd)');
 const IsUserAnAdmin = shell32.func('bool IsUserAnAdmin()');
+const GetLastError = kernel32.func('uint GetLastError()');
 
 // --- Constants --------------------------------------------------------------
 
@@ -87,9 +89,17 @@ const WM_SPAWN_LPARAM = 0x1;
 const SMTO_NORMAL = 0;
 const SPAWN_TIMEOUT_MS = 1000;
 
+const GWL_STYLE = -16;
 const GWL_EXSTYLE = -20;
 
 // Window styles (winuser.h)
+const WS_CHILD = 0x40000000n;
+const WS_POPUP = 0x80000000n;
+const WS_CAPTION = 0x00c00000n;
+const WS_THICKFRAME = 0x00040000n;
+const WS_MINIMIZEBOX = 0x00020000n;
+const WS_MAXIMIZEBOX = 0x00010000n;
+const WS_SYSMENU = 0x00080000n;
 const WS_EX_APPWINDOW = 0x00040000n;
 const WS_EX_TOOLWINDOW = 0x00000080n;
 // Raised-desktop flag — Microsoft set this on Progman starting with the
@@ -118,6 +128,10 @@ interface WallpaperState {
   trackedWorkerW: Buffer | null;
   /** Window bounds at the moment we entered wallpaper mode — restored on exit. */
   preWallpaperBounds: Rectangle | null;
+  /** GWL_STYLE on entry — restored on exit. WS_CHILD has to be set manually
+   *  before SetParent (MSDN docs) and unset on exit; the rest of the bits
+   *  go back to what Electron originally configured. */
+  preWallpaperStyle: bigint | null;
   /** GWL_EXSTYLE on entry — restored on exit so window mode comes back clean. */
   preWallpaperExStyle: bigint | null;
   /** Whether the raised-desktop (Win11 22H2+) branch was taken on enter. */
@@ -129,6 +143,7 @@ const state: WallpaperState = {
   attaching: false,
   trackedWorkerW: null,
   preWallpaperBounds: null,
+  preWallpaperStyle: null,
   preWallpaperExStyle: null,
   raisedDesktopOnEnter: false,
   watchdog: null,
@@ -200,19 +215,46 @@ function findRaisedWorkerW(progman: Buffer): Buffer | null {
   return (FindWindowExW(progman, null, 'WorkerW', null) as Buffer | null) ?? null;
 }
 
-function applyToolWindowStyle(hwnd: Buffer): bigint {
+function applyToolWindowExStyle(hwnd: Buffer): bigint {
   // WS_EX_LAYERED is in Lively's flow for Godot wallpapers, but Chromium
   // doesn't paint correctly through a layered child window (compositor
   // assumes WM_PAINT semantics, which layered windows hijack). Without
-  // WS_EX_LAYERED the window renders black for us — confirmed on Win11
-  // 22H2+ at first wallpaper-mode attempt. Lively's note "Godot fails to
-  // apply WS_EX_LAYERED if attached after SetParent" is about ordering
-  // for renderers that DO want it; we don't need it (alpha=1, no transparency
-  // requirement), so we skip it entirely.
+  // WS_EX_LAYERED the window renders black for us. We don't need it
+  // (alpha=1, no transparency requirement), so we skip it entirely.
   const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
   const newExStyle = (BigInt(exStyle) & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
   return exStyle;
+}
+
+/** Flip the window from "top-level overlapped" to "child" style.
+ *
+ * Per MSDN SetParent docs: "if hWndNewParent is not NULL and the window
+ * was previously a child of the desktop, you should clear the WS_POPUP
+ * style and set the WS_CHILD style before the window becomes a child of
+ * the new window." Skipping this step is why our first wallpaper-mode
+ * attempts on Win11 22H2+ ended up with SetParent succeeding-but-not-
+ * really and SetWindowPos failing to z-order against a sibling.
+ *
+ * Also strips the chrome bits (caption, thick frame, min/max/sysmenu)
+ * so the window doesn't render its title bar inside the wallpaper layer. */
+function applyChildStyle(hwnd: Buffer): bigint {
+  const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
+  const stripped =
+    BigInt(style) &
+    ~WS_POPUP &
+    ~WS_CAPTION &
+    ~WS_THICKFRAME &
+    ~WS_MINIMIZEBOX &
+    ~WS_MAXIMIZEBOX &
+    ~WS_SYSMENU;
+  const newStyle = stripped | WS_CHILD;
+  SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+  return style;
+}
+
+function restoreStyle(hwnd: Buffer, original: bigint): void {
+  SetWindowLongPtrW(hwnd, GWL_STYLE, original);
 }
 
 function restoreExStyle(hwnd: Buffer, original: bigint): void {
@@ -266,11 +308,16 @@ export function enterWallpaper(win: BrowserWindow): void {
 
     const hwnd = electronHwnd(win);
 
-    // Tool-window style (drops WS_EX_APPWINDOW, adds WS_EX_TOOLWINDOW) so
-    // we don't appear in Alt+Tab or the taskbar. WS_EX_LAYERED is in
-    // Lively's flow but Chromium renders black through layered child
-    // windows — see applyToolWindowStyle comments.
-    state.preWallpaperExStyle = applyToolWindowStyle(hwnd);
+    // Style flips, BEFORE SetParent:
+    //   - GWL_STYLE: clear WS_POPUP + chrome bits, set WS_CHILD. MSDN
+    //     SetParent docs require this manually; without it SetParent
+    //     succeeds-but-not-really and subsequent SetWindowPos against a
+    //     sibling fails because we're not actually a sibling yet.
+    //   - GWL_EXSTYLE: tool-window style so we don't appear in Alt+Tab
+    //     or the taskbar. (Not strictly required for child windows but
+    //     belt-and-braces.)
+    state.preWallpaperStyle = applyChildStyle(hwnd);
+    state.preWallpaperExStyle = applyToolWindowExStyle(hwnd);
 
     let parent: Buffer | null = null;
     if (raised) {
@@ -288,20 +335,25 @@ export function enterWallpaper(win: BrowserWindow): void {
           `(raised=${raised}); leaving window in normal z-order`,
       );
       // Roll back the style flips so window mode comes back clean.
+      restoreStyle(hwnd, state.preWallpaperStyle as bigint);
       restoreExStyle(hwnd, state.preWallpaperExStyle);
+      state.preWallpaperStyle = null;
       state.preWallpaperExStyle = null;
       win.setSkipTaskbar(false);
       win.setIgnoreMouseEvents(false);
       return;
     }
 
-    // SetParent — let the OS flip WS_CHILD itself. Manually OR'ing it into
-    // GWL_STYLE on a window that still carries WS_POPUP leaves inconsistent
-    // style bits per the Plan-agent review.
+    // SetParent — MSDN return value is ambiguous (null both on failure
+    // and on "no prior parent"), so we check GetLastError immediately.
+    // 0 = success, nonzero = the actual failure reason.
     const setParentResult = SetParent(hwnd, parent) as Buffer | null;
+    const setParentErr = GetLastError() as number;
     // eslint-disable-next-line no-console
     console.log(
-      `[wallpaper:windows] SetParent → ${setParentResult ? 'ok (prior parent returned)' : 'null (failed or no prior parent)'}`,
+      `[wallpaper:windows] SetParent → ${
+        setParentResult ? 'ok (prior parent returned)' : 'null'
+      }, GetLastError=${setParentErr}`,
     );
 
     // Size the window to the primary display. After SetParent, X/Y are
@@ -336,9 +388,12 @@ export function enterWallpaper(win: BrowserWindow): void {
           0,
           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         ) as boolean;
+        const zOrderErr = GetLastError() as number;
         // eslint-disable-next-line no-console
         console.log(
-          `[wallpaper:windows] SetWindowPos(after DefView) → ${zOrderOk ? 'ok' : 'FAILED'}`,
+          `[wallpaper:windows] SetWindowPos(after DefView) → ${
+            zOrderOk ? 'ok' : 'FAILED'
+          }, GetLastError=${zOrderErr}`,
         );
       } else {
         // eslint-disable-next-line no-console
@@ -366,6 +421,13 @@ export function exitWallpaper(win: BrowserWindow): void {
     const hwnd = electronHwnd(win);
     SetParent(hwnd, null);
 
+    // Restore styles AFTER SetParent (mirror of enter order). Per MSDN
+    // SetParent docs, if hWndNewParent is NULL you should also clear
+    // WS_CHILD; restoring the saved pre-wallpaper style covers that.
+    if (state.preWallpaperStyle !== null) {
+      restoreStyle(hwnd, state.preWallpaperStyle);
+      state.preWallpaperStyle = null;
+    }
     if (state.preWallpaperExStyle !== null) {
       restoreExStyle(hwnd, state.preWallpaperExStyle);
       state.preWallpaperExStyle = null;
