@@ -553,9 +553,21 @@ export default {
     // Phase 0 just to prove the renderer → worker → Ollama (or Anthropic
     // Haiku) → renderer loop completes end-to-end.
     if (req.method === 'POST' && url.pathname === '/api/agent/tick') {
-      let body: { agent?: unknown; perception?: unknown };
+      let body: {
+        agent?: unknown;
+        perception?: unknown;
+        context?: {
+          recentMemories?: ReadonlyArray<{
+            text: string;
+            kind: string;
+            created_at: number;
+            importance: number;
+          }>;
+          persona?: { name: string; system_prompt: string } | null;
+        };
+      };
       try {
-        body = (await req.json()) as { agent?: unknown; perception?: unknown };
+        body = (await req.json()) as typeof body;
       } catch {
         return json({ error: 'invalid json body' }, { status: 400 }, cors);
       }
@@ -563,13 +575,25 @@ export default {
         return json({ error: 'agent + perception required' }, { status: 400 }, cors);
       }
 
-      const system =
+      // Phase 2C: persona (if supplied) is injected at the top of the system
+      // prompt; recent memories are listed under the perception in the user
+      // turn. Back-compat — Phase-0 callers omit `context` and get the
+      // generic system prompt + perception-only user turn.
+      const baseSystem =
         'You are an agent in a 2D memory palace populated by short-lived sprites. ' +
         'Given your own state and what you currently perceive, choose your next ' +
         'short action. Respond with ONLY valid JSON in this exact shape:\n' +
         '  {"action": "<verb phrase, ≤60 chars>", "intent": "<one sentence, ≤120 chars>"}\n' +
         'No extra fields, no prose outside the JSON.';
-      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nperception: ${JSON.stringify(body.perception)}`;
+      const personaBlock = body.context?.persona?.system_prompt
+        ? `[persona]\n${body.context.persona.system_prompt}\n\n[task]\n`
+        : '';
+      const system = `${personaBlock}${baseSystem}`;
+
+      const memoryBlock = body.context?.recentMemories?.length
+        ? `\nrecent_memories: ${JSON.stringify(body.context.recentMemories)}`
+        : '';
+      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nperception: ${JSON.stringify(body.perception)}${memoryBlock}`;
 
       const startedAt = Date.now();
       let result: { text: string; model: string; provider: string };

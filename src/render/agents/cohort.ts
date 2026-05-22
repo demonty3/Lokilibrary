@@ -30,11 +30,23 @@ import {
   type BehaviorContext,
 } from '../../agents/behavior';
 import {
+  computePerception,
+  resetPerceptionState,
+  type WorldSnapshot,
+} from '../../agents/perception';
+import {
+  routeTier1,
+  nullMemoryWriter,
+  type MemoryWriter,
+  type Tier1Transport,
+} from '../../agents/router';
+import {
   clearRuntimes,
   initialRuntime,
   listRuntimes,
   setRuntime,
 } from '../../state/agentRuntime';
+import { playerPosition } from '../../state/playerPos';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -57,6 +69,14 @@ export interface MountCohortOptions {
   /** Wall-clock provider — defaults to `new Date().getHours()`. Tests
    *  inject a fake clock here. */
   wallClockHour?: () => number;
+  /** Tier-1 transport override (tests inject stubs). Defaults to HTTP
+   *  via api/agent.ts. */
+  tier1Transport?: Tier1Transport;
+  /** Memory writer (Electron-only in production; tests + web build use
+   *  the null writer that no-ops every method). */
+  memoryWriter?: MemoryWriter;
+  /** Free-text scene label sent in each Tier-1 perception payload. */
+  sceneLabel?: string;
 }
 
 export function mountCohort(opts: MountCohortOptions): () => void {
@@ -100,15 +120,47 @@ export function mountCohort(opts: MountCohortOptions): () => void {
     wallClockHour: opts.wallClockHour ?? (() => new Date().getHours()),
   };
 
+  const memoryWriter = opts.memoryWriter ?? nullMemoryWriter;
+  const sceneLabel = opts.sceneLabel ?? 'a small library room';
   const defById = new Map(defs.map((d) => [d.id, d]));
+  // Bookshelf positions are stable per layout — passed by reference to
+  // perception every tick, no copy.
+  const bookshelves = opts.layout.bookshelfSlots;
 
   const tick: TickerCallback<unknown> = () => {
     const now = performance.now();
-    for (const runtime of listRuntimes()) {
+    const runtimes = listRuntimes();
+
+    // Build the agents Map once per tick so perception's FOV loop sees
+    // a coherent snapshot (rather than mid-tick mutated positions from
+    // other agents' BT steps).
+    const agentPositions = new Map<string, CellPoint>();
+    for (const rt of runtimes) {
+      agentPositions.set(rt.id, { x: rt.x, y: rt.y });
+    }
+    const world: WorldSnapshot = {
+      player: { x: playerPosition.x, y: playerPosition.y },
+      agents: agentPositions,
+      bookshelves,
+    };
+
+    for (const runtime of runtimes) {
       const def = defById.get(runtime.id);
       if (!def) continue;
       tickPresence(def, runtime, ctx, mountedAt, now);
       tickBehavior(def, runtime, ctx, now);
+
+      // Perception poll → queue; router decides whether to dispatch.
+      computePerception(def, runtime, world, now);
+      if (runtime.perceptionQueue.length > 0) {
+        // Fire-and-forget — routeTier1 sets lastTier1At synchronously
+        // before awaiting, so concurrent ticks throttle correctly.
+        void routeTier1(def, runtime, sceneLabel, now, {
+          transport: opts.tier1Transport,
+          memory: memoryWriter,
+        });
+      }
+
       const sprite = sprites.get(runtime.id);
       if (!sprite) continue;
       sprite.visible = runtime.present;
@@ -126,6 +178,7 @@ export function mountCohort(opts: MountCohortOptions): () => void {
     sprites.clear();
     prngs.clear();
     clearRuntimes();
+    resetPerceptionState();
   };
 }
 

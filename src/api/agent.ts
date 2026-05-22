@@ -23,6 +23,22 @@ export interface AgentPerception {
   lastAction?: string;
 }
 
+/**
+ * Context block introduced in Phase 2C (slice 2C.3). The router gathers
+ * recent memories + persona from the SQLite store and ships them with
+ * each tick so the model has Smallville-style grounding. Optional for
+ * back-compat — the Phase 0 hello-world call shape still works.
+ */
+export interface AgentTickContext {
+  recentMemories?: ReadonlyArray<{
+    text: string;
+    kind: 'observation' | 'reflection' | 'plan' | 'dialogue';
+    created_at: number;
+    importance: number;
+  }>;
+  persona?: { name: string; system_prompt: string } | null;
+}
+
 export interface AgentTick {
   action: string;
   intent: string;
@@ -38,6 +54,7 @@ export type AgentTickResult =
 export async function tickAgent(
   agent: AgentSnapshot,
   perception: AgentPerception,
+  context?: AgentTickContext,
 ): Promise<AgentTickResult> {
   let res: Response;
   try {
@@ -45,7 +62,7 @@ export async function tickAgent(
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ agent, perception }),
+      body: JSON.stringify({ agent, perception, ...(context && { context }) }),
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'network error' };
