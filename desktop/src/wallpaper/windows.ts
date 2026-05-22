@@ -111,7 +111,13 @@ const WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
 // SetWindowPos flags
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
+const SWP_NOZORDER = 0x0004;
 const SWP_NOACTIVATE = 0x0010;
+// Forces Windows to send WM_NCCALCSIZE and apply pending GWL_STYLE
+// changes. Without it, SetWindowLong-style changes can be invisible
+// to subsequent SetParent calls — explains why our WS_CHILD set is
+// silently no-op'd in earlier runs.
+const SWP_FRAMECHANGED = 0x0020;
 
 // Polling interval for WorkerW liveness check. 2s is frequent enough to
 // recover ~one display-mode-change before the user notices a black wallpaper,
@@ -308,6 +314,19 @@ export function enterWallpaper(win: BrowserWindow): void {
 
     const hwnd = electronHwnd(win);
 
+    // Pre-size the window to the primary display while it's still top-
+    // level. Matches Lively's order (sizing first, then style flips,
+    // then SetParent) and gives Windows a chance to settle before we
+    // change the style.
+    const primary = screen.getPrimaryDisplay();
+    const { x, y, width, height } = primary.bounds;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); ` +
+        `scale ${primary.scaleFactor}`,
+    );
+    win.setBounds({ x, y, width, height });
+
     // Style flips, BEFORE SetParent:
     //   - GWL_STYLE: clear WS_POPUP + chrome bits, set WS_CHILD. MSDN
     //     SetParent docs require this manually; without it SetParent
@@ -318,6 +337,24 @@ export function enterWallpaper(win: BrowserWindow): void {
     //     belt-and-braces.)
     state.preWallpaperStyle = applyChildStyle(hwnd);
     state.preWallpaperExStyle = applyToolWindowExStyle(hwnd);
+
+    // SetWindowLong-style changes don't fully take effect until a
+    // SetWindowPos with SWP_FRAMECHANGED triggers WM_NCCALCSIZE. Without
+    // this, SetParent sees the OLD style bits (WS_POPUP still set, no
+    // WS_CHILD), rejects the reparent with ERROR_INVALID_WINDOW_HANDLE
+    // (1400). This was the root cause of the first run failures even
+    // after the WS_CHILD code was correct.
+    const propOk = SetWindowPos(
+      hwnd,
+      null,
+      0,
+      0,
+      0,
+      0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+    ) as boolean;
+    // eslint-disable-next-line no-console
+    console.log(`[wallpaper:windows] SetWindowPos(FRAMECHANGED) → ${propOk ? 'ok' : 'FAILED'}`);
 
     let parent: Buffer | null = null;
     if (raised) {
@@ -356,19 +393,11 @@ export function enterWallpaper(win: BrowserWindow): void {
       }, GetLastError=${setParentErr}`,
     );
 
-    // Size the window to the primary display. After SetParent, X/Y are
-    // parent-relative — but Progman/WorkerW span the virtual screen at
-    // origin (0,0), so primary-display bounds work directly.
-    const primary = screen.getPrimaryDisplay();
-    const { x, y, width, height } = primary.bounds;
-    // eslint-disable-next-line no-console
-    console.log(
-      `[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); ` +
-        `scale ${primary.scaleFactor}`,
-    );
+    // After SetParent, X/Y become parent-relative. Progman spans the
+    // virtual screen at (0,0), so re-asserting the display bounds works
+    // unchanged — but we re-apply because some Win11 builds reset child
+    // bounds during the SetParent transition.
     win.setBounds({ x, y, width, height });
-    // Some Win11 builds defer the style change; the second setBounds catches
-    // the case where the first lands during WM_STYLECHANGED propagation.
     setTimeout(() => {
       if (!win.isDestroyed()) win.setBounds({ x, y, width, height });
     }, 100);
