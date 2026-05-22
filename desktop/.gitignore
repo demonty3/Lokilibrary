@@ -1,0 +1,21 @@
+node_modules
+dist
+
+# Steamworks SDK files. Section 1.1(b) of the SDK license (see
+# STEAMWORKS_SDK_LICENSE.txt) does permit shipping the redistributable_bin
+# binaries with our Licensee Software, so this directory could be committed
+# if we wanted version-pinned binaries in the repo. We don't — each dev runs
+# the one-time download from partner.steamgames.com and drops the contents
+# of sdk/redistributable_bin/<platform>/ into this folder. Saves ~few MB of
+# binary churn in git history.
+sdk/
+
+# Per-environment appid file. 480 (SpaceWar) in dev; real appid in prod.
+steam_appid.txt
+
+# Native build artifacts (slice 6's electron-builder output)
+out/
+release/
+
+*.log
+.DS_Store
