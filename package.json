@@ -11,17 +11,22 @@
     "worker": "wrangler dev --config worker/wrangler.toml"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
     "pixi.js": "^8.18.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "simplex-noise": "^4.0.3",
+    "sqlite-vec": "^0.1.6",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250510.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "tsx": "^4.19.2",
     "typescript": "^6.0.3",
     "vite": "^5.4.21",
     "wrangler": "^3.90.0"
