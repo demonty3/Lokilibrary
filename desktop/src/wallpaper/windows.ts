@@ -157,8 +157,25 @@ const state: WallpaperState = {
 
 // --- Helpers ----------------------------------------------------------------
 
-function electronHwnd(win: BrowserWindow): Buffer {
-  return win.getNativeWindowHandle();
+/** Electron returns the HWND as a Buffer wrapping 8 raw bytes (on x64).
+ *
+ * koffi marshals Node Buffers passed for `void*` as "pointer to the
+ * buffer's memory" — i.e. it passes the buffer's heap address, NOT the
+ * pointer value stored inside. That's correct for output buffers
+ * (WriteFile lpBuffer etc.) but completely wrong for HWND-as-handle.
+ *
+ * On Windows, HWND is a pointer-sized opaque handle. The buffer's first
+ * 8 bytes ARE the HWND value (little-endian on x64). We read those bytes
+ * and pass the resulting bigint — koffi accepts bigint for `void*`
+ * Win32 handle parameters per its docs. This is why our SetWindowPos,
+ * SetParent, and SetWindowLong calls on our own window were failing
+ * with ERROR_INVALID_WINDOW_HANDLE (1400) even though GetWindowLong on
+ * Progman worked: Progman came from a koffi-returned `void*` (which
+ * koffi unwraps transparently), but Electron's hwnd was a foreign
+ * Buffer that got its address passed by mistake.
+ */
+function electronHwnd(win: BrowserWindow): bigint {
+  return win.getNativeWindowHandle().readBigInt64LE(0);
 }
 
 /** Spawn the "live wallpaper" WorkerW by poking Progman with the magic
@@ -221,7 +238,7 @@ function findRaisedWorkerW(progman: Buffer): Buffer | null {
   return (FindWindowExW(progman, null, 'WorkerW', null) as Buffer | null) ?? null;
 }
 
-function applyToolWindowExStyle(hwnd: Buffer): bigint {
+function applyToolWindowExStyle(hwnd: bigint): bigint {
   // WS_EX_LAYERED is in Lively's flow for Godot wallpapers, but Chromium
   // doesn't paint correctly through a layered child window (compositor
   // assumes WM_PAINT semantics, which layered windows hijack). Without
@@ -244,7 +261,7 @@ function applyToolWindowExStyle(hwnd: Buffer): bigint {
  *
  * Also strips the chrome bits (caption, thick frame, min/max/sysmenu)
  * so the window doesn't render its title bar inside the wallpaper layer. */
-function applyChildStyle(hwnd: Buffer): bigint {
+function applyChildStyle(hwnd: bigint): bigint {
   const style = GetWindowLongPtrW(hwnd, GWL_STYLE) as bigint;
   const stripped =
     BigInt(style) &
@@ -259,11 +276,11 @@ function applyChildStyle(hwnd: Buffer): bigint {
   return style;
 }
 
-function restoreStyle(hwnd: Buffer, original: bigint): void {
+function restoreStyle(hwnd: bigint, original: bigint): void {
   SetWindowLongPtrW(hwnd, GWL_STYLE, original);
 }
 
-function restoreExStyle(hwnd: Buffer, original: bigint): void {
+function restoreExStyle(hwnd: bigint, original: bigint): void {
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, original);
 }
 
