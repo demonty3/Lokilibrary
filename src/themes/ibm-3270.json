@@ -1,0 +1,19 @@
+{
+  "id": "ibm-3270",
+  "name": "IBM 3270 Amber",
+  "palette": {
+    "bg":        "#0a0500",
+    "bgAlt":     "#1a0e00",
+    "fgDim":     "#806a30",
+    "fg":        "#ffb000",
+    "fgBright":  "#ffd700",
+    "yellow":    "#ffb000",
+    "orange":    "#ff8c00",
+    "red":       "#ff6b00",
+    "magenta":   "#ff9500",
+    "violet":    "#cc7700",
+    "blue":      "#8a5a00",
+    "cyan":      "#aa6a00",
+    "green":     "#ffd700"
+  }
+}

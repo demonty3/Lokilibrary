@@ -1,0 +1,19 @@
+{
+  "id": "tokyo-night",
+  "name": "Tokyo Night",
+  "palette": {
+    "bg":        "#1a1b26",
+    "bgAlt":     "#24283b",
+    "fgDim":     "#565a6e",
+    "fg":        "#c0caf5",
+    "fgBright":  "#ffffff",
+    "yellow":    "#e0af68",
+    "orange":    "#ff9e64",
+    "red":       "#f7768e",
+    "magenta":   "#bb9af7",
+    "violet":    "#9d7cd8",
+    "blue":      "#7aa2f7",
+    "cyan":      "#7dcfff",
+    "green":     "#9ece6a"
+  }
+}

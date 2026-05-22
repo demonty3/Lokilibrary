@@ -5,21 +5,28 @@ visualiser) to Memory Palace (terminal-aesthetic 2D pixel-art agent
 society). Plan in `docs/pivot/{DESIGN,FEASIBILITY}.md`; pivot plan at
 `/home/henrydemontfort/.claude/plans/i-m-pivoting-this-project-cozy-newell.md`.
 
-**Verified 2026-05-22.** Four of five checks green. Check 2 (wallpaper
-mode) is **deferred to v1.x** — Win11 22H2+ tightened UIPI restrictions
-block cross-process SetParent against Progman/WorkerW; the SetWindowPos
-HWND_BOTTOM fallback only achieves "bottom of normal z-order, in front
-of icons," not true wallpaper layering. See § Wallpaper deferral below.
+**Verified 2026-05-22. All five checks green.** Check 2 (wallpaper
+mode) was initially deferred to v1.x — Win11 22H2+ UIPI-style
+restrictions had us convinced cross-process SetParent against Progman
+was blocked at the OS level. Same-day follow-up read Lively Wallpaper's
+actual C# source: it was a koffi marshalling bug + missing Win32
+quirks, not a privilege issue. The wallpaper layer was revived on
+branch `claude/wallpaper-revival` and works end-to-end on Win11 22H2+
+at normal `asInvoker` integrity. See § Wallpaper revival (Check 2
+reopened) below.
 
-The decision is to fast-forward `main` and proceed to Phase 1 without
-wallpaper mode. The remaining four integrations are sound, and the
-revised pitch (alt-tab destination, walkable explore mode, launcher
-when wanted) covers what wallpaper would have covered for v1.0.
+The decision was to fast-forward `main` after Phase 0, do the prune
+cleanup (commits A–E), then revive wallpaper on a follow-up branch.
+The revised pitch (alt-tab destination, walkable explore mode,
+launcher when wanted, **plus** true wallpaper-layer rendering) now
+covers the full v1.0 vision.
 
-Post-verification cleanup (prune commits A–E on this branch) renames
-the repo to `lokilibrary`, archives the v0.6 `desktop/` wrapper to
-`legacy-desktop-v0.6/`, and rebuilds a minimal `desktop/` with just
-Steamworks init + tray Quit (no wallpaper, no peek, no display picker).
+Post-verification cleanup (prune commits A–E on `claude/pivot-memory-
+palace`) renamed the repo to `lokilibrary`, archived the v0.6
+`desktop/` wrapper to `legacy-desktop-v0.6/`, and rebuilt a minimal
+`desktop/`. The wallpaper revival (`claude/wallpaper-revival`) then
+layered the Lively-style Progman reparent back on top of that minimal
+base.
 
 ## What Phase 0 shipped (5 code commits on `claude/pivot-memory-palace`)
 
@@ -78,25 +85,26 @@ Known risk: PixiJS WebGL/WebGPU context may need
 canvas goes blank during the reparent transition, that's the suspect
 — fix is renderer-side in `src/render/PixiApp.ts`.
 
-- Status: ❌ **DEFERRED to v1.x** (2026-05-22)
-- Notes: Win11 22H2+ UIPI restrictions broke the integration.
-  - `SetParent(hwnd, WorkerW)` failed with `ERROR_INVALID_WINDOW_HANDLE`
-    (1400) on every WorkerW candidate (15 enumerated on this host) and
-    on `Progman` as the documented fallback. We tried Progman magic-
-    message variants (`wParam=0x0D/0x0A` per RaymondChen / Lively),
-    `WS_CHILD`-first style flip retry, explicit `GetParent` verification
-    of zombie WorkerWs — all failed with the same error code.
-  - The SetWindowPos HWND_BOTTOM fallback (commit `daa4951`) put the
-    window "at the back of normal z-order" — clickable through to
-    desktop icons (good), but visible IN FRONT of them (bad). Progman
-    sits below HWND_BOTTOM; we cannot get under it without reparenting.
-  - Wallpaper Engine / Lively solve this with an unsandboxed helper
-    process. That's the v1.x revisit plan.
+- Status: ✅ **REVIVED 2026-05-22** on branch `claude/wallpaper-revival`
+- Notes: Initial v0.6 attempt failed with `ERROR_INVALID_WINDOW_HANDLE`
+  (1400) — we attributed it to Win11 22H2+ UIPI restrictions and
+  deferred. Same-day re-investigation read Lively's actual C# source
+  and identified four real bugs: (a) wrong reparent target on raised-
+  desktop topology (must be Progman, not WorkerW); (b) `WS_CHILD`
+  needs manual flip before `SetParent` per MSDN; (c) style changes
+  need `SWP_FRAMECHANGED` to propagate before `SetParent` sees them;
+  (d) **koffi marshals Node Buffers passed for `void*` as the
+  buffer's heap address rather than the contents-as-pointer — making
+  Electron's `getNativeWindowHandle()` Buffer fail silently for every
+  HWND parameter.** The bigint fix was the real unblocker. See
+  commits `2141c92` + earlier on the revival branch.
+  - All five acceptance criteria pass: hidden from Alt+Tab, icons
+    z-order on top + remain interactive, Win+D keeps content visible,
+    no flicker on app drags, edge-to-edge sizing.
   - Tray menu auto-fire surfaced as a separate Electron-on-Win11 bug
     (radio + checkbox menu items re-fire click handlers on
-    `setContextMenu` rebuild). Partially mitigated with applyMode-noop
-    guard in commit `37aaa34`; doesn't fully prevent the startup fire.
-    Moot post-prune since the new minimal tray has no toggle.
+    `setContextMenu` rebuild). Mitigated with `applyMode` noop guard;
+    new minimal tray is a non-issue.
 
 ### 3. Steamworks.js init + Steam overlay (Windows-native only)
 
@@ -179,27 +187,66 @@ Telemetry-from-day-one is in the CLAUDE.md rewrite outline. The Phase
 latency_ms, model, provider}` for every Tier 1/2 call into a SQLite
 table, surface as a debug overlay.
 
-## Wallpaper deferral (Check 2)
+## Wallpaper deferral → revival (Check 2)
 
-Wallpaper mode was always the most architecturally awkward piece of the
-v1.0 pitch. On Win10 and pre-22H2 Win11 the WorkerW reparent technique
-works; on Win11 22H2+ Microsoft tightened UIPI so cross-process
-`SetParent` against `Progman` and its WorkerW children returns 1400
-(`ERROR_INVALID_WINDOW_HANDLE`) regardless of which child you target.
-There is no public, sanctioned API to enter the wallpaper layer.
+**Original deferral (kept for context):** Wallpaper mode was the most
+architecturally awkward piece of the v1.0 pitch. On Win10 and pre-22H2
+Win11 the WorkerW reparent technique works; on Win11 22H2+ our v0.6
+code failed with `ERROR_INVALID_WINDOW_HANDLE` (1400) on every
+SetParent attempt, and we attributed it to UIPI tightening. We posited
+a privileged-helper-exe path à la Wallpaper Engine as the v1.x fix.
 
-What still works on 22H2+:
-- A privileged helper process with elevated UIPI/integrity. Wallpaper
-  Engine and Lively both ship one. ~1 week of native Win32 work + a
-  privileged-install user story we don't currently have.
-- Maintaining a topmost-style "alt-tab destination" — which is what we
-  already get from window mode. This is the v1.0 product.
+**Revival (2026-05-22, branch `claude/wallpaper-revival`):** Same-day
+re-investigation read Lively Wallpaper's source. Lively works at
+asInvoker on Win11 22H2+. The 1400s weren't UIPI — they were four
+distinct bugs in our port:
 
-v1.x revisit (when product warrants it): build an unsandboxed C++ /
-Rust helper that does the WorkerW reparent and communicates with
-Electron via stdio. The v0.6 SetParent + magic-message code in
-`legacy-desktop-v0.6/src/wallpaper/windows.ts` is the reference
-implementation for the helper to follow.
+1. **Wrong reparent target on raised-desktop topology.** Win11 22H2+
+   sets `WS_EX_NOREDIRECTIONBITMAP` on Progman and moves the wallpaper-
+   host WorkerW under Progman as a child. Our v0.6 code walked top-
+   level WorkerWs (the pre-22H2 topology). Fix: detect raised-desktop
+   via `GetWindowLongW(progman, GWL_EXSTYLE) & WS_EX_NOREDIRECTIONBITMAP`,
+   then SetParent to **Progman itself**, then SetWindowPos against
+   SHELLDLL_DefView for z-order.
+
+2. **WS_CHILD must be set manually before SetParent.** MSDN docs are
+   explicit: "if hWndNewParent is not NULL and the window was
+   previously a child of the desktop, you should clear the WS_POPUP
+   style and set the WS_CHILD style before the window becomes a child."
+   Without this, SetParent silently no-ops.
+
+3. **Style changes need SWP_FRAMECHANGED to propagate.** Style edits
+   via `SetWindowLong` don't fully take effect until a `SetWindowPos`
+   with `SWP_FRAMECHANGED` triggers `WM_NCCALCSIZE`. Without the
+   propagation kick, SetParent sees the OLD style bits and rejects.
+
+4. **koffi marshals Node Buffers as buffer addresses, not contents.**
+   The biggest single bug. Electron's `getNativeWindowHandle()`
+   returns a Buffer wrapping the HWND value (8 bytes on x64). When
+   passed for a `void*` koffi parameter, koffi treats it as an output-
+   buffer pointer (passes the buffer's heap address), not as
+   "contents-as-pointer." Every Win32 call on our own HWND was
+   targeting random Node heap memory and returning 1400. Fix:
+   `buffer.readBigInt64LE(0)` to extract the HWND as bigint; koffi
+   accepts bigint for `void*` Win32 handles per its docs.
+
+Renderer-side cleanup: the prune commits dropped peek + multi-monitor
+from `desktop/` but left stale renderer references to `onPeekChanged`
+etc. App.tsx threw on mount → React unmounted → canvas never
+rendered → black wallpaper. Fixed by scrubbing those stale calls
+(commit `ce5369f`).
+
+The v0.6 SetParent + magic-message code in `legacy-desktop-v0.6/src/
+wallpaper/windows.ts` is now superseded by the revival's
+`desktop/src/wallpaper/windows.ts`, which handles both pre-22H2 and
+raised-desktop topologies. The privileged-helper-exe v1.x fallback
+plan is shelved — only revisit if Microsoft tightens UIPI further in
+some future Windows release.
+
+**Out of scope for the revival, deferred follow-ups:** peek hotkey
+(Ctrl+Alt+L), multi-monitor picker / display submenu, macOS wallpaper
+implementation (`NSWindow.level = kCGDesktopWindowLevel`). All
+genuinely v1.x material now that the core blocker is gone.
 
 ## Prune commits A–E (this branch, 2026-05-22)
 
@@ -245,11 +292,13 @@ Post-spike cleanup after the wallpaper deferral decision. All on
 
 Decision: ✅ **ff-merge to main** (2026-05-22).
 
-- Checks 1, 3, 4, 5 green.
-- Check 2 deferred to v1.x — wallpaper mode requires a privileged
-  helper process that's a non-trivial native build, not v1.0 work.
+- All five checks green (Check 2 revived same-day on a follow-up branch).
 - v0.6 inherited `desktop/` archived; minimal replacement in place.
 - Repo renamed to `lokilibrary` (commits A–E).
+- Wallpaper mode revived on `claude/wallpaper-revival` after re-reading
+  Lively's source and finding the real bugs (most importantly the
+  koffi Buffer-vs-bigint HWND marshalling issue).
 
-Next: ff-merge `main`, start Phase 1 (renderer foundations, multi-
+Next: ff-merge `main`, ff-merge `claude/wallpaper-revival`, start
+Phase 1 (renderer foundations, multi-
 theme, scale ladder, doc rewrites).

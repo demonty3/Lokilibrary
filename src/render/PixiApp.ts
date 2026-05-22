@@ -1,15 +1,29 @@
-import { Application, Text, TextStyle } from 'pixi.js';
+import { Application } from 'pixi.js';
 import type { Theme } from '../themes/types';
+import type { Profile, ScaleLevel } from '../types';
+import { layoutCell } from '../procedural/cell';
+import { profileSeed } from '../procedural/seed';
+import { useAppStore } from '../state/store';
+import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
+import { mountCell } from './levels/cell';
+import { mountDistrict } from './levels/district';
+import { mountStubLevel } from './levels/stub';
+import { waitForCozette } from './fonts';
 
 /**
- * Phase 0 PixiJS bootstrap. Mounts a PIXI.Application into the given DOM
- * container, paints the theme background, and renders a box-drawing-glyph
- * panel using a system monospace font.
+ * Phase 1D PixiJS bootstrap + level router. Creates the PIXI.Application
+ * once, awaits Cozette, mounts the level matching the Zustand `scale`
+ * slice, and subscribes to slice changes to tear down + remount on
+ * transition. **The Application stays alive across level changes**
+ * (CLAUDE.md rule); only the per-level Container is destroyed.
  *
- * Phase 1 swaps the system font for a bitmap font (PIXI.BitmapText) so the
- * pixel grid is locked and palette swaps are JSON-cheap. For Commit 2 the
- * only goal is: PixiJS boots in Electron + browser, renders unicode, and
- * tears down cleanly on hot-reload.
+ * Profile + library data is read from the Zustand store at each mount;
+ * if the user is anonymous (no profile yet), we fall back to
+ * SAMPLE_LIBRARY + a stable demo seed so the renderer has something to
+ * draw on first boot. When the profile loads later (from /api/library),
+ * the cell does NOT auto-remount — the scale slice is the only
+ * remount trigger in Phase 1. Phase 2 will subscribe to profile
+ * changes too so signing in actually re-seeds the room.
  */
 export async function mountPalace(
   container: HTMLDivElement,
@@ -23,42 +37,65 @@ export async function mountPalace(
     resolution: window.devicePixelRatio || 1,
     autoDensity: true,
   });
-
   container.appendChild(app.canvas);
 
-  const style = new TextStyle({
-    fontFamily: 'ui-monospace, "Cascadia Mono", "Fira Code", monospace',
-    fontSize: 18,
-    fill: theme.palette.fg,
-    lineHeight: 22,
-    whiteSpace: 'pre',
-  });
+  await waitForCozette();
 
-  const panel = new Text({
-    text:
-      '╔══════════════════════════════════════╗\n' +
-      '║                                      ║\n' +
-      '║         memory palace                ║\n' +
-      '║         phase 0 spike                ║\n' +
-      '║                                      ║\n' +
-      `║         theme: ${theme.id.padEnd(22)}║\n` +
-      '║                                      ║\n' +
-      '╚══════════════════════════════════════╝',
-    style,
-  });
-  app.stage.addChild(panel);
+  let teardownLevel: () => void = mountLevel(app, theme, useAppStore.getState().scale);
 
-  const position = () => {
-    panel.x = Math.floor((app.screen.width - panel.width) / 2);
-    panel.y = Math.floor((app.screen.height - panel.height) / 2);
-  };
-  position();
-  app.renderer.on('resize', position);
+  const unsubscribe = useAppStore.subscribe((state, prev) => {
+    if (state.scale === prev.scale) return;
+    teardownLevel();
+    teardownLevel = mountLevel(app, theme, state.scale);
+  });
 
   return () => {
-    app.renderer.off('resize', position);
-    // app.destroy(true, …) detaches the canvas from the DOM and nulls the
-    // renderer. Don't reach for app.canvas afterwards — the getter throws.
+    unsubscribe();
+    teardownLevel();
     app.destroy(true, { children: true, texture: true });
+  };
+}
+
+function mountLevel(
+  app: Application,
+  theme: Theme,
+  scale: ScaleLevel,
+): () => void {
+  if (scale === 'cell') {
+    const { spines, seed } = snapshotLibraryState();
+    const layout = layoutCell(seed);
+    return mountCell(app, theme, layout, spines, seed);
+  }
+  if (scale === 'district') {
+    return mountDistrict(app, theme);
+  }
+  return mountStubLevel(app, theme, scale);
+}
+
+interface LibrarySnapshot {
+  profile: Profile | null;
+  spines: string[];
+  seed: number;
+}
+
+/** Anonymous-user seed. Picked to give a visually interesting WFC
+ *  outcome on the sample library; changing this changes every
+ *  not-signed-in demo. */
+const ANONYMOUS_SEED = 0xa11ce11 >>> 0;
+
+function snapshotLibraryState(): LibrarySnapshot {
+  const state = useAppStore.getState();
+  const profile = state.profile;
+  if (profile) {
+    return {
+      profile,
+      spines: profile.topGames.map((g) => g.name),
+      seed: profileSeed(profile),
+    };
+  }
+  return {
+    profile: null,
+    spines: SAMPLE_LIBRARY.map((g) => g.name),
+    seed: ANONYMOUS_SEED,
   };
 }

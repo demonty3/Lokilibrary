@@ -1,0 +1,19 @@
+{
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "palette": {
+    "bg":        "#1e1e2e",
+    "bgAlt":     "#313244",
+    "fgDim":     "#6c7086",
+    "fg":        "#cdd6f4",
+    "fgBright":  "#f5e0dc",
+    "yellow":    "#f9e2af",
+    "orange":    "#fab387",
+    "red":       "#f38ba8",
+    "magenta":   "#f5c2e7",
+    "violet":    "#cba6f7",
+    "blue":      "#89b4fa",
+    "cyan":      "#94e2d5",
+    "green":     "#a6e3a1"
+  }
+}

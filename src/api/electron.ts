@@ -8,14 +8,6 @@
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
-/** Slice 5: a display the user can pick for wallpaper rendering. */
-export interface DisplayInfo {
-  id: number;
-  label: string;
-  bounds: { x: number; y: number; width: number; height: number };
-  isPrimary: boolean;
-}
-
 export interface ElectronAPI {
   readonly isElectron: true;
   getSteamId(): Promise<string | null>;
@@ -23,28 +15,17 @@ export interface ElectronAPI {
   /** Hex-encoded Steamworks AuthSessionTicket. Pass to /api/auth/steamticket
    *  on the worker, which verifies + mints ll_session. Null on failure. */
   getAuthTicket(): Promise<string | null>;
-  /** Slice 3: launch a Steam game via the OS protocol handler. In the web
-   *  build this path doesn't exist; use launchSteamGame() below for a
-   *  surface-agnostic launcher. */
+  /** Launch a Steam game via the OS protocol handler. In the web build this
+   *  path doesn't exist; use launchSteamGame() below for a surface-agnostic
+   *  launcher. */
   launchGame(appid: number): Promise<boolean>;
-  /** Slice 4: read the current wallpaper-mode state. */
+  /** Read the current wallpaper-mode state. */
   getWallpaperMode(): Promise<WallpaperMode>;
-  /** Slice 4: request a mode change. Tray + connector panel both call this. */
+  /** Request a mode change. Tray drives the same path. */
   setWallpaperMode(mode: WallpaperMode): Promise<boolean>;
-  /** Slice 4: subscribe to mode changes coming from the main process
-   *  (typically a tray menu click). Returns an unsubscribe function. */
+  /** Subscribe to mode changes coming from the main process (typically a
+   *  tray click). Returns an unsubscribe function. */
   onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
-  /** Slice 5: list connected displays for the in-app monitor picker. */
-  getDisplays(): Promise<DisplayInfo[]>;
-  /** Slice 5: the currently-persisted display id, or null for "primary". */
-  getDisplayId(): Promise<number | null>;
-  /** Slice 5: change the target display. null means "primary". */
-  setDisplayId(id: number | null): Promise<boolean>;
-  /** Slice 6: peek state + toggle. See main.ts togglePeek for behavior. */
-  getPeeking(): Promise<boolean>;
-  togglePeek(): Promise<boolean>;
-  getPeekAccelerator(): Promise<string>;
-  onPeekChanged(cb: (peeking: boolean) => void): () => void;
 }
 
 declare global {
@@ -150,80 +131,3 @@ export function subscribeWallpaperMode(
   return api.onWallpaperModeChanged(cb);
 }
 
-/**
- * Slice 5 helpers. The multi-monitor picker only exists in the desktop
- * wrapper — the web build returns empty/null so the connector panel can
- * cleanly hide the picker section.
- */
-
-export async function getDisplays(): Promise<DisplayInfo[]> {
-  const api = getElectronAPI();
-  if (!api) return [];
-  try {
-    return await api.getDisplays();
-  } catch {
-    return [];
-  }
-}
-
-export async function getDisplayId(): Promise<number | null> {
-  const api = getElectronAPI();
-  if (!api) return null;
-  try {
-    return await api.getDisplayId();
-  } catch {
-    return null;
-  }
-}
-
-export async function setDisplayId(id: number | null): Promise<boolean> {
-  const api = getElectronAPI();
-  if (!api) return false;
-  try {
-    return await api.setDisplayId(id);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Slice 6 helpers. Peek = wallpaper temporarily lifted into the foreground
- * via the global hotkey. The renderer uses these to surface a "Press X to
- * peek" hint and to show a dismiss target while peeking.
- */
-
-export async function getPeeking(): Promise<boolean> {
-  const api = getElectronAPI();
-  if (!api) return false;
-  try {
-    return await api.getPeeking();
-  } catch {
-    return false;
-  }
-}
-
-export async function togglePeek(): Promise<boolean> {
-  const api = getElectronAPI();
-  if (!api) return false;
-  try {
-    return await api.togglePeek();
-  } catch {
-    return false;
-  }
-}
-
-export async function getPeekAccelerator(): Promise<string | null> {
-  const api = getElectronAPI();
-  if (!api) return null;
-  try {
-    return await api.getPeekAccelerator();
-  } catch {
-    return null;
-  }
-}
-
-export function subscribePeek(cb: (peeking: boolean) => void): () => void {
-  const api = getElectronAPI();
-  if (!api) return () => undefined;
-  return api.onPeekChanged(cb);
-}

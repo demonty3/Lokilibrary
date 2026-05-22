@@ -1,30 +1,30 @@
 /**
  * Main process for the lokilibrary desktop wrapper.
  *
- * Scope: scratch-rebuilt after the v0.6 inherited wrapper was archived
- * to legacy-desktop-v0.6/. Wallpaper-mode reparenting (custom WorkerW +
- * peek + multi-monitor picker) is deferred to v1.x — Win11 22H2+ UIPI
- * restrictions block cross-process SetParent against Progman/WorkerW,
- * and the SetWindowPos HWND_BOTTOM fallback only achieves "bottom of
- * normal z-order, in front of icons," not true wallpaper layering. See
- * RETROS/phase-0-spike.md.
+ * Scratch-rebuilt after the v0.6 inherited wrapper was archived to
+ * legacy-desktop-v0.6/. Wallpaper-mode reparenting was restored in the
+ * claude/wallpaper-revival branch using Lively's Win11 22H2+ Progman-
+ * reparent technique (see src/wallpaper/windows.ts). Peek hotkey and
+ * multi-monitor picker remain out of scope for this revival.
  *
  * What this file does:
  *   - Open an Electron BrowserWindow pointed at the renderer
  *   - Initialise steamworks.js (Steam overlay + auth ticket source)
- *   - Expose a minimal IPC surface for the renderer: getSteamId,
- *     isSteamworksAvailable, getAuthTicket, launchGame
- *   - System tray with Quit (no mode toggle, no peek, no display picker)
+ *   - Expose IPC for getSteamId / isAvailable / getAuthTicket /
+ *     launchGame / wallpaper:getMode / wallpaper:setMode
+ *   - System tray with Window/Wallpaper mode toggle + Quit
+ *   - Restore the persisted wallpaper mode on startup
  *
  * What this file does NOT do (intentionally):
- *   - Wallpaper-mode reparenting / WorkerW / Progman manipulation
  *   - Hotkey peek
  *   - Multi-monitor picker
- *   - Persisted config (no mode/display to remember)
  */
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
+import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
+import { enterWallpaper, exitWallpaper } from './wallpaper';
+import { getMode, setMode, type Mode } from './config';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -53,6 +53,11 @@ const WEB_API_IDENTITY = 'lokilibrary';
 let steamClient: SteamworksClient | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+// Forward-declared because applyMode references mainWindow + tray (above)
+// and rebuildTrayMenu references applyMode (below). Hoisted function decls
+// would let us order this however; we use function-decl-then-mutate-state
+// for symmetry with the existing initSteam / createWindow pattern.
 
 function initSteam(): void {
   const appId = Number(process.env.LOKILIBRARY_STEAM_APPID) || DEFAULT_APP_ID;
@@ -116,12 +121,62 @@ function createTray(): Tray {
   const sized = icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 });
   const t = new Tray(sized);
   t.setToolTip('lokilibrary');
-  t.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Quit', click: () => app.quit() },
-    ]),
-  );
+  rebuildTrayMenu(t);
   return t;
+}
+
+function rebuildTrayMenu(t: Tray): void {
+  const current = getMode();
+  // 'checkbox' rather than 'radio' on purpose: per v0.6 retro, Electron
+  // radio menu items auto-fire their click handlers when setContextMenu
+  // rebuilds on Win11 (well-known issue). The applyMode no-op guard below
+  // catches any stray auto-fire either way; checkbox just makes the menu
+  // less weird-looking when both items happen to be unchecked momentarily.
+  const items: MenuItemConstructorOptions[] = [
+    {
+      label: 'Window mode',
+      type: 'checkbox',
+      checked: current === 'window',
+      click: () => applyMode('window'),
+    },
+    {
+      label: 'Wallpaper mode',
+      type: 'checkbox',
+      checked: current === 'wallpaper',
+      click: () => applyMode('wallpaper'),
+    },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ];
+  t.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+/** Apply a mode transition. Persists the chosen mode so the next launch
+ *  starts in the same state, rebuilds the tray so checkmarks stay in sync,
+ *  and broadcasts to the renderer in case it has mode-gated UI. */
+function applyMode(mode: Mode): void {
+  if (!mainWindow) return;
+  // Electron menu items can fire their click handlers when setContextMenu
+  // rebuilds; without this guard a wallpaper-mode rebuild would re-fire
+  // applyMode('wallpaper'), which would then re-enterWallpaper (mostly
+  // idempotent but wasteful) and re-rebuild the menu, etc. Real user
+  // clicks always represent a real transition because the *other* mode
+  // is what they're picking.
+  if (getMode() === mode) return;
+
+  if (mode === 'wallpaper') {
+    enterWallpaper(mainWindow);
+  } else {
+    exitWallpaper(mainWindow);
+  }
+  setMode(mode);
+  if (tray) rebuildTrayMenu(tray);
+  try {
+    mainWindow.webContents.send('wallpaper:modeChanged', mode);
+  } catch {
+    // webContents may not be ready on early startup; the renderer can
+    // poll getWallpaperMode() on mount as a backstop.
+  }
 }
 
 // --- IPC bridge ----------------------------------------------------------
@@ -152,6 +207,15 @@ ipcMain.handle('steam:launchGame', (_event, appid: unknown) => {
 // Hex-encoded AuthSessionTicket. Renderer POSTs this to
 // /api/auth/steamticket on the worker, which verifies via Steam Web API
 // and mints a session cookie without the OpenID round-trip.
+// Wallpaper-mode IPC. Renderer reads + sets the mode; main process handles
+// the platform-specific reparent + persistence + tray sync.
+ipcMain.handle('wallpaper:getMode', () => getMode());
+ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
+  if (mode !== 'window' && mode !== 'wallpaper') return false;
+  applyMode(mode);
+  return true;
+});
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -181,8 +245,22 @@ void app.whenReady().then(() => {
   }
 
   tray = createTray();
+  const initialMode = getMode();
   // eslint-disable-next-line no-console
-  console.log(`[startup] userData=${app.getPath('userData')}`);
+  console.log(`[startup] userData=${app.getPath('userData')} initialMode=${initialMode}`);
+
+  // Restore persisted wallpaper mode after the window's first paint. Fresh
+  // SetParent-against-Progman on a not-yet-shown window can leave it
+  // invisible on some Win11 builds; ready-to-show fires after the renderer
+  // has produced at least one frame.
+  if (initialMode === 'wallpaper' && mainWindow) {
+    mainWindow.once('ready-to-show', () => {
+      // Bypass applyMode's "already in this mode" guard — config says
+      // 'wallpaper' but we haven't actually entered wallpaper yet.
+      if (mainWindow) enterWallpaper(mainWindow);
+      if (tray) rebuildTrayMenu(tray);
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
