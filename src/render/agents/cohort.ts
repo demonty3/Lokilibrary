@@ -36,9 +36,10 @@ import {
 } from '../../agents/perception';
 import {
   routeTier1,
+  routeTier2,
   nullMemoryWriter,
   type MemoryWriter,
-  type Tier1Transport,
+  type AgentTransport,
 } from '../../agents/router';
 import {
   clearRuntimes,
@@ -69,9 +70,9 @@ export interface MountCohortOptions {
   /** Wall-clock provider — defaults to `new Date().getHours()`. Tests
    *  inject a fake clock here. */
   wallClockHour?: () => number;
-  /** Tier-1 transport override (tests inject stubs). Defaults to HTTP
-   *  via api/agent.ts. */
-  tier1Transport?: Tier1Transport;
+  /** Tier-1 + Tier-2 transport override (tests inject stubs). Defaults
+   *  to HTTP via api/agent.ts. */
+  agentTransport?: AgentTransport;
   /** Memory writer (Electron-only in production; tests + web build use
    *  the null writer that no-ops every method). */
   memoryWriter?: MemoryWriter;
@@ -156,8 +157,15 @@ export function mountCohort(opts: MountCohortOptions): () => void {
         // Fire-and-forget — routeTier1 sets lastTier1At synchronously
         // before awaiting, so concurrent ticks throttle correctly.
         void routeTier1(def, runtime, sceneLabel, now, {
-          transport: opts.tier1Transport,
+          transport: opts.agentTransport,
           memory: memoryWriter,
+        }).then(() => {
+          // After a Tier-1 dispatch the reflectionCounter may have
+          // crossed threshold — let routeTier2 short-circuit if not.
+          void routeTier2(def, runtime, now, {
+            transport: opts.agentTransport,
+            memory: memoryWriter,
+          });
         });
       }
 

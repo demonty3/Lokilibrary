@@ -21,7 +21,13 @@
 
 import { buildStageOnePrompt } from './lib/prompt';
 import { extractJson, validateManifest } from './lib/manifest';
-import { callStageOne, callTier1Agent, ProviderError, type ProviderEnv } from './lib/providers';
+import {
+  callStageOne,
+  callTier1Agent,
+  callTier2Reflect,
+  ProviderError,
+  type ProviderEnv,
+} from './lib/providers';
 import { TEMPLATE_WHITELIST, type TemplateId } from './lib/whitelist';
 import { buildSteamLoginUrl, verifySteamReturn } from './lib/steam-openid';
 import {
@@ -596,7 +602,7 @@ export default {
       const userPrompt = `agent: ${JSON.stringify(body.agent)}\nperception: ${JSON.stringify(body.perception)}${memoryBlock}`;
 
       const startedAt = Date.now();
-      let result: { text: string; model: string; provider: string };
+      let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };
       try {
         result = await callTier1Agent(env, system, userPrompt);
       } catch (e) {
@@ -635,8 +641,152 @@ export default {
           model: result.model,
           provider: result.provider,
           latencyMs,
+          tokensIn: result.tokensIn,
+          tokensOut: result.tokensOut,
         },
         { status: 200 },
+        cors,
+      );
+    }
+
+    // --- Tier 2 reflection (Phase 2D slice 2D.2) -----------------------------
+    // POST /api/agent/reflect — given an agent + recent memories + persona,
+    // ask the Tier 2 model to synthesise a one-sentence reflection plus the
+    // memory ids it drew from. Renderer writes the resulting Reflection +
+    // optional Plan into the SQLite memory store. Fires from the router only
+    // when reflectionCounter crosses Smallville's threshold (150 by default,
+    // tuneable in router.ts).
+    if (req.method === 'POST' && url.pathname === '/api/agent/reflect') {
+      let body: {
+        agent?: { id?: string; name?: string };
+        recentMemories?: ReadonlyArray<{
+          id: string;
+          text: string;
+          kind: string;
+          importance: number;
+          created_at: number;
+        }>;
+        persona?: { name: string; system_prompt: string } | null;
+      };
+      try {
+        body = (await req.json()) as typeof body;
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      if (!body.agent || !body.recentMemories || body.recentMemories.length === 0) {
+        return json(
+          { error: 'agent + recentMemories (non-empty) required' },
+          { status: 400 },
+          cors,
+        );
+      }
+
+      const personaBlock = body.persona?.system_prompt
+        ? `[persona]\n${body.persona.system_prompt}\n\n`
+        : '';
+      const system =
+        personaBlock +
+        'You are an agent in a small library room. Read your recent memories ' +
+        'and write ONE reflection: a single short sentence (< 140 chars) that ' +
+        'synthesises a pattern you notice across them. Pick up to 5 memory ids ' +
+        'whose content most directly informs the reflection. Suggest up to 3 ' +
+        'short themes (one-word tags). Respond with ONLY valid JSON in this ' +
+        'exact shape:\n' +
+        '  {"reflection": "<single sentence>", "synthesised_from": ["<id>", ...], ' +
+        '"themes": ["<word>", ...], "importance": <integer 1-10>}\n' +
+        'No prose outside the JSON.';
+
+      const memoryDigest = body.recentMemories
+        .map(
+          (m) =>
+            `- id=${m.id} kind=${m.kind} importance=${m.importance} text=${JSON.stringify(m.text)}`,
+        )
+        .join('\n');
+      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nrecent_memories:\n${memoryDigest}`;
+
+      const startedAt = Date.now();
+      let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };
+      try {
+        result = await callTier2Reflect(env, system, userPrompt);
+      } catch (e) {
+        if (e instanceof ProviderError) {
+          return json({ error: e.message }, { status: e.status }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'tier2', message }, { status: 502 }, cors);
+      }
+      const latencyMs = Date.now() - startedAt;
+
+      let parsed: {
+        reflection?: unknown;
+        synthesised_from?: unknown;
+        themes?: unknown;
+        importance?: unknown;
+      };
+      try {
+        parsed = JSON.parse(extractJson(result.text)) as typeof parsed;
+      } catch {
+        return json(
+          { error: 'tier2 returned invalid json', raw: result.text.slice(0, 400) },
+          { status: 502 },
+          cors,
+        );
+      }
+      if (typeof parsed.reflection !== 'string') {
+        return json({ error: 'tier2 missing reflection', raw: parsed }, { status: 502 }, cors);
+      }
+      const synthesised = Array.isArray(parsed.synthesised_from)
+        ? parsed.synthesised_from.filter((s): s is string => typeof s === 'string')
+        : [];
+      const themes = Array.isArray(parsed.themes)
+        ? parsed.themes.filter((s): s is string => typeof s === 'string')
+        : [];
+      const importance =
+        typeof parsed.importance === 'number' && parsed.importance >= 1 && parsed.importance <= 10
+          ? Math.round(parsed.importance)
+          : 7;
+
+      return json(
+        {
+          reflection: parsed.reflection,
+          synthesised_from: synthesised,
+          themes,
+          importance,
+          model: result.model,
+          provider: result.provider,
+          latencyMs,
+          tokensIn: result.tokensIn,
+          tokensOut: result.tokensOut,
+        },
+        { status: 200 },
+        cors,
+      );
+    }
+
+    // --- Embedding (Phase 2D slice 2D.2 — stub) ------------------------------
+    // POST /api/embed — accepts {texts: string[]} and returns float[][]
+    // embeddings. **Anthropic path is intentionally a 501** (CLAUDE.md
+    // privacy contract: lore + memories never leave the machine). Only the
+    // local Ollama path is supported; when LLM_PROVIDER=anthropic the
+    // renderer must degrade to FTS5-only retrieval. The Ollama call itself
+    // is not implemented in this slice — embedding ranking is a 2D follow-up
+    // (and FTS5 already handles the retrieval path without it).
+    if (req.method === 'POST' && url.pathname === '/api/embed') {
+      const provider = (env.LLM_PROVIDER ?? 'anthropic').toLowerCase();
+      if (provider !== 'local') {
+        return json(
+          {
+            error: 'embeddings only supported via local Ollama; ' +
+              'set LLM_PROVIDER=local. Cloud embeddings would violate the privacy contract.',
+          },
+          { status: 501 },
+          cors,
+        );
+      }
+      // Local-Ollama path not implemented in this slice.
+      return json(
+        { error: 'local embedding implementation pending — FTS5 fallback active' },
+        { status: 501 },
         cors,
       );
     }

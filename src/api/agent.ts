@@ -74,3 +74,53 @@ export async function tickAgent(
   const tick = (await res.json()) as AgentTick;
   return { ok: true, tick };
 }
+
+/** Tier-2 reflection input: the agent identity, the memories we're asking
+ *  the model to synthesise across, and (optionally) the agent's persona. */
+export interface ReflectInput {
+  agent: { id: string; name: string };
+  recentMemories: ReadonlyArray<{
+    id: string;
+    text: string;
+    kind: 'observation' | 'reflection' | 'plan' | 'dialogue';
+    importance: number;
+    created_at: number;
+  }>;
+  persona?: { name: string; system_prompt: string } | null;
+}
+
+export interface ReflectResult {
+  reflection: string;
+  synthesised_from: readonly string[];
+  themes: readonly string[];
+  importance: number;
+  model: string;
+  provider: string;
+  latencyMs: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+export type ReflectOutcome =
+  | { ok: true; result: ReflectResult }
+  | { ok: false; error: string };
+
+export async function reflectAgent(input: ReflectInput): Promise<ReflectOutcome> {
+  let res: Response;
+  try {
+    res = await fetch('/api/agent/reflect', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'network error' };
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, error: `${res.status} ${body.slice(0, 200)}` };
+  }
+  const result = (await res.json()) as ReflectResult;
+  return { ok: true, result };
+}
