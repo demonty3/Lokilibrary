@@ -70,9 +70,6 @@ const SendMessageTimeoutW = user32.func(
 const FindWindowExW = user32.func(
   'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpszClass, str16 lpszWindow)',
 );
-const SetLayeredWindowAttributes = user32.func(
-  'bool SetLayeredWindowAttributes(void* hWnd, uint crKey, uint8 bAlpha, uint dwFlags)',
-);
 const SetParent = user32.func('void* SetParent(void* hWndChild, void* hWndNewParent)');
 const GetShellWindow = user32.func('void* GetShellWindow()');
 const IsWindow = user32.func('bool IsWindow(void* hWnd)');
@@ -95,7 +92,6 @@ const GWL_EXSTYLE = -20;
 // Window styles (winuser.h)
 const WS_EX_APPWINDOW = 0x00040000n;
 const WS_EX_TOOLWINDOW = 0x00000080n;
-const WS_EX_LAYERED = 0x00080000n;
 // Raised-desktop flag — Microsoft set this on Progman starting with the
 // Win11 22H2 HDR-wallpaper refactor. Authoritative check for the new
 // reparent topology; don't rely on build number alone (some Insider builds
@@ -106,9 +102,6 @@ const WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOMOVE = 0x0002;
 const SWP_NOACTIVATE = 0x0010;
-
-// SetLayeredWindowAttributes flag
-const LWA_ALPHA = 2;
 
 // Polling interval for WorkerW liveness check. 2s is frequent enough to
 // recover ~one display-mode-change before the user notices a black wallpaper,
@@ -207,10 +200,17 @@ function findRaisedWorkerW(progman: Buffer): Buffer | null {
   return (FindWindowExW(progman, null, 'WorkerW', null) as Buffer | null) ?? null;
 }
 
-function applyToolWindowStyle(hwnd: Buffer, layered: boolean): bigint {
+function applyToolWindowStyle(hwnd: Buffer): bigint {
+  // WS_EX_LAYERED is in Lively's flow for Godot wallpapers, but Chromium
+  // doesn't paint correctly through a layered child window (compositor
+  // assumes WM_PAINT semantics, which layered windows hijack). Without
+  // WS_EX_LAYERED the window renders black for us — confirmed on Win11
+  // 22H2+ at first wallpaper-mode attempt. Lively's note "Godot fails to
+  // apply WS_EX_LAYERED if attached after SetParent" is about ordering
+  // for renderers that DO want it; we don't need it (alpha=1, no transparency
+  // requirement), so we skip it entirely.
   const exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as bigint;
-  let newExStyle = (BigInt(exStyle) & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
-  if (layered) newExStyle |= WS_EX_LAYERED;
+  const newExStyle = (BigInt(exStyle) & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
   SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
   return exStyle;
 }
@@ -266,13 +266,11 @@ export function enterWallpaper(win: BrowserWindow): void {
 
     const hwnd = electronHwnd(win);
 
-    // Apply WS_EX_LAYERED + SetLayeredWindowAttributes BEFORE SetParent.
-    // Per Lively source comments, the layered-attrs call no-ops if applied
-    // after attachment (originally reported for Godot, also fires on
-    // Chromium). On the classic branch this isn't strictly required but
-    // doesn't hurt — keeps both paths symmetric.
-    state.preWallpaperExStyle = applyToolWindowStyle(hwnd, /* layered */ true);
-    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+    // Tool-window style (drops WS_EX_APPWINDOW, adds WS_EX_TOOLWINDOW) so
+    // we don't appear in Alt+Tab or the taskbar. WS_EX_LAYERED is in
+    // Lively's flow but Chromium renders black through layered child
+    // windows — see applyToolWindowStyle comments.
+    state.preWallpaperExStyle = applyToolWindowStyle(hwnd);
 
     let parent: Buffer | null = null;
     if (raised) {
@@ -300,7 +298,11 @@ export function enterWallpaper(win: BrowserWindow): void {
     // SetParent — let the OS flip WS_CHILD itself. Manually OR'ing it into
     // GWL_STYLE on a window that still carries WS_POPUP leaves inconsistent
     // style bits per the Plan-agent review.
-    SetParent(hwnd, parent);
+    const setParentResult = SetParent(hwnd, parent) as Buffer | null;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[wallpaper:windows] SetParent → ${setParentResult ? 'ok (prior parent returned)' : 'null (failed or no prior parent)'}`,
+    );
 
     // Size the window to the primary display. After SetParent, X/Y are
     // parent-relative — but Progman/WorkerW span the virtual screen at
@@ -325,7 +327,7 @@ export function enterWallpaper(win: BrowserWindow): void {
     if (raised) {
       const defView = FindWindowExW(progman, null, 'SHELLDLL_DefView', null) as Buffer | null;
       if (defView) {
-        SetWindowPos(
+        const zOrderOk = SetWindowPos(
           hwnd,
           defView,
           0,
@@ -333,6 +335,10 @@ export function enterWallpaper(win: BrowserWindow): void {
           0,
           0,
           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        ) as boolean;
+        // eslint-disable-next-line no-console
+        console.log(
+          `[wallpaper:windows] SetWindowPos(after DefView) → ${zOrderOk ? 'ok' : 'FAILED'}`,
         );
       } else {
         // eslint-disable-next-line no-console
