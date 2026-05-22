@@ -1,15 +1,21 @@
-import { Application, Text, TextStyle } from 'pixi.js';
+import { Application, BitmapText } from 'pixi.js';
 import type { Theme } from '../themes/types';
+import {
+  COZETTE_FONT_FAMILY,
+  COZETTE_FONT_SIZE,
+  hexToInt,
+  waitForCozette,
+} from './fonts';
 
 /**
- * Phase 0 PixiJS bootstrap. Mounts a PIXI.Application into the given DOM
+ * Phase 1 PixiJS bootstrap. Mounts a PIXI.Application into the given DOM
  * container, paints the theme background, and renders a box-drawing-glyph
- * panel using a system monospace font.
+ * panel using the Cozette bitmap font (woff2 + CSS @font-face from
+ * index.html; PixiJS v8's BitmapText lazily bakes the atlas).
  *
- * Phase 1 swaps the system font for a bitmap font (PIXI.BitmapText) so the
- * pixel grid is locked and palette swaps are JSON-cheap. For Commit 2 the
- * only goal is: PixiJS boots in Electron + browser, renders unicode, and
- * tears down cleanly on hot-reload.
+ * Phase 1C/1D promotes this into a level router (cell / district / stub)
+ * driven by the Zustand `scale` slice; for Phase 1B the panel still just
+ * proves the bitmap font path works end-to-end.
  */
 export async function mountPalace(
   container: HTMLDivElement,
@@ -26,25 +32,23 @@ export async function mountPalace(
 
   container.appendChild(app.canvas);
 
-  const style = new TextStyle({
-    fontFamily: 'ui-monospace, "Cascadia Mono", "Fira Code", monospace',
-    fontSize: 18,
-    fill: theme.palette.fg,
-    lineHeight: 22,
-    whiteSpace: 'pre',
-  });
+  await waitForCozette();
 
-  const panel = new Text({
+  const panel = new BitmapText({
     text:
       '╔══════════════════════════════════════╗\n' +
       '║                                      ║\n' +
       '║         memory palace                ║\n' +
-      '║         phase 0 spike                ║\n' +
+      '║         phase 1B                     ║\n' +
       '║                                      ║\n' +
       `║         theme: ${theme.id.padEnd(22)}║\n` +
       '║                                      ║\n' +
       '╚══════════════════════════════════════╝',
-    style,
+    style: {
+      fontFamily: COZETTE_FONT_FAMILY,
+      fontSize: COZETTE_FONT_SIZE,
+      fill: hexToInt(theme.palette.fg),
+    },
   });
   app.stage.addChild(panel);
 

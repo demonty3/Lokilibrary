@@ -3,8 +3,7 @@ import { getWallpaperMode, subscribeWallpaperMode } from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
 import { mountPalace } from './render/PixiApp';
-import solarized from './themes/solarized.json';
-import type { Theme } from './themes/types';
+import { DEFAULT_THEME_ID, getById } from './themes';
 
 /**
  * Phase 0 spike — PixiJS hello-world + one Tier 1 agent round-trip on boot.
@@ -31,7 +30,7 @@ export function App() {
     if (!canvasHost.current) return;
     let teardown: (() => void) | null = null;
     let cancelled = false;
-    void mountPalace(canvasHost.current, solarized as Theme).then((fn) => {
+    void mountPalace(canvasHost.current, getById(DEFAULT_THEME_ID)).then((fn) => {
       if (cancelled) fn();
       else teardown = fn;
     });
