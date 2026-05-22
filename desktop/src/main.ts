@@ -48,7 +48,7 @@ interface SteamworksClient {
 /** Shared between this file's getAuthTicket IPC and the worker's
  *  verifyAuthSessionTicket call. Both ends must use the same identity
  *  string or Steam rejects the ticket as cross-identity. */
-const WEB_API_IDENTITY = 'libraryworld';
+const WEB_API_IDENTITY = 'lokilibrary';
 
 let steamClient: SteamworksClient | null = null;
 let mainWindow: BrowserWindow | null = null;

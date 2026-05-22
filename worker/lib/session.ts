@@ -7,7 +7,7 @@
  */
 
 const ALG = { name: 'HMAC', hash: 'SHA-256' } as const;
-const SESSION_COOKIE = 'lw_session';
+const SESSION_COOKIE = 'll_session';
 const SESSION_TTL_S = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionClaims {

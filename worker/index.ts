@@ -6,7 +6,7 @@
  *   GET  /api/auth/steam/login     — redirect to Steam OpenID checkid_setup
  *   GET  /api/auth/steam/return    — verify Steam OpenID response, set cookie
  *   POST /api/auth/steamticket     — verify Steamworks AuthSessionTicket from
- *                                    desktop wrapper, mint same lw_session cookie
+ *                                    desktop wrapper, mint same ll_session cookie
  *   GET  /api/auth/me              — session check; returns {steamId, persona?}
  *   POST /api/auth/logout          — clear session cookie
  *   GET  /api/library              — authed user's enriched + tagged library + profile
@@ -379,7 +379,7 @@ export default {
 
     // Phase 6 slice 2: desktop apps skip OpenID. steamworks.js generates an
     // AuthSessionTicket locally; the renderer POSTs it here; we verify with
-    // Steam Web API and mint the same lw_session cookie as the OpenID path.
+    // Steam Web API and mint the same ll_session cookie as the OpenID path.
     if (req.method === 'POST' && url.pathname === '/api/auth/steamticket') {
       if (!env.SESSION_SECRET) {
         return json({ error: 'SESSION_SECRET not configured' }, { status: 500 }, cors);

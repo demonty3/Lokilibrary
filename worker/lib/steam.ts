@@ -240,7 +240,7 @@ type AuthTicketResponse = AuthTicketResponseOk | AuthTicketResponseError;
  * the same value to Steam — otherwise Steam rejects the ticket as
  * cross-identity. Treat as a shared protocol constant.
  */
-export const WEB_API_IDENTITY = 'libraryworld';
+export const WEB_API_IDENTITY = 'lokilibrary';
 
 /**
  * Verify a Steamworks AuthSessionTicket against Steam Web API. Phase 6 slice 2.

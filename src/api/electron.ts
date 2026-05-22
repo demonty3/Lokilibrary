@@ -21,7 +21,7 @@ export interface ElectronAPI {
   getSteamId(): Promise<string | null>;
   isSteamworksAvailable(): Promise<boolean>;
   /** Hex-encoded Steamworks AuthSessionTicket. Pass to /api/auth/steamticket
-   *  on the worker, which verifies + mints lw_session. Null on failure. */
+   *  on the worker, which verifies + mints ll_session. Null on failure. */
   getAuthTicket(): Promise<string | null>;
   /** Slice 3: launch a Steam game via the OS protocol handler. In the web
    *  build this path doesn't exist; use launchSteamGame() below for a
