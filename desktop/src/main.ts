@@ -149,6 +149,10 @@ function resolveTargetDisplay(): Electron.Display {
 }
 
 function applyMode(mode: Mode): void {
+  // eslint-disable-next-line no-console
+  console.log(
+    `[applyMode] mode=${mode} caller=${new Error().stack?.split('\n').slice(2, 5).join(' ← ').replace(/\\/g, '/') ?? 'unknown'}`,
+  );
   if (!mainWindow) return;
   // An explicit mode change always wins over a transient peek. Clear the
   // flag + drop alwaysOnTop before re-entering so we don't leave the window
