@@ -111,40 +111,59 @@ function findWallpaperParents(): Array<{ hwnd: Buffer; via: string }> {
   const progman = FindWindowW('Progman', null) as Buffer | null;
   if (!progman) return [];
 
-  // Send the magic message asking Explorer to spawn the WorkerW that sits
-  // between the wallpaper layer and the icons. Idempotent across calls.
+  // Ask Explorer to spawn the WorkerW that sits between the wallpaper layer
+  // and the icons. Windows builds disagree about the right wParam — 0x0D is
+  // the most-documented value (Lively, Wallpaper-Engine teardowns), 0x0A is
+  // the second-most. Sending BOTH (and previously 0, which is what we did
+  // and which silently no-ops on some builds) maximises coverage. The call
+  // is idempotent: Explorer reuses the spawned WorkerW if it already exists.
   const result = [BigInt(0)];
-  SendMessageTimeoutW(
-    progman,
-    SPAWN_WORKERW_MESSAGE,
-    BigInt(0),
-    BigInt(0),
-    SMTO_NORMAL,
-    1000,
-    result,
-  );
+  for (const wparam of [BigInt(0x0d), BigInt(0x0a)]) {
+    SendMessageTimeoutW(
+      progman,
+      SPAWN_WORKERW_MESSAGE,
+      wparam,
+      BigInt(0),
+      SMTO_NORMAL,
+      1000,
+      result,
+    );
+  }
 
   const candidates: Array<{ hwnd: Buffer; via: string }> = [];
 
   // Strategy 1: WorkerW that owns SHELLDLL_DefView → use its next sibling.
+  // Walk the full WorkerW chain, logging each so we can diagnose which
+  // build we're on if reparenting still goes wrong.
   let prev: Buffer | null = null;
   let lastTopLevel: Buffer | null = null;
+  let count = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const wW = FindWindowExW(null, prev, 'WorkerW', null) as Buffer | null;
     if (!wW) break;
+    count += 1;
     lastTopLevel = wW;
     const shellView = FindWindowExW(wW, null, 'SHELLDLL_DefView', null) as Buffer | null;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[wallpaper:windows]   WorkerW #${count}${shellView ? ' (owns SHELLDLL_DefView)' : ''}`,
+    );
     if (shellView) {
       const next = FindWindowExW(null, wW, 'WorkerW', null) as Buffer | null;
       if (next) candidates.push({ hwnd: next, via: 'WorkerW-after-DefView' });
     }
     prev = wW;
   }
+  // eslint-disable-next-line no-console
+  console.log(`[wallpaper:windows] enumerated ${count} top-level WorkerW(s)`);
 
   // Strategy 2: the last top-level WorkerW we saw above. Different HWND
   // from strategy 1's pick (strategy 1 returns the *sibling* of the DefView
-  // owner), so worth trying separately.
+  // owner). Has caused false positives on some Win11 builds where the last
+  // WorkerW is a foreground animation surface rather than the wallpaper
+  // layer — SetParent succeeds but you end up on top of icons. We try it
+  // anyway so the retry loop can fall through to Progman if it goes wrong.
   if (lastTopLevel) candidates.push({ hwnd: lastTopLevel, via: 'last-top-level-WorkerW' });
 
   // Strategy 3: Progman itself. Always exists; last resort.
