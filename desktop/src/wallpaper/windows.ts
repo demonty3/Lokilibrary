@@ -46,8 +46,14 @@ const koffi = require('koffi') as Koffi;
 const user32 = koffi.load('user32.dll');
 const shell32 = koffi.load('shell32.dll');
 
+// hWndInsertAfter is void* not intptr: we always pass a real HWND
+// (SHELLDLL_DefView) here, which comes back from FindWindowExW as a
+// Buffer wrapping the pointer. koffi marshals Buffer→void* but not
+// Buffer→intptr, hence the explicit void*. Sentinel values like
+// HWND_BOTTOM=1 / HWND_NOTOPMOST=-2 would need a different binding;
+// we don't use them in this revival.
 const SetWindowPos = user32.func(
-  'bool SetWindowPos(void* hWnd, intptr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags)',
+  'bool SetWindowPos(void* hWnd, void* hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags)',
 );
 const SetWindowLongPtrW = user32.func(
   'intptr SetWindowLongPtrW(void* hWnd, int nIndex, intptr dwNewLong)',
@@ -321,7 +327,7 @@ export function enterWallpaper(win: BrowserWindow): void {
       if (defView) {
         SetWindowPos(
           hwnd,
-          defView as unknown as bigint,
+          defView,
           0,
           0,
           0,
