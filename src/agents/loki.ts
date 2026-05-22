@@ -1,7 +1,7 @@
 import { BitmapText } from 'pixi.js';
 import type { Application, Container, TickerCallback } from 'pixi.js';
 import { mulberry32, type Prng } from '../procedural/prng';
-import type { CellLayout } from '../procedural/cell';
+import type { CellLayout, CellPoint } from '../procedural/cell';
 import { T_FLOOR } from '../procedural/tiles/library';
 import type { Theme } from '../themes/types';
 import {
@@ -43,17 +43,12 @@ interface LokiState {
   accumMs: number;
 }
 
-export function mountLoki(
-  app: Application,
-  parent: Container,
-  theme: Theme,
-  layout: CellLayout,
-  seed: number,
-): () => void {
+/** Pick Loki's spawn cell — a floor cell that isn't the player's
+ *  spawn, deterministic per seed. Exposed so the cell renderer can pass
+ *  it to scatterDecor as an extra keepout (scatter avoids landing on
+ *  Loki's starting tile). */
+export function pickLokiSpawn(layout: CellLayout, seed: number): CellPoint {
   const prng = mulberry32((seed ^ LOKI_SEED_NAMESPACE) >>> 0);
-
-  // Pick a starting floor cell that isn't the player's spawn (so the
-  // L and the @ don't overlap at boot).
   const floors: Array<[number, number]> = [];
   for (let y = 0; y < layout.height; y++) {
     for (let x = 0; x < layout.width; x++) {
@@ -65,9 +60,29 @@ export function mountLoki(
       }
     }
   }
-  const [startX, startY] = floors.length > 0 ? prng.pick(floors) : [1, 1];
+  if (floors.length === 0) return { x: 1, y: 1 };
+  const [x, y] = prng.pick(floors);
+  return { x, y };
+}
 
-  const loki: LokiState = { x: startX, y: startY, prng, accumMs: 0 };
+export function mountLoki(
+  app: Application,
+  parent: Container,
+  theme: Theme,
+  layout: CellLayout,
+  seed: number,
+): () => void {
+  // Re-derive both spawn + movement PRNG from the same seed so the
+  // movement sequence stays deterministic across remounts.
+  const spawn = pickLokiSpawn(layout, seed);
+  const prng = mulberry32((seed ^ LOKI_SEED_NAMESPACE) >>> 0);
+  // Burn the same number of PRNG draws pickLokiSpawn used (one
+  // prng.pick(floors)) so movement starts from the same state as if we
+  // had only one PRNG. pickLokiSpawn called prng.pick which advances
+  // the generator once; mirror that here.
+  prng.next();
+
+  const loki: LokiState = { x: spawn.x, y: spawn.y, prng, accumMs: 0 };
 
   const sprite = new BitmapText({
     text: 'L',

@@ -5,7 +5,8 @@ import { T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { playerPosition, setPlayerPosition } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
-import { mountLoki } from '../../agents/loki';
+import { mountLoki, pickLokiSpawn } from '../../agents/loki';
+import { scatterDecor } from '../../procedural/scatter';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -46,9 +47,11 @@ export function mountCell(
 
   const baseLayer = new Container();
   const spineLayer = new Container();
+  const scatterLayer = new Container();
   const agentLayer = new Container();
   container.addChild(baseLayer);
   container.addChild(spineLayer);
+  container.addChild(scatterLayer);
   container.addChild(agentLayer);
 
   // Base tile layer — one BitmapText per cell.
@@ -90,6 +93,26 @@ export function mountCell(
     spine.x = slot.x * COZETTE_CELL_WIDTH;
     spine.y = slot.y * COZETTE_CELL_HEIGHT;
     spineLayer.addChild(spine);
+  }
+
+  // Scatter — decorative chairs / plants / book stacks / lamps in
+  // open floor cells. Keep Loki's spawn out of the scatter footprint
+  // so the L doesn't overlap a plant at boot. Scatter does NOT block
+  // movement (collision is floor-only via layout.tiles).
+  const lokiSpawn = pickLokiSpawn(layout, seed);
+  const scatterItems = scatterDecor(seed, layout, [lokiSpawn]);
+  for (const item of scatterItems) {
+    const sprite = new BitmapText({
+      text: item.glyph,
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette[item.fgKey]),
+      },
+    });
+    sprite.x = item.x * COZETTE_CELL_WIDTH;
+    sprite.y = item.y * COZETTE_CELL_HEIGHT;
+    scatterLayer.addChild(sprite);
   }
 
   // Loki agent — random-walk BT sprite, owns its own Ticker + teardown.
