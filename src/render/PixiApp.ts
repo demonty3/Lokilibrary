@@ -57,7 +57,8 @@ export async function mountPalace(
 
   return () => {
     app.renderer.off('resize', position);
+    // app.destroy(true, …) detaches the canvas from the DOM and nulls the
+    // renderer. Don't reach for app.canvas afterwards — the getter throws.
     app.destroy(true, { children: true, texture: true });
-    container.removeChild(app.canvas);
   };
 }

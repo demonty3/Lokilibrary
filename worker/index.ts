@@ -584,9 +584,12 @@ export default {
       }
       const latencyMs = Date.now() - startedAt;
 
+      // Anthropic models often wrap JSON in ```json…``` fences despite the
+      // "JSON only" instruction. extractJson() handles fenced + bare output;
+      // Ollama's format:'json' mode usually produces bare JSON already.
       let parsed: { action?: unknown; intent?: unknown };
       try {
-        parsed = JSON.parse(result.text) as { action?: unknown; intent?: unknown };
+        parsed = JSON.parse(extractJson(result.text)) as { action?: unknown; intent?: unknown };
       } catch {
         return json(
           { error: 'tier1 returned invalid json', raw: result.text.slice(0, 400) },
