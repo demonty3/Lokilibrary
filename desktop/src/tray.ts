@@ -106,13 +106,13 @@ export function createTray(deps: TrayDeps): TrayHandle {
       Menu.buildFromTemplate([
         {
           label: 'Window mode',
-          type: 'radio',
+          type: 'checkbox',
           checked: current === 'window',
           click: () => deps.applyMode('window'),
         },
         {
           label: 'Wallpaper mode',
-          type: 'radio',
+          type: 'checkbox',
           checked: current === 'wallpaper',
           click: () => deps.applyMode('wallpaper'),
         },

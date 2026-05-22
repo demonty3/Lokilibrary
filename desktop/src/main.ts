@@ -149,11 +149,14 @@ function resolveTargetDisplay(): Electron.Display {
 }
 
 function applyMode(mode: Mode): void {
-  // eslint-disable-next-line no-console
-  console.log(
-    `[applyMode] mode=${mode} caller=${new Error().stack?.split('\n').slice(2, 5).join(' ← ').replace(/\\/g, '/') ?? 'unknown'}`,
-  );
   if (!mainWindow) return;
+  // Electron's Menu radio items auto-fire their click handlers when
+  // setContextMenu() rebuilds the menu (known Windows-side Electron issue).
+  // Without this guard, every tray rebuild re-fires applyMode for both the
+  // currently-selected mode (no-op intent) and the other mode (cycles state).
+  // Skip when nothing's changing — actual user clicks always represent a
+  // real transition because the menu offers the OTHER mode as a choice.
+  if (getMode() === mode && !peeking) return;
   // An explicit mode change always wins over a transient peek. Clear the
   // flag + drop alwaysOnTop before re-entering so we don't leave the window
   // pinned above other apps after the user toggles back to wallpaper.
