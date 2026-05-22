@@ -1,52 +1,28 @@
-import { BitmapText } from 'pixi.js';
-import type { Application, Container, TickerCallback } from 'pixi.js';
-import { mulberry32, type Prng } from '../procedural/prng';
-import type { CellLayout, CellPoint } from '../procedural/cell';
-import { T_FLOOR } from '../procedural/tiles/library';
-import type { Theme } from '../themes/types';
-import {
-  COZETTE_CELL_HEIGHT,
-  COZETTE_CELL_WIDTH,
-  COZETTE_FONT_FAMILY,
-  COZETTE_FONT_SIZE,
-  hexToInt,
-} from '../render/fonts';
-
 /**
- * Phase 1 Loki — a single sprite that random-walks the floor of the
- * cell, deterministically (seeded PRNG namespaced as `seed ^ 0x10ki`).
- * **No LLM call.** Tier 1 + Tier 2 agent dialogue is Phase 2 territory;
- * Phase 0's `/api/agent/tick` round-trip stays as a boot-time
- * verification log but doesn't drive movement here.
+ * Loki spawn helper. Phase 1 shipped `mountLoki` here as a one-off
+ * random-walk Ticker; Phase 2B replaced the per-agent renderer with
+ * `mountCohort` in `src/render/agents/cohort.ts`, so all that lives in
+ * this file now is the spawn-cell picker. Kept here (rather than
+ * inlined into cohort.ts) because:
  *
- * The sprite is the magenta `L`. Step interval is 400ms — slow enough
- * that a static glance at the room shows the agent moving, not so fast
- * that they teleport around. Random-walk only considers floor cells as
- * candidates; walls + bookshelves + tables + door + window are not
- * walkable.
+ *   1. `src/procedural/scatter.ts` uses it as an extra keepout so
+ *      decor doesn't overlap Loki at boot — neither cohort nor scatter
+ *      should depend on the other, but both depend on this.
+ *   2. Loki's spawn is intentionally distinct from the generic
+ *      `random_floor` rule (always near a bookshelf, never the player
+ *      tile), and is the only spawn rule that needs the layout's
+ *      bookshelfSlots specifically.
  *
- * Per CLAUDE.md "agent-as-marginalia": no chat, no speech bubble. The
- * agent's presence is the feature.
+ * PRNG namespace: `seed ^ 0x10ce` — `LOCE` in leetspeak. Matches Phase
+ * 1 so existing layouts keep Loki in the same spot across the upgrade.
  */
 
-const MOVE_INTERVAL_MS = 400;
+import { mulberry32 } from '../procedural/prng';
+import type { CellLayout, CellPoint } from '../procedural/cell';
+import { T_FLOOR } from '../procedural/tiles/library';
 
-// PRNG namespace — `LOKI` in leetspeak as hex. Keeps Loki's random walk
-// independent of the cell layout's PRNG even though both start from the
-// same profileSeed.
 const LOKI_SEED_NAMESPACE = 0x10ce;
 
-interface LokiState {
-  x: number;
-  y: number;
-  prng: Prng;
-  accumMs: number;
-}
-
-/** Pick Loki's spawn cell — a floor cell that isn't the player's
- *  spawn, deterministic per seed. Exposed so the cell renderer can pass
- *  it to scatterDecor as an extra keepout (scatter avoids landing on
- *  Loki's starting tile). */
 export function pickLokiSpawn(layout: CellLayout, seed: number): CellPoint {
   const prng = mulberry32((seed ^ LOKI_SEED_NAMESPACE) >>> 0);
   const floors: Array<[number, number]> = [];
@@ -63,68 +39,4 @@ export function pickLokiSpawn(layout: CellLayout, seed: number): CellPoint {
   if (floors.length === 0) return { x: 1, y: 1 };
   const [x, y] = prng.pick(floors);
   return { x, y };
-}
-
-export function mountLoki(
-  app: Application,
-  parent: Container,
-  theme: Theme,
-  layout: CellLayout,
-  seed: number,
-): () => void {
-  // Re-derive both spawn + movement PRNG from the same seed so the
-  // movement sequence stays deterministic across remounts.
-  const spawn = pickLokiSpawn(layout, seed);
-  const prng = mulberry32((seed ^ LOKI_SEED_NAMESPACE) >>> 0);
-  // Burn the same number of PRNG draws pickLokiSpawn used (one
-  // prng.pick(floors)) so movement starts from the same state as if we
-  // had only one PRNG. pickLokiSpawn called prng.pick which advances
-  // the generator once; mirror that here.
-  prng.next();
-
-  const loki: LokiState = { x: spawn.x, y: spawn.y, prng, accumMs: 0 };
-
-  const sprite = new BitmapText({
-    text: 'L',
-    style: {
-      fontFamily: COZETTE_FONT_FAMILY,
-      fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.magenta),
-    },
-  });
-  sprite.x = loki.x * COZETTE_CELL_WIDTH;
-  sprite.y = loki.y * COZETTE_CELL_HEIGHT;
-  parent.addChild(sprite);
-
-  const tick: TickerCallback<unknown> = (ticker) => {
-    loki.accumMs += ticker.deltaMS;
-    if (loki.accumMs < MOVE_INTERVAL_MS) return;
-    loki.accumMs = 0;
-
-    const candidates: Array<[number, number]> = [];
-    const dirs: ReadonlyArray<[number, number]> = [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ];
-    for (const [dx, dy] of dirs) {
-      const nx = loki.x + dx;
-      const ny = loki.y + dy;
-      if (nx < 0 || nx >= layout.width || ny < 0 || ny >= layout.height) continue;
-      if (layout.tiles[ny][nx] === T_FLOOR) candidates.push([nx, ny]);
-    }
-    if (candidates.length === 0) return;
-    const [nx, ny] = loki.prng.pick(candidates);
-    loki.x = nx;
-    loki.y = ny;
-    sprite.x = loki.x * COZETTE_CELL_WIDTH;
-    sprite.y = loki.y * COZETTE_CELL_HEIGHT;
-  };
-  app.ticker.add(tick);
-
-  return () => {
-    app.ticker.remove(tick);
-    sprite.destroy();
-  };
 }

@@ -1,11 +1,12 @@
 import { BitmapText, Container } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
-import type { CellLayout } from '../../procedural/cell';
+import type { CellLayout, CellPoint } from '../../procedural/cell';
 import { T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { playerPosition, setPlayerPosition } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
-import { mountLoki, pickLokiSpawn } from '../../agents/loki';
+import { pickLokiSpawn } from '../../agents/loki';
+import { mountCohort } from '../agents/cohort';
 import { scatterDecor } from '../../procedural/scatter';
 import {
   COZETTE_CELL_HEIGHT,
@@ -27,9 +28,10 @@ import {
  *     module-local `playerPosition` singleton. WASD / arrow keys move
  *     one cell per ~100ms keypress, collision-checked against the WFC
  *     grid (floor-only is walkable).
- *   - `L` Loki test sprite (magenta tint), random-walks the floor every
- *     400ms via a seeded PRNG. No LLM call — Tier 1 agent dialogue is
- *     Phase 2 work.
+ *   - The Phase 2B agent cohort: 5 BitmapText sprites managed by
+ *     `mountCohort()`. Each runs a Tier-0 utility-AI BT
+ *     (`src/agents/behavior.ts`) — no LLM calls in this slice. Tier 1
+ *     dispatch lands in 2C; Tier 2 reflection in 2D.
  *
  * Returns a teardown function that detaches + destroys the Container,
  * removes the keydown listener, and unregisters Tickers (called by
@@ -101,6 +103,7 @@ export function mountCell(
   // movement (collision is floor-only via layout.tiles).
   const lokiSpawn = pickLokiSpawn(layout, seed);
   const scatterItems = scatterDecor(seed, layout, [lokiSpawn]);
+  const scatterAnchors = new Map<string, CellPoint[]>();
   for (const item of scatterItems) {
     const sprite = new BitmapText({
       text: item.glyph,
@@ -113,10 +116,23 @@ export function mountCell(
     sprite.x = item.x * COZETTE_CELL_WIDTH;
     sprite.y = item.y * COZETTE_CELL_HEIGHT;
     scatterLayer.addChild(sprite);
+    // Index by glyph so behavior.ts can find e.g. all '☼' lamp cells
+    // for Cat's `bias_idle_near_glyph` schedule rule.
+    const list = scatterAnchors.get(item.glyph);
+    if (list) list.push({ x: item.x, y: item.y });
+    else scatterAnchors.set(item.glyph, [{ x: item.x, y: item.y }]);
   }
 
-  // Loki agent — random-walk BT sprite, owns its own Ticker + teardown.
-  const teardownLoki = mountLoki(app, agentLayer, theme, layout, seed);
+  // Phase 2B agent cohort — 5 sprites + Tier-0 BT. One shared Ticker
+  // inside mountCohort handles all per-agent ticks.
+  const teardownCohort = mountCohort({
+    app,
+    parent: agentLayer,
+    theme,
+    layout,
+    seed,
+    scatterAnchors,
+  });
 
   // Player avatar — `@` rendered + repositioned each frame from
   // playerPosition. Reset the singleton to the layout's spawn point on
@@ -200,7 +216,7 @@ export function mountCell(
   return () => {
     window.removeEventListener('keydown', onKeydown);
     app.ticker.remove(positionPlayer);
-    teardownLoki();
+    teardownCohort();
     app.renderer.off('resize', fit);
     container.destroy({ children: true });
   };
