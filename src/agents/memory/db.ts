@@ -44,6 +44,10 @@ export interface MemoryDb {
   getMemory(id: string): MemoryRow | undefined;
   /** Recent memories for an agent, newest first. */
   recentForAgent(agentId: string, limit: number): MemoryRow[];
+  /** Recent memories for a given cell + kind. Used by the cell renderer
+   *  to read back persisted plans (e.g. Loki's "place a mark near the
+   *  Hades shelf" on next mount). */
+  recentByCellAndKind(cellId: string, kind: string, limit: number): MemoryRow[];
   /** FTS5 keyword search over memory text; returns rows ordered by bm25. */
   searchFts(query: string, agentId: string | null, limit: number): MemoryRow[];
   /** Upsert per-agent persona row. */
@@ -109,6 +113,12 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
   // order within a tick — important for `recentForAgent` to be stable.
   const recentStmt = db.prepare<[string, number]>(
     `SELECT * FROM memories WHERE agent_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+  );
+  const cellKindStmt = db.prepare<[string, string, number]>(
+    `SELECT * FROM memories
+     WHERE cell_id = ? AND kind = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT ?`,
   );
   const ftsStmt = db.prepare<[string, number]>(`
     SELECT m.* FROM memories m
@@ -199,6 +209,9 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     },
     recentForAgent(agentId, limit) {
       return recentStmt.all(agentId, limit) as MemoryRow[];
+    },
+    recentByCellAndKind(cellId, kind, limit) {
+      return cellKindStmt.all(cellId, kind, limit) as MemoryRow[];
     },
     searchFts(query, agentId, limit) {
       const stmt = agentId ? ftsAgentStmt : ftsStmt;

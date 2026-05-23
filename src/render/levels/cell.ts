@@ -1,13 +1,25 @@
 import { BitmapText, Container } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
-import { T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
+import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { playerPosition, setPlayerPosition } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
 import { mountCohort } from '../agents/cohort';
 import { scatterDecor } from '../../procedural/scatter';
+import {
+  broadcastGameLaunched,
+  nullMemoryWriter,
+  routeTier2,
+  type MemoryWriter,
+} from '../../agents/router';
+import { launchGame } from '../../agents/launch';
+import { listRuntimes, getRuntime } from '../../state/agentRuntime';
+import { COHORT } from '../../agents/cohort';
+import { cellIdFor } from '../../agents/memory/schema';
+import { mountBookshelfPrompt, type BookshelfPromptHandle } from '../overlays/bookshelfPrompt';
+import type { BookGame } from '../PixiApp';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -41,8 +53,9 @@ export function mountCell(
   app: Application,
   theme: Theme,
   layout: CellLayout,
-  bookSpines: readonly string[] = [],
+  books: readonly BookGame[] = [],
   seed = 0,
+  memoryWriter: MemoryWriter = nullMemoryWriter,
 ): () => void {
   const container = new Container();
   app.stage.addChild(container);
@@ -50,11 +63,18 @@ export function mountCell(
   const baseLayer = new Container();
   const spineLayer = new Container();
   const scatterLayer = new Container();
+  const markLayer = new Container();
   const agentLayer = new Container();
   container.addChild(baseLayer);
   container.addChild(spineLayer);
   container.addChild(scatterLayer);
+  container.addChild(markLayer);
   container.addChild(agentLayer);
+
+  // Phase 2E: cell-level namespace for memory writes/reads — same hash
+  // the writer uses, so placedMarks written last session land here on
+  // mount this session.
+  const cellId = cellIdFor(seed);
 
   // Base tile layer — one BitmapText per cell.
   for (let y = 0; y < layout.height; y++) {
@@ -78,12 +98,14 @@ export function mountCell(
 
   // Spine overlay — first character of each game name on a bookshelf
   // slot, in reading order. Tinted bright so it pops against the
-  // base bookshelf glyph.
+  // base bookshelf glyph. Slot → BookGame map drives the bookshelf
+  // launch prompt (slot index lines up across the spines + slots).
   const spineColour = hexToInt(theme.palette.fgBright);
-  const usableSpines = bookSpines.slice(0, layout.bookshelfSlots.length);
-  for (let i = 0; i < usableSpines.length; i++) {
+  const usableBooks = books.slice(0, layout.bookshelfSlots.length);
+  const slotToBook = new Map<string, BookGame>();
+  for (let i = 0; i < usableBooks.length; i++) {
     const slot = layout.bookshelfSlots[i];
-    const ch = usableSpines[i].slice(0, 1).toUpperCase() || '?';
+    const ch = usableBooks[i].name.slice(0, 1).toUpperCase() || '?';
     const spine = new BitmapText({
       text: ch,
       style: {
@@ -95,6 +117,7 @@ export function mountCell(
     spine.x = slot.x * COZETTE_CELL_WIDTH;
     spine.y = slot.y * COZETTE_CELL_HEIGHT;
     spineLayer.addChild(spine);
+    slotToBook.set(`${slot.x},${slot.y}`, usableBooks[i]);
   }
 
   // Scatter — decorative chairs / plants / book stacks / lamps in
@@ -132,7 +155,26 @@ export function mountCell(
     layout,
     seed,
     scatterAnchors,
+    memoryWriter,
   });
+
+  // Phase 2E marginalia: render any placed-mark glyphs from prior
+  // Plans for this cell. These persist across restart because they
+  // live in the SQLite memory store; the null writer just returns []
+  // here so the web build is a no-op.
+  for (const mark of memoryWriter.placedMarksForCell(cellId)) {
+    const markSprite = new BitmapText({
+      text: '·',
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette.magenta),
+      },
+    });
+    markSprite.x = mark.location.x * COZETTE_CELL_WIDTH;
+    markSprite.y = mark.location.y * COZETTE_CELL_HEIGHT;
+    markLayer.addChild(markSprite);
+  }
 
   // Player avatar — `@` rendered + repositioned each frame from
   // playerPosition. Reset the singleton to the layout's spawn point on
@@ -150,20 +192,82 @@ export function mountCell(
   playerSprite.y = playerPosition.y * COZETTE_CELL_HEIGHT;
   agentLayer.addChild(playerSprite);
 
+  // Bookshelf prompt — spawned when the player walks adjacent to a
+  // known-game shelf and despawned when they step away. Single handle
+  // at a time; switching shelves destroys the old prompt + builds a new.
+  let promptHandle: BookshelfPromptHandle | null = null;
+
+  function nearestAdjacentBookshelf(): { slot: CellPoint; book: BookGame } | null {
+    // Check each of the 8 Chebyshev-1 neighbours + the player tile itself.
+    // (The shelf itself isn't walkable, so the player can't be ON one;
+    // we still loop dx=0,dy=0 for code symmetry, the slotToBook lookup
+    // will miss for a non-shelf cell.)
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = playerPosition.x + dx;
+        const ny = playerPosition.y + dy;
+        if (nx < 0 || nx >= layout.width || ny < 0 || ny >= layout.height) continue;
+        if (layout.tiles[ny][nx] !== T_BOOKSHELF) continue;
+        const book = slotToBook.get(`${nx},${ny}`);
+        if (!book) continue;
+        return { slot: { x: nx, y: ny }, book };
+      }
+    }
+    return null;
+  }
+
   const positionPlayer: TickerCallback<unknown> = () => {
     const px = playerPosition.x * COZETTE_CELL_WIDTH;
     const py = playerPosition.y * COZETTE_CELL_HEIGHT;
     if (playerSprite.x !== px) playerSprite.x = px;
     if (playerSprite.y !== py) playerSprite.y = py;
+
+    // Refresh prompt visibility. Cheap — ≤9 grid checks per frame.
+    const target = nearestAdjacentBookshelf();
+    if (!target) {
+      if (promptHandle) {
+        promptHandle.destroy();
+        promptHandle = null;
+      }
+      return;
+    }
+    if (
+      promptHandle &&
+      promptHandle.slot.x === target.slot.x &&
+      promptHandle.slot.y === target.slot.y
+    ) {
+      return; // already showing the right one
+    }
+    if (promptHandle) promptHandle.destroy();
+    promptHandle = mountBookshelfPrompt({
+      parent: spineLayer,
+      theme,
+      slot: target.slot,
+      name: target.book.name,
+    });
   };
   app.ticker.add(positionPlayer);
 
   // Keyboard movement — debounced per-key so holding doesn't teleport.
   // Wallpaper-mode gates: the wallpaper layer should not consume input.
   const MOVE_DEBOUNCE_MS = 100;
+  const LAUNCH_DEBOUNCE_MS = 1500; // Steam dialog takes a moment; suppress repeats.
   const lastMove = new Map<string, number>();
+  let lastLaunchAt = 0;
   const onKeydown = (e: KeyboardEvent) => {
     if (useAppStore.getState().wallpaperMode) return;
+    // Bookshelf launch — only fires when prompt is currently shown.
+    if (e.key.toLowerCase() === 'e') {
+      const target = nearestAdjacentBookshelf();
+      if (!target) return;
+      const now = performance.now();
+      if (now - lastLaunchAt < LAUNCH_DEBOUNCE_MS) return;
+      lastLaunchAt = now;
+      e.preventDefault();
+      void handleLaunch(target.slot, target.book);
+      return;
+    }
+
     let dx = 0;
     let dy = 0;
     switch (e.key.toLowerCase()) {
@@ -199,6 +303,60 @@ export function mountCell(
   };
   window.addEventListener('keydown', onKeydown);
 
+  /**
+   * Bookshelf launch handler. Fires Steam + writes a deterministic
+   * Loki Plan with a `place_mark` step at the player's current tile,
+   * broadcasts the `game_launched` perception event to all present
+   * agents, and force-fires Tier-2 reflection on Loki (CLAUDE.md
+   * "Tier 2 fires only on reflection threshold or direct user action").
+   *
+   * The Plan write is the part that produces the persistent magenta
+   * mark on next mount — it doesn't depend on the LLM response. The
+   * Tier-2 reflection is a separate concurrent surface that lands in
+   * the memory stream when it returns.
+   */
+  async function handleLaunch(slot: CellPoint, book: BookGame): Promise<void> {
+    const ev = await launchGame({ appid: book.appid, name: book.name });
+    // eslint-disable-next-line no-console
+    console.log(
+      `[cell] launch ${ev.surface} appid=${book.appid} ok=${ev.ok} name="${book.name}"`,
+    );
+
+    // Persist Loki's marginalia immediately — independent of LLM round-trip.
+    memoryWriter.recordPlan({
+      agentId: 'loki',
+      text: `place a small mark near the ${book.name} shelf for next time`,
+      steps: [
+        {
+          kind: 'place_mark',
+          target: `shelf:${slot.x},${slot.y}`,
+          location: { x: playerPosition.x, y: playerPosition.y },
+          status: 'pending',
+        },
+      ],
+      status: 'active',
+      importance: 6,
+    });
+
+    // Broadcast to every present agent — game launch is a world event.
+    broadcastGameLaunched(listRuntimes(), {
+      appid: book.appid,
+      name: book.name,
+      at: slot,
+      when: ev.when,
+    });
+
+    // Force-fire Loki's Tier 2 (direct user action override).
+    const lokiDef = COHORT.find((d) => d.id === 'loki');
+    const lokiRuntime = getRuntime('loki');
+    if (lokiDef && lokiRuntime) {
+      void routeTier2(lokiDef, lokiRuntime, performance.now(), {
+        memory: memoryWriter,
+        force: true,
+      });
+    }
+  }
+
   // Center + integer-scale the container to fit the app screen.
   const fit = () => {
     const roomW = layout.width * COZETTE_CELL_WIDTH;
@@ -216,6 +374,10 @@ export function mountCell(
   return () => {
     window.removeEventListener('keydown', onKeydown);
     app.ticker.remove(positionPlayer);
+    if (promptHandle) {
+      promptHandle.destroy();
+      promptHandle = null;
+    }
     teardownCohort();
     app.renderer.off('resize', fit);
     container.destroy({ children: true });

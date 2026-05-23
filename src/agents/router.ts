@@ -101,6 +101,30 @@ export interface MemoryWriter {
     themes: readonly string[];
     importance: number;
   }): string | null;
+  /** Persist a Plan. Used by the bookshelf launch path: Loki's plan
+   *  carries a `place_mark` step the cell renderer picks up on next
+   *  mount to draw a marginalia glyph. */
+  recordPlan(args: {
+    agentId: string;
+    text: string;
+    steps: ReadonlyArray<{
+      kind: 'move_to' | 'inspect' | 'place_mark' | 'linger' | 'withdraw';
+      target?: string;
+      location?: { x: number; y: number };
+      status: 'pending' | 'done';
+    }>;
+    status: 'active' | 'completed' | 'abandoned';
+    importance: number;
+  }): string | null;
+  /** Read place_mark steps the agent has previously written for this
+   *  cell. Cell renderer uses this at mount to render marginalia
+   *  glyphs that survive restart. */
+  placedMarksForCell(cellId: string): ReadonlyArray<{
+    agentId: string;
+    location: { x: number; y: number };
+    target?: string;
+    text: string;
+  }>;
   /** Log one Tier-1 dispatch into `agent_telemetry`. */
   logTier1(args: {
     agentId: string;
@@ -131,6 +155,8 @@ export interface MemoryWriter {
 export const nullMemoryWriter: MemoryWriter = {
   recordPerception: () => null,
   recordReflection: () => null,
+  recordPlan: () => null,
+  placedMarksForCell: () => [],
   logTier1: () => undefined,
   logTier2: () => undefined,
   recentMemories: () => [],
@@ -171,6 +197,10 @@ export interface RouteOptions {
    *  surface for the model to find a pattern without blowing the
    *  context budget. */
   reflectionMemoryCount?: number;
+  /** Force Tier-2 dispatch even when below threshold. Used by direct
+   *  user actions (game launch) per CLAUDE.md "Tier 2 fires only on
+   *  reflection threshold or direct user action". */
+  force?: boolean;
 }
 
 export interface RouteResult {
@@ -308,7 +338,7 @@ export async function routeTier2(
   opts: RouteOptions = {},
 ): Promise<ReflectRouteResult> {
   const threshold = opts.reflectionThreshold ?? REFLECTION_THRESHOLD;
-  if (runtime.reflectionCounter < threshold) {
+  if (!opts.force && runtime.reflectionCounter < threshold) {
     return { dispatched: false, skipReason: 'below_threshold' };
   }
   const transport = opts.transport ?? defaultAgentTransport;
@@ -387,16 +417,40 @@ function describe(ev: PerceptionEvent): string {
 
 function importanceFor(kind: string): number {
   switch (kind) {
+    case 'game_launched':
+      return 8;
     case 'player_holding':
+      return 6;
+    case 'agent_meeting':
       return 6;
     case 'player_proximity':
       return 4;
-    case 'agent_meeting':
-      return 6;
     case 'bookshelf_in_reach':
       return 3;
     default:
       return 3;
+  }
+}
+
+/**
+ * Inject a `game_launched` perception event into every present
+ * agent's queue. Used by the bookshelf E-key handler — the launch is
+ * a shared world event the cohort can react to, not a private signal
+ * to one agent. The router will pick these up on next tick the same
+ * way it handles the polled perception events.
+ */
+export function broadcastGameLaunched(
+  runtimes: readonly AgentRuntimeState[],
+  args: { appid: number; name: string; at: { x: number; y: number }; when: number },
+): void {
+  for (const rt of runtimes) {
+    if (!rt.present) continue;
+    rt.perceptionQueue.push({
+      kind: 'game_launched',
+      subject: `appid:${args.appid}`,
+      at: { x: args.at.x, y: args.at.y },
+      when: args.when,
+    });
   }
 }
 

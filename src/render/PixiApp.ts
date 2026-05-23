@@ -9,6 +9,12 @@ import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
 import { mountStubLevel } from './levels/stub';
 import { waitForCozette } from './fonts';
+import { nullMemoryWriter, type MemoryWriter } from '../agents/router';
+
+export interface BookGame {
+  appid: number;
+  name: string;
+}
 
 /**
  * Phase 1D PixiJS bootstrap + level router. Creates the PIXI.Application
@@ -25,9 +31,17 @@ import { waitForCozette } from './fonts';
  * remount trigger in Phase 1. Phase 2 will subscribe to profile
  * changes too so signing in actually re-seeds the room.
  */
+export interface MountPalaceOptions {
+  /** Optional memory writer — Electron path passes the DB-backed
+   *  writer (slice 2F bootstrap), web build passes nothing and gets
+   *  the null writer. */
+  memoryWriter?: MemoryWriter;
+}
+
 export async function mountPalace(
   container: HTMLDivElement,
   theme: Theme,
+  options: MountPalaceOptions = {},
 ): Promise<() => void> {
   const app = new Application();
   await app.init({
@@ -41,12 +55,19 @@ export async function mountPalace(
 
   await waitForCozette();
 
-  let teardownLevel: () => void = mountLevel(app, theme, useAppStore.getState().scale);
+  const memoryWriter = options.memoryWriter ?? nullMemoryWriter;
+
+  let teardownLevel: () => void = mountLevel(
+    app,
+    theme,
+    useAppStore.getState().scale,
+    memoryWriter,
+  );
 
   const unsubscribe = useAppStore.subscribe((state, prev) => {
     if (state.scale === prev.scale) return;
     teardownLevel();
-    teardownLevel = mountLevel(app, theme, state.scale);
+    teardownLevel = mountLevel(app, theme, state.scale, memoryWriter);
   });
 
   return () => {
@@ -60,11 +81,12 @@ function mountLevel(
   app: Application,
   theme: Theme,
   scale: ScaleLevel,
+  memoryWriter: MemoryWriter,
 ): () => void {
   if (scale === 'cell') {
-    const { spines, seed } = snapshotLibraryState();
+    const { books, seed } = snapshotLibraryState();
     const layout = layoutCell(seed);
-    return mountCell(app, theme, layout, spines, seed);
+    return mountCell(app, theme, layout, books, seed, memoryWriter);
   }
   if (scale === 'district') {
     return mountDistrict(app, theme);
@@ -74,7 +96,7 @@ function mountLevel(
 
 interface LibrarySnapshot {
   profile: Profile | null;
-  spines: string[];
+  books: BookGame[];
   seed: number;
 }
 
@@ -89,13 +111,13 @@ function snapshotLibraryState(): LibrarySnapshot {
   if (profile) {
     return {
       profile,
-      spines: profile.topGames.map((g) => g.name),
+      books: profile.topGames.map((g) => ({ appid: g.appid, name: g.name })),
       seed: profileSeed(profile),
     };
   }
   return {
     profile: null,
-    spines: SAMPLE_LIBRARY.map((g) => g.name),
+    books: SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name })),
     seed: ANONYMOUS_SEED,
   };
 }

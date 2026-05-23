@@ -155,3 +155,66 @@ function textOf(m: Memory): string {
       return m.payload.text;
   }
 }
+
+/**
+ * Collect `place_mark` steps from all active plans in this cell.
+ * Used by the cell renderer at mount to draw persisted marginalia
+ * glyphs that survived restart. Dedupes by (agentId, x, y) so a plan
+ * with two identical place_mark steps doesn't double-render.
+ *
+ * Status filter is `'active'` — completed / abandoned plans drop out.
+ * Pool size is capped at 64 plans per cell to keep render cheap; if
+ * that ever matters we add an LRU prune at write time.
+ */
+export function placedMarksForCell(
+  db: MemoryDb,
+  cellId: string,
+): ReadonlyArray<{
+  agentId: string;
+  location: { x: number; y: number };
+  target?: string;
+  text: string;
+}> {
+  const rows = db.recentByCellAndKind(cellId, 'plan', 64);
+  const out: Array<{
+    agentId: string;
+    location: { x: number; y: number };
+    target?: string;
+    text: string;
+  }> = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    let payload: {
+      text?: string;
+      steps?: Array<{
+        kind: string;
+        target?: string;
+        location?: { x: number; y: number };
+        status?: string;
+      }>;
+      status?: string;
+    };
+    try {
+      payload = JSON.parse(row.payload_json);
+    } catch {
+      continue;
+    }
+    if (payload.status && payload.status !== 'active') continue;
+    if (!Array.isArray(payload.steps)) continue;
+    for (const step of payload.steps) {
+      if (step.kind !== 'place_mark') continue;
+      if (!step.location) continue;
+      if (step.status && step.status !== 'pending') continue;
+      const key = `${row.agent_id}|${step.location.x}|${step.location.y}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        agentId: row.agent_id,
+        location: step.location,
+        target: step.target,
+        text: payload.text ?? '',
+      });
+    }
+  }
+  return out;
+}

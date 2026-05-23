@@ -27,9 +27,10 @@ import type {
 import type { PerceptionEvent } from '../../state/agentRuntime';
 import {
   recordObservation,
+  recordPlan as recordPlanMemory,
   recordReflection as recordReflectionMemory,
 } from './import';
-import { recentForRouter } from './retrieval';
+import { placedMarksForCell, recentForRouter } from './retrieval';
 
 export interface WriterNamespace {
   cellId: string;
@@ -75,6 +76,28 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
         { importance: clampImportance(importance) },
       );
       return memory.id;
+    },
+    recordPlan({ agentId, text, steps, status, importance }) {
+      const memory = recordPlanMemory(
+        db,
+        vault,
+        { agentId, cellId: ns.cellId, libraryId: ns.libraryId },
+        {
+          text,
+          steps: steps.map((s) => ({
+            kind: s.kind,
+            target: s.target,
+            location: s.location,
+            status: s.status,
+          })),
+          status,
+        },
+        { importance: clampImportance(importance) },
+      );
+      return memory.id;
+    },
+    placedMarksForCell(cellId) {
+      return placedMarksForCell(db, cellId);
     },
     logTier1(args) {
       db.logTelemetry({
