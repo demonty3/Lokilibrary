@@ -65,6 +65,19 @@ export interface MemoryDb {
     cost_usd_est: number;
     created_at: number;
   }): void;
+  /** Read telemetry rows in [sinceMs, now]. Used by the debug overlay
+   *  (slice 2F) for live cost aggregation. */
+  telemetrySince(sinceMs: number): Array<{
+    agent_id: string;
+    tier: number;
+    model: string;
+    provider: string;
+    tokens_in: number;
+    tokens_out: number;
+    latency_ms: number;
+    cost_usd_est: number;
+    created_at: number;
+  }>;
   close(): void;
 }
 
@@ -161,6 +174,13 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
       (@agent_id, @tier, @model, @provider, @tokens_in, @tokens_out,
        @latency_ms, @cost_usd_est, @created_at)
   `);
+  const telemetrySinceStmt = db.prepare<number>(`
+    SELECT agent_id, tier, model, provider, tokens_in, tokens_out,
+           latency_ms, cost_usd_est, created_at
+    FROM agent_telemetry
+    WHERE created_at >= ?
+    ORDER BY created_at ASC
+  `);
 
   let insertVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
   let updateEmbeddingFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
@@ -237,6 +257,19 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     },
     logTelemetry(row) {
       logTelemetryStmt.run(row);
+    },
+    telemetrySince(sinceMs) {
+      return telemetrySinceStmt.all(sinceMs) as Array<{
+        agent_id: string;
+        tier: number;
+        model: string;
+        provider: string;
+        tokens_in: number;
+        tokens_out: number;
+        latency_ms: number;
+        cost_usd_est: number;
+        created_at: number;
+      }>;
     },
     close() {
       db.close();

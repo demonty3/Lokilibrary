@@ -37,6 +37,63 @@ export class ProviderError extends Error {
   }
 }
 
+/**
+ * Phase 2F: best-effort Ollama GPU detection via /api/ps. Returns a
+ * compact snapshot of running models + their VRAM allocation; the
+ * worker's /healthz endpoint surfaces this so a misconfigured local
+ * dev box (Ollama defaulted to CPU because the GPU runtime didn't
+ * load) is visible immediately rather than 27s into the first Tier-1
+ * latency.
+ *
+ * Never throws — returns `{available: false, reason}` on any failure
+ * so /healthz stays a green probe even if Ollama is down.
+ */
+export interface OllamaGpuSnapshot {
+  available: boolean;
+  reason?: string;
+  models?: Array<{
+    name: string;
+    sizeBytes: number;
+    vramBytes: number;
+    onGpu: boolean;
+  }>;
+}
+
+export async function detectOllamaGpu(env: ProviderEnv): Promise<OllamaGpuSnapshot> {
+  const provider = (env.LLM_PROVIDER ?? 'anthropic').toLowerCase();
+  if (provider !== 'local') {
+    return { available: false, reason: 'LLM_PROVIDER != local' };
+  }
+  const url = (env.OLLAMA_URL ?? 'http://localhost:11434').replace(/\/$/, '');
+  let res: Response;
+  try {
+    res = await fetch(`${url}/api/ps`);
+  } catch (e) {
+    return { available: false, reason: `ollama unreachable: ${(e as Error).message}` };
+  }
+  if (!res.ok) {
+    return { available: false, reason: `ollama /api/ps ${res.status}` };
+  }
+  type PsResponse = {
+    models?: Array<{
+      name?: string;
+      size?: number;
+      size_vram?: number;
+    }>;
+  };
+  const data = (await res.json()) as PsResponse;
+  if (!data.models || data.models.length === 0) {
+    return { available: true, models: [] };
+  }
+  const models = data.models.map((m) => ({
+    name: m.name ?? '',
+    sizeBytes: m.size ?? 0,
+    vramBytes: m.size_vram ?? 0,
+    onGpu: (m.size_vram ?? 0) > 0,
+  }));
+  return { available: true, models };
+}
+
 export async function callStageOne(
   env: ProviderEnv,
   system: string,

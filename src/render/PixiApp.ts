@@ -8,6 +8,7 @@ import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
 import { mountStubLevel } from './levels/stub';
+import { mountTelemetryOverlay } from './overlays/telemetry';
 import { waitForCozette } from './fonts';
 import { nullMemoryWriter, type MemoryWriter } from '../agents/router';
 
@@ -64,14 +65,33 @@ export async function mountPalace(
     memoryWriter,
   );
 
+  // Telemetry overlay (Phase 2F) — mounted on demand by the
+  // `agentDebugOverlay` subscription. Lives at the app level (not the
+  // cell level) so it stays visible across scale transitions.
+  let teardownOverlay: (() => void) | null = null;
+  function applyOverlay(on: boolean): void {
+    if (on && !teardownOverlay) {
+      teardownOverlay = mountTelemetryOverlay({ app, theme, memoryWriter });
+    } else if (!on && teardownOverlay) {
+      teardownOverlay();
+      teardownOverlay = null;
+    }
+  }
+  applyOverlay(useAppStore.getState().agentDebugOverlay);
+
   const unsubscribe = useAppStore.subscribe((state, prev) => {
-    if (state.scale === prev.scale) return;
-    teardownLevel();
-    teardownLevel = mountLevel(app, theme, state.scale, memoryWriter);
+    if (state.scale !== prev.scale) {
+      teardownLevel();
+      teardownLevel = mountLevel(app, theme, state.scale, memoryWriter);
+    }
+    if (state.agentDebugOverlay !== prev.agentDebugOverlay) {
+      applyOverlay(state.agentDebugOverlay);
+    }
   });
 
   return () => {
     unsubscribe();
+    if (teardownOverlay) teardownOverlay();
     teardownLevel();
     app.destroy(true, { children: true, texture: true });
   };

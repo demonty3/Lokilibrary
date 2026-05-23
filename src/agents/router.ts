@@ -45,6 +45,28 @@ export interface RecentMemorySummary {
   readonly importance: number;
 }
 
+/** Shape returned by MemoryWriter.aggregateTelemetry — re-exported
+ *  from telemetry.ts as a type so the interface stays stand-alone. */
+export interface TelemetrySummary {
+  windowMs: number;
+  total: {
+    tier1Count: number;
+    tier2Count: number;
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number;
+    meanLatencyMs: number;
+  };
+  byModel: Map<string, {
+    tier1Count: number;
+    tier2Count: number;
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number;
+    meanLatencyMs: number;
+  }>;
+}
+
 /** Persona snippet — Phase 2C passes this through; slice 2F finalises
  *  the per-agent persona prompt block. */
 export interface PersonaSnippet {
@@ -56,6 +78,12 @@ export interface PersonaSnippet {
 export interface Tier1Context {
   readonly recentMemories: readonly RecentMemorySummary[];
   readonly persona: PersonaSnippet | null;
+  /** Phase 2F: set on the one allowed retry after a deny-verb
+   *  rejection. Worker prepends a corrective preamble. */
+  readonly reprompt?: boolean;
+  /** Verbs the LLM should avoid this turn. Worker passes through to
+   *  the reprompt preamble. */
+  readonly denyVerbs?: readonly string[];
 }
 
 /** Transport over the agent endpoints. Production wraps the HTTP
@@ -125,6 +153,11 @@ export interface MemoryWriter {
     target?: string;
     text: string;
   }>;
+  /** Aggregate the last `windowMs` of agent_telemetry into a CostSummary.
+   *  Used by the Phase 2F debug overlay (Ctrl+\`). Null writer returns
+   *  an empty zero summary so the overlay can render "no data" without
+   *  branching. */
+  aggregateTelemetry(windowMs: number, nowMs?: number): TelemetrySummary;
   /** Log one Tier-1 dispatch into `agent_telemetry`. */
   logTier1(args: {
     agentId: string;
@@ -161,6 +194,18 @@ export const nullMemoryWriter: MemoryWriter = {
   logTier2: () => undefined,
   recentMemories: () => [],
   persona: () => null,
+  aggregateTelemetry: (windowMs) => ({
+    windowMs,
+    total: {
+      tier1Count: 0,
+      tier2Count: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      meanLatencyMs: 0,
+    },
+    byModel: new Map(),
+  }),
 };
 
 /** Naive Haiku 4.5 cost estimate — $0.80/M input, $4.00/M output as of
@@ -179,8 +224,35 @@ const PRICE_SONNET_PER_MTOK_OUT = 15.0;
 export const REFLECTION_THRESHOLD = 150;
 
 /** Action verbs the router refuses to install into `runtime.intent`.
- *  See CLAUDE.md "don't make the agent a chatbot". */
+ *  See CLAUDE.md "don't make the agent a chatbot". Loki's persona file
+ *  has its own narrower whitelist; this is the global fallback. */
 const DENY_VERBS: readonly string[] = ['speak', 'say', 'tell', 'ask', 'chat'];
+
+/** Process-local rejection / reprompt counters — Phase 2F overlay
+ *  surfaces these alongside cost telemetry. Reset on cell mount (cohort
+ *  renderer teardown clears via `resetRouterStats()`). */
+const routerStats = {
+  rejections: 0,
+  reprompts: 0,
+  repromptRecovered: 0,
+};
+
+export interface RouterStatsSnapshot {
+  rejections: number;
+  reprompts: number;
+  /** Number of reprompts that successfully produced a non-rejected verb. */
+  repromptRecovered: number;
+}
+
+export function getRouterStats(): RouterStatsSnapshot {
+  return { ...routerStats };
+}
+
+export function resetRouterStats(): void {
+  routerStats.rejections = 0;
+  routerStats.reprompts = 0;
+  routerStats.repromptRecovered = 0;
+}
 
 export interface RouteOptions {
   /** Override `def.tier1ThrottleMs` for tests. */
@@ -278,7 +350,7 @@ export async function routeTier1(
     persona: memory.persona(runtime.id),
   };
 
-  const result = await transport.call(agent, perception, context);
+  let result = await transport.call(agent, perception, context);
   if (!result.ok) {
     // eslint-disable-next-line no-console
     console.warn(`[router] tier1 ${runtime.id} failed: ${result.error}`);
@@ -286,14 +358,36 @@ export async function routeTier1(
   }
 
   // Whitelist enforcement: drop responses opening with deny-listed verbs.
-  const verb = (result.tick.action.trim().split(/\s+/)[0] ?? '').toLowerCase();
+  let verb = (result.tick.action.trim().split(/\s+/)[0] ?? '').toLowerCase();
   if (DENY_VERBS.includes(verb)) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[router] tier1 ${runtime.id} rejected — verb "${verb}" denied; ` +
-        `action="${result.tick.action}"`,
-    );
-    return { dispatched: false, skipReason: 'rejected' };
+    // Phase 2F: one-shot re-prompt before giving up. The worker
+    // prepends a corrective preamble; if the model still produces a
+    // banned verb we drop + bump the rejection counter.
+    routerStats.reprompts++;
+    result = await transport.call(agent, perception, {
+      ...context,
+      reprompt: true,
+      denyVerbs: DENY_VERBS,
+    });
+    if (!result.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[router] tier1 ${runtime.id} reprompt failed: ${result.error}`,
+      );
+      routerStats.rejections++;
+      return { dispatched: false, skipReason: 'rejected' };
+    }
+    verb = (result.tick.action.trim().split(/\s+/)[0] ?? '').toLowerCase();
+    if (DENY_VERBS.includes(verb)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[router] tier1 ${runtime.id} rejected after reprompt — verb "${verb}" still denied; ` +
+          `action="${result.tick.action}"`,
+      );
+      routerStats.rejections++;
+      return { dispatched: false, skipReason: 'rejected' };
+    }
+    routerStats.repromptRecovered++;
   }
 
   runtime.intent = result.tick.intent;

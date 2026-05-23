@@ -25,6 +25,7 @@ import {
   callStageOne,
   callTier1Agent,
   callTier2Reflect,
+  detectOllamaGpu,
   ProviderError,
   type ProviderEnv,
 } from './lib/providers';
@@ -340,6 +341,21 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     if (req.method === 'GET' && url.pathname === '/healthz') {
+      // Phase 2F: include Ollama GPU snapshot when running local. Cheap
+      // (one /api/ps call against a localhost service) and gives the
+      // dev a hard signal that the GPU runtime is wired before the
+      // first 27s CPU-only Tier-1 latency.
+      const gpu = await detectOllamaGpu(env);
+      const allCpu =
+        gpu.available && gpu.models && gpu.models.length > 0 &&
+        gpu.models.every((m) => !m.onGpu);
+      if (allCpu) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[healthz] ollama running but all loaded models are CPU-only. ' +
+            'Tier-1 latency will be measured in tens of seconds; expect <1s on a 12GB+ GPU.',
+        );
+      }
       return json(
         {
           ok: true,
@@ -347,6 +363,7 @@ export default {
           anthropic_configured: Boolean(env.ANTHROPIC_API_KEY),
           steam_configured: Boolean(env.STEAM_WEB_API_KEY),
           session_configured: Boolean(env.SESSION_SECRET),
+          ollama_gpu: gpu,
         },
         { status: 200 },
         cors,
@@ -570,6 +587,8 @@ export default {
             importance: number;
           }>;
           persona?: { name: string; system_prompt: string } | null;
+          reprompt?: boolean;
+          denyVerbs?: readonly string[];
         };
       };
       try {
@@ -594,7 +613,14 @@ export default {
       const personaBlock = body.context?.persona?.system_prompt
         ? `[persona]\n${body.context.persona.system_prompt}\n\n[task]\n`
         : '';
-      const system = `${personaBlock}${baseSystem}`;
+      const repromptBlock = body.context?.reprompt
+        ? `[reprompt]\nYour previous response used a forbidden verb${
+            body.context.denyVerbs?.length
+              ? ` (${body.context.denyVerbs.join(', ')})`
+              : ''
+          }. Pick a different verb consistent with your persona. Your action must NOT begin with any of those verbs.\n\n`
+        : '';
+      const system = `${personaBlock}${repromptBlock}${baseSystem}`;
 
       const memoryBlock = body.context?.recentMemories?.length
         ? `\nrecent_memories: ${JSON.stringify(body.context.recentMemories)}`

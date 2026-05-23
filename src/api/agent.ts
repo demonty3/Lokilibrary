@@ -37,6 +37,13 @@ export interface AgentTickContext {
     importance: number;
   }>;
   persona?: { name: string; system_prompt: string } | null;
+  /** Phase 2F: when true, worker prepends a corrective "your last
+   *  action used a forbidden verb, try again" preamble to the system
+   *  prompt. The router sets this on the one allowed retry attempt. */
+  reprompt?: boolean;
+  /** Optional list of verbs the LLM should avoid this turn. Passed
+   *  through to the worker's reprompt preamble for clarity. */
+  denyVerbs?: readonly string[];
 }
 
 export interface AgentTick {

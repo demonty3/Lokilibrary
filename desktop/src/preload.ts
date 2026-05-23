@@ -41,6 +41,11 @@ export interface ElectronAPI {
    *  renderer navigates the window away. */
   launchGame(appid: number): Promise<boolean>;
 
+  /** Absolute path to Electron's per-user app-data directory
+   *  (`app.getPath('userData')`). Renderer-side memory bootstrap
+   *  (Phase 2F) writes memory.sqlite + vaults/ underneath here. */
+  getUserDataPath(): Promise<string>;
+
   /** Read the current wallpaper-mode state. Either 'window' (regular
    *  floating BrowserWindow) or 'wallpaper' (reparented behind the
    *  desktop, click-through, hidden from Alt-Tab). Used by the
@@ -70,6 +75,7 @@ const api: ElectronAPI = {
   isSteamworksAvailable: () => ipcRenderer.invoke('steam:isAvailable') as Promise<boolean>,
   getAuthTicket: () => ipcRenderer.invoke('steam:getAuthTicket') as Promise<string | null>,
   launchGame: (appid: number) => ipcRenderer.invoke('steam:launchGame', appid) as Promise<boolean>,
+  getUserDataPath: () => ipcRenderer.invoke('app:getUserDataPath') as Promise<string>,
   getWallpaperMode: () =>
     ipcRenderer.invoke('wallpaper:getMode') as Promise<WallpaperMode>,
   setWallpaperMode: (mode) =>

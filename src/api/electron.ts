@@ -19,6 +19,10 @@ export interface ElectronAPI {
    *  path doesn't exist; use launchSteamGame() below for a surface-agnostic
    *  launcher. */
   launchGame(appid: number): Promise<boolean>;
+  /** Phase 2F: absolute path to Electron's per-user app-data dir.
+   *  Renderer-side memory bootstrap (bootstrap.ts) writes memory.sqlite
+   *  + vaults/ underneath here. */
+  getUserDataPath(): Promise<string>;
   /** Read the current wallpaper-mode state. */
   getWallpaperMode(): Promise<WallpaperMode>;
   /** Request a mode change. Tray drives the same path. */

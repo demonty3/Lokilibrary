@@ -31,6 +31,14 @@ import {
   recordReflection as recordReflectionMemory,
 } from './import';
 import { placedMarksForCell, recentForRouter } from './retrieval';
+import { aggregateSince } from '../telemetry';
+import {
+  LOKI_AGENT_ID,
+  LOKI_METADATA,
+  LOKI_NAME,
+  LOKI_SYSTEM_PROMPT,
+} from '../persona/loki';
+import { NPC_PERSONAS } from '../persona/npc';
 
 export interface WriterNamespace {
   cellId: string;
@@ -46,6 +54,26 @@ export interface BuildWriterOptions {
 
 export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
   const { db, vault, ns } = opts;
+
+  // Auto-seed personas on construction. `upsertPersona` is idempotent —
+  // running on every writer construction safely overwrites edits we
+  // made in code while preserving rows the LLM has touched via reflect
+  // (which doesn't currently write to agent_personas; if 2F follow-up
+  // adds self-edit, change to INSERT ... ON CONFLICT DO NOTHING).
+  db.upsertPersona(
+    LOKI_AGENT_ID,
+    LOKI_NAME,
+    LOKI_SYSTEM_PROMPT,
+    JSON.stringify(LOKI_METADATA),
+  );
+  for (const npc of NPC_PERSONAS) {
+    db.upsertPersona(
+      npc.agentId,
+      npc.name,
+      npc.systemPrompt,
+      JSON.stringify(npc.metadata),
+    );
+  }
 
   return {
     recordPerception(agentId, event, importance) {
@@ -98,6 +126,13 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
     },
     placedMarksForCell(cellId) {
       return placedMarksForCell(db, cellId);
+    },
+    aggregateTelemetry(windowMs, nowMs) {
+      // aggregateSince returns the same shape as TelemetrySummary; the
+      // CostSummary type also includes windowStartMs/EndMs which the
+      // overlay doesn't need. Strip to the leaner interface.
+      const s = aggregateSince(db, windowMs, nowMs);
+      return { windowMs: s.windowMs, total: s.total, byModel: s.byModel };
     },
     logTier1(args) {
       db.logTelemetry({

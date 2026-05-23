@@ -50,6 +50,11 @@ interface AppState {
    *  subscribes to this slice and tears down + remounts on change. */
   scale: ScaleLevel;
   setScale: (level: ScaleLevel) => void;
+
+  /** Phase 2F: telemetry overlay visibility. Toggled by Ctrl+\` in
+   *  App.tsx; the overlay renderer subscribes + mounts/unmounts. */
+  agentDebugOverlay: boolean;
+  toggleAgentDebug: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -143,4 +148,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setScale: (level) => {
     if (get().scale !== level) set({ scale: level });
   },
+
+  agentDebugOverlay: false,
+  toggleAgentDebug: () => set({ agentDebugOverlay: !get().agentDebugOverlay }),
 }));

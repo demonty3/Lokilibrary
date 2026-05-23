@@ -5,6 +5,9 @@ import { useAppStore } from './state/store';
 import { mountPalace } from './render/PixiApp';
 import { DEFAULT_THEME_ID, getById } from './themes';
 import { SCALE_ORDER, type ScaleLevel } from './types';
+import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
+import { profileSeed } from './procedural/seed';
+import { nullMemoryWriter } from './agents/router';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -44,22 +47,66 @@ export function App() {
     if (!canvasHost.current) return;
     let teardown: (() => void) | null = null;
     let cancelled = false;
-    void mountPalace(canvasHost.current, getById(DEFAULT_THEME_ID)).then((fn) => {
+
+    void (async () => {
+      // Phase 2F: bootstrap memory store before mounting the palace.
+      // In Electron this opens userData/memory.sqlite + vaults/. In
+      // the web build this returns the null writer. Profile-aware
+      // namespace + remount lands in slice 2G; for now we bootstrap
+      // with the anonymous namespace so the renderer has *a* writer
+      // from boot.
+      const initialState = useAppStore.getState();
+      const ns = namespaceFor(initialState.profile, initialState.steamId, 0);
+      let writer = nullMemoryWriter;
+      try {
+        const bootstrap = await bootstrapMemory({ namespace: ns });
+        writer = bootstrap.writer;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[app] memory bootstrap failed: ${(e as Error).message}`);
+      }
+
+      if (cancelled || !canvasHost.current) return;
+      const fn = await mountPalace(canvasHost.current, getById(DEFAULT_THEME_ID), {
+        memoryWriter: writer,
+      });
       if (cancelled) fn();
       else teardown = fn;
-    });
+    })();
+
     return () => {
       cancelled = true;
       teardown?.();
     };
   }, []);
 
+  // Keep namespace fresh: when profile loads later (signed in), rebuild
+  // the writer with the real (cell_id, library_id) namespace. The DB
+  // file stays open — we just swap the in-flight closure. Cell + cohort
+  // pick up the new writer on the next mount; for now that means a
+  // theme/scale change re-mounts cell with the new writer.
+  const profile = useAppStore((s) => s.profile);
+  useEffect(() => {
+    if (!profile) return;
+    const seed = profileSeed(profile);
+    void bootstrapMemory({
+      namespace: namespaceFor(profile, useAppStore.getState().steamId, seed),
+      rebuild: true,
+    });
+  }, [profile]);
+
   // Scale-zoom keyboard: [ = out (next level in SCALE_ORDER), ] = in
   // (previous level). Gated by wallpaperMode so the wallpaper layer
-  // never consumes input.
+  // never consumes input. Also Ctrl+` toggles the Phase-2F telemetry
+  // overlay (the corner panel showing tier-1/tier-2 spend).
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
       if (useAppStore.getState().wallpaperMode) return;
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault();
+        useAppStore.getState().toggleAgentDebug();
+        return;
+      }
       if (e.key !== '[' && e.key !== ']') return;
       e.preventDefault();
       const current = useAppStore.getState().scale;

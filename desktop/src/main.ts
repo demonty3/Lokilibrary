@@ -209,6 +209,12 @@ ipcMain.handle('steam:launchGame', (_event, appid: unknown) => {
 // and mints a session cookie without the OpenID round-trip.
 // Wallpaper-mode IPC. Renderer reads + sets the mode; main process handles
 // the platform-specific reparent + persistence + tray sync.
+// User-data path — Phase 2F renderer-side memory store bootstrap reads
+// this to decide where memory.sqlite + vaults/ live. Electron's
+// `app.getPath('userData')` returns the OS-appropriate per-user
+// app-data dir; on Windows that's typically AppData/Roaming/lokilibrary.
+ipcMain.handle('app:getUserDataPath', () => app.getPath('userData'));
+
 ipcMain.handle('wallpaper:getMode', () => getMode());
 ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
   if (mode !== 'window' && mode !== 'wallpaper') return false;
