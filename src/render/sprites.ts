@@ -19,23 +19,69 @@
 import { Assets, Texture } from 'pixi.js';
 import {
   T_BOOKSHELF,
+  T_CORNER_BL,
+  T_CORNER_BR,
+  T_CORNER_TL,
+  T_CORNER_TR,
+  T_DOOR,
+  T_TABLE,
+  T_TEE,
+  T_WALL_H,
+  T_WALL_V,
+  T_WINDOW,
 } from '../procedural/tiles/library';
 
-/** Public slot ids the renderer knows about. Phase 3A: bookshelf
- *  only. Phase 3+ will add agents (loki / cat / ...) and the rest of
- *  the tile bible. */
-export type SpriteSlotId = 'bookshelf';
+/** Public slot ids the renderer knows about. Phase 3A shipped
+ *  bookshelf; Phase 3B adds every tile in the library bible except
+ *  floor (which stays as the `·` glyph — sprite for it would create
+ *  huge bind churn since floor is ~70% of cells). The names match
+ *  the PNG filenames under `public/sprites/{theme_id}/`. */
+export type SpriteSlotId =
+  | 'bookshelf'
+  | 'wall-h'
+  | 'wall-v'
+  | 'corner-tl'
+  | 'corner-tr'
+  | 'corner-bl'
+  | 'corner-br'
+  | 'tee'
+  | 'door'
+  | 'window'
+  | 'table';
 
 /** Tile id → slot id. Tiles not in this map render as their BitmapText
- *  glyph. */
+ *  glyph (currently just T_FLOOR). MUST stay in sync with the
+ *  `LAYOUTS` registry in `scripts/gen-placeholder-sprites.mts`. */
 const TILE_TO_SLOT: ReadonlyMap<number, SpriteSlotId> = new Map([
   [T_BOOKSHELF, 'bookshelf' as const],
+  [T_WALL_H, 'wall-h' as const],
+  [T_WALL_V, 'wall-v' as const],
+  [T_CORNER_TL, 'corner-tl' as const],
+  [T_CORNER_TR, 'corner-tr' as const],
+  [T_CORNER_BL, 'corner-bl' as const],
+  [T_CORNER_BR, 'corner-br' as const],
+  [T_TEE, 'tee' as const],
+  [T_DOOR, 'door' as const],
+  [T_WINDOW, 'window' as const],
+  [T_TABLE, 'table' as const],
 ]);
 
 /** All slot ids the atlas loader will try to fetch per theme. Missing
  *  PNGs are NOT errors — they just leave the slot unset and the
  *  renderer falls back. */
-const KNOWN_SLOTS: readonly SpriteSlotId[] = ['bookshelf'];
+const KNOWN_SLOTS: readonly SpriteSlotId[] = [
+  'bookshelf',
+  'wall-h',
+  'wall-v',
+  'corner-tl',
+  'corner-tr',
+  'corner-bl',
+  'corner-br',
+  'tee',
+  'door',
+  'window',
+  'table',
+];
 
 export interface SpriteAtlas {
   readonly themeId: string;

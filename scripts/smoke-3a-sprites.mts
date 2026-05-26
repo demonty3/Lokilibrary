@@ -1,17 +1,18 @@
 /**
- * Phase 3A smoke — `npx tsx scripts/smoke-3a-sprites.mts`.
+ * Phase 3A/3B smoke — `npx tsx scripts/smoke-3a-sprites.mts`.
  *
  * The PIXI Sprite path itself only runs in a real WebGL context;
  * this smoke covers the pure-TS infrastructure around it:
  *   - placeholder PNG generator produces valid 6×13 RGBA bytes for
- *     every theme in src/themes/
- *   - the on-disk PNGs match the generator's output (idempotent)
- *   - tile → slot mapping: T_BOOKSHELF → 'bookshelf', everything else
- *     resolves to no slot (renderer falls back to glyph)
+ *     every (theme, slot) pair (3B: 11 slots × N themes)
+ *   - on-disk PNGs are byte-identical on re-run (idempotent)
+ *   - tile → slot mapping covers every non-floor tile in the library
+ *     bible; T_FLOOR stays unmapped (renderer falls back to the · glyph)
  *   - textureForTile returns null when slot is unmapped OR when the
- *     atlas doesn't carry that slot
- *   - textureForTile returns the supplied texture when both branches
- *     align (using an opaque placeholder cast to Texture)
+ *     atlas doesn't carry that slot; returns the supplied texture
+ *     when both branches align
+ *   - generator's LAYOUTS registry agrees with sprites.ts KNOWN_SLOTS
+ *     (caught by counting on-disk PNGs vs expected slot count)
  *   - spriteUrl builds the public-root path Vite serves
  *   - PixelArtProvider contract: noopProvider throws on generate; the
  *     interface stub has the expected shape
@@ -22,7 +23,6 @@
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -39,9 +39,20 @@ const {
   TILE_TO_SLOT_VIEW,
   resetSpriteAtlasCache,
 } = await import('../src/render/sprites.ts');
-const { T_BOOKSHELF, T_FLOOR, T_WALL_H, T_TABLE } = await import(
-  '../src/procedural/tiles/library.ts'
-);
+const {
+  T_BOOKSHELF,
+  T_CORNER_BL,
+  T_CORNER_BR,
+  T_CORNER_TL,
+  T_CORNER_TR,
+  T_DOOR,
+  T_FLOOR,
+  T_TABLE,
+  T_TEE,
+  T_WALL_H,
+  T_WALL_V,
+  T_WINDOW,
+} = await import('../src/procedural/tiles/library.ts');
 const { noopProvider, probeHardware, pickProvider } = await import(
   '../src/agents/pixelart.ts'
 );
@@ -60,7 +71,24 @@ function assert(cond: unknown, msg: string): void {
   }
 }
 
-console.log('\n[smoke 3a] sprite atlas + PixelArtProvider scaffold\n');
+// The set of slot ids 3B's generator + atlas both must know about.
+// Drift here is caught by the per-(theme, slot) PNG existence check
+// in step 2, plus the tile→slot assertions in step 3.
+const EXPECTED_SLOTS = [
+  'bookshelf',
+  'wall-h',
+  'wall-v',
+  'corner-tl',
+  'corner-tr',
+  'corner-bl',
+  'corner-br',
+  'tee',
+  'door',
+  'window',
+  'table',
+] as const;
+
+console.log('\n[smoke 3a/3b] sprite atlas + PixelArtProvider scaffold\n');
 
 console.log('Step 1 — placeholder generator runs cleanly');
 const genResult = spawnSync(
@@ -70,11 +98,11 @@ const genResult = spawnSync(
 );
 assert(genResult.status === 0, `generator exit status (got ${genResult.status})`);
 assert(
-  /wrote \d+ sprites/.test(genResult.stdout),
-  'generator stdout reports wrote N sprites',
+  /wrote \d+ sprites across \d+ themes/.test(genResult.stdout),
+  'generator stdout reports wrote N sprites across M themes',
 );
 
-console.log('\nStep 2 — every theme has a baked bookshelf PNG');
+console.log('\nStep 2 — every (theme, slot) has a valid baked PNG');
 const themesDir = path.join(REPO_ROOT, 'src', 'themes');
 const themeIds: string[] = [];
 for (const entry of fs.readdirSync(themesDir)) {
@@ -85,47 +113,82 @@ for (const entry of fs.readdirSync(themesDir)) {
   themeIds.push(raw.id);
 }
 assert(themeIds.length >= 5, `≥5 themes (got ${themeIds.length})`);
+let totalChecked = 0;
+let totalInvalid = 0;
 for (const id of themeIds) {
-  const png = path.join(REPO_ROOT, 'public', 'sprites', id, 'bookshelf.png');
-  assert(fs.existsSync(png), `${id} bookshelf.png exists`);
-  const bytes = fs.readFileSync(png);
-  assert(
-    bytes.slice(0, 8).equals(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    ),
-    `${id} PNG signature valid`,
-  );
-  // IHDR is bytes 8–32; width at 16-19, height at 20-23 (big-endian).
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
-  assert(width === 6, `${id} width = 6 (got ${width})`);
-  assert(height === 13, `${id} height = 13 (got ${height})`);
-  // Color type 6 = RGBA.
-  assert(bytes[25] === 6, `${id} color type = RGBA (got ${bytes[25]})`);
+  for (const slot of EXPECTED_SLOTS) {
+    const png = path.join(REPO_ROOT, 'public', 'sprites', id, `${slot}.png`);
+    if (!fs.existsSync(png)) {
+      totalInvalid++;
+      assert(false, `${id}/${slot}.png missing`);
+      continue;
+    }
+    const bytes = fs.readFileSync(png);
+    const sigOk = bytes
+      .slice(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+    const colorType = bytes[25];
+    if (!sigOk || width !== 6 || height !== 13 || colorType !== 6) {
+      totalInvalid++;
+      assert(
+        false,
+        `${id}/${slot}.png invalid (sig=${sigOk} w=${width} h=${height} ct=${colorType})`,
+      );
+      continue;
+    }
+    totalChecked++;
+  }
 }
-
-console.log('\nStep 3 — tile → slot mapping is bookshelf-only');
 assert(
-  TILE_TO_SLOT_VIEW.get(T_BOOKSHELF) === 'bookshelf',
-  'T_BOOKSHELF → bookshelf',
+  totalInvalid === 0,
+  `0 invalid PNGs (got ${totalInvalid} bad of ${totalChecked + totalInvalid})`,
 );
+assert(
+  totalChecked === themeIds.length * EXPECTED_SLOTS.length,
+  `checked all ${themeIds.length} themes × ${EXPECTED_SLOTS.length} slots = ${themeIds.length * EXPECTED_SLOTS.length} PNGs`,
+);
+
+console.log('\nStep 3 — tile → slot mapping covers every non-floor tile');
+const tileSlotPairs: ReadonlyArray<[number, string, string]> = [
+  [T_BOOKSHELF, 'bookshelf', 'T_BOOKSHELF'],
+  [T_WALL_H, 'wall-h', 'T_WALL_H'],
+  [T_WALL_V, 'wall-v', 'T_WALL_V'],
+  [T_CORNER_TL, 'corner-tl', 'T_CORNER_TL'],
+  [T_CORNER_TR, 'corner-tr', 'T_CORNER_TR'],
+  [T_CORNER_BL, 'corner-bl', 'T_CORNER_BL'],
+  [T_CORNER_BR, 'corner-br', 'T_CORNER_BR'],
+  [T_TEE, 'tee', 'T_TEE'],
+  [T_DOOR, 'door', 'T_DOOR'],
+  [T_WINDOW, 'window', 'T_WINDOW'],
+  [T_TABLE, 'table', 'T_TABLE'],
+];
+for (const [tileId, expectedSlot, name] of tileSlotPairs) {
+  assert(
+    TILE_TO_SLOT_VIEW.get(tileId) === expectedSlot,
+    `${name} → ${expectedSlot}`,
+  );
+  assert(tileHasSpriteSlot(tileId), `tileHasSpriteSlot(${name}) true`);
+}
+// Floor stays unmapped — the · glyph is the cheaper render for the
+// majority tile.
 assert(TILE_TO_SLOT_VIEW.get(T_FLOOR) === undefined, 'T_FLOOR has no slot');
-assert(TILE_TO_SLOT_VIEW.get(T_WALL_H) === undefined, 'T_WALL_H has no slot');
-assert(TILE_TO_SLOT_VIEW.get(T_TABLE) === undefined, 'T_TABLE has no slot');
-assert(tileHasSpriteSlot(T_BOOKSHELF), 'tileHasSpriteSlot(T_BOOKSHELF) true');
 assert(!tileHasSpriteSlot(T_FLOOR), 'tileHasSpriteSlot(T_FLOOR) false');
 
 console.log('\nStep 4 — textureForTile resolves correctly');
 type FakeTex = { __id: string };
 const fakeBookshelfTex = { __id: 'bookshelf-tex' } as FakeTex;
+const fakeWallHTex = { __id: 'wall-h-tex' } as FakeTex;
+const fakeDoorTex = { __id: 'door-tex' } as FakeTex;
 const atlas = {
   themeId: 'solarized-dark',
-  textures: new Map([
-    ['bookshelf', fakeBookshelfTex as unknown],
+  textures: new Map<string, unknown>([
+    ['bookshelf', fakeBookshelfTex],
+    ['wall-h', fakeWallHTex],
+    ['door', fakeDoorTex],
   ]) as unknown as ReadonlyMap<string, unknown>,
 };
-// Use a small type assertion to bridge the FakeTex stand-in to the
-// real signature without pulling in PIXI here.
 type AtlasLike = Parameters<typeof textureForTile>[0];
 const atlasLike = atlas as unknown as AtlasLike;
 assert(
@@ -133,8 +196,20 @@ assert(
   'bookshelf tile resolves to the loaded texture',
 );
 assert(
+  (textureForTile(atlasLike, T_WALL_H) as unknown) === fakeWallHTex,
+  'wall_h tile resolves to the loaded texture',
+);
+assert(
+  (textureForTile(atlasLike, T_DOOR) as unknown) === fakeDoorTex,
+  'door tile resolves to the loaded texture',
+);
+assert(
   textureForTile(atlasLike, T_FLOOR) === null,
   'floor tile resolves to null (no slot)',
+);
+assert(
+  textureForTile(atlasLike, T_TABLE) === null,
+  'table tile resolves to null when atlas missing the slot',
 );
 const emptyAtlas = {
   themeId: 'gruvbox-dark',
@@ -142,17 +217,25 @@ const emptyAtlas = {
 } as unknown as AtlasLike;
 assert(
   textureForTile(emptyAtlas, T_BOOKSHELF) === null,
-  'bookshelf tile resolves to null when atlas missing the slot',
+  'empty atlas → null for every slot',
 );
 
 console.log('\nStep 5 — spriteUrl builds public-root paths');
 assert(
   spriteUrl('solarized-dark', 'bookshelf') === '/sprites/solarized-dark/bookshelf.png',
-  'solarized path',
+  'solarized bookshelf path',
 );
 assert(
-  spriteUrl('tokyo-night', 'bookshelf') === '/sprites/tokyo-night/bookshelf.png',
-  'tokyo-night path',
+  spriteUrl('tokyo-night', 'wall-h') === '/sprites/tokyo-night/wall-h.png',
+  'tokyo-night wall-h path',
+);
+assert(
+  spriteUrl('gruvbox-dark', 'corner-tl') === '/sprites/gruvbox-dark/corner-tl.png',
+  'gruvbox corner-tl path',
+);
+assert(
+  spriteUrl('catppuccin-mocha', 'door') === '/sprites/catppuccin-mocha/door.png',
+  'catppuccin door path',
 );
 
 console.log('\nStep 6 — PixelArtProvider noopProvider throws on generate');
@@ -208,11 +291,13 @@ assert(
   'empty registry → noopProvider',
 );
 
-console.log('\nStep 9 — generator is byte-identical on re-run');
+console.log('\nStep 9 — generator is byte-identical across all (theme, slot) on re-run');
 const before = new Map<string, Buffer>();
 for (const id of themeIds) {
-  const p = path.join(REPO_ROOT, 'public', 'sprites', id, 'bookshelf.png');
-  before.set(id, fs.readFileSync(p));
+  for (const slot of EXPECTED_SLOTS) {
+    const p = path.join(REPO_ROOT, 'public', 'sprites', id, `${slot}.png`);
+    before.set(`${id}/${slot}`, fs.readFileSync(p));
+  }
 }
 const rerun = spawnSync(
   'npx',
@@ -222,14 +307,19 @@ const rerun = spawnSync(
 assert(rerun.status === 0, 'second generator run succeeds');
 let driftCount = 0;
 for (const id of themeIds) {
-  const p = path.join(REPO_ROOT, 'public', 'sprites', id, 'bookshelf.png');
-  const after = fs.readFileSync(p);
-  if (!after.equals(before.get(id)!)) driftCount++;
+  for (const slot of EXPECTED_SLOTS) {
+    const p = path.join(REPO_ROOT, 'public', 'sprites', id, `${slot}.png`);
+    const after = fs.readFileSync(p);
+    if (!after.equals(before.get(`${id}/${slot}`)!)) driftCount++;
+  }
 }
-assert(driftCount === 0, `0 themes drift across runs (got ${driftCount} different)`);
+assert(
+  driftCount === 0,
+  `0 (theme, slot) pairs drift across runs (got ${driftCount} different of ${themeIds.length * EXPECTED_SLOTS.length})`,
+);
 
 resetSpriteAtlasCache();
-console.log(`\n[smoke 3a] ${passed} passed, ${failed} failed`);
+console.log(`\n[smoke 3a/3b] ${passed} passed, ${failed} failed`);
 if (failed > 0) {
   console.log('\nFailures:');
   for (const f of failures) console.log(`  - ${f}`);
