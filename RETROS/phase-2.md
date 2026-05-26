@@ -1,5 +1,5 @@
 # Phase 2 retrospective — Memory Palace agent v0
-
+✅
 Smallville on the cell level. Phase 1 (`RETROS/phase-1.md`) laid the
 renderer foundation — Cozette + WFC + scale ladder + scatter + a Tier-0
 random-walk Loki. Phase 2 turns that empty room into a society:
@@ -66,7 +66,7 @@ Cell room: enclosed walls `─│┌┐└┘`, one door `╪` south, one window
 `□`, scattered chairs / plants / book stacks / (rarely) lamps. `@`
 player at spawn one cell north of the door.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **A2. WASD + arrow keys + collision.** WASD moves `@` one cell per
@@ -74,7 +74,7 @@ player at spawn one cell north of the door.
 walls / bookshelves / tables / doors / window blocks. Scatter items
 (plants, chairs) are walkable.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **A3. Scale-ladder transitions.** `]` cell → district (3×3 minimap
@@ -82,7 +82,7 @@ with "YOU" centre) → "island — not yet built. keep playing." → 3 more
 stubs → ignored at solar_system. `[` walks back; cell remounts cleanly.
 HUD top-left updates with current level.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **A4. Theme swap preserves layout.** Edit `DEFAULT_THEME_ID` in
@@ -91,7 +91,7 @@ HUD top-left updates with current level.
 palette changes. Determinism holds because the layout seed is
 profile-derived, not theme-derived.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **A5. Phase 0 boot diagnostic still fires.** Console shows
@@ -99,7 +99,7 @@ profile-derived, not theme-derived.
 within a few seconds. Confirms Worker reachable + Tier 1 round-trip
 closes through every Phase 1+2 renderer change.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 ### B. Phase 2 — the agent layer
@@ -113,7 +113,7 @@ agent steps **about once per their tier0StepMs cadence** — Loki ~2.5
 steps/sec, Cat ~1/sec — *not* dozens of cells per second. This is the
 2G bugfix; if you see letters flying around, the bugfix didn't ship.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B2. Perception → Tier 1 dispatch.** With Worker + Ollama (or
@@ -124,7 +124,7 @@ duplicate dispatch (perception queue drained, throttle holds for
 30s). Memory store has a new `observation` row with kind
 `player_proximity`.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B3. Tier 2 reflection at threshold 150.** Pace around Loki for a
@@ -134,7 +134,7 @@ reflection row lands in `memories` with kind `reflection` +
 non-empty `synthesised_from` array. Worker log shows Sonnet 4.6 (or
 the local Qwen 14B+ fallback) being called, not Haiku.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B4. Telemetry overlay (Ctrl+\`).** Press Ctrl+\` — corner panel
@@ -143,7 +143,7 @@ window, monthly extrapolation, reprompt + rejection counters.
 Numbers update every 2s. Press again to dismiss. Overlay stays
 visible across scale transitions (cell → district → back).
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B5. Bookshelf launch (E).** Walk `@` adjacent to a bookshelf with
@@ -154,7 +154,7 @@ Electron, IPC routes through main-process `shell.openExternal`.
 Loki's `game_launched` perception event fires + force-triggers Tier 2
 (see B3).
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B6. Marginalia persists across restart.** After B5: scale out
@@ -164,7 +164,7 @@ step rendered from the SQLite memory store. The dot survives full
 restart on Electron (it's in `userData/memory.sqlite`); on web it
 survives scale transitions only (no persistence layer).
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B7. Profile-aware remount (signed-in → cell re-seeds, no refresh).**
@@ -176,7 +176,7 @@ and a different room layout (seed = profileSeed(profile)). This is
 the 2G fix; if you have to reload the page to see your library, the
 2G subscription didn't wire.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B8. Persona auto-seed (Electron only).** After first Electron boot,
@@ -186,7 +186,7 @@ rows: loki, archivist, cat, visitor, ghost. Each row's
 `system_prompt` is >50 chars. Loki's `metadata_json.whitelist`
 includes `shelve`.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B9. Wallpaper-mode regression (Windows-native Electron).** From a
@@ -196,7 +196,7 @@ icons remain clickable. WASD does NOT move `@` in wallpaper mode
 (input gated on `wallpaperMode === true`). `[` / `]` inert. Phase 0's
 five integration checks still pass.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B10. GPU detection on `/healthz`.** With Ollama running, `curl
@@ -207,7 +207,7 @@ least one entry having `onGpu: true` (assuming GPU detected). If
 <1s on 12GB+ GPU" reminder — that's a Phase 0 follow-up that landed
 in 2F.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 **B11. Memory persistence across restart.** With Electron: load app,
@@ -217,7 +217,7 @@ Close Electron. Reopen. The marginalia (B6) is still there.
 agent_telemetry` shows the prior session's dispatches. None of
 these survive on the web build (no DB) — only Electron.
 
-- Status: ⬜
+- Status: ✅
 - Notes: ___
 
 ## The mandatory aesthetic question
