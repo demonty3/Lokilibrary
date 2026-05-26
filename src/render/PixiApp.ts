@@ -10,6 +10,7 @@ import { mountDistrict } from './levels/district';
 import { mountStubLevel } from './levels/stub';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { waitForCozette } from './fonts';
+import { loadSpriteAtlas, type SpriteAtlas } from './sprites';
 import { nullMemoryWriter, type MemoryWriter } from '../agents/router';
 import {
   getCurrentMemoryWriter,
@@ -67,7 +68,12 @@ export async function mountPalace(
   });
   container.appendChild(app.canvas);
 
-  await waitForCozette();
+  // Cozette + sprite atlas can load in parallel — both are bounded by
+  // the network round-trip for static assets in public/.
+  const [, spriteAtlas] = await Promise.all([
+    waitForCozette(),
+    loadSpriteAtlas(theme.id),
+  ]);
 
   const initialWriter = options.memoryWriter ?? nullMemoryWriter;
   function resolveWriter(): MemoryWriter {
@@ -95,6 +101,7 @@ export async function mountPalace(
     theme,
     useAppStore.getState().scale,
     resolveWriter(),
+    spriteAtlas,
   );
 
   // Telemetry overlay (Phase 2F) — mounted on demand by the
@@ -139,7 +146,13 @@ export async function mountPalace(
     }
     if (scaleChanged || (seedChanged && state.scale === 'cell')) {
       teardownLevel();
-      teardownLevel = mountLevel(app, theme, state.scale, resolveWriter());
+      teardownLevel = mountLevel(
+        app,
+        theme,
+        state.scale,
+        resolveWriter(),
+        spriteAtlas,
+      );
       lastSeed = nextSeed;
     } else if (seedChanged) {
       // Scale isn't 'cell' right now, but record the new seed so a later
@@ -168,11 +181,20 @@ function mountLevel(
   theme: Theme,
   scale: ScaleLevel,
   memoryWriter: MemoryWriter,
+  spriteAtlas: SpriteAtlas | null,
 ): () => void {
   if (scale === 'cell') {
     const { books, seed } = snapshotLibraryState();
     const layout = layoutCell(seed);
-    return mountCell(app, theme, layout, books, seed, memoryWriter);
+    return mountCell(
+      app,
+      theme,
+      layout,
+      books,
+      seed,
+      memoryWriter,
+      spriteAtlas,
+    );
   }
   if (scale === 'district') {
     return mountDistrict(app, theme);

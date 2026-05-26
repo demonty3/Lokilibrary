@@ -1,4 +1,4 @@
-import { BitmapText, Container } from 'pixi.js';
+import { BitmapText, Container, Sprite } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
 import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
@@ -8,6 +8,7 @@ import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
 import { mountCohort } from '../agents/cohort';
 import { scatterDecor } from '../../procedural/scatter';
+import { textureForTile, type SpriteAtlas } from '../sprites';
 import {
   broadcastGameLaunched,
   nullMemoryWriter,
@@ -56,6 +57,7 @@ export function mountCell(
   books: readonly BookGame[] = [],
   seed = 0,
   memoryWriter: MemoryWriter = nullMemoryWriter,
+  spriteAtlas: SpriteAtlas | null = null,
 ): () => void {
   const container = new Container();
   app.stage.addChild(container);
@@ -76,23 +78,35 @@ export function mountCell(
   // mount this session.
   const cellId = cellIdFor(seed);
 
-  // Base tile layer — one BitmapText per cell.
+  // Base tile layer — one PIXI.Sprite per cell when a sprite is baked
+  // for that tile id (Phase 3A; bookshelf only today), else one
+  // BitmapText glyph (current Phase 1 path). Sprite + glyph go into
+  // the SAME baseLayer so Z-order vs spineLayer / scatterLayer / etc.
+  // stays unchanged.
   for (let y = 0; y < layout.height; y++) {
     for (let x = 0; x < layout.width; x++) {
       const tileId = layout.tiles[y][x];
       const tile = TILE_BY_ID.get(tileId);
       if (!tile) continue;
-      const glyph = new BitmapText({
-        text: tile.glyph,
-        style: {
-          fontFamily: COZETTE_FONT_FAMILY,
-          fontSize: COZETTE_FONT_SIZE,
-          fill: hexToInt(theme.palette[tile.fgKey]),
-        },
-      });
-      glyph.x = x * COZETTE_CELL_WIDTH;
-      glyph.y = y * COZETTE_CELL_HEIGHT;
-      baseLayer.addChild(glyph);
+      const texture = spriteAtlas ? textureForTile(spriteAtlas, tileId) : null;
+      if (texture) {
+        const sprite = new Sprite(texture);
+        sprite.x = x * COZETTE_CELL_WIDTH;
+        sprite.y = y * COZETTE_CELL_HEIGHT;
+        baseLayer.addChild(sprite);
+      } else {
+        const glyph = new BitmapText({
+          text: tile.glyph,
+          style: {
+            fontFamily: COZETTE_FONT_FAMILY,
+            fontSize: COZETTE_FONT_SIZE,
+            fill: hexToInt(theme.palette[tile.fgKey]),
+          },
+        });
+        glyph.x = x * COZETTE_CELL_WIDTH;
+        glyph.y = y * COZETTE_CELL_HEIGHT;
+        baseLayer.addChild(glyph);
+      }
     }
   }
 
