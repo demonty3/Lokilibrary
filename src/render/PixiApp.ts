@@ -11,6 +11,11 @@ import { mountStubLevel } from './levels/stub';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { waitForCozette } from './fonts';
 import { nullMemoryWriter, type MemoryWriter } from '../agents/router';
+import {
+  getCurrentMemoryWriter,
+  namespaceFor,
+  rebuildNamespaceSync,
+} from '../agents/memory/bootstrap';
 
 export interface BookGame {
   appid: number;
@@ -27,15 +32,23 @@ export interface BookGame {
  * Profile + library data is read from the Zustand store at each mount;
  * if the user is anonymous (no profile yet), we fall back to
  * SAMPLE_LIBRARY + a stable demo seed so the renderer has something to
- * draw on first boot. When the profile loads later (from /api/library),
- * the cell does NOT auto-remount — the scale slice is the only
- * remount trigger in Phase 1. Phase 2 will subscribe to profile
- * changes too so signing in actually re-seeds the room.
+ * draw on first boot. Slice 2G wires the profile subscription so a
+ * library-load-after-auth triggers a cell remount with the new seed —
+ * scale changes are no longer the only remount trigger.
+ *
+ * On each cell remount the writer is re-resolved via
+ * `getCurrentMemoryWriter()` so the namespace rebuild in App.tsx's
+ * profile effect (which calls `bootstrapMemory({rebuild:true})` with
+ * the profile-derived cellId + libraryId) propagates without
+ * threading the writer back through React state.
  */
 export interface MountPalaceOptions {
   /** Optional memory writer — Electron path passes the DB-backed
    *  writer (slice 2F bootstrap), web build passes nothing and gets
-   *  the null writer. */
+   *  the null writer. Slice 2G reads `getCurrentMemoryWriter()` at
+   *  each level mount so a later namespace rebuild picks up
+   *  automatically; this initial value is the seed for the first
+   *  mount before bootstrap has populated the cache. */
   memoryWriter?: MemoryWriter;
 }
 
@@ -56,22 +69,48 @@ export async function mountPalace(
 
   await waitForCozette();
 
-  const memoryWriter = options.memoryWriter ?? nullMemoryWriter;
+  const initialWriter = options.memoryWriter ?? nullMemoryWriter;
+  function resolveWriter(): MemoryWriter {
+    return getCurrentMemoryWriter() ?? initialWriter;
+  }
+
+  // Slice 2G: profile may have loaded during App.tsx's bootstrap + this
+  // mountPalace await (auth → loadLibrary races the renderer init). If
+  // so, the writer cached by App.tsx is still scoped to the anonymous
+  // namespace; rebuild against the current profile before the first
+  // cell mount so persona / marginalia / telemetry rows land under the
+  // right (cellId, libraryId).
+  {
+    const initialState = useAppStore.getState();
+    if (initialState.profile) {
+      const seed = seedFromState(initialState.profile);
+      rebuildNamespaceSync(
+        namespaceFor(initialState.profile, initialState.steamId, seed),
+      );
+    }
+  }
 
   let teardownLevel: () => void = mountLevel(
     app,
     theme,
     useAppStore.getState().scale,
-    memoryWriter,
+    resolveWriter(),
   );
 
   // Telemetry overlay (Phase 2F) — mounted on demand by the
   // `agentDebugOverlay` subscription. Lives at the app level (not the
-  // cell level) so it stays visible across scale transitions.
+  // cell level) so it stays visible across scale transitions. Overlay
+  // reads telemetry via the writer, so we resolve fresh on each mount;
+  // a profile-driven namespace rebuild rebuilds the writer's prepared
+  // statements against the same DB.
   let teardownOverlay: (() => void) | null = null;
   function applyOverlay(on: boolean): void {
     if (on && !teardownOverlay) {
-      teardownOverlay = mountTelemetryOverlay({ app, theme, memoryWriter });
+      teardownOverlay = mountTelemetryOverlay({
+        app,
+        theme,
+        memoryWriter: resolveWriter(),
+      });
     } else if (!on && teardownOverlay) {
       teardownOverlay();
       teardownOverlay = null;
@@ -79,10 +118,33 @@ export async function mountPalace(
   }
   applyOverlay(useAppStore.getState().agentDebugOverlay);
 
+  // Slice 2G: track the profile-derived seed so we only remount on a
+  // change that actually affects the renderer. profileSeed() ignores
+  // persona / avatar drift; topGames + engagement + playtime buckets
+  // are what move it. Anonymous → ANONYMOUS_SEED, profile → its hash.
+  let lastSeed = seedFromState(useAppStore.getState().profile);
+
   const unsubscribe = useAppStore.subscribe((state, prev) => {
-    if (state.scale !== prev.scale) {
+    const scaleChanged = state.scale !== prev.scale;
+    const nextSeed = seedFromState(state.profile);
+    const seedChanged = nextSeed !== lastSeed;
+    // Rebuild the writer namespace *before* remount so the new cell
+    // mounts with a writer scoped to the profile-derived (cellId,
+    // libraryId). No-op in the web build (rebuildNamespaceSync returns
+    // null when no DB is cached).
+    if (seedChanged) {
+      rebuildNamespaceSync(
+        namespaceFor(state.profile, state.steamId, nextSeed),
+      );
+    }
+    if (scaleChanged || (seedChanged && state.scale === 'cell')) {
       teardownLevel();
-      teardownLevel = mountLevel(app, theme, state.scale, memoryWriter);
+      teardownLevel = mountLevel(app, theme, state.scale, resolveWriter());
+      lastSeed = nextSeed;
+    } else if (seedChanged) {
+      // Scale isn't 'cell' right now, but record the new seed so a later
+      // zoom back to cell remounts with the right library.
+      lastSeed = nextSeed;
     }
     if (state.agentDebugOverlay !== prev.agentDebugOverlay) {
       applyOverlay(state.agentDebugOverlay);
@@ -95,6 +157,10 @@ export async function mountPalace(
     teardownLevel();
     app.destroy(true, { children: true, texture: true });
   };
+}
+
+function seedFromState(profile: Profile | null): number {
+  return profile ? profileSeed(profile) : ANONYMOUS_SEED;
 }
 
 function mountLevel(

@@ -45,8 +45,12 @@ export function tickBehavior(
   if (!runtime.present) return { kind: 'idle' };
 
   if (nowMs < runtime.actionEndsAt && runtime.currentAction.kind !== 'idle') {
-    // Action still running; execute its movement step.
-    executeAction(runtime.currentAction, runtime, def, ctx);
+    // Action still running. The Pixi Ticker drives this at ~60Hz; the
+    // action's per-step cadence is `tier0StepMs`, so we hold position
+    // until the action ends and the BT re-scores. (Previously this
+    // branch re-ran executeAction every frame, producing ~24 random
+    // wander steps per Tier-0 interval — the "letters moving fast"
+    // bug.)
     return runtime.currentAction;
   }
 

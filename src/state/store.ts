@@ -96,6 +96,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       steamId: me.steamId ?? null,
       persona: me.persona ?? null,
     });
+    // Slice 2G: cascade into loadLibrary so profile populates and the
+    // cell renderer (which subscribes to profile changes) re-seeds with
+    // the user's real top games. Covers both first-time auth and the
+    // cookie-restored boot path. Fire-and-forget — failures land in
+    // libraryStatus/libraryError, not on this caller's promise.
+    if (me.authenticated) {
+      void get().loadLibrary();
+    }
   },
   signOut: async () => {
     await logoutRequest();

@@ -6,7 +6,6 @@ import { mountPalace } from './render/PixiApp';
 import { DEFAULT_THEME_ID, getById } from './themes';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
-import { profileSeed } from './procedural/seed';
 import { nullMemoryWriter } from './agents/router';
 
 /**
@@ -51,10 +50,10 @@ export function App() {
     void (async () => {
       // Phase 2F: bootstrap memory store before mounting the palace.
       // In Electron this opens userData/memory.sqlite + vaults/. In
-      // the web build this returns the null writer. Profile-aware
-      // namespace + remount lands in slice 2G; for now we bootstrap
-      // with the anonymous namespace so the renderer has *a* writer
-      // from boot.
+      // the web build this returns the null writer. Bootstrap with the
+      // anonymous namespace so the DB opens; PixiApp re-derives the
+      // profile-aware namespace synchronously via rebuildNamespaceSync
+      // when the profile lands (slice 2G).
       const initialState = useAppStore.getState();
       const ns = namespaceFor(initialState.profile, initialState.steamId, 0);
       let writer = nullMemoryWriter;
@@ -80,20 +79,11 @@ export function App() {
     };
   }, []);
 
-  // Keep namespace fresh: when profile loads later (signed in), rebuild
-  // the writer with the real (cell_id, library_id) namespace. The DB
-  // file stays open — we just swap the in-flight closure. Cell + cohort
-  // pick up the new writer on the next mount; for now that means a
-  // theme/scale change re-mounts cell with the new writer.
-  const profile = useAppStore((s) => s.profile);
-  useEffect(() => {
-    if (!profile) return;
-    const seed = profileSeed(profile);
-    void bootstrapMemory({
-      namespace: namespaceFor(profile, useAppStore.getState().steamId, seed),
-      rebuild: true,
-    });
-  }, [profile]);
+  // Profile-triggered namespace rebuild + cell remount is owned by
+  // PixiApp's Zustand subscriber (slice 2G). It calls
+  // rebuildNamespaceSync synchronously on the profile-set, then
+  // remounts the cell so the cohort + telemetry pick up the new writer.
+  // No useEffect needed here.
 
   // Scale-zoom keyboard: [ = out (next level in SCALE_ORDER), ] = in
   // (previous level). Gated by wallpaperMode so the wallpaper layer

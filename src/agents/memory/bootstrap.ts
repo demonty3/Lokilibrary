@@ -139,3 +139,35 @@ export function resetBootstrap(): void {
   }
   cached = null;
 }
+
+/** Slice 2G: read the currently-bootstrapped writer without awaiting
+ *  bootstrap. PixiApp's level mounts call this at each remount so they
+ *  pick up the writer rebuilt against the profile-derived namespace.
+ *  Returns `null` when bootstrap hasn't run yet — callers fall back to
+ *  `nullMemoryWriter`. */
+export function getCurrentMemoryWriter(): MemoryWriter | null {
+  return cached?.writer ?? null;
+}
+
+/** Slice 2G: synchronous namespace rebuild. PixiApp's subscribe fires
+ *  before App.tsx's React effect, so a profile change needs to update
+ *  the writer namespace *before* the cell remount picks up the fresh
+ *  writer via `getCurrentMemoryWriter`. This is the load-bearing call —
+ *  no IPC, no await, just swap the writer wrapper around the same DB.
+ *
+ *  Returns the new writer if the cache held an open DB; returns the
+ *  existing cached writer (or null) otherwise — the renderer keeps the
+ *  null writer in the web build and on Electron pre-bootstrap. */
+export function rebuildNamespaceSync(
+  ns: BootstrapNamespace,
+): MemoryWriter | null {
+  if (!cached) return null;
+  if (!cached.db) return cached.writer;
+  const writer = buildMemoryWriter({
+    db: cached.db,
+    vault: cached.vault,
+    ns,
+  });
+  cached = { ...cached, writer };
+  return writer;
+}
