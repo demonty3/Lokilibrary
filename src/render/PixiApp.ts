@@ -116,12 +116,19 @@ export async function mountPalace(
   //                  cohort + scene state is preserved because we don't
   //                  destroy anything, just stop the loop.
   function applyThrottle(state: import('../api/electron').ThrottleState): void {
+    const before = { started: app.ticker.started, maxFPS: app.ticker.maxFPS };
     if (state === 'paused') {
       if (app.ticker.started) app.ticker.stop();
-      return;
+    } else {
+      if (!app.ticker.started) app.ticker.start();
+      app.ticker.maxFPS = state === 'throttled-1hz' ? 1 : 0;
     }
-    if (!app.ticker.started) app.ticker.start();
-    app.ticker.maxFPS = state === 'throttled-1hz' ? 1 : 0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[throttle/renderer] state=${state} ` +
+        `ticker.started ${before.started}→${app.ticker.started} ` +
+        `ticker.maxFPS ${before.maxFPS}→${app.ticker.maxFPS}`,
+    );
   }
   applyThrottle(useAppStore.getState().throttleState);
 

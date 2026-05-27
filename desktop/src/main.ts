@@ -199,6 +199,8 @@ function applyMode(mode: Mode): void {
  *  and the throttle module stays Electron-API-light. */
 function emitThrottleChange(state: ThrottleState, isInitial: boolean): void {
   if (!mainWindow) return;
+  // eslint-disable-next-line no-console
+  console.log(`[throttle/ipc] sending state=${state} isInitial=${isInitial}`);
   try {
     mainWindow.webContents.send('throttle:state-change', { state, isInitial });
   } catch {

@@ -300,6 +300,12 @@ interface ControllerState {
    *  (very rare; happens before the shell finishes initialising). */
   shellHwnd: bigint | null;
   isWallpaperMode: boolean;
+  /** Last foreground HWND we observed. Diagnostic logs fire only when
+   *  this changes OR the computed state transitions — keeps PowerShell
+   *  quiet when the user isn't doing anything, but surfaces every
+   *  meaningful event so we can debug "agents didn't slow down" by
+   *  reading the log. */
+  lastForegroundHwnd: bigint | null;
 }
 
 const controller: ControllerState = {
@@ -308,6 +314,7 @@ const controller: ControllerState = {
   wallpaperHwnd: null,
   shellHwnd: null,
   isWallpaperMode: false,
+  lastForegroundHwnd: null,
 };
 
 let currentOpts: ThrottleControllerOptions | null = null;
@@ -326,7 +333,15 @@ export function startThrottleController(
   controller.shellHwnd = bufferToHwnd(GetShellWindow());
   controller.isWallpaperMode = true;
   controller.current = 'full';
+  controller.lastForegroundHwnd = null;
   currentOpts = opts;
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[throttle] controller started ` +
+      `wallpaperHwnd=0x${controller.wallpaperHwnd.toString(16)} ` +
+      `shellHwnd=${controller.shellHwnd ? '0x' + controller.shellHwnd.toString(16) : 'null'}`,
+  );
 
   // Emit the initial state synchronously so the renderer can drop the
   // ticker to its initial throttle level BEFORE the first frame after
@@ -342,7 +357,32 @@ export function startThrottleController(
         controller.isWallpaperMode,
       );
       const next = computeThrottleState(probe);
-      if (next !== controller.current) {
+
+      // Diagnostic log: fire when foreground HWND changes OR when the
+      // computed state transitions. Quiet during steady-state, loud
+      // during anything interesting. Goes to the PowerShell terminal —
+      // tail it to debug "throttle isn't engaging" by reading the
+      // actual probe values vs. what the heuristic does with them.
+      const fgChanged = probe.foregroundHwnd !== controller.lastForegroundHwnd;
+      const stateChanged = next !== controller.current;
+      if (fgChanged || stateChanged) {
+        const fgHex = probe.foregroundHwnd
+          ? '0x' + probe.foregroundHwnd.toString(16)
+          : 'null';
+        const fgRect = probe.foregroundRect
+          ? `${probe.foregroundRect.right - probe.foregroundRect.left}×${probe.foregroundRect.bottom - probe.foregroundRect.top}` +
+            `@(${probe.foregroundRect.left},${probe.foregroundRect.top})`
+          : 'null';
+        const monRect = `${probe.monitorRect.right - probe.monitorRect.left}×${probe.monitorRect.bottom - probe.monitorRect.top}`;
+        const transitionTag = stateChanged ? ` ⟹ ${controller.current}→${next}` : '';
+        // eslint-disable-next-line no-console
+        console.log(
+          `[throttle] fg=${fgHex} fgRect=${fgRect} mon=${monRect} state=${next}${transitionTag}`,
+        );
+        controller.lastForegroundHwnd = probe.foregroundHwnd;
+      }
+
+      if (stateChanged) {
         controller.current = next;
         currentOpts?.onStateChange(next, false);
       }
@@ -363,11 +403,14 @@ export function stopThrottleController(): void {
   if (controller.timer) {
     clearInterval(controller.timer);
     controller.timer = null;
+    // eslint-disable-next-line no-console
+    console.log('[throttle] controller stopped');
   }
   controller.current = 'full';
   controller.isWallpaperMode = false;
   controller.wallpaperHwnd = null;
   controller.shellHwnd = null;
+  controller.lastForegroundHwnd = null;
   currentOpts = null;
 }
 
