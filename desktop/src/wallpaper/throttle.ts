@@ -40,6 +40,13 @@ interface Koffi {
   load(name: string): {
     func(signature: string): (...args: unknown[]) => unknown;
   };
+  /** koffi.address(v) returns the pointer value of any koffi-managed
+   *  reference as a bigint. The critical helper for void*-return
+   *  unwrapping: koffi doesn't hand back a Node Buffer wrapping the
+   *  pointer bytes, it hands back its own opaque reference type whose
+   *  identity IS the pointer. `instanceof Buffer` returns false for
+   *  these, which is what broke the previous bufferToHwnd path. */
+  address(value: unknown): bigint;
 }
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const koffi = require('koffi') as Koffi;
@@ -227,13 +234,26 @@ function readRectFromBuffer(): Rect {
   };
 }
 
-/** koffi marshals `void*` returned values as Node Buffers wrapping the
- *  pointer's address. For HWND-vs-HWND comparison we need the
- *  pointer-value as a bigint — same trick as windows.ts `electronHwnd`. */
-function bufferToHwnd(buf: unknown): bigint | null {
-  if (!buf || !(buf instanceof Buffer) || buf.length < 8) return null;
-  const v = buf.readBigInt64LE(0);
-  return v === 0n ? null : v;
+/** Extract the HWND value (as bigint) from a koffi-returned `void*`.
+ *  Cannot use the original `buf.readBigInt64LE(0)` approach — koffi
+ *  doesn't return a Node Buffer for void*-return functions; it returns
+ *  its own opaque reference object whose memory layout we don't control.
+ *  `koffi.address()` is the documented unwrap path: returns the pointer
+ *  value as a bigint, suitable for HWND-vs-HWND comparison.
+ *
+ *  Distinct from `win.getNativeWindowHandle().readBigInt64LE(0)` used for
+ *  the wallpaper HWND — that one IS a real Node Buffer whose first 8
+ *  bytes are the HWND value (Electron's encoding). Two different
+ *  extraction paths because they're two different runtime types,
+ *  documented in detail in windows.ts:160. */
+function koffiHwnd(value: unknown): bigint | null {
+  if (!value) return null;
+  try {
+    const addr = koffi.address(value);
+    return addr === 0n ? null : addr;
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve Progman's HWND with a two-step fallback. Captured once at
@@ -246,14 +266,14 @@ function findShellHwnd(): bigint | null {
   // Path 1: the documented API. Returns NULL on shells that didn't
   // register their desktop window — observed on at least one
   // raised-desktop Win11 user setup despite Progman existing.
-  const fromGetShell = bufferToHwnd(GetShellWindow());
+  const fromGetShell = koffiHwnd(GetShellWindow());
   if (fromGetShell !== null) return fromGetShell;
 
   // Path 2: class-name lookup. Progman is created by explorer.exe and
   // its class is always "Progman" regardless of shell registration
   // state. This is what windows.ts already does for WorkerW lookup;
   // applying the same trick here.
-  const fromFindWindow = bufferToHwnd(FindWindowExW(null, null, 'Progman', null));
+  const fromFindWindow = koffiHwnd(FindWindowExW(null, null, 'Progman', null));
   if (fromFindWindow !== null) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -308,11 +328,15 @@ function probeWin32(
   }
 
   const fgHwndRaw = GetForegroundWindow();
-  const foregroundHwnd = bufferToHwnd(fgHwndRaw);
+  const foregroundHwnd = koffiHwnd(fgHwndRaw);
 
   let foregroundRect: Rect | null = null;
   if (foregroundHwnd !== null && fgHwndRaw) {
     rectBuf.fill(0);
+    // Pass the koffi-returned reference directly back to GetWindowRect
+    // (koffi unwraps it transparently — same pattern windows.ts uses
+    // for Progman → SetParent). Passing the bigint pointer value would
+    // require a separate cast.
     const ok = GetWindowRect(fgHwndRaw, rectBuf) as boolean;
     if (ok) foregroundRect = readRectFromBuffer();
   }
