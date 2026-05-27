@@ -38,6 +38,8 @@ const {
   spriteUrl,
   TILE_TO_SLOT_VIEW,
   resetSpriteAtlasCache,
+  displaySizeForSlot,
+  displaySizeForTile,
 } = await import('../src/render/sprites.ts');
 const {
   T_BOOKSHELF,
@@ -130,11 +132,15 @@ for (const id of themeIds) {
     const width = bytes.readUInt32BE(16);
     const height = bytes.readUInt32BE(20);
     const colorType = bytes[25];
-    if (!sigOk || width !== 6 || height !== 13 || colorType !== 6) {
+    // 3C-β: bookshelf is 16×32 (PixelLab native); everything else stays
+    // 6×13. Per-slot expected size must agree with `SLOT_DISPLAY` in
+    // src/render/sprites.ts and `SLOT_NATIVE` in gen-placeholder-sprites.mts.
+    const expected = slot === 'bookshelf' ? { w: 16, h: 32 } : { w: 6, h: 13 };
+    if (!sigOk || width !== expected.w || height !== expected.h || colorType !== 6) {
       totalInvalid++;
       assert(
         false,
-        `${id}/${slot}.png invalid (sig=${sigOk} w=${width} h=${height} ct=${colorType})`,
+        `${id}/${slot}.png invalid (sig=${sigOk} w=${width} h=${height} ct=${colorType}, expected ${expected.w}×${expected.h})`,
       );
       continue;
     }
@@ -249,7 +255,7 @@ try {
 } catch (e) {
   threw = true;
   assert(
-    String((e as Error).message).includes('no provider wired yet'),
+    String((e as Error).message).includes('no provider wired'),
     'noopProvider throws with explanatory message',
   );
 }
@@ -318,8 +324,36 @@ assert(
   `0 (theme, slot) pairs drift across runs (got ${driftCount} different of ${themeIds.length * EXPECTED_SLOTS.length})`,
 );
 
+console.log('\nStep 10 — displaySizeForSlot / displaySizeForTile (3C-β revert)');
+// 3C-β tried displaying bookshelf at 16×32 — too big in the browser, so
+// SLOT_DISPLAY now leaves bookshelf on the default (6×13 = glyph cell).
+// The on-disk PNG stays 16×32 native; PixiJS downsamples to 6×13 at
+// render time. When a future slice settles the display-size question
+// properly (bake-time downsample, bigger glyph cell, or WFC clustering),
+// this assertion's expected size flips back.
+for (const slot of EXPECTED_SLOTS) {
+  const d = displaySizeForSlot(slot);
+  assert(
+    d.width === 6 && d.height === 13,
+    `slot "${slot}" displays at default 6×13 (got ${d.width}×${d.height})`,
+  );
+}
+const bookByTile = displaySizeForTile(T_BOOKSHELF);
+assert(
+  bookByTile.width === 6 && bookByTile.height === 13,
+  'displaySizeForTile(T_BOOKSHELF) = 6×13 (post-revert)',
+);
+// Floor → default size (it's not in the slot map so falls through to the
+// default branch; renderer would draw a glyph anyway, but the function
+// must still return a sensible size).
+const floorDisplay = displaySizeForTile(T_FLOOR);
+assert(
+  floorDisplay.width === 6 && floorDisplay.height === 13,
+  'unmapped tile (floor) → default 6×13',
+);
+
 resetSpriteAtlasCache();
-console.log(`\n[smoke 3a/3b] ${passed} passed, ${failed} failed`);
+console.log(`\n[smoke 3a/3b/3c-β] ${passed} passed, ${failed} failed`);
 if (failed > 0) {
   console.log('\nFailures:');
   for (const f of failures) console.log(`  - ${f}`);

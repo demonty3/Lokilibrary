@@ -87,10 +87,119 @@ export const noopProvider: PixelArtProvider = {
   id: 'noop',
   generate: async () => {
     throw new Error(
-      '[pixelart] noopProvider: no provider wired yet. Phase 3B wires PixelLab.ai; Phase 3C wires the local SDXL sidecar.',
+      '[pixelart] noopProvider: no provider wired. Phase 3C wires PixelLab.ai via createPixelLabProvider; Phase 3D wires the local SDXL sidecar.',
     );
   },
 };
+
+/** Phase 3C — slice-β resolution table. Per CLAUDE.md "default to
+ *  template-build-time generation", this map is the source of truth for
+ *  what *native* pixel-art size each slot is generated at. The
+ *  *displayed* size is owned by `src/render/sprites.ts`; the two can
+ *  diverge (e.g. bookshelf generates at 16×32 native and renders at 16×32
+ *  displayed = 1:1 nearest-neighbor on a 6×13 grid cell, blooming across
+ *  ~2.7 cells). PixelLab's pixflux endpoint enforces 16 ≤ dim ≤ 400; this
+ *  table must respect that. */
+const NATIVE_PX: ReadonlyMap<string, { width: number; height: number }> = new Map([
+  // 3C only wires the bookshelf bake; the rest stay on 3B's procedural
+  // 6×13 placeholders. When a slot lands here it must also get a matching
+  // displaySize entry in `src/render/sprites.ts` SLOT_DISPLAY.
+  ['bookshelf', { width: 16, height: 32 }],
+]);
+
+/** Prompt template per slot. Kept here (not in the Worker) because the
+ *  prompt is the renderer's concern — it knows the slot's *visual role*
+ *  in the world. The Worker stays a dumb HTTP proxy that can serve any
+ *  description. */
+function describeSlot(slot: SpriteSlot): string {
+  if (slot.slotId === 'bookshelf') {
+    return (
+      'A tall wooden bookshelf in a cozy library, front view, dark wood ' +
+      'frame, four horizontal shelves filled with colorful book spines, ' +
+      'vertical sprite, transparent background, pixel art'
+    );
+  }
+  // Fallback prompt. 3D will fill the gaps as we widen the bake to the
+  // other slots; until then noopProvider catches stray calls in tests.
+  return `${slot.slotId} for a cozy pixel-art library room, transparent background, pixel art`;
+}
+
+function nativeSize(slot: SpriteSlot): { width: number; height: number } {
+  return NATIVE_PX.get(slot.slotId) ?? { width: 16, height: 16 };
+}
+
+/** Options for the PixelLab provider — split out so tests can inject a
+ *  mock fetch + a custom workerBase without touching globalThis. */
+export interface PixelLabProviderOptions {
+  /** Base URL of the Worker (without trailing slash). Defaults to the
+   *  local-dev wrangler port. The bake script never talks to PixelLab
+   *  directly — the key lives only in the Worker. */
+  workerBase?: string;
+  /** fetch implementation. Defaults to global fetch (Node ≥18). */
+  fetchImpl?: typeof fetch;
+}
+
+/** Phase 3C provider: bake-time HTTP client for PixelLab.ai pixflux,
+ *  routed through the Worker's /api/bake/sprite proxy. Single-shot — the
+ *  bake script calls .generate() N times to gather N candidates and
+ *  curates manually. Throws on any non-2xx so the caller can decide
+ *  whether to retry or skip. */
+export function createPixelLabProvider(opts: PixelLabProviderOptions = {}): PixelArtProvider {
+  const workerBase = (opts.workerBase ?? 'http://localhost:8787').replace(/\/$/, '');
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  return {
+    id: 'pixellab',
+    generate: async (slot) => {
+      const description = describeSlot(slot);
+      const { width, height } = nativeSize(slot);
+      const res = await fetchImpl(`${workerBase}/api/bake/sprite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ description, width, height }),
+      });
+      if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        throw new Error(
+          `[pixelart] pixellab worker returned ${res.status}: ${raw.slice(0, 200)}`,
+        );
+      }
+      const data = (await res.json()) as {
+        image: { base64: string; format?: string };
+        usage: { type?: string; usd?: number; credits?: number } | null;
+        latencyMs: number;
+      };
+      const pngBytes = decodeBase64Png(data.image.base64);
+      const contentHash = await sha256Hex(pngBytes);
+      const usd = data.usage?.usd;
+      const source =
+        `pixellab/pixflux` +
+        (usd !== undefined ? ` ($${usd.toFixed(4)})` : '') +
+        ` ${width}×${height} ${data.latencyMs}ms`;
+      return { slot, pngBytes, contentHash, source };
+    },
+  };
+}
+
+/** Strip the optional `data:image/png;base64,` prefix and decode to raw
+ *  PNG bytes. Used by the provider; exported for the smoke. */
+export function decodeBase64Png(b64: string): Uint8Array {
+  const stripped = b64.startsWith('data:') ? (b64.split(',', 2)[1] ?? '') : b64;
+  // atob is available in Node 16+ and all browsers; Cloudflare Workers
+  // too. Avoids an extra dep on the Node Buffer.from('...', 'base64')
+  // path that the renderer can't use.
+  const binary = atob(stripped);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** SHA-256 hex of raw bytes via Web Crypto (Node ≥20, browsers, Workers). */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 /** Probe stub. Phase 3C replaces this with a real VRAM detection (the
  *  Python sidecar reports back; Electron caches the result on disk so

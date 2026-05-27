@@ -8,7 +8,7 @@ import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
 import { mountCohort } from '../agents/cohort';
 import { scatterDecor } from '../../procedural/scatter';
-import { textureForTile, type SpriteAtlas } from '../sprites';
+import { displaySizeForTile, textureForTile, type SpriteAtlas } from '../sprites';
 import {
   broadcastGameLaunched,
   nullMemoryWriter,
@@ -91,8 +91,18 @@ export function mountCell(
       const texture = spriteAtlas ? textureForTile(spriteAtlas, tileId) : null;
       if (texture) {
         const sprite = new Sprite(texture);
-        sprite.x = x * COZETTE_CELL_WIDTH;
-        sprite.y = y * COZETTE_CELL_HEIGHT;
+        // Phase 3C-β: sprites can be larger than one glyph cell. The
+        // PNG on disk is the slot's native size; here we set the
+        // displayed size to match (1:1 nearest-neighbor — the
+        // container's integer fit scale handles the final upscale).
+        // Anchor bottom-center on the tile so a tall bookshelf "stands
+        // on" the floor row at (x, y) and rises upward through whatever
+        // cells happen to be above it (typically the wall band).
+        const display = displaySizeForTile(tileId);
+        sprite.width = display.width;
+        sprite.height = display.height;
+        sprite.x = x * COZETTE_CELL_WIDTH + (COZETTE_CELL_WIDTH - display.width) / 2;
+        sprite.y = y * COZETTE_CELL_HEIGHT + COZETTE_CELL_HEIGHT - display.height;
         baseLayer.addChild(sprite);
       } else {
         const glyph = new BitmapText({

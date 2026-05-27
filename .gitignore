@@ -13,6 +13,11 @@ worker/.dev.vars
 *.dev.vars
 .wrangler/
 
+# Phase 3C bake-script staging directory. The bake script writes N
+# PixelLab candidates here per (slot, theme); the human curator picks
+# the survivor and copies it to public/sprites/{theme}/{slot}.png.
+staging/
+
 # Editor / OS
 .idea/
 .vscode/

@@ -44,3 +44,12 @@ PUBLIC_BASE_URL=http://localhost:5183
 # verification with "AppId mismatch". Defaults to 480 (SpaceWar) for dev;
 # replace with your real appid after Steamworks partner approval.
 STEAM_APP_ID=480
+
+# --- Pixel-art pipeline (Phase 3C) ---
+# Required by POST /api/bake/sprite. Sign up at https://www.pixellab.ai and
+# the token lives at https://pixellab.ai/account. Per-call cost comes back
+# in the response body (~$0.008 at 16×16 up to ~$0.013 at 400×400). This
+# route is a bake-time tool driven by scripts/bake-sprites.mts; the user
+# runtime never calls it (CLAUDE.md "default to template-build-time
+# generation").
+PIXELLAB_API_KEY=

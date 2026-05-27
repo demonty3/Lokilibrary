@@ -14,9 +14,13 @@
  *                                    (?template=... ?force=1; cached 24h)
  *   POST /api/agent/tick           — Tier 1 micro-action call for one agent
  *                                    given its state + perception payload
+ *   POST /api/agent/reflect        — Tier 2 reflection (Phase 2D)
+ *   POST /api/embed                — local-Ollama embeddings stub (Phase 2D)
+ *   POST /api/bake/sprite          — Phase 3C bake-time proxy to PixelLab.ai
+ *                                    pixflux; dev tool only, not user-runtime
  *
- * The frontend never holds an API key. All Anthropic / Ollama / (future)
- * Stable Audio / ElevenLabs / Meshy traffic terminates here.
+ * The frontend never holds an API key. All Anthropic / Ollama / PixelLab /
+ * (future) Stable Audio / ElevenLabs traffic terminates here.
  */
 
 import { buildStageOnePrompt } from './lib/prompt';
@@ -79,6 +83,11 @@ interface Env extends ProviderEnv {
   /** Read-through cache for Steam (slice 2), HLTB (slice 4), IGDB (Phase 3),
    *  and the Stage 1 manifest. See worker/wrangler.toml. */
   CACHE?: KVNamespace;
+  /** Phase 3C: PixelLab.ai bearer token for the bake-time sprite generator
+   *  proxy (POST /api/bake/sprite). Bake-time only — never hit at user
+   *  runtime. Per CLAUDE.md, this key must NEVER be embedded in the
+   *  frontend bundle; the bake script reaches PixelLab via this Worker. */
+  PIXELLAB_API_KEY?: string;
 }
 
 const OWNED_GAMES_TTL_S = 60 * 60;        // 1h, per SPEC §7.1 + PLAN.md task 2
@@ -813,6 +822,106 @@ export default {
       return json(
         { error: 'local embedding implementation pending — FTS5 fallback active' },
         { status: 501 },
+        cors,
+      );
+    }
+
+    // --- Pixel-art bake (Phase 3C) -------------------------------------------
+    // POST /api/bake/sprite — proxies one create-image-pixflux call to
+    // PixelLab.ai. Bake-time only: scripts/bake-sprites.mts loops this N
+    // times per slot, palette-quantizes the candidates, and stages them for
+    // manual curation. Per CLAUDE.md, the PixelLab API key lives ONLY here;
+    // the bake script reaches the Worker by HTTP just like the frontend
+    // does, so the key never leaves this process.
+    //
+    // Body: {description: string, width?: 16-400, height?: 16-400, seed?: number}.
+    // Response: {image: {base64, format}, usage: {usd|credits} | null, latencyMs}.
+    if (req.method === 'POST' && url.pathname === '/api/bake/sprite') {
+      if (!env.PIXELLAB_API_KEY) {
+        return json({ error: 'PIXELLAB_API_KEY not configured' }, { status: 500 }, cors);
+      }
+      let body: { description?: unknown; width?: unknown; height?: unknown; seed?: unknown };
+      try {
+        body = (await req.json()) as typeof body;
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      if (typeof body.description !== 'string' || body.description.length === 0) {
+        return json({ error: 'description (non-empty string) required' }, { status: 400 }, cors);
+      }
+      // PixelLab's pixflux endpoint enforces 16 ≤ dim ≤ 400 (validated
+      // server-side; we mirror the bounds here so a typo in the bake
+      // script fails fast rather than burning a paid round-trip).
+      const width = typeof body.width === 'number' ? Math.floor(body.width) : 16;
+      const height = typeof body.height === 'number' ? Math.floor(body.height) : 32;
+      if (width < 16 || width > 400 || height < 16 || height > 400) {
+        return json(
+          { error: 'width/height must be integers in [16, 400]' },
+          { status: 400 },
+          cors,
+        );
+      }
+
+      const startedAt = Date.now();
+      let upstream: Response;
+      try {
+        upstream = await fetch('https://api.pixellab.ai/v2/create-image-pixflux', {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${env.PIXELLAB_API_KEY}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            description: body.description,
+            image_size: { width, height },
+            no_background: true,
+            ...(typeof body.seed === 'number' && { seed: Math.floor(body.seed) }),
+          }),
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'pixellab upstream fetch failed', message }, { status: 502 }, cors);
+      }
+      const latencyMs = Date.now() - startedAt;
+
+      if (!upstream.ok) {
+        const raw = await upstream.text().catch(() => '');
+        // 401 (bad key) / 402 (out of credits) / 429 (rate) are user-actionable
+        // upstream signals — pass them through verbatim so the bake script can
+        // print a useful error. Everything else collapses to 502.
+        const passthrough =
+          upstream.status === 401 ||
+          upstream.status === 402 ||
+          upstream.status === 422 ||
+          upstream.status === 429 ||
+          upstream.status === 529;
+        return json(
+          { error: `pixellab returned ${upstream.status}`, raw: raw.slice(0, 400) },
+          { status: passthrough ? upstream.status : 502 },
+          cors,
+        );
+      }
+
+      let data: {
+        image?: { base64?: string; format?: string };
+        usage?: { type?: string; usd?: number; credits?: number } | null;
+      };
+      try {
+        data = (await upstream.json()) as typeof data;
+      } catch {
+        return json({ error: 'pixellab returned non-json' }, { status: 502 }, cors);
+      }
+      if (!data.image?.base64) {
+        return json({ error: 'pixellab response missing image.base64' }, { status: 502 }, cors);
+      }
+
+      return json(
+        {
+          image: data.image,
+          usage: data.usage ?? null,
+          latencyMs,
+        },
+        { status: 200 },
         cors,
       );
     }

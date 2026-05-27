@@ -1,9 +1,11 @@
 /**
- * Phase 3A/3B — generate placeholder tile sprites per theme into
- * `public/sprites/{theme_id}/<slot>.png`. Each sprite is a 6×13 RGBA
- * PNG that fits Cozette's cell dimensions exactly, so the
- * sprite-aware cell renderer can drop them in where the glyph used to
- * live.
+ * Phase 3A/3B/3C — generate placeholder tile sprites per theme into
+ * `public/sprites/{theme_id}/<slot>.png`. Most slots are 6×13 RGBA PNGs
+ * matching Cozette's cell dimensions exactly; the bookshelf bumped to
+ * 16×32 in 3C-β so it can render at the same size the PixelLab bake
+ * generates (PixelLab's pixflux endpoint enforces 16 ≤ dim ≤ 400, so
+ * 6×13 wasn't reachable). The 16×32 placeholder lets the renderer have
+ * something to draw before the real bake replaces it.
  *
  * No image-lib dependency — encodes PNG by hand via Node's `zlib`
  * + a small CRC32 table. Idempotent: same theme JSON + LAYOUTS in →
@@ -14,8 +16,9 @@
  * Phase 3A shipped the bookshelf only. Phase 3B extends to every tile
  * in the library bible *except floor* (floor is 70% of cells; a sprite
  * for it would create huge bind churn for marginal value, and the `·`
- * glyph reads fine as floor). Each layout is keyed off palette slots
- * so theme swaps re-tint without changing geometry.
+ * glyph reads fine as floor). 3C-β bumps the bookshelf design to 16×32
+ * but leaves the other slots at 6×13. Each layout is keyed off palette
+ * slots so theme swaps re-tint without changing geometry.
  *
  * Phase 3C+ will replace these placeholders with model-generated
  * sprites via PixelArtProvider (see src/agents/pixelart.ts); the file
@@ -23,7 +26,8 @@
  *
  * Slot id ↔ tile id mapping lives in `src/render/sprites.ts` —
  * `KNOWN_SLOTS` there must agree with `SLOT_IDS` here. The smoke test
- * (`scripts/smoke-3a-sprites.mts`) catches drift.
+ * (`scripts/smoke-3a-sprites.mts`) catches drift. Per-slot native sizes
+ * here MUST match `SLOT_DISPLAY` in `src/render/sprites.ts`.
  */
 
 import * as fs from 'node:fs';
@@ -58,8 +62,13 @@ interface Theme {
   palette: ThemePalette;
 }
 
-const WIDTH = 6;
-const HEIGHT = 13;
+// Default cell-aligned slot size — 6×13 to match Cozette's cell. The
+// bookshelf overrides this to 16×32 (see SLOT_NATIVE below) — every other
+// slot keeps the default. Width/height are inferred from each Layout's
+// shape at validation time, so adding a non-default size only requires
+// the new layout literal.
+const DEFAULT_W = 6;
+const DEFAULT_H = 13;
 
 /** Pixel layout key — abstract palette role. The renderer resolves
  *  each key to a theme-specific hex through `resolveColor`.
@@ -95,24 +104,59 @@ type Layout = ReadonlyArray<ReadonlyArray<LayoutKey>>;
 // and the vertical wall band uses the same col positions (2-3)
 // everywhere — corners + tees + door + window all snap to that grid.
 
-// Bookshelf — Phase 3A's original design, kept verbatim. 4 shelves
-// of 4 books each, in a wood frame. The shelf-line key is the dim
-// foreground (fgDim) which reads as "shadow under shelf."
-const BOOKSHELF: Layout = [
-  ['wood', 'wood', 'wood', 'wood', 'wood', 'wood'],
-  ['wood', 'shelfLine', 'shelfLine', 'shelfLine', 'shelfLine', 'wood'],
-  ['wood', 'red', 'cyan', 'green', 'yellow', 'wood'],
-  ['wood', 'red', 'cyan', 'green', 'yellow', 'wood'],
-  ['wood', 'shelfLine', 'shelfLine', 'shelfLine', 'shelfLine', 'wood'],
-  ['wood', 'magenta', 'blue', 'yellow', 'cyan', 'wood'],
-  ['wood', 'magenta', 'blue', 'yellow', 'cyan', 'wood'],
-  ['wood', 'shelfLine', 'shelfLine', 'shelfLine', 'shelfLine', 'wood'],
-  ['wood', 'green', 'red', 'cyan', 'magenta', 'wood'],
-  ['wood', 'green', 'red', 'cyan', 'magenta', 'wood'],
-  ['wood', 'shelfLine', 'shelfLine', 'shelfLine', 'shelfLine', 'wood'],
-  ['wood', 'yellow', 'green', 'red', 'blue', 'wood'],
-  ['wood', 'wood', 'wood', 'wood', 'wood', 'wood'],
+// Bookshelf — Phase 3C-β redesign at 16×32 to match the PixelLab
+// native size (pixflux endpoint enforces 16 ≤ dim ≤ 400; the smaller
+// 6×13 original couldn't be reached). 4 shelves of 7 books each, each
+// book 2 cols wide × 6 rows tall, inside a 1-px wood frame on cols
+// 0 + 15 with 1-row wood caps top and bottom. Shelf-line key uses the
+// dim foreground (fgDim) so it reads as a shadow under each shelf
+// regardless of the active theme.
+//
+// Color sequences rotate per shelf for visual variety while staying
+// inside the theme palette. The first letter of each game name renders
+// over the top-left of the sprite as a spine glyph (see cell.ts) —
+// 16×32 leaves room for that overlay to land roughly on the leftmost
+// book without obscuring the rest.
+type BookColor = 'red' | 'cyan' | 'green' | 'yellow' | 'magenta' | 'blue' | 'violet';
+const SHELF_PATTERNS: ReadonlyArray<ReadonlyArray<BookColor>> = [
+  ['red', 'cyan', 'green', 'yellow', 'magenta', 'blue', 'violet'],
+  ['green', 'yellow', 'magenta', 'blue', 'violet', 'red', 'cyan'],
+  ['magenta', 'blue', 'violet', 'red', 'cyan', 'green', 'yellow'],
+  ['violet', 'red', 'cyan', 'green', 'yellow', 'magenta', 'blue'],
 ];
+
+function buildBookshelf(): Layout {
+  const rows: LayoutKey[][] = [];
+  const woodRow = (): LayoutKey[] => Array<LayoutKey>(16).fill('wood');
+  const shelfLineRow = (): LayoutKey[] => {
+    const r: LayoutKey[] = Array<LayoutKey>(16).fill('shelfLine');
+    r[0] = 'wood';
+    r[15] = 'wood';
+    return r;
+  };
+  const bookRow = (colors: ReadonlyArray<BookColor>): LayoutKey[] => {
+    const r: LayoutKey[] = Array<LayoutKey>(16).fill('wood');
+    // 7 books × 2 cols each = 14 cols starting at col 1.
+    for (let b = 0; b < 7; b++) {
+      r[1 + b * 2] = colors[b];
+      r[2 + b * 2] = colors[b];
+    }
+    return r;
+  };
+  rows.push(woodRow()); // 0
+  rows.push(woodRow()); // 1
+  for (let s = 0; s < SHELF_PATTERNS.length; s++) {
+    rows.push(shelfLineRow());
+    for (let i = 0; i < 6; i++) rows.push(bookRow(SHELF_PATTERNS[s]));
+  }
+  // After 4 shelves: 2 + 4 * (1 + 6) = 30 rows. Cap with one more shelf
+  // line + one wood row → 32 total.
+  rows.push(shelfLineRow());
+  rows.push(woodRow());
+  return rows;
+}
+
+const BOOKSHELF: Layout = buildBookshelf();
 
 // ---- wall band convention (used by wall_h + corners + tee + door) ----
 // Horizontal wall sits on rows 5-7 (3 rows tall).
@@ -322,16 +366,31 @@ const LAYOUTS: ReadonlyArray<[slot: string, layout: Layout]> = [
   ['table', TABLE],
 ];
 
+/** Slots whose native size differs from the 6×13 default. Must agree
+ *  with `SLOT_DISPLAY` in `src/render/sprites.ts` — the renderer reads
+ *  the on-disk PNG at face value and uses the matching display size, so
+ *  a drift here would render a stretched/squished sprite. */
+const SLOT_NATIVE: ReadonlyMap<string, { width: number; height: number }> = new Map([
+  ['bookshelf', { width: 16, height: 32 }],
+]);
+
+function dimsFor(slot: string): { width: number; height: number } {
+  return SLOT_NATIVE.get(slot) ?? { width: DEFAULT_W, height: DEFAULT_H };
+}
+
 // Validate dimensions at module load — catches typos in any layout
-// before we burn an entire generation pass on a malformed grid.
+// before we burn an entire generation pass on a malformed grid. Each
+// slot must match its declared native size (default 6×13 unless
+// overridden in SLOT_NATIVE).
 for (const [slot, layout] of LAYOUTS) {
-  if (layout.length !== HEIGHT) {
-    throw new Error(`[gen-sprites] slot "${slot}" has ${layout.length} rows, expected ${HEIGHT}`);
+  const { width, height } = dimsFor(slot);
+  if (layout.length !== height) {
+    throw new Error(`[gen-sprites] slot "${slot}" has ${layout.length} rows, expected ${height}`);
   }
-  for (let y = 0; y < HEIGHT; y++) {
-    if (layout[y].length !== WIDTH) {
+  for (let y = 0; y < height; y++) {
+    if (layout[y].length !== width) {
       throw new Error(
-        `[gen-sprites] slot "${slot}" row ${y} has ${layout[y].length} cols, expected ${WIDTH}`,
+        `[gen-sprites] slot "${slot}" row ${y} has ${layout[y].length} cols, expected ${width}`,
       );
     }
   }
@@ -377,13 +436,13 @@ function parseHex(hex: string): [number, number, number] {
 }
 
 /** Build the raw RGBA pixel buffer (height × (1 filter byte + width × 4)). */
-function buildScanlines(theme: Theme, layout: Layout): Buffer {
-  const stride = 1 + WIDTH * 4;
-  const buf = Buffer.alloc(HEIGHT * stride);
-  for (let y = 0; y < HEIGHT; y++) {
+function buildScanlines(theme: Theme, layout: Layout, width: number, height: number): Buffer {
+  const stride = 1 + width * 4;
+  const buf = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y++) {
     const off = y * stride;
     buf[off] = 0; // filter type: None
-    for (let x = 0; x < WIDTH; x++) {
+    for (let x = 0; x < width; x++) {
       const [r, g, b, a] = resolveColor(theme, layout[y][x]);
       const px = off + 1 + x * 4;
       buf[px] = r;
@@ -424,17 +483,17 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([len, typeBuf, data, crcBuf]);
 }
 
-function encodePng(theme: Theme, layout: Layout): Buffer {
+function encodePng(theme: Theme, layout: Layout, width: number, height: number): Buffer {
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(WIDTH, 0);
-  ihdr.writeUInt32BE(HEIGHT, 4);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8;  // bit depth
   ihdr[9] = 6;  // color type: RGBA truecolor
   ihdr[10] = 0; // compression: deflate
   ihdr[11] = 0; // filter: standard
   ihdr[12] = 0; // interlace: none
-  const idat = zlib.deflateSync(buildScanlines(theme, layout), { level: 9 });
+  const idat = zlib.deflateSync(buildScanlines(theme, layout, width, height), { level: 9 });
   return Buffer.concat([
     signature,
     chunk('IHDR', ihdr),
@@ -464,7 +523,8 @@ for (const theme of themes) {
   const dir = path.join(OUT_ROOT, theme.id);
   fs.mkdirSync(dir, { recursive: true });
   for (const [slot, layout] of LAYOUTS) {
-    const png = encodePng(theme, layout);
+    const { width, height } = dimsFor(slot);
+    const png = encodePng(theme, layout, width, height);
     const out = path.join(dir, `${slot}.png`);
     fs.writeFileSync(out, png);
     totalBytes += png.length;
