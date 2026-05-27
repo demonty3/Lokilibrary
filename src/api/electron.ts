@@ -159,11 +159,43 @@ export function subscribeWallpaperMode(
  * (the canvas is the foreground window the user is looking at), so the
  * helpers return 'full' and the subscription is a no-op. The renderer can
  * call these unconditionally and gets sensible defaults in both worlds.
+ *
+ * Both helpers also defensively check that the bridge method *exists* —
+ * not just that an ElectronAPI object is present. This catches the
+ * "stale preload" dev-iteration footgun: the renderer bundle hot-reloads
+ * any time you save a source file, but Electron preload scripts only
+ * reload when you restart the Electron process. If you add a new bridge
+ * method (like onThrottleChange) and the renderer picks up the new
+ * subscription call before you've restarted Electron, the old preload's
+ * api object won't have the method and calling it would throw an
+ * uncaught TypeError into React's render loop, killing the whole app.
+ * The guards below degrade silently to 'no-throttle' instead — once you
+ * restart Electron the bridge surface catches up and throttling starts
+ * working without any further renderer change.
  */
+
+/** Logged once per bridge-mismatch detection so the dev console doesn't
+ *  spam on every render of a stale-preload component. */
+let warnedStalePreload = false;
+function warnStalePreload(missing: string): void {
+  if (warnedStalePreload) return;
+  warnedStalePreload = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[electron] window.electronAPI is missing "${missing}" — your preload ` +
+      'bridge is older than the renderer bundle. Restart the desktop ' +
+      'terminal (Ctrl+C, then `npm run dev` in desktop/) to recompile ' +
+      'preload.js. Renderer continues with throttle disabled.',
+  );
+}
 
 export async function getThrottleState(): Promise<ThrottleState> {
   const api = getElectronAPI();
   if (!api) return 'full';
+  if (typeof api.getThrottleState !== 'function') {
+    warnStalePreload('getThrottleState');
+    return 'full';
+  }
   try {
     return await api.getThrottleState();
   } catch {
@@ -176,6 +208,10 @@ export function subscribeThrottle(
 ): () => void {
   const api = getElectronAPI();
   if (!api) return () => undefined;
+  if (typeof api.onThrottleChange !== 'function') {
+    warnStalePreload('onThrottleChange');
+    return () => undefined;
+  }
   return api.onThrottleChange(cb);
 }
 
