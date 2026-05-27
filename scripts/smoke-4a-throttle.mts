@@ -64,6 +64,7 @@ interface Rect { left: number; top: number; right: number; bottom: number }
 interface ThrottleProbe {
   isWallpaperMode: boolean;
   wallpaperHwnd: bigint | null;
+  shellHwnd: bigint | null;
   foregroundHwnd: bigint | null;
   foregroundRect: Rect | null;
   monitorRect: Rect;
@@ -85,6 +86,11 @@ function computeThrottleState(p: ThrottleProbe): ThrottleState {
   if (!p.isWallpaperMode) return 'full';
   if (p.foregroundHwnd === null) return 'full';
   if (p.wallpaperHwnd !== null && p.foregroundHwnd === p.wallpaperHwnd) return 'full';
+  // Shell window (Progman) check — must come before fullscreen-rect
+  // detection, since Progman spans the monitor and would otherwise
+  // be misidentified as a fullscreen app the moment the user clicks
+  // the desktop in wallpaper mode.
+  if (p.shellHwnd !== null && p.foregroundHwnd === p.shellHwnd) return 'full';
   if (p.foregroundRect === null) return 'full';
   if (rectMatches(p.foregroundRect, p.monitorRect, TOL)) return 'paused';
   const monArea = rectArea(p.monitorRect);
@@ -129,6 +135,7 @@ check(
   computeThrottleState({
     isWallpaperMode: false,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: mon, // even fullscreen doesn't matter
     monitorRect: mon,
@@ -141,6 +148,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: null,
     foregroundRect: null,
     monitorRect: mon,
@@ -154,10 +162,44 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x100n,
     foregroundRect: mon,
     monitorRect: mon,
   }) === 'full',
+);
+
+// SHELL-WINDOW BUG FIX: foreground === Progman (the shell window the
+// user clicked when they tabbed back to the desktop in wallpaper mode).
+// Progman's rect spans the monitor, so without this short-circuit it
+// would match the fullscreen heuristic below and emit 'paused' — which
+// stops the renderer ticker before the cell room ever shows. This was
+// the "wallpaper mode renders white" regression.
+check(
+  'state: foreground === shellHwnd → full (Progman is the desktop, not a fullscreen app)',
+  computeThrottleState({
+    isWallpaperMode: true,
+    wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
+    foregroundHwnd: 0x300n,
+    foregroundRect: mon, // Progman covers the full monitor
+    monitorRect: mon,
+  }) === 'full',
+);
+
+// shellHwnd null (GetShellWindow returned 0 — pre-shell-init race) plus
+// a Progman-shaped foreground → falls back to the old behavior (paused)
+// rather than regressing harder. Documents the failure mode.
+check(
+  'state: shellHwnd=null + fullscreen-shaped foreground → paused (defensive fallback)',
+  computeThrottleState({
+    isWallpaperMode: true,
+    wallpaperHwnd: 0x100n,
+    shellHwnd: null,
+    foregroundHwnd: 0x300n,
+    foregroundRect: mon,
+    monitorRect: mon,
+  }) === 'paused',
 );
 
 // Foreground is fullscreen — exact rect match → paused
@@ -166,6 +208,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 1920, bottom: 1080 },
     monitorRect: mon,
@@ -178,6 +221,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 1921, bottom: 1078 },
     monitorRect: mon,
@@ -190,6 +234,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 1917, bottom: 1077 },
     monitorRect: mon,
@@ -203,6 +248,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 1920, bottom: 540 },
     monitorRect: mon,
@@ -213,6 +259,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 1920, bottom: 810 }, // 75%
     monitorRect: mon,
@@ -225,6 +272,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 10, top: 10, right: 210, bottom: 160 },
     monitorRect: mon,
@@ -237,6 +285,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: { left: 0, top: 0, right: 100, bottom: 100 },
     monitorRect: { left: 0, top: 0, right: 0, bottom: 0 },
@@ -250,6 +299,7 @@ check(
   computeThrottleState({
     isWallpaperMode: true,
     wallpaperHwnd: 0x100n,
+    shellHwnd: 0x300n,
     foregroundHwnd: 0x200n,
     foregroundRect: leftMon,
     monitorRect: leftMon,

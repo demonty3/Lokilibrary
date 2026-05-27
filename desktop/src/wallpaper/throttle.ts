@@ -66,6 +66,15 @@ const GetWindowRect = user32.func(
   'bool GetWindowRect(void* hWnd, _Out_ int32_t* lpRect)',
 );
 
+/** Handle to the desktop "Program Manager" window (Progman). Returned by
+ *  GetShellWindow. Progman occupies the full monitor area, so without an
+ *  explicit exclude check the foreground-rect heuristic below would mark
+ *  Progman as a fullscreen app the moment the user clicks the desktop in
+ *  wallpaper mode — pausing the renderer before it's even shown its
+ *  first frame. The shell-window check above the fullscreen detection
+ *  in computeThrottleState is what prevents that. */
+const GetShellWindow = user32.func('void* GetShellWindow()');
+
 // --- Types ------------------------------------------------------------------
 
 export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
@@ -88,6 +97,12 @@ export interface ThrottleProbe {
    *  focused the wallpaper (e.g. via Alt+Tab in window mode); we don't
    *  throttle in that case. */
   readonly wallpaperHwnd: bigint | null;
+  /** Progman's HWND from GetShellWindow, captured at controller start.
+   *  When foreground equals this, the user is at the desktop and the
+   *  wallpaper IS visible — render at full rate. Without this check
+   *  the fullscreen-rect heuristic below mistakes Progman (which
+   *  covers the full monitor) for a fullscreen app. */
+  readonly shellHwnd: bigint | null;
   /** GetForegroundWindow result, unwrapped to a bigint pointer. Null
    *  when GetForegroundWindow returned NULL (no foreground app, lock
    *  screen, fast app switch in progress). */
@@ -147,11 +162,26 @@ export function computeThrottleState(probe: ThrottleProbe): ThrottleState {
     return 'full';
   }
 
+  // Foreground is the shell (Progman) itself — user is at the desktop,
+  // wallpaper IS visible. Must check before the fullscreen-rect branch
+  // below, because Progman's window rect spans the monitor and would
+  // otherwise be misidentified as a fullscreen app. This is the
+  // load-bearing fix for the "wallpaper renders white because the
+  // ticker stopped immediately after enter" bug.
+  if (
+    probe.shellHwnd !== null &&
+    probe.foregroundHwnd === probe.shellHwnd
+  ) {
+    return 'full';
+  }
+
   if (probe.foregroundRect === null) return 'full';
 
   // Fullscreen — pixel-perfect match against the monitor rect. Real
   // fullscreen games have no window chrome, so their RECT matches the
-  // monitor exactly (within rounding tolerance).
+  // monitor exactly (within rounding tolerance). Reached only when the
+  // foreground is NOT our wallpaper and NOT the shell — i.e., a real
+  // top-level app that happens to be the full size of the monitor.
   if (rectMatchesMonitor(probe.foregroundRect, probe.monitorRect, FULLSCREEN_TOLERANCE_PX)) {
     return 'paused';
   }
@@ -198,7 +228,11 @@ function bufferToHwnd(buf: unknown): bigint | null {
 /** Snapshot the current Win32 state. Returns null when probing isn't
  *  meaningful (e.g. wallpaper mode is off — caller should pass the
  *  resulting state directly as 'full' without probing). */
-function probeWin32(wallpaperHwnd: bigint | null, isWallpaperMode: boolean): ThrottleProbe {
+function probeWin32(
+  wallpaperHwnd: bigint | null,
+  shellHwnd: bigint | null,
+  isWallpaperMode: boolean,
+): ThrottleProbe {
   const primary = screen.getPrimaryDisplay();
   const monitorRect: Rect = {
     left: primary.bounds.x,
@@ -213,6 +247,7 @@ function probeWin32(wallpaperHwnd: bigint | null, isWallpaperMode: boolean): Thr
     return {
       isWallpaperMode,
       wallpaperHwnd,
+      shellHwnd,
       foregroundHwnd: null,
       foregroundRect: null,
       monitorRect,
@@ -232,6 +267,7 @@ function probeWin32(wallpaperHwnd: bigint | null, isWallpaperMode: boolean): Thr
   return {
     isWallpaperMode,
     wallpaperHwnd,
+    shellHwnd,
     foregroundHwnd,
     foregroundRect,
     monitorRect,
@@ -259,6 +295,10 @@ interface ControllerState {
   timer: NodeJS.Timeout | null;
   current: ThrottleState;
   wallpaperHwnd: bigint | null;
+  /** Captured once at start() — Progman's handle doesn't change for
+   *  the life of a Windows session. Null if GetShellWindow returned 0
+   *  (very rare; happens before the shell finishes initialising). */
+  shellHwnd: bigint | null;
   isWallpaperMode: boolean;
 }
 
@@ -266,6 +306,7 @@ const controller: ControllerState = {
   timer: null,
   current: 'full',
   wallpaperHwnd: null,
+  shellHwnd: null,
   isWallpaperMode: false,
 };
 
@@ -282,6 +323,7 @@ export function startThrottleController(
   stopThrottleController(); // idempotent reset
 
   controller.wallpaperHwnd = win.getNativeWindowHandle().readBigInt64LE(0);
+  controller.shellHwnd = bufferToHwnd(GetShellWindow());
   controller.isWallpaperMode = true;
   controller.current = 'full';
   currentOpts = opts;
@@ -294,7 +336,11 @@ export function startThrottleController(
   const interval = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   controller.timer = setInterval(() => {
     try {
-      const probe = probeWin32(controller.wallpaperHwnd, controller.isWallpaperMode);
+      const probe = probeWin32(
+        controller.wallpaperHwnd,
+        controller.shellHwnd,
+        controller.isWallpaperMode,
+      );
       const next = computeThrottleState(probe);
       if (next !== controller.current) {
         controller.current = next;
@@ -321,6 +367,7 @@ export function stopThrottleController(): void {
   controller.current = 'full';
   controller.isWallpaperMode = false;
   controller.wallpaperHwnd = null;
+  controller.shellHwnd = null;
   currentOpts = null;
 }
 
