@@ -75,6 +75,17 @@ const GetWindowRect = user32.func(
  *  in computeThrottleState is what prevents that. */
 const GetShellWindow = user32.func('void* GetShellWindow()');
 
+/** Fallback class-name lookup when GetShellWindow returns NULL — a
+ *  documented Windows quirk on some raised-desktop Win11 setups where
+ *  the shell process hasn't registered its desktop window even though
+ *  Progman exists. FindWindowExW with class="Progman" finds it
+ *  regardless of registration state. Already used by windows.ts for the
+ *  WorkerW lookup; we re-bind here so throttle.ts doesn't need a
+ *  cross-file import. */
+const FindWindowExW = user32.func(
+  'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpszClass, str16 lpszWindow)',
+);
+
 // --- Types ------------------------------------------------------------------
 
 export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
@@ -225,6 +236,48 @@ function bufferToHwnd(buf: unknown): bigint | null {
   return v === 0n ? null : v;
 }
 
+/** Resolve Progman's HWND with a two-step fallback. Captured once at
+ *  controller start and cached for the life of wallpaper mode —
+ *  Progman's handle is stable for the Windows session. The phase-0
+ *  WorkerW watchdog in windows.ts handles re-attach if Progman gets
+ *  destroyed (DWM does this on display-mode changes); a future slice
+ *  would re-fetch this on the same trigger. */
+function findShellHwnd(): bigint | null {
+  // Path 1: the documented API. Returns NULL on shells that didn't
+  // register their desktop window — observed on at least one
+  // raised-desktop Win11 user setup despite Progman existing.
+  const fromGetShell = bufferToHwnd(GetShellWindow());
+  if (fromGetShell !== null) return fromGetShell;
+
+  // Path 2: class-name lookup. Progman is created by explorer.exe and
+  // its class is always "Progman" regardless of shell registration
+  // state. This is what windows.ts already does for WorkerW lookup;
+  // applying the same trick here.
+  const fromFindWindow = bufferToHwnd(FindWindowExW(null, null, 'Progman', null));
+  if (fromFindWindow !== null) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[throttle] GetShellWindow() returned NULL; FindWindowExW("Progman") found it as ' +
+        `0x${fromFindWindow.toString(16)} (raised-desktop Win11 quirk — known good fallback).`,
+    );
+    return fromFindWindow;
+  }
+
+  // Path 3: give up. Without shellHwnd the state machine falls back to
+  // its pre-fix behavior — Progman-shaped foreground gets misclassified
+  // as a fullscreen app the moment the user clicks the desktop in
+  // wallpaper mode, pausing the renderer. Loud warn so this isn't a
+  // silent regression.
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[throttle] BOTH GetShellWindow() and FindWindowExW("Progman") returned NULL. ' +
+      'Wallpaper-mode throttle will incorrectly treat the desktop as a fullscreen ' +
+      'app — agents will freeze whenever the user is at the desktop. File a bug ' +
+      'with the user\'s Windows version + custom shell info (if any).',
+  );
+  return null;
+}
+
 /** Snapshot the current Win32 state. Returns null when probing isn't
  *  meaningful (e.g. wallpaper mode is off — caller should pass the
  *  resulting state directly as 'full' without probing). */
@@ -330,7 +383,7 @@ export function startThrottleController(
   stopThrottleController(); // idempotent reset
 
   controller.wallpaperHwnd = win.getNativeWindowHandle().readBigInt64LE(0);
-  controller.shellHwnd = bufferToHwnd(GetShellWindow());
+  controller.shellHwnd = findShellHwnd();
   controller.isWallpaperMode = true;
   controller.current = 'full';
   controller.lastForegroundHwnd = null;
