@@ -17,6 +17,19 @@ import { ipcRenderer, type IpcRendererEvent } from 'electron';
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
+/** Phase 4 slice 4A — three-tier wallpaper throttle. Mirrors
+ *  ThrottleState in desktop/src/wallpaper/throttle.ts. */
+export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
+
+export interface ThrottleChangeEvent {
+  readonly state: ThrottleState;
+  /** True for the initial state emitted right after start (or after
+   *  exit-wallpaper resets to 'full'); false for poll-detected
+   *  transitions. Renderer uses this to suppress one-time
+   *  perception-broadcast side-effects on the boot emission. */
+  readonly isInitial: boolean;
+}
+
 export interface ElectronAPI {
   /** Always true. Renderer checks for presence of window.electronAPI to
    *  switch on Electron-specific code paths (auth ticket, launch). */
@@ -61,6 +74,17 @@ export interface ElectronAPI {
   /** Subscribe to mode changes coming from the main process (tray
    *  click, startup restore). Returns an unsubscribe function. */
   onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
+
+  /** Read the current throttle state. Returns 'full' when not in
+   *  wallpaper mode or the controller isn't running. Renderer calls
+   *  this on mount to hydrate before the first poll fires. */
+  getThrottleState(): Promise<ThrottleState>;
+
+  /** Subscribe to throttle-state transitions. The initial state is
+   *  emitted right after startThrottleController in main; later events
+   *  fire on every detected change (default poll = 1000ms). Returns an
+   *  unsubscribe function. */
+  onThrottleChange(cb: (event: ThrottleChangeEvent) => void): () => void;
 }
 
 declare global {
@@ -84,6 +108,13 @@ const api: ElectronAPI = {
     const handler = (_e: IpcRendererEvent, mode: WallpaperMode): void => cb(mode);
     ipcRenderer.on('wallpaper:modeChanged', handler);
     return () => ipcRenderer.off('wallpaper:modeChanged', handler);
+  },
+  getThrottleState: () =>
+    ipcRenderer.invoke('throttle:getCurrent') as Promise<ThrottleState>,
+  onThrottleChange: (cb) => {
+    const handler = (_e: IpcRendererEvent, event: ThrottleChangeEvent): void => cb(event);
+    ipcRenderer.on('throttle:state-change', handler);
+    return () => ipcRenderer.off('throttle:state-change', handler);
   },
 };
 

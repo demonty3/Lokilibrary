@@ -52,6 +52,7 @@ export type ObservationSource =
   | 'player_proximity'
   | 'bookshelf_e'
   | 'game_launched'
+  | 'external_fullscreen'
   | 'cell_mount';
 
 export interface ObservationPayload {

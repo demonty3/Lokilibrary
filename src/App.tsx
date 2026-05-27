@@ -1,12 +1,19 @@
 import { useEffect, useRef } from 'react';
-import { getWallpaperMode, subscribeWallpaperMode } from './api/electron';
+import {
+  getThrottleState,
+  getWallpaperMode,
+  subscribeThrottle,
+  subscribeWallpaperMode,
+} from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
 import { mountPalace } from './render/PixiApp';
 import { DEFAULT_THEME_ID, getById } from './themes';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
-import { nullMemoryWriter } from './agents/router';
+import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
+import { listRuntimes } from './state/agentRuntime';
+import { playerPosition } from './state/playerPos';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -27,6 +34,7 @@ import { nullMemoryWriter } from './agents/router';
 export function App() {
   const loadAuth = useAppStore((s) => s.loadAuth);
   const setWallpaperMode = useAppStore((s) => s.setWallpaperMode);
+  const setThrottleState = useAppStore((s) => s.setThrottleState);
   const setScale = useAppStore((s) => s.setScale);
   const scale = useAppStore((s) => s.scale);
   const steamId = useAppStore((s) => s.steamId);
@@ -41,6 +49,31 @@ export function App() {
     void getWallpaperMode().then((mode) => setWallpaperMode(mode === 'wallpaper'));
     return subscribeWallpaperMode((mode) => setWallpaperMode(mode === 'wallpaper'));
   }, [setWallpaperMode]);
+
+  // Phase 4 slice 4A — wallpaper throttle sub. PixiApp.ts reads the
+  // store value via subscribe() to adjust app.ticker; here we just keep
+  // the store in sync with the main-process emitter and inject an
+  // `external_fullscreen` perception when the renderer transitions to
+  // PAUSED. In the web build both calls short-circuit and the store
+  // stays 'full' (so the broadcast effectively never fires).
+  useEffect(() => {
+    void getThrottleState().then(setThrottleState);
+    return subscribeThrottle((event) => {
+      setThrottleState(event.state);
+      if (event.state === 'paused' && !event.isInitial) {
+        // Anchor the perception at the player's last known cell so
+        // agents whose FOV happens to cover the player can flag it as
+        // "user disappeared from where they were standing." The cohort
+        // doesn't actually FOV-filter broadcasts (every present agent
+        // gets it) but the location is still recorded on the memory
+        // row for Tier-2 reflections to reason about later.
+        broadcastExternalFullscreen(listRuntimes(), {
+          at: { x: playerPosition.x, y: playerPosition.y },
+          when: Date.now(),
+        });
+      }
+    });
+  }, [setThrottleState]);
 
   useEffect(() => {
     if (!canvasHost.current) return;

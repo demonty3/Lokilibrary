@@ -8,6 +8,15 @@
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
+/** Phase 4 slice 4A — three-tier wallpaper throttle state. Mirrors
+ *  ThrottleState in desktop/src/preload.ts. */
+export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
+
+export interface ThrottleChangeEvent {
+  readonly state: ThrottleState;
+  readonly isInitial: boolean;
+}
+
 export interface ElectronAPI {
   readonly isElectron: true;
   getSteamId(): Promise<string | null>;
@@ -30,6 +39,16 @@ export interface ElectronAPI {
   /** Subscribe to mode changes coming from the main process (typically a
    *  tray click). Returns an unsubscribe function. */
   onWallpaperModeChanged(cb: (mode: WallpaperMode) => void): () => void;
+
+  /** Phase 4 slice 4A: current wallpaper throttle state. 'full' in the
+   *  web build (no throttling — the user is looking at the canvas
+   *  directly). */
+  getThrottleState(): Promise<ThrottleState>;
+
+  /** Subscribe to throttle transitions. Returns an unsubscribe function.
+   *  In the web build, the helper below short-circuits this so the
+   *  renderer code can subscribe unconditionally. */
+  onThrottleChange(cb: (event: ThrottleChangeEvent) => void): () => void;
 }
 
 declare global {
@@ -133,5 +152,30 @@ export function subscribeWallpaperMode(
   const api = getElectronAPI();
   if (!api) return () => undefined;
   return api.onWallpaperModeChanged(cb);
+}
+
+/**
+ * Phase 4 slice 4A — wallpaper throttle helpers. Web build never throttles
+ * (the canvas is the foreground window the user is looking at), so the
+ * helpers return 'full' and the subscription is a no-op. The renderer can
+ * call these unconditionally and gets sensible defaults in both worlds.
+ */
+
+export async function getThrottleState(): Promise<ThrottleState> {
+  const api = getElectronAPI();
+  if (!api) return 'full';
+  try {
+    return await api.getThrottleState();
+  } catch {
+    return 'full';
+  }
+}
+
+export function subscribeThrottle(
+  cb: (event: ThrottleChangeEvent) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api) return () => undefined;
+  return api.onThrottleChange(cb);
 }
 

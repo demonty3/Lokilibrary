@@ -104,6 +104,27 @@ export async function mountPalace(
     spriteAtlas,
   );
 
+  // Phase 4 slice 4A — wallpaper throttle hookup. Adjust the Ticker
+  // based on the store's throttleState slice. Applied once now from the
+  // current state and then on every transition via the existing
+  // subscribe() at the bottom of mountPalace.
+  //
+  // 'full'         → ticker uncapped (default 60 FPS effective via vsync)
+  // 'throttled-1hz'→ maxFPS=1 (agents + animations still progress, just
+  //                  at one step per second — wallpaper is mostly hidden)
+  // 'paused'       → ticker stopped; resume on next state change. The
+  //                  cohort + scene state is preserved because we don't
+  //                  destroy anything, just stop the loop.
+  function applyThrottle(state: import('../api/electron').ThrottleState): void {
+    if (state === 'paused') {
+      if (app.ticker.started) app.ticker.stop();
+      return;
+    }
+    if (!app.ticker.started) app.ticker.start();
+    app.ticker.maxFPS = state === 'throttled-1hz' ? 1 : 0;
+  }
+  applyThrottle(useAppStore.getState().throttleState);
+
   // Telemetry overlay (Phase 2F) — mounted on demand by the
   // `agentDebugOverlay` subscription. Lives at the app level (not the
   // cell level) so it stays visible across scale transitions. Overlay
@@ -161,6 +182,9 @@ export async function mountPalace(
     }
     if (state.agentDebugOverlay !== prev.agentDebugOverlay) {
       applyOverlay(state.agentDebugOverlay);
+    }
+    if (state.throttleState !== prev.throttleState) {
+      applyThrottle(state.throttleState);
     }
   });
 

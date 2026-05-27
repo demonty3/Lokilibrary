@@ -513,6 +513,13 @@ function importanceFor(kind: string): number {
   switch (kind) {
     case 'game_launched':
       return 8;
+    // Phase 4 slice 4A: lower than `game_launched` because we don't
+    // know which game (or that it's a game at all — could be any
+    // fullscreen app), but high enough to feed Tier-2 reflections
+    // since "user disappeared" is a noteworthy event the agents
+    // should remember between sessions.
+    case 'external_fullscreen':
+      return 7;
     case 'player_holding':
       return 6;
     case 'agent_meeting':
@@ -542,6 +549,33 @@ export function broadcastGameLaunched(
     rt.perceptionQueue.push({
       kind: 'game_launched',
       subject: `appid:${args.appid}`,
+      at: { x: args.at.x, y: args.at.y },
+      when: args.when,
+    });
+  }
+}
+
+/**
+ * Phase 4 slice 4A — inject an `external_fullscreen` perception event
+ * into every present agent's queue. Fired by the wallpaper throttle
+ * controller (via App.tsx) when the renderer transitions to PAUSED
+ * because a fullscreen app appeared on the desktop. Distinct from
+ * `game_launched`: we can't identify the appid (steamworks.js doesn't
+ * expose `IFriends::GetFriendGamePlayed`), so the agent receives a
+ * generic "user disappeared into a fullscreen app" signal.
+ *
+ * Loki + the cohort handle this as a high-importance observation; the
+ * Tier-2 reflection that fires at threshold 150 will often pick this
+ * one up because importanceFor('external_fullscreen') is 7.
+ */
+export function broadcastExternalFullscreen(
+  runtimes: readonly AgentRuntimeState[],
+  args: { at: { x: number; y: number }; when: number },
+): void {
+  for (const rt of runtimes) {
+    if (!rt.present) continue;
+    rt.perceptionQueue.push({
+      kind: 'external_fullscreen',
       at: { x: args.at.x, y: args.at.y },
       when: args.when,
     });

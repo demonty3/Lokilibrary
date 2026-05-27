@@ -25,6 +25,12 @@ import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { getMode, setMode, type Mode } from './config';
+import {
+  getCurrentThrottleState,
+  startThrottleController,
+  stopThrottleController,
+  type ThrottleState,
+} from './wallpaper/throttle';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -166,8 +172,17 @@ function applyMode(mode: Mode): void {
 
   if (mode === 'wallpaper') {
     enterWallpaper(mainWindow);
+    startThrottleController(mainWindow, {
+      onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
+    });
   } else {
     exitWallpaper(mainWindow);
+    // Stop polling first, THEN emit the synthetic 'full' so the renderer
+    // ticker comes back up immediately. The controller resets its own
+    // current-state to 'full' on stop; emitting here re-syncs the
+    // renderer in case it was mid-PAUSED when the user toggled out.
+    stopThrottleController();
+    emitThrottleChange('full', true);
   }
   setMode(mode);
   if (tray) rebuildTrayMenu(tray);
@@ -176,6 +191,19 @@ function applyMode(mode: Mode): void {
   } catch {
     // webContents may not be ready on early startup; the renderer can
     // poll getWallpaperMode() on mount as a backstop.
+  }
+}
+
+/** Broadcast throttle changes to the renderer. Separate from the
+ *  controller's onStateChange callback so the IPC details stay in main
+ *  and the throttle module stays Electron-API-light. */
+function emitThrottleChange(state: ThrottleState, isInitial: boolean): void {
+  if (!mainWindow) return;
+  try {
+    mainWindow.webContents.send('throttle:state-change', { state, isInitial });
+  } catch {
+    // Same backstop as wallpaper:modeChanged — the renderer can poll
+    // throttle:getCurrent on mount.
   }
 }
 
@@ -222,6 +250,11 @@ ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
   return true;
 });
 
+// Phase 4 slice 4A — throttle state, used by the renderer to set
+// app.ticker.maxFPS / stop. Renderer hydrates on mount via this handle,
+// then listens for `throttle:state-change` for transitions.
+ipcMain.handle('throttle:getCurrent', () => getCurrentThrottleState());
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -263,7 +296,12 @@ void app.whenReady().then(() => {
     mainWindow.once('ready-to-show', () => {
       // Bypass applyMode's "already in this mode" guard — config says
       // 'wallpaper' but we haven't actually entered wallpaper yet.
-      if (mainWindow) enterWallpaper(mainWindow);
+      if (mainWindow) {
+        enterWallpaper(mainWindow);
+        startThrottleController(mainWindow, {
+          onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
+        });
+      }
       if (tray) rebuildTrayMenu(tray);
     });
   }
@@ -274,6 +312,7 @@ void app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  stopThrottleController();
   tray?.destroy();
   tray = null;
   if (steamClient) {

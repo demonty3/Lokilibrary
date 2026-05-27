@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { fetchWorld } from '../api/world';
 import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
-import { signInWithSteamTicket } from '../api/electron';
+import { signInWithSteamTicket, type ThrottleState } from '../api/electron';
 import type { Manifest } from '../ai/manifest';
 import type { LibraryGame, Profile, ScaleLevel, SteamPersona } from '../types';
 
@@ -44,6 +44,15 @@ interface AppState {
 
   wallpaperMode: boolean;
   setWallpaperMode: (v: boolean) => void;
+
+  /** Phase 4 slice 4A: three-tier wallpaper throttle. 'full' in the web
+   *  build (no throttling — the user has the canvas focused directly).
+   *  In wallpaper mode, drops to 'throttled-1hz' when a window covers
+   *  >50% of the monitor and to 'paused' when a fullscreen app is
+   *  foreground. PixiApp subscribes + adjusts app.ticker.maxFPS /
+   *  stop(). */
+  throttleState: ThrottleState;
+  setThrottleState: (state: ThrottleState) => void;
 
   /** Scale-ladder level. Phase 1 implements `cell` + `district`; the
    *  other four mount a "not yet built" stub. The level renderer
@@ -150,6 +159,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   wallpaperMode: false,
   setWallpaperMode: (v) => {
     if (get().wallpaperMode !== v) set({ wallpaperMode: v });
+  },
+
+  throttleState: 'full',
+  setThrottleState: (state) => {
+    if (get().throttleState !== state) set({ throttleState: state });
   },
 
   scale: 'cell',
