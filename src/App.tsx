@@ -7,13 +7,18 @@ import {
 } from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
-import { mountPalace } from './render/PixiApp';
+import { getCurrentRenderContext, mountPalace } from './render/PixiApp';
 import { DEFAULT_THEME_ID, getById } from './themes';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
 import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
 import { listRuntimes } from './state/agentRuntime';
 import { playerPosition } from './state/playerPos';
+import {
+  consumeSleepReflections,
+  triggerSleepReflection,
+} from './agents/sleep-reflection';
+import { mountMorningDispatch } from './render/overlays/morning-dispatch';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -51,28 +56,75 @@ export function App() {
   }, [setWallpaperMode]);
 
   // Phase 4 slice 4A — wallpaper throttle sub. PixiApp.ts reads the
-  // store value via subscribe() to adjust app.ticker; here we just keep
-  // the store in sync with the main-process emitter and inject an
-  // `external_fullscreen` perception when the renderer transitions to
-  // PAUSED. In the web build both calls short-circuit and the store
-  // stays 'full' (so the broadcast effectively never fires).
+  // store value via subscribe() to adjust app.ticker; here we keep the
+  // store in sync with the main-process emitter and inject perception
+  // events on state transitions.
+  //
+  // Phase 5B added the SLEEPING state. Two side-effects on transitions:
+  //   - `sleeping` (after grace) → triggerSleepReflection() fires one
+  //     Tier-2 dispatch per present agent with reflectionCounter>0.
+  //     Bypasses the per-hour rate-limit (this IS the budget being
+  //     spent). Reflections + plans land in memory; reflection texts
+  //     buffer in sleep-reflection.ts for the morning dispatch.
+  //   - leaving `sleeping` for anything else → consumeSleepReflections
+  //     returns the buffered texts; if non-empty, mount the
+  //     morning-dispatch banner overlay above the cell.
   useEffect(() => {
-    void getThrottleState().then(setThrottleState);
-    return subscribeThrottle((event) => {
-      setThrottleState(event.state);
-      if (event.state === 'paused' && !event.isInitial) {
-        // Anchor the perception at the player's last known cell so
-        // agents whose FOV happens to cover the player can flag it as
-        // "user disappeared from where they were standing." The cohort
-        // doesn't actually FOV-filter broadcasts (every present agent
-        // gets it) but the location is still recorded on the memory
-        // row for Tier-2 reflections to reason about later.
+    let sleepReflectTimer: ReturnType<typeof setTimeout> | null = null;
+    let prevState: import('./api/electron').ThrottleState = 'full';
+
+    void getThrottleState().then((s) => {
+      setThrottleState(s);
+      prevState = s;
+    });
+
+    const unsub = subscribeThrottle((event) => {
+      const next = event.state;
+      setThrottleState(next);
+
+      // Phase 4A — broadcast `external_fullscreen` perception on PAUSED
+      // entry. Anchor the perception at the player's last known cell.
+      if (next === 'paused' && !event.isInitial) {
         broadcastExternalFullscreen(listRuntimes(), {
           at: { x: playerPosition.x, y: playerPosition.y },
           when: Date.now(),
         });
       }
+
+      // Phase 5B — sleep-mode reflection sweep + morning dispatch.
+      // Cancel any pending sleep-reflection if the user wakes within
+      // the grace period (saves the Sonnet call for a real sleep).
+      if (sleepReflectTimer !== null && next !== 'sleeping') {
+        clearTimeout(sleepReflectTimer);
+        sleepReflectTimer = null;
+      }
+      if (next === 'sleeping' && !event.isInitial) {
+        sleepReflectTimer = setTimeout(() => {
+          sleepReflectTimer = null;
+          void triggerSleepReflection();
+        }, 5000); // 5s grace before the sweep fires
+      }
+      // Waking from sleep — drain the buffer + display banner if any.
+      // mountMorningDispatch returns null when no lines to show (no
+      // reflections actually landed during sleep).
+      if (prevState === 'sleeping' && next !== 'sleeping') {
+        const lines = consumeSleepReflections();
+        if (lines.length > 0) {
+          // The overlay needs the PIXI Application + Theme; both live
+          // inside PixiApp's mount closure. We use a module-local
+          // ref published by PixiApp on mount. See `src/render/PixiApp.ts`
+          // export `getCurrentApp`/`getCurrentTheme`.
+          const ctx = getCurrentRenderContext();
+          if (ctx) mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines });
+        }
+      }
+      prevState = next;
     });
+
+    return () => {
+      unsub();
+      if (sleepReflectTimer !== null) clearTimeout(sleepReflectTimer);
+    };
   }, [setThrottleState]);
 
   useEffect(() => {

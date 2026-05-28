@@ -23,6 +23,17 @@ export interface BookGame {
   name: string;
 }
 
+/** Phase 5B — module-local ref published by mountPalace so other
+ *  modules (notably the morning-dispatch overlay triggered from
+ *  App.tsx's throttle subscription) can grab the live PIXI Application
+ *  + theme without having to thread them through React props /
+ *  context. Cleared by mountPalace's returned teardown. Null when
+ *  mountPalace hasn't run yet or has torn down. */
+let currentRenderContext: { app: Application; theme: Theme } | null = null;
+export function getCurrentRenderContext(): { app: Application; theme: Theme } | null {
+  return currentRenderContext;
+}
+
 /**
  * Phase 1D PixiJS bootstrap + level router. Creates the PIXI.Application
  * once, awaits Cozette, mounts the level matching the Zustand `scale`
@@ -67,6 +78,7 @@ export async function mountPalace(
     autoDensity: true,
   });
   container.appendChild(app.canvas);
+  currentRenderContext = { app, theme };
 
   // Cozette + sprite atlas can load in parallel — both are bounded by
   // the network round-trip for static assets in public/.
@@ -104,10 +116,12 @@ export async function mountPalace(
     spriteAtlas,
   );
 
-  // Phase 4 slice 4A — wallpaper throttle hookup. Adjust the Ticker
-  // based on the store's throttleState slice. Applied once now from the
-  // current state and then on every transition via the existing
-  // subscribe() at the bottom of mountPalace.
+  // Phase 4 slice 4A — wallpaper throttle hookup. Phase 5B added the
+  // SLEEPING state (4th: user is genuinely away — system idle > 10
+  // min + no fullscreen). Adjust the Ticker based on the store's
+  // throttleState slice. Applied once now from the current state and
+  // then on every transition via the existing subscribe() at the
+  // bottom of mountPalace.
   //
   // 'full'         → ticker uncapped (default 60 FPS effective via vsync)
   // 'throttled-1hz'→ maxFPS=1 (agents + animations still progress, just
@@ -115,9 +129,14 @@ export async function mountPalace(
   // 'paused'       → ticker stopped; resume on next state change. The
   //                  cohort + scene state is preserved because we don't
   //                  destroy anything, just stop the loop.
+  // 'sleeping' (5B)→ ticker stopped, same as paused VISUALLY. The
+  //                  difference lives in App.tsx's throttle
+  //                  subscription, which schedules a one-shot
+  //                  background reflection sweep on sleep-entry +
+  //                  surfaces a "morning dispatch" banner on wake.
   function applyThrottle(state: import('../api/electron').ThrottleState): void {
     const before = { started: app.ticker.started, maxFPS: app.ticker.maxFPS };
-    if (state === 'paused') {
+    if (state === 'paused' || state === 'sleeping') {
       if (app.ticker.started) app.ticker.stop();
     } else {
       if (!app.ticker.started) app.ticker.start();
@@ -199,6 +218,7 @@ export async function mountPalace(
     unsubscribe();
     if (teardownOverlay) teardownOverlay();
     teardownLevel();
+    currentRenderContext = null;
     app.destroy(true, { children: true, texture: true });
   };
 }

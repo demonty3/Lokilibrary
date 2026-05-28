@@ -16,6 +16,23 @@ Last updated: **2026-05-28** (slice 5H housekeeping).
 
 ## Active
 
+### ⏳ Verify 5B sleep mode on Windows
+**Status**: pending, fresh out of slice 5B (on branch
+`claude/phase5b-sleep-mode`).
+**What**: pull on Windows, restart `npm run dev` in `desktop/` +
+`npm run worker` in repo root. Toggle to wallpaper mode. **Don't
+touch the keyboard or mouse for 11+ minutes**. PowerShell logs
+should show:
+- `[throttle] ... idle=Ns state=sleeping ⟹ full→sleeping` (at 10 min)
+- `[sleep-reflection] firing for N agent(s)` (~5s after sleep entry)
+- Per-agent `[sleep-reflection] <name> reflected (M plan steps)` lines
+- Move mouse to wake → `[throttle] state=full` transition + a
+  terminal-styled banner appears at top of the cell with the
+  overnight reflections + auto-dismisses after 30s
+
+**Unblocks**: Phase 5C (lore upload) — the sleep cadence has to feel
+right before lore-driven reflections compound.
+
 ### ⏳ Verify 5A reflection completion on Windows
 **Status**: pending, fresh out of slice 5A (commit `6d9c952`).
 **What**: pull on Windows, restart `npm run dev` in `desktop/` +

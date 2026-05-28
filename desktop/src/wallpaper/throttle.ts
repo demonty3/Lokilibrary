@@ -52,13 +52,18 @@ interface Koffi {
 const koffi = require('koffi') as Koffi;
 
 // --- Win32 bindings ---------------------------------------------------------
-// Two functions only — minimum-viable detection per the slice 4A scope cut.
-// Both are well-documented and don't need the koffi struct path: we marshal
-// RECT as an `_Out_` int32 array of length 4 instead. Saves one koffi.struct
-// registration; the array path is what windows.ts uses for `_Out_` params
-// elsewhere.
+// Slice 4A: minimum-viable detection — GetForegroundWindow +
+// GetWindowRect + GetShellWindow + FindWindowExW. Slice 5B adds
+// GetLastInputInfo + GetTickCount for system-wide idle detection
+// (SLEEPING state).
+//
+// Both signatures avoid the koffi struct path: RECT marshals via
+// `_Out_ int32_t*` (4-int array); LASTINPUTINFO marshals via
+// `_Inout_ uint32_t*` (caller sets cbSize=8, GetLastInputInfo fills
+// dwTime in the same buffer). Saves two koffi.struct registrations.
 
 const user32 = koffi.load('user32.dll');
+const kernel32 = koffi.load('kernel32.dll');
 
 /** Returns the HWND that currently has keyboard focus across the system, or
  *  NULL when no window is foreground (rare — usually only during fast
@@ -93,9 +98,27 @@ const FindWindowExW = user32.func(
   'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpszClass, str16 lpszWindow)',
 );
 
+/** Phase 5B — system-wide idle detection. LASTINPUTINFO struct: a
+ *  uint32 cbSize + a uint32 dwTime (ms since system boot of last
+ *  input). Caller sets cbSize=8 (sizeof the struct), GetLastInputInfo
+ *  fills dwTime. Idle duration = GetTickCount() - dwTime. Captures
+ *  keyboard + mouse + touch idleness across the whole OS, not just
+ *  our app's focus — the right primitive for "user is genuinely
+ *  away," fires correctly while a fullscreen game is open OR while
+ *  the user has stepped away from the keyboard mid-browse. */
+const GetLastInputInfo = user32.func(
+  'bool GetLastInputInfo(_Inout_ uint32_t* plii)',
+);
+
+/** Phase 5B — system tick count (ms since boot). Pairs with
+ *  GetLastInputInfo's dwTime to compute idle ms. Wraps at 49.7 days
+ *  (uint32 max); the wrap handling in queryIdleDurationMs() covers
+ *  it via uint32 modular subtraction. */
+const GetTickCount = kernel32.func('uint32_t GetTickCount()');
+
 // --- Types ------------------------------------------------------------------
 
-export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
+export type ThrottleState = 'full' | 'throttled-1hz' | 'paused' | 'sleeping';
 
 export interface Rect {
   readonly left: number;
@@ -132,6 +155,13 @@ export interface ThrottleProbe {
    *  returns CSS pixel bounds; this carries the same values as RECT
    *  semantics (top-left origin, right = left + width). */
   readonly monitorRect: Rect;
+  /** Phase 5B — milliseconds since the last system-wide input
+   *  (keyboard / mouse / touch / pen). From Win32 `GetLastInputInfo`
+   *  + `GetTickCount`. Long values (>10 min default) trigger the
+   *  SLEEPING state when the wallpaper isn't covered by a fullscreen
+   *  app — the user is genuinely away, agents can use the freed
+   *  compute for autonomous reflection. */
+  readonly idleDurationMs: number;
 }
 
 // --- Pure state machine -----------------------------------------------------
@@ -148,6 +178,15 @@ const THROTTLE_COVERAGE_THRESHOLD = 0.5;
  *  bar / DWM rounding without false-positives on a maximized-but-not-
  *  fullscreen window (which has at least 1 px of chrome inset). */
 const FULLSCREEN_TOLERANCE_PX = 2;
+
+/** Phase 5B — system-wide idle duration above which we enter the
+ *  SLEEPING state. 10 minutes by default. Long enough to avoid
+ *  triggering on bathroom breaks; short enough that the morning
+ *  dispatch has reasonable freshness when the user returns from
+ *  even short stretches of unfocused work. IDEAS.md 2026-05-28
+ *  Sleep mode entry: "When the app has been unfocused for ~X minutes
+ *  AND the PC isn't in active gaming." */
+const SLEEP_THRESHOLD_MS = 10 * 60 * 1000;
 
 function rectArea(r: Rect): number {
   return Math.max(0, r.right - r.left) * Math.max(0, r.bottom - r.top);
@@ -168,6 +207,30 @@ export function computeThrottleState(probe: ThrottleProbe): ThrottleState {
   // Not in wallpaper mode → never throttle. The renderer is a regular
   // window and the user is looking at it directly.
   if (!probe.isWallpaperMode) return 'full';
+
+  // Phase 5B — SLEEPING wins above everything else (except mode-off
+  // above). The semantic: system has been idle for >10 minutes
+  // (whole-OS idle from GetLastInputInfo, not just our app's focus),
+  // AND nothing's fullscreen-pinning the screen. User is genuinely
+  // away. Renderer drops; agents get freed compute for autonomous
+  // reflection via the sleep-reflection path in App.tsx.
+  //
+  // Why above fullscreen detection: a user might leave a fullscreen
+  // video paused at lunch break — that should be SLEEPING, not
+  // PAUSED, because we want to let agents work in the background.
+  // BUT if a fullscreen app is foreground AND idle is short (user
+  // is actively playing), PAUSED still wins. The order check below
+  // handles this: idle long AND no fullscreen → sleeping; fullscreen
+  // (any idle) → paused; otherwise foreground-rect heuristic.
+  const isFullscreenForeground =
+    probe.foregroundRect !== null &&
+    probe.foregroundHwnd !== null &&
+    probe.foregroundHwnd !== probe.wallpaperHwnd &&
+    (probe.shellHwnd === null || probe.foregroundHwnd !== probe.shellHwnd) &&
+    rectMatchesMonitor(probe.foregroundRect, probe.monitorRect, FULLSCREEN_TOLERANCE_PX);
+  if (probe.idleDurationMs >= SLEEP_THRESHOLD_MS && !isFullscreenForeground) {
+    return 'sleeping';
+  }
 
   // No foreground app or foreground IS our wallpaper → user is at the
   // desktop or has the wallpaper focused (e.g. clicked through icons).
@@ -222,6 +285,32 @@ export function computeThrottleState(probe: ThrottleProbe): ThrottleState {
  *  avoid garbage; koffi's `_Out_ int32_t*` expects a 4-int32 buffer it
  *  writes into in place. */
 const rectBuf = Buffer.alloc(4 * 4);
+
+/** Phase 5B — buffer the LASTINPUTINFO struct lives in. Layout: 8
+ *  bytes total. Bytes 0-3 = cbSize (uint32, must equal 8 — we set it
+ *  on every call since GetLastInputInfo overwrites the buffer with
+ *  cbSize unchanged + dwTime overwritten). Bytes 4-7 = dwTime
+ *  (uint32, ms since system boot of last input). */
+const lastInputBuf = Buffer.alloc(8);
+lastInputBuf.writeUInt32LE(8, 0); // cbSize = sizeof(LASTINPUTINFO)
+
+/** Query system idle duration in ms (since the last keyboard / mouse /
+ *  touch / pen input across the OS). Returns -1 if the Win32 call
+ *  failed — caller treats that as "unknown idle" and falls back to
+ *  the safest behavior (don't trigger SLEEPING). */
+function queryIdleDurationMs(): number {
+  // Re-set cbSize each call — the spec says it must be set by the
+  // caller before each call, and our buffer is shared across calls.
+  lastInputBuf.writeUInt32LE(8, 0);
+  const ok = GetLastInputInfo(lastInputBuf) as boolean;
+  if (!ok) return -1;
+  const lastInputTick = lastInputBuf.readUInt32LE(4);
+  const nowTick = GetTickCount() as number;
+  // uint32 modular subtraction handles the 49.7-day wrap correctly:
+  // if nowTick wrapped past 0 while lastInputTick is still pre-wrap,
+  // (nowTick - lastInputTick) & 0xFFFFFFFF gives the right delta.
+  return (nowTick - lastInputTick) >>> 0;
+}
 
 /** Convert the koffi buffer to a Rect. Reads little-endian int32s from
  *  the four positions GetWindowRect wrote. */
@@ -322,7 +411,8 @@ function probeWin32(
 
   if (!isWallpaperMode) {
     // Skip the Win32 calls entirely — state machine returns 'full' on
-    // !isWallpaperMode anyway, and we save two FFI hops per tick.
+    // !isWallpaperMode anyway, and we save three FFI hops per tick
+    // (now including GetLastInputInfo + GetTickCount for 5B).
     return {
       isWallpaperMode,
       wallpaperHwnd,
@@ -330,6 +420,7 @@ function probeWin32(
       foregroundHwnd: null,
       foregroundRect: null,
       monitorRect,
+      idleDurationMs: 0,
     };
   }
 
@@ -347,6 +438,12 @@ function probeWin32(
     if (ok) foregroundRect = readRectFromBuffer();
   }
 
+  // Phase 5B — idle duration from GetLastInputInfo. Negative means
+  // the call failed; we coerce to 0 so the SLEEPING gate never fires
+  // on a Win32 failure (safer to render than to silently sleep).
+  const rawIdle = queryIdleDurationMs();
+  const idleDurationMs = rawIdle < 0 ? 0 : rawIdle;
+
   return {
     isWallpaperMode,
     wallpaperHwnd,
@@ -354,6 +451,7 @@ function probeWin32(
     foregroundHwnd,
     foregroundRect,
     monitorRect,
+    idleDurationMs,
   };
 }
 
@@ -474,10 +572,11 @@ export function startThrottleController(
             `@(${probe.foregroundRect.left},${probe.foregroundRect.top})`
           : 'null';
         const monRect = `${probe.monitorRect.right - probe.monitorRect.left}×${probe.monitorRect.bottom - probe.monitorRect.top}`;
+        const idleSec = Math.round(probe.idleDurationMs / 1000);
         const transitionTag = stateChanged ? ` ⟹ ${controller.current}→${next}` : '';
         // eslint-disable-next-line no-console
         console.log(
-          `[throttle] fg=${fgHex} fgRect=${fgRect} mon=${monRect} state=${next}${transitionTag}`,
+          `[throttle] fg=${fgHex} fgRect=${fgRect} mon=${monRect} idle=${idleSec}s state=${next}${transitionTag}`,
         );
         controller.lastForegroundHwnd = probe.foregroundHwnd;
       }
@@ -529,4 +628,5 @@ export const __testing = {
   rectMatchesMonitor,
   THROTTLE_COVERAGE_THRESHOLD,
   FULLSCREEN_TOLERANCE_PX,
+  SLEEP_THRESHOLD_MS,
 } as const;

@@ -17,9 +17,9 @@ import { ipcRenderer, type IpcRendererEvent } from 'electron';
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
-/** Phase 4 slice 4A — three-tier wallpaper throttle. Mirrors
+/** Phase 4 slice 4A + 5B — wallpaper throttle. Mirrors
  *  ThrottleState in desktop/src/wallpaper/throttle.ts. */
-export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
+export type ThrottleState = 'full' | 'throttled-1hz' | 'paused' | 'sleeping';
 
 export interface ThrottleChangeEvent {
   readonly state: ThrottleState;

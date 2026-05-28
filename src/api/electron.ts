@@ -8,9 +8,17 @@
 
 export type WallpaperMode = 'window' | 'wallpaper';
 
-/** Phase 4 slice 4A — three-tier wallpaper throttle state. Mirrors
- *  ThrottleState in desktop/src/preload.ts. */
-export type ThrottleState = 'full' | 'throttled-1hz' | 'paused';
+/** Phase 4 slice 4A + 5B — wallpaper throttle state. Mirrors
+ *  ThrottleState in desktop/src/preload.ts.
+ *
+ *  Four states:
+ *    - 'full'         (default): ticker uncapped, agents active
+ *    - 'throttled-1hz' (4A): a window covers >50% of monitor; ticker at 1Hz
+ *    - 'paused'       (4A): fullscreen app foreground; ticker stopped
+ *    - 'sleeping'     (5B): system idle > 10 min, no fullscreen;
+ *                     ticker stopped + sleep-reflection sweep fires
+ */
+export type ThrottleState = 'full' | 'throttled-1hz' | 'paused' | 'sleeping';
 
 export interface ThrottleChangeEvent {
   readonly state: ThrottleState;

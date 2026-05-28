@@ -24,7 +24,7 @@ Zustand slices:
 - **Library**: `library`, `libraryStatus`, `libraryError`, `totalGames`, `topN`, `profile`, `loadLibrary()`
 - **Manifest**: `manifest`, `manifestStatus`, `manifestSource`, `manifestError`, `loadManifest()`
 - **Wallpaper mode**: `wallpaperMode: boolean`, `setWallpaperMode`
-- **Throttle (4A)**: `throttleState: 'full' | 'throttled-1hz' | 'paused'`, `setThrottleState`
+- **Throttle (4A + 5B)**: `throttleState: 'full' | 'throttled-1hz' | 'paused' | 'sleeping'`, `setThrottleState`
 - **Scale ladder**: `scale: ScaleLevel`, `setScale`
 - **Telemetry overlay (2F)**: `agentDebugOverlay: boolean`, `toggleAgentDebug`
 
@@ -119,13 +119,33 @@ Internal module state:
 Exports: `enterWallpaper(win, display)`, `exitWallpaper(win)`.
 
 ### Throttle pipeline (`desktop/src/wallpaper/throttle.ts`)
-`ThrottleState = 'full' | 'throttled-1hz' | 'paused'`
-
-(`'sleeping'` planned for 5B — IDEAS.md 2026-05-28 entry.)
+`ThrottleState = 'full' | 'throttled-1hz' | 'paused' | 'sleeping'` (5B)
 
 Controller state: `{timer, current, wallpaperHwnd, shellHwnd, display, isWallpaperMode, lastForegroundHwnd}`.
 
-Pure state machine: `computeThrottleState(probe)` — testable in WSL via mirror in `scripts/smoke-4a-throttle.mts`.
+Probe now includes `idleDurationMs` from Win32 `GetLastInputInfo` +
+`GetTickCount` (5B). Default `SLEEP_THRESHOLD_MS = 600000` (10 min).
+
+Pure state machine: `computeThrottleState(probe)`. SLEEPING gate sits
+ABOVE the fullscreen check (idle > threshold + no fullscreen →
+sleeping); fullscreen still wins over sleeping. Testable in WSL via
+mirror in `scripts/smoke-{4a-throttle,5b-sleep}.mts`.
+
+### Sleep reflection (`src/agents/sleep-reflection.ts`, 5B)
+On SLEEPING entry (after 5s grace), App.tsx fires
+`triggerSleepReflection()` which iterates present agents with
+`reflectionCounter > 0`, calls `routeTier2` per agent with
+`reflectionMinIntervalMs: 0` (bypass per-real-hour cap — this IS
+the budget). Reflection texts + plan summaries buffer in a
+module-local array; `consumeSleepReflections()` drains it for the
+morning-dispatch overlay on SLEEPING → other transition.
+
+### Morning dispatch (`src/render/overlays/morning-dispatch.ts`, 5B)
+Terminal-styled BitmapText banner pinned to top-center. Shows on wake
+when `consumeSleepReflections()` returns non-empty. Auto-dismisses
+after 30s via PIXI ticker delta (NOT setTimeout — ticker is stopped
+during sleep so setTimeout would fire too early). No interactive
+dismiss in v1 (wallpaper mode is click-through + keydown gated).
 
 ### Peek state (`desktop/src/main.ts`)
 Module-local `let peeking = false;` (4C). Bypasses persisted Mode.
@@ -176,8 +196,9 @@ Assertion counts as of 2026-05-28:
 | 4B monitors | smoke-4b-monitors.mts | 31 |
 | 4C peek | smoke-4c-peek.mts | 24 |
 | 5A reflection | smoke-5a-reflection.mts | 41 |
+| 5B sleep | smoke-5b-sleep.mts | 22 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **266** |
+| **Total numeric** | | **288** |
 
 Shared helpers live in `scripts/lib/smoke.ts` (5H): `makeChecker()`,
 `mockElectronModule()`.
