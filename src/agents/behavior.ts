@@ -44,6 +44,13 @@ export function tickBehavior(
 ): Tier0Action {
   if (!runtime.present) return { kind: 'idle' };
 
+  // Phase 5 5A — advance the active plan if the current step is
+  // "complete" (we're at the step's target location, or the step
+  // has no location and at least one BT cycle has elapsed since
+  // installing it). Called BEFORE the action-still-running check so
+  // the plan progresses across cycles, not just on action picks.
+  tryAdvancePlanStep(runtime);
+
   if (nowMs < runtime.actionEndsAt && runtime.currentAction.kind !== 'idle') {
     // Action still running. The Pixi Ticker drives this at ~60Hz; the
     // action's per-step cadence is `tier0StepMs`, so we hold position
@@ -70,6 +77,19 @@ export function tickBehavior(
     }
   }
 
+  // Phase 5 5A — Tier-2 reflection plan execution. Score the current
+  // pending step at 0.75 — above the intent-driven approach (0.7) so
+  // a Tier-2 plan beats a stale Tier-1 intent, below the highest
+  // schedule peaks (e.g. visit_window at 0.8) so character-defining
+  // schedule rules still win when they fire. The result: the agent
+  // walks the plan as a backbone, with schedule rules adding flavor
+  // when they're salient.
+  if (runtime.activePlan && runtime.activePlanStepIndex < runtime.activePlan.steps.length) {
+    const step = runtime.activePlan.steps[runtime.activePlanStepIndex];
+    const action = planStepToAction(step);
+    if (action) candidates.push({ score: 0.75, action, source: 'plan-step' });
+  }
+
   // Schedule-driven candidates.
   for (const rule of def.schedule) {
     const scored = scoreSchedule(rule, def, runtime, ctx);
@@ -87,12 +107,35 @@ export function tickBehavior(
   runtime.currentAction = best.action;
   runtime.actionEndsAt = nowMs + def.tier0StepMs;
   executeAction(best.action, runtime, def, ctx);
+
+  // Phase 5 5A — if we picked the plan-step candidate AND the step has
+  // no location, the step completes in this single cycle (linger /
+  // idle / wander all have no spatial target to "arrive at"). Advance
+  // the index now so the next BT pick sees the next pending step.
+  // Location-bearing steps advance via tryAdvancePlanStep when the
+  // agent's (x, y) matches the step's location next cycle.
+  if (best.source === 'plan-step' && runtime.activePlan) {
+    const idx = runtime.activePlanStepIndex;
+    const step = runtime.activePlan.steps[idx];
+    if (step && !step.location) {
+      runtime.activePlanStepIndex = idx + 1;
+      if (runtime.activePlanStepIndex >= runtime.activePlan.steps.length) {
+        runtime.activePlan = null;
+        runtime.activePlanStepIndex = 0;
+      }
+    }
+  }
+
   return best.action;
 }
 
 interface ScoredAction {
   score: number;
   action: Tier0Action;
+  /** Phase 5 5A — tag plan-step candidates so the post-pick handler
+   *  can advance no-location steps after execution. Schedule + base
+   *  + intent candidates leave this undefined. */
+  source?: 'plan-step';
 }
 
 function scoreSchedule(
@@ -139,6 +182,76 @@ function scoreSchedule(
       // These don't pick actions — they gate runtime.present. Handled
       // by tickPresence (called separately from cohort renderer).
       return null;
+  }
+}
+
+/** Phase 5 5A — advance `runtime.activePlanStepIndex` for
+ *  location-bearing steps where the agent has arrived. No-location
+ *  steps (linger / idle / wander mappings) are advanced *after*
+ *  execution by the post-pick handler in tickBehavior; advancing
+ *  them HERE would skip them before the BT got a chance to pick
+ *  their action.
+ *
+ *  Approach takes one BT pick per cell-step; a 5-cell path completes
+ *  after ~5 picks (one per stepTowardTarget call).
+ *  When all steps are done, clears `runtime.activePlan` so the BT
+ *  falls back to wander/idle/schedule until the next reflection. */
+function tryAdvancePlanStep(runtime: AgentRuntimeState): void {
+  const plan = runtime.activePlan;
+  if (!plan) return;
+  const idx = runtime.activePlanStepIndex;
+  if (idx >= plan.steps.length) {
+    runtime.activePlan = null;
+    runtime.activePlanStepIndex = 0;
+    return;
+  }
+  const step = plan.steps[idx];
+  // No-location steps wait for the post-pick handler — don't advance
+  // here.
+  if (!step.location) return;
+  const atTarget = runtime.x === step.location.x && runtime.y === step.location.y;
+  if (!atTarget) return;
+  runtime.activePlanStepIndex = idx + 1;
+  if (runtime.activePlanStepIndex >= plan.steps.length) {
+    runtime.activePlan = null;
+    runtime.activePlanStepIndex = 0;
+  }
+}
+
+/** Map a `PlanStep` to a `Tier0Action`. Phase 5 5A — used by the BT
+ *  to translate Tier-2 reflection plans into existing Tier-0 primitives.
+ *  Returns null only when the step kind is somehow unknown (shouldn't
+ *  happen — the Worker whitelists the 5 PlanStepKinds before sending). */
+function planStepToAction(step: {
+  readonly kind: 'move_to' | 'inspect' | 'place_mark' | 'linger' | 'withdraw';
+  readonly location?: CellPoint;
+}): Tier0Action | null {
+  switch (step.kind) {
+    case 'move_to':
+    case 'inspect':
+    case 'place_mark':
+      // All three want the agent at a specific location. inspect +
+      // place_mark differ from move_to only in their visible
+      // marginalia output — for the BT they're identical "walk
+      // there" actions. The marginalia rendering for place_mark
+      // already happens at recordPlan time via cell.ts:179
+      // (Phase 2E path); the agent's visit is the *temporal*
+      // contribution this slice adds.
+      if (step.location) {
+        return { kind: 'approach', target: step.location };
+      }
+      // Step without a location → just one beat of idle, completes
+      // on next BT cycle (no location ⇒ tryAdvancePlanStep
+      // auto-advances).
+      return { kind: 'idle' };
+    case 'linger':
+      return { kind: 'idle' };
+    case 'withdraw':
+      // Walk somewhere else — Tier-0 wander is the simplest "move
+      // away" primitive. A future slice could do a target-aware
+      // "walk opposite of target" but wander reads as character-
+      // appropriate uncertainty.
+      return { kind: 'wander' };
   }
 }
 

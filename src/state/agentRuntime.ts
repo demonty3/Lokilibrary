@@ -16,6 +16,7 @@
  */
 
 import type { CellPoint } from '../procedural/cell';
+import type { PlanPayload } from '../agents/memory/schema';
 
 /**
  * Discriminated union for what an agent is currently doing at Tier 0.
@@ -57,6 +58,29 @@ export interface AgentRuntimeState {
   /** performance.now() of the last Tier-1 call — debounces back-to-back
    *  calls from the same perception burst. */
   lastTier1At: number;
+  /** Phase 5 5A — performance.now() of the last Tier-2 reflection
+   *  dispatch. Used by `routeTier2` to enforce the per-real-hour
+   *  rate-limit (`REFLECTION_MIN_INTERVAL_MS`). Even when the
+   *  reflectionCounter crosses threshold, Tier-2 won't fire again
+   *  until this+interval has elapsed. Smallville's "queue events,
+   *  fire one reflection per agent per real-world hour" semantic from
+   *  PLAN.md § Phase 5. */
+  lastReflectionAt: number;
+  /** Phase 5 5A — the currently-active multi-step plan the agent is
+   *  executing. Populated by `routeTier2` after a successful Tier-2
+   *  dispatch parses a `plan` field from the reflection response.
+   *  Cleared when all steps are complete (BT marks the last step
+   *  done in `behavior.ts`). The Tier-0 BT scores an
+   *  `execute_plan_step` candidate ahead of wander/idle whenever this
+   *  is non-null and has pending steps. */
+  activePlan: PlanPayload | null;
+  /** Phase 5 5A — index of the next pending step in `activePlan.steps`.
+   *  The BT advances this once the agent arrives at the current
+   *  step's location (or immediately for steps without a location).
+   *  When `activePlanStepIndex >= activePlan.steps.length`, the plan
+   *  completes and `activePlan` is cleared. Reset to 0 when a new
+   *  plan installs. */
+  activePlanStepIndex: number;
   /** Current BT action — the BT swaps this when actionEndsAt elapses. */
   currentAction: Tier0Action;
   /** performance.now() at which the current action expires + the BT
@@ -103,6 +127,9 @@ export function initialRuntime(args: {
     perceptionQueue: [],
     reflectionCounter: 0,
     lastTier1At: 0,
+    lastReflectionAt: 0,
+    activePlan: null,
+    activePlanStepIndex: 0,
     currentAction: { kind: 'idle' },
     actionEndsAt: 0,
   };

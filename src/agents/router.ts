@@ -223,6 +223,23 @@ const PRICE_SONNET_PER_MTOK_OUT = 15.0;
  *  slice 2F telemetry will tell us if real-time-only cadence wants ~80–100. */
 export const REFLECTION_THRESHOLD = 150;
 
+/** Phase 5 5A — minimum wall-clock interval between Tier-2 dispatches
+ *  per agent. PLAN.md § Phase 5: "Batched: queue events, fire one
+ *  reflection per agent per real-world hour." Even when the importance
+ *  counter crosses threshold, the dispatch is gated — the counter
+ *  keeps accumulating (no reset on rate-limited skip) so the
+ *  next-eligible reflection has full context, but the Sonnet call is
+ *  suppressed until the interval elapses.
+ *
+ *  Default 3,600,000 ms = 1 hour. CLAUDE.md cost math: 5 agents × 12
+ *  wake hours × 30 days = 1800 calls/month ≈ $0.30/month at Sonnet
+ *  rates. Well under the ≤ $1/user/month target.
+ *
+ *  Phase 5 5B's SLEEPING throttle state relaxes this to a shorter
+ *  interval (~5 min) for the duration of sleep, so overnight
+ *  reflection has room to populate the morning dispatch. */
+export const REFLECTION_MIN_INTERVAL_MS = 60 * 60 * 1000;
+
 /** Action verbs the router refuses to install into `runtime.intent`.
  *  See CLAUDE.md "don't make the agent a chatbot". Loki's persona file
  *  has its own narrower whitelist; this is the global fallback. */
@@ -265,13 +282,19 @@ export interface RouteOptions {
   recentMemoryCount?: number;
   /** Override reflection threshold (Smallville default = 150). */
   reflectionThreshold?: number;
+  /** Phase 5 5A — override the per-real-hour rate-limit interval (ms).
+   *  Default `REFLECTION_MIN_INTERVAL_MS` = 1 hour. Phase 5 5B passes
+   *  a shorter interval during SLEEPING; tests override to verify
+   *  the throttle. */
+  reflectionMinIntervalMs?: number;
   /** Recent-memory window size to ship to Tier 2. Default 25 — enough
    *  surface for the model to find a pattern without blowing the
    *  context budget. */
   reflectionMemoryCount?: number;
-  /** Force Tier-2 dispatch even when below threshold. Used by direct
-   *  user actions (game launch) per CLAUDE.md "Tier 2 fires only on
-   *  reflection threshold or direct user action". */
+  /** Force Tier-2 dispatch even when below threshold AND ignore the
+   *  per-real-hour rate-limit. Used by direct user actions (game
+   *  launch) per CLAUDE.md "Tier 2 fires only on reflection threshold
+   *  or direct user action". */
   force?: boolean;
 }
 
@@ -421,8 +444,14 @@ export async function routeTier1(
  */
 export interface ReflectRouteResult {
   dispatched: boolean;
-  skipReason?: 'below_threshold' | 'no_memories' | 'rejected';
+  skipReason?: 'below_threshold' | 'rate_limited' | 'no_memories' | 'rejected';
   reflection?: { text: string; synthesised_from: readonly string[] };
+  /** Phase 5 5A — the plan parsed from the reflection response (when
+   *  present). Caller is the cohort renderer; it doesn't need the
+   *  plan separately because `runtime.activePlan` is set as a
+   *  side-effect of dispatch, but surfacing it here makes the
+   *  dispatch outcome self-describing for the smoke. */
+  plan?: { text: string; stepCount: number };
 }
 
 export async function routeTier2(
@@ -435,6 +464,24 @@ export async function routeTier2(
   if (!opts.force && runtime.reflectionCounter < threshold) {
     return { dispatched: false, skipReason: 'below_threshold' };
   }
+
+  // Phase 5 5A — per-agent real-hour rate-limit. The importance
+  // counter has crossed threshold (or `force` is set), but we still
+  // suppress the Sonnet call if this agent dispatched recently. The
+  // counter is NOT reset on rate-limited skip — it keeps accumulating
+  // so the next-eligible reflection has full context. `force=true`
+  // (direct user actions like game launch) bypasses both the
+  // threshold AND the rate-limit per CLAUDE.md.
+  const minIntervalMs = opts.reflectionMinIntervalMs ?? REFLECTION_MIN_INTERVAL_MS;
+  if (
+    !opts.force &&
+    minIntervalMs > 0 &&
+    runtime.lastReflectionAt > 0 &&
+    now - runtime.lastReflectionAt < minIntervalMs
+  ) {
+    return { dispatched: false, skipReason: 'rate_limited' };
+  }
+
   const transport = opts.transport ?? defaultAgentTransport;
   const memory = opts.memory ?? nullMemoryWriter;
   const n = opts.reflectionMemoryCount ?? 25;
@@ -462,6 +509,12 @@ export async function routeTier2(
     return { dispatched: false, skipReason: 'rejected' };
   }
 
+  // Phase 5 5A — successful dispatch consumes the rate-limit budget
+  // (lastReflectionAt = now) AND the reflection counter (already
+  // reset above). Failures leave both intact so the next tick can
+  // retry.
+  runtime.lastReflectionAt = now;
+
   memory.recordReflection({
     agentId: def.id,
     text: outcome.result.reflection,
@@ -479,9 +532,35 @@ export async function routeTier2(
     costUsdEst: estimateSonnetCost(outcome.result.tokensIn, outcome.result.tokensOut),
   });
 
-  // `now` is unused at the moment — accepted for future telemetry
-  // attribution (which 1-minute bucket the reflection landed in).
-  void now;
+  // Phase 5 5A — if the reflection came with a plan, persist it +
+  // install on the runtime so the Tier-0 BT picks up plan-step
+  // candidates on next tick. Plan is optional — older Worker
+  // versions / models that don't emit one still work, just without
+  // the plan-execution surface.
+  let planSummary: { text: string; stepCount: number } | undefined;
+  const planFromWorker = outcome.result.plan;
+  if (planFromWorker && planFromWorker.steps.length > 0) {
+    const planPayload = {
+      text: planFromWorker.text,
+      steps: planFromWorker.steps.map((s) => ({
+        kind: s.kind,
+        target: s.target,
+        location: s.location,
+        status: 'pending' as const,
+      })),
+      status: 'active' as const,
+    };
+    memory.recordPlan({
+      agentId: def.id,
+      text: planPayload.text,
+      steps: planPayload.steps,
+      status: planPayload.status,
+      importance: outcome.result.importance,
+    });
+    runtime.activePlan = planPayload;
+    runtime.activePlanStepIndex = 0;
+    planSummary = { text: planPayload.text, stepCount: planPayload.steps.length };
+  }
 
   return {
     dispatched: true,
@@ -489,6 +568,7 @@ export async function routeTier2(
       text: outcome.result.reflection,
       synthesised_from: outcome.result.synthesised_from,
     },
+    ...(planSummary && { plan: planSummary }),
   };
 }
 

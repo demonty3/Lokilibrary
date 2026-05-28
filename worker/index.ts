@@ -719,16 +719,32 @@ export default {
       const personaBlock = body.persona?.system_prompt
         ? `[persona]\n${body.persona.system_prompt}\n\n`
         : '';
+      // Phase 5 5A — reflection prompt extended to ALSO emit a
+      // multi-step plan. The plan's step kinds are constrained to a
+      // whitelist of 5 (Smallville's verbs, narrowed): move_to,
+      // inspect, place_mark, linger, withdraw. The router clamps any
+      // out-of-whitelist verbs server-side. `place_mark` is the
+      // load-bearing one — it produces the marginalia glyph that's
+      // the visible output of agent-as-marginalia Depth 1.
       const system =
         personaBlock +
         'You are an agent in a small library room. Read your recent memories ' +
         'and write ONE reflection: a single short sentence (< 140 chars) that ' +
         'synthesises a pattern you notice across them. Pick up to 5 memory ids ' +
         'whose content most directly informs the reflection. Suggest up to 3 ' +
-        'short themes (one-word tags). Respond with ONLY valid JSON in this ' +
-        'exact shape:\n' +
+        'short themes (one-word tags). ALSO propose a short plan: 1-3 steps ' +
+        'you intend to take in the room next, each step using one of these ' +
+        'verbs: move_to (walk to a location), inspect (look at a target), ' +
+        'place_mark (leave a small marginalia note at a location), linger ' +
+        '(stay where you are for a beat), withdraw (move away from a target). ' +
+        'Use specific room coordinates (location: {x: 0-23, y: 0-15}) and/or ' +
+        'specific bookshelf-slot targets from your recent_memories when they ' +
+        'are present. If no plan makes sense, return an empty steps array. ' +
+        'Respond with ONLY valid JSON in this exact shape:\n' +
         '  {"reflection": "<single sentence>", "synthesised_from": ["<id>", ...], ' +
-        '"themes": ["<word>", ...], "importance": <integer 1-10>}\n' +
+        '"themes": ["<word>", ...], "importance": <integer 1-10>, ' +
+        '"plan": {"text": "<one sentence>", "steps": [{"kind": "<verb>", ' +
+        '"target": "<optional id>", "location": {"x": <int>, "y": <int>}}, ...]}}\n' +
         'No prose outside the JSON.';
 
       const memoryDigest = body.recentMemories
@@ -757,6 +773,7 @@ export default {
         synthesised_from?: unknown;
         themes?: unknown;
         importance?: unknown;
+        plan?: unknown;
       };
       try {
         parsed = JSON.parse(extractJson(result.text)) as typeof parsed;
@@ -781,12 +798,64 @@ export default {
           ? Math.round(parsed.importance)
           : 7;
 
+      // Phase 5 5A — parse the optional plan. Whitelist verb kinds
+      // (the 5 PlanStepKinds the renderer knows about); strip
+      // anything out-of-list. Cap to 5 steps to bound Sonnet drift.
+      // Clamp location to room bounds (0-23 × 0-15 matches the
+      // 24×16 cell room layout). Missing plan / empty steps array
+      // → omit the field from the response (caller treats absence as
+      // "no plan" — the router doesn't install activePlan).
+      const PLAN_VERBS = new Set([
+        'move_to', 'inspect', 'place_mark', 'linger', 'withdraw',
+      ]);
+      const MAX_STEPS = 5;
+      const ROOM_W = 24;
+      const ROOM_H = 16;
+      let plan: { text: string; steps: Array<{ kind: string; target?: string; location?: { x: number; y: number } }> } | undefined;
+      const rawPlan = parsed.plan as
+        | { text?: unknown; steps?: unknown }
+        | undefined;
+      if (rawPlan && typeof rawPlan === 'object' && Array.isArray(rawPlan.steps) && rawPlan.steps.length > 0) {
+        const cleanedSteps = (rawPlan.steps as unknown[])
+          .slice(0, MAX_STEPS)
+          .map((s) => {
+            if (!s || typeof s !== 'object') return null;
+            const step = s as { kind?: unknown; target?: unknown; location?: unknown };
+            if (typeof step.kind !== 'string' || !PLAN_VERBS.has(step.kind)) return null;
+            const cleaned: { kind: string; target?: string; location?: { x: number; y: number } } = {
+              kind: step.kind,
+            };
+            if (typeof step.target === 'string' && step.target.length > 0) {
+              cleaned.target = step.target.slice(0, 80);
+            }
+            if (
+              step.location &&
+              typeof step.location === 'object' &&
+              typeof (step.location as { x?: unknown }).x === 'number' &&
+              typeof (step.location as { y?: unknown }).y === 'number'
+            ) {
+              const lx = Math.max(0, Math.min(ROOM_W - 1, Math.floor((step.location as { x: number }).x)));
+              const ly = Math.max(0, Math.min(ROOM_H - 1, Math.floor((step.location as { y: number }).y)));
+              cleaned.location = { x: lx, y: ly };
+            }
+            return cleaned;
+          })
+          .filter((s): s is { kind: string; target?: string; location?: { x: number; y: number } } => s !== null);
+        if (cleanedSteps.length > 0) {
+          const planText = typeof rawPlan.text === 'string' && rawPlan.text.length > 0
+            ? rawPlan.text.slice(0, 200)
+            : 'plan';
+          plan = { text: planText, steps: cleanedSteps };
+        }
+      }
+
       return json(
         {
           reflection: parsed.reflection,
           synthesised_from: synthesised,
           themes,
           importance,
+          ...(plan && { plan }),
           model: result.model,
           provider: result.provider,
           latencyMs,

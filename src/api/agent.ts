@@ -101,6 +101,22 @@ export interface ReflectResult {
   synthesised_from: readonly string[];
   themes: readonly string[];
   importance: number;
+  /** Phase 5 5A — optional multi-step plan the agent intends to
+   *  execute next. Worker emits this alongside the reflection text;
+   *  router persists via `memory.recordPlan` + sets
+   *  `runtime.activePlan` so the Tier-0 BT can score
+   *  `execute_plan_step` candidates. Absent / empty array → no plan
+   *  (the agent just reflected; no concrete next action proposed).
+   *  Step kinds must come from the existing whitelist in
+   *  `src/agents/memory/schema.ts` PlanStepKind. */
+  plan?: {
+    text: string;
+    steps: ReadonlyArray<{
+      kind: 'move_to' | 'inspect' | 'place_mark' | 'linger' | 'withdraw';
+      target?: string;
+      location?: { x: number; y: number };
+    }>;
+  };
   model: string;
   provider: string;
   latencyMs: number;
