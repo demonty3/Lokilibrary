@@ -517,16 +517,27 @@ Lifted from `docs/pivot/FEASIBILITY.md` § Phased v1.0 MVP Build Plan
   fall back to PixelLab.ai if < 8 GB. Pillow palette quantize to
   the active theme palette. Cache by `(appid, theme, prompt-template)`.
   Pre-generate a sprite set for the user's top 20 games on first run.
-- **Phase 4 — Wallpaper polish.** Multi-monitor picker. Peek hotkey
-  (Ctrl+Alt+L). Three-tier throttling (FULL / THROTTLED_1HZ / PAUSED)
-  driven by a foreground-window poll every 500ms; pause on detected
-  fullscreen game via Steamworks `GetFriendGamePlayed`. Global hotkey
-  for the interactive window. `WorkerW destroyed` watchdog.
-- **Phase 5 — Reflection + lore.** Smallville-style reflection at
-  importance threshold 150. Tier 2 cloud LLM calls (Sonnet) for
-  reflection and weekly "dream" sequences. Upload-lore feature:
-  drop a `.txt`/`.md`, chunk, embed, seed as agent memories. Share-URL
-  pipeline revived if Phase 2 surfaces a clear need.
+- **Phase 4 — Wallpaper polish (SHIPPED 2026-05-27).** Three-tier
+  throttling (`full` / `throttled-1hz` / `paused`) via foreground-
+  window poll every 1000ms (Steamworks `GetFriendGamePlayed` is NOT
+  exposed by `steamworks.js` 0.4 per the 4A retro; foreground-rect
+  matching against monitor bounds is the surrogate). Multi-monitor
+  picker via tray submenu (4B). Ctrl+Alt+L peek hotkey via Electron
+  `globalShortcut` (4C). `WorkerW destroyed` watchdog already shipped
+  in Phase 0 revival.
+- **Phase 5 — Reflection completion + sleep mode + lore.** See PLAN.md
+  § Phase 5 for the slice breakdown (5R / 5A / 5B / 5C / 5D). 5A
+  finishes what Phase 2D started — adds per-real-hour rate-limit,
+  reflection-emits-plan, agents-execute-plans (lands agent-as-
+  marginalia Depth 1 robustly). 5B adds the `SLEEPING` 4th throttle
+  state per IDEAS.md's 2026-05-28 entry, with a morning-dispatch
+  banner surfacing overnight reflections. 5C ships the text-only lore
+  upload (`.txt`/`.md` → tiktoken chunking → local Ollama
+  `nomic-embed-text` embeddings → memory store). 5D wires lore
+  context into the Stage 1 manifest + persona prompts + scatter
+  palette. **Per `docs/pivot/CONSOLIDATION.md`, weekly dream
+  sequences DEFER to v1.x** — sleep mode's morning dispatch is the
+  Depth-1 surface for v1.0. Share-URL revival is post-launch.
 - **Phase 6 — Steam release.** Store page polish, screenshots, capsule
   art (disclose pre-gen AI on assets), trailer. Content Survey:
   disclose pre-gen + live-gen AI with the guardrails text in § 8.1.

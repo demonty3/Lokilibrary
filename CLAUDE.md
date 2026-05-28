@@ -28,30 +28,52 @@ free (Wallpaper Engine's lesson).
 
 ## Current phase
 
-**Phase 0 complete (2026-05-22). Phase 1 — renderer foundations — in
-progress.** Phase 0 shipped: PixiJS v8 boot + Solarized theme, Electron
-wrapper + Steamworks SDK + wallpaper-mode revival on Win11 22H2+ (Lively
-Progman-reparent port), Worker `/api/agent/tick` Tier 1 round-trip
-operational against both local Ollama and Anthropic, deterministic
-Mulberry32 PRNG + FNV-1a profile-seed hash lifted from the 3D build,
-Steam OpenID + library fetch + behavioral profile + state-tagging all
-intact and worker-side. Retro at `RETROS/phase-0-spike.md`.
+**Phases 0 / 1 / 2 / 3 (partial) / 4 complete (2026-05-27). Phase 5 —
+reflection completion + sleep mode + lore — next.** See
+`docs/INDEX.md` for the authoritative-doc map and
+`docs/pivot/CONSOLIDATION.md` for v1.0 scope.
 
-**Phase 1 (in progress)** lays renderer foundations on top of the Phase 0
-spike: Cozette bitmap font, multi-theme registry (Gruvbox / Catppuccin /
-Tokyo Night / IBM-3270 alongside Solarized), hand-rolled WFC tile
-composition, single-library-room cell renderer with bookshelves mapped to
-the player's top Steam games, `cell → district → island → continent →
-planet → solar_system` scale-ladder state machine (cell + district
-implemented; higher levels stub), `playerPos.ts` revived as vec2,
-`scatter.ts` rewritten for 2D. Plus doc rewrites — this file, SPEC.md,
-PLAN.md — to reflect the pivot.
+**Phase 0** (2026-05-22) shipped the integration spike: PixiJS v8 boot
++ Solarized theme, Electron wrapper + Steamworks SDK + wallpaper-mode
+revival on Win11 22H2+ (Lively Progman-reparent port), Worker
+`/api/agent/tick` Tier 1 round-trip, Mulberry32 PRNG + FNV-1a hash,
+Steam OpenID + library fetch + behavioral profile. Retro at
+`RETROS/phase-0-spike.md`.
 
-**Phase 2 (next)** is the agent layer: Stanford Smallville memory-stream
-architecture (`joonspk-research/generative_agents`), tiered router (BT/
-utility-AI Tier 0 default, Qwen 2.5 7B local Tier 1, Anthropic Sonnet Tier 2),
-4–6 agents on the cell level with spatially-bounded perception, Loki
-personality system prompt. PLAN.md has the full sequence.
+**Phase 1** (2026-05-22) shipped renderer foundations: Cozette bitmap
+font, multi-theme registry (Solarized/Gruvbox/Catppuccin/Tokyo
+Night/IBM-3270), hand-rolled WFC, single-library-room cell renderer,
+`cell → district → … → solar_system` scale-ladder (cell + district
+implemented; higher levels stubbed), `playerPos.ts` + `scatter.ts`
+2D rewrites.
+
+**Phase 2** (2026-05-26) shipped the agent layer (slices 2A–2G):
+SQLite + sqlite-vec + FTS5 memory stream, 5-agent cohort with
+Tier-0 BT, spatially-bounded perception, Tier-1 Anthropic Haiku / local
+Qwen routing, Tier-2 Sonnet reflection at threshold 150, bookshelf
+launch + Loki marginalia, persona system, telemetry overlay, profile-
+aware remount. Retro at `RETROS/phase-2.md`.
+
+**Phase 3** (partial — 3A/3B/3C shipped) wired the pixel-art pipeline
+scaffold: sprite-aware cell renderer, placeholder generator for all
+non-floor tiles, PixelLab.ai bake script via Worker proxy. The
+displayed-size question for 16×32 sprites on a 6×13 grid is unresolved
+(documented in `src/render/sprites.ts:SLOT_DISPLAY` comment); resolves
+when Phase 5 reveals the aesthetic requirements.
+
+**Phase 4** (2026-05-27) shipped wallpaper polish: three-tier throttle
+(`full` / `throttled-1hz` / `paused`), multi-monitor tray picker,
+Ctrl+Alt+L peek hotkey. All verified end-to-end on a real Win11 raised-
+desktop setup.
+
+**Phase 5 (next)** finishes the agent layer. Per `PLAN.md` § Phase 5:
+slice 5R (docs reconciliation), 5A (reflection rate-limit + plan
+output + agents execute plans → lands agent-as-marginalia Depth 1),
+5B (`SLEEPING` 4th throttle state + morning dispatch per IDEAS.md
+2026-05-28), 5C (text-only lore upload via `nomic-embed-text`), 5D
+(lore-driven Stage 1 manifest + persona + scatter adaptation). Per
+`CONSOLIDATION.md` v1.0 scope: dream sequences DEFER to v1.x; image /
+URL lore ingestion + sparse-input follow-up defer to 5C-follow-ups.
 
 ## Stack
 
@@ -92,9 +114,13 @@ stage; they are not interchangeable.
 **Tiered router controls cost.** Tier 0 is the default tick at 1–10 Hz;
 agents wander, sleep, do scheduled chores with no LLM call. Tier 1 only
 fires on perception events. Tier 2 only fires on Smallville's
-importance-threshold-150 reflection trigger or direct user interaction.
-Cost target: **≤ $1/user/month at Claude Sonnet rates** for the full
-agent runtime. Telemetry from day one: log `{agent_id, tier, tokens_in,
+importance-threshold-150 reflection trigger or direct user interaction,
+**AND** is per-agent rate-limited to 1 dispatch per real-world hour
+(Phase 5 slice 5A; default `REFLECTION_MIN_INTERVAL_MS = 3600000`).
+The rate-limit relaxes during Phase 5 5B's `SLEEPING` throttle state so
+overnight reflection has room to populate the morning dispatch. Cost
+target: **≤ $1/user/month at Claude Sonnet rates** for the full agent
+runtime. Telemetry from day one: log `{agent_id, tier, tokens_in,
 tokens_out, latency_ms, model, provider}` for every Tier 1/2 call.
 
 ### Asset libraries

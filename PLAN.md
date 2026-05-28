@@ -329,59 +329,122 @@ peeks reliably. macOS wallpaper at least renders.
 
 ---
 
-## Phase 5 — Reflection + lore (3–4 weeks)
+## Phase 5 — Reflection completion + sleep mode + lore (4–6 weekends)
 
 **Goal:** the agent layer goes from "responds to perception" to
-"reflects + plans + dreams" — and the user can upload their own lore.
-This is the phase where the four-tier personalisation model gets fully
-turned on.
+"reflects + plans + acts on plans" — and the user can upload their own
+lore that the agents reference. This is the phase that lands
+**agent-as-marginalia Depth 1 robustly** (the agent expresses itself
+through what changes in the world; reflections drive placement) and
+the "feels yours" jump from lore-seeded worlds.
 
-### Tasks
+**Scope reconciled against `docs/pivot/CONSOLIDATION.md`** (the
+authoritative v1.0 strategy doc, 2026-05-28). PLAN.md's earlier Phase
+5 had six tasks lifted from the 3D-era plan; this Phase 5 prunes them
+to four slices aligned with CONSOLIDATION.md's v1.0 scope and the
+2026-05-28 IDEAS.md Sleep mode entry.
 
-1. **Smallville reflection at importance threshold 150.** Cumulative
-   importance of recent events crosses 150 → Tier 2 reflection fires.
-   Output is a multi-step plan + character introspection, written
-   back into the memory stream as a high-importance memory.
-2. **Tier 2 cloud LLM calls** (Anthropic Sonnet 4.6) for reflection.
-   Batched: queue events, fire one reflection per agent per real-world
-   hour (not per game-time hour). Cost telemetry from Phase 2 confirms
-   ≤$1/user/month trajectory.
-3. **Weekly "dream" sequences.** Idle nights, the agents produce a
-   short narrative summary of the week. Surfaces in the world as a
-   collectable note or a small visual change overnight.
-4. **Upload-lore feature.** Drop-zone in the interactive window
-   accepts `.txt`, `.md`, images, URLs. Chunk into ~500-token windows
-   via `tiktoken`. Embed via `nomic-embed-text` in Ollama
-   (**local-only**). Write into the same SQLite memory stream that
-   NPCs query — user lore competes for retrieval on equal footing
-   with Smallville-style observations.
-5. **Lore-driven world adaptation.** When new lore is uploaded, the
-   world's aesthetic, factions, events, naming, and antagonists
-   re-tune based on the lore's themes. Sparse input gets LLM
-   follow-up questions; rich input is honoured.
-6. **(Optional) Share-URL pipeline revival.** If Phase 2 surfaces a
-   clear need for share-URLs (and Workshop isn't doing the same job),
-   revive the v0.5-era share contract. Lore is intentionally NOT
-   shareable by default — privacy is load-bearing.
+### Slices
+
+**5R — Docs reconciliation (no code, single commit).** Establish
+CONSOLIDATION.md as the authoritative strategy doc; bring it onto the
+working branch; rewrite this Phase 5 section; create `docs/INDEX.md`
+mapping each doc to its scope; minor CLAUDE.md amendment for the
+per-real-hour reflection rate-limit added in 5A.
+
+**5A — Reflection completion (~1.5 weekends).** Finishes what Phase 2D
+shipped (threshold-150 + Sonnet reflection rows). Adds three coupled
+pieces:
+- Per-agent real-hour rate-limit on Tier-2 dispatch
+  (`REFLECTION_MIN_INTERVAL_MS = 3600000`). The cost cap per CLAUDE.md.
+- Worker `/api/agent/reflect` extended to emit a `plan` field
+  (multi-step plan using existing `PlanPayload` schema). Router
+  parses + persists via `memory.recordPlan` (already wired from
+  Phase 2E place_mark). Sets `runtime.activePlan`.
+- Tier-0 BT (`src/agents/behavior.ts`) scores a new
+  `execute_plan_step` candidate between intent-driven approach (0.7)
+  and schedule rules. Agents *walk to the target* and *place the
+  mark* — the marginalia rendering from `src/render/levels/cell.ts:179`
+  already absorbs the new plan rows.
+
+**5B — Sleep mode + morning dispatch (~1 weekend).** Per the IDEAS.md
+2026-05-28 entry; completes the Phase 4 throttle ladder.
+- `ThrottleState` gains `'sleeping'` (4th state: unfocused + no
+  fullscreen game + system idle > 10 min, via Win32 `GetLastInputInfo`).
+- During SLEEPING, the rate-limit relaxes (≈5 min instead of 1 hour)
+  so each agent fires one Tier-2 to populate the overnight memory.
+- On SLEEPING → FULL transition, a terminal-styled "morning dispatch"
+  banner surfaces what the agents did overnight (reflection text +
+  placed-mark summaries). This IS the Depth-1 marginalia output the
+  user explicitly framed in IDEAS.md — NOT a separate dream-sequences
+  feature.
+
+**5C — Lore upload (text-only MVP) (~1.5 weekends).** Per
+CONSOLIDATION.md "lore-seeded worlds = the primary personalisation
+lever." Text-only MVP:
+- `.txt` / `.md` drop-zone in the renderer (overlay; tray opens or
+  Ctrl+L).
+- Chunk via `tiktoken` (500-token windows, 50-token overlap).
+- Embed via `nomic-embed-text` through local Ollama (CLAUDE.md privacy
+  contract — embeddings never leave the machine).
+- Worker `/api/embed` route (currently a 501 stub from Phase 2D) gets
+  implemented for the local provider only.
+- Lore chunks land in `memories` table; retrieval already supports
+  FTS5 + sqlite-vec. Reflection prompts gain a "recent_lore" section
+  so agents weave lore into their reflections.
+
+**5D — Lore-driven world adaptation (~1-2 weekends).** Per
+CONSOLIDATION.md "the world's aesthetic, factions, events, naming
+derive from lore."
+- Stage 1 `/api/world` manifest prompt gains a "lore_context" section
+  when lore exists; bumps manifest cache to `v3`.
+- Persona prompts gain a `loreContext` slot — Loki's voice adapts to
+  uploaded lore's vocabulary.
+- Bookshelf labels + scatter glyph palette pick from lore-themed
+  weighted tables (LLM picks from a renderer-shipped whitelist; never
+  emits arbitrary tokens).
+
+### Deferred from the original Phase 5 (per CONSOLIDATION.md v1.0 scope)
+
+- **Weekly dream sequences** — CONSOLIDATION.md explicitly excludes
+  dream mode from v1.0. The "while you were away" surface lands in
+  5B's morning dispatch instead; full dream sequences are v1.x.
+- **Image + URL ingestion** for lore upload — text-only MVP first;
+  follow-up slice for `.png` / `.jpg` mood boards (needs CLIP or
+  multimodal embeddings) + URL fetch (Worker-side readability
+  extraction).
+- **Sparse-input follow-up questions** — needs a separate LLM call to
+  ask the user clarifying questions when uploaded lore is thin. Bigger
+  scope; follow-up slice.
+- **Share-URL revival** — post-v1.0. Workshop may do the same job;
+  revisit after launch.
 
 ### Concepts to learn
 
 - **Smallville reflection mechanics.** The 150-importance threshold
-  is the load-bearing constant. Reflections recursively summarise
-  events into higher-level insights ("I've been thinking about Hades
-  a lot lately; it seems to be the centre of this user's gaming life").
-- **Chunked embedding.** ~500-token windows with 50-token overlap is
-  the standard. Each chunk is embedded independently. Retrieval
-  returns the top-K chunks; the LLM sees the chunks as context.
+  is the load-bearing constant — already shipped in Phase 2D. 5A adds
+  the rate-limit (Smallville's "real-time bucketing") and the
+  plan-output decomposition Smallville's reflection produces.
+- **Chunked embedding.** ~500-token windows with 50-token overlap
+  (standard). Each chunk embedded independently via
+  `nomic-embed-text`. Retrieval returns top-K; LLM sees them as
+  context.
 - **Lore as embedded memory.** The user's lore competes for retrieval
   on equal footing with the agent's observations. This is what makes
   the agent feel like it "knows" the lore rather than referencing it.
+- **Win32 `GetLastInputInfo`.** Returns ms since the last system-wide
+  keyboard/mouse input. The right primitive for "user is idle" — fires
+  during games + IDEs + browsers alike, not just our app's focus.
 
-**Done when:** the agents reflect overnight and the world has changed
-subtly by morning (a path worn deeper, a book moved, a small marginalia
-note left in the cell). You can drop a `.txt` of your D&D campaign
-notes into the upload zone and within a few minutes the agents are
-referencing factions and characters from the lore in their observations.
+**Done when:** Loki produces a reflection-driven plan, walks to a
+bookshelf, and leaves a marginalia mark — *without* a hardcoded
+trigger like Phase 2E's bookshelf-launch path (5A). Leave the
+wallpaper running overnight; wake to a terminal banner summarising
+what the agents did + see new marks in the cell (5B). Drop a `.txt`
+of your D&D campaign notes; within minutes Loki's next reflection
+references a faction or character from the notes (5C). Force-refresh
+the world manifest; bookshelf labels + agent voice adapt to the
+lore's themes (5D).
 
 ---
 
