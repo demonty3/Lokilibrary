@@ -49,6 +49,12 @@ export interface ElectronAPI {
    *  In the web build, the helper below short-circuits this so the
    *  renderer code can subscribe unconditionally. */
   onThrottleChange(cb: (event: ThrottleChangeEvent) => void): () => void;
+
+  /** Phase 4C — wallpaper peek state (transient overlay on wallpaper
+   *  mode). Always false in the web build. */
+  getPeeking(): Promise<boolean>;
+  togglePeek(): Promise<boolean>;
+  onPeekChanged(cb: (peeking: boolean) => void): () => void;
 }
 
 declare global {
@@ -213,5 +219,52 @@ export function subscribeThrottle(
     return () => undefined;
   }
   return api.onThrottleChange(cb);
+}
+
+/**
+ * Phase 4C — peek helpers. Mirrors the throttle helpers above: same
+ * defensive guards (warnStalePreload when the bridge surface is older
+ * than the renderer bundle), same web-build degradation (always
+ * returns false / no-op).
+ */
+
+export async function getPeeking(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  if (typeof api.getPeeking !== 'function') {
+    warnStalePreload('getPeeking');
+    return false;
+  }
+  try {
+    return await api.getPeeking();
+  } catch {
+    return false;
+  }
+}
+
+export async function togglePeek(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api) return false;
+  if (typeof api.togglePeek !== 'function') {
+    warnStalePreload('togglePeek');
+    return false;
+  }
+  try {
+    return await api.togglePeek();
+  } catch {
+    return false;
+  }
+}
+
+export function subscribePeek(
+  cb: (peeking: boolean) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api) return () => undefined;
+  if (typeof api.onPeekChanged !== 'function') {
+    warnStalePreload('onPeekChanged');
+    return () => undefined;
+  }
+  return api.onPeekChanged(cb);
 }
 

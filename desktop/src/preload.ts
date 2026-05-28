@@ -85,6 +85,24 @@ export interface ElectronAPI {
    *  fire on every detected change (default poll = 1000ms). Returns an
    *  unsubscribe function. */
   onThrottleChange(cb: (event: ThrottleChangeEvent) => void): () => void;
+
+  /** Phase 4C — current peek state. False in window mode (peek is only
+   *  meaningful when in wallpaper mode). Renderer reads this on mount
+   *  to hydrate; subsequent transitions arrive via onPeekChanged. */
+  getPeeking(): Promise<boolean>;
+
+  /** Phase 4C — toggle peek. No-op when persisted mode is 'window'.
+   *  Returns the new peeking state after the toggle (or the unchanged
+   *  state if the call was a no-op). The global hotkey (Ctrl+Alt+L)
+   *  and tray "Peek" / "Exit peek" items drive most state changes;
+   *  the renderer rarely calls this directly. */
+  togglePeek(): Promise<boolean>;
+
+  /** Subscribe to peek-state transitions. Fires every time peeking
+   *  flips, including the reset that happens when an explicit mode
+   *  change wins over a transient peek. Returns an unsubscribe
+   *  function. */
+  onPeekChanged(cb: (peeking: boolean) => void): () => void;
 }
 
 declare global {
@@ -115,6 +133,13 @@ const api: ElectronAPI = {
     const handler = (_e: IpcRendererEvent, event: ThrottleChangeEvent): void => cb(event);
     ipcRenderer.on('throttle:state-change', handler);
     return () => ipcRenderer.off('throttle:state-change', handler);
+  },
+  getPeeking: () => ipcRenderer.invoke('wallpaper:getPeeking') as Promise<boolean>,
+  togglePeek: () => ipcRenderer.invoke('wallpaper:togglePeek') as Promise<boolean>,
+  onPeekChanged: (cb) => {
+    const handler = (_e: IpcRendererEvent, peeking: boolean): void => cb(peeking);
+    ipcRenderer.on('wallpaper:peekChanged', handler);
+    return () => ipcRenderer.off('wallpaper:peekChanged', handler);
   },
 };
 

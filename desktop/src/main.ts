@@ -20,7 +20,7 @@
  *   - Multi-monitor picker
  */
 
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
@@ -60,6 +60,20 @@ const WEB_API_IDENTITY = 'lokilibrary';
 let steamClient: SteamworksClient | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+/** Phase 4C — "peek" is a transient overlay state on top of wallpaper
+ *  mode. The user hits the global hotkey to lift the wallpaper into a
+ *  foreground interactive window without changing the persisted mode.
+ *  Reset when applyMode() runs (real mode change always wins over a
+ *  transient peek). Not stored in config — peek does not survive
+ *  restart by design. */
+let peeking = false;
+
+/** Phase 4C — peek accelerator. CmdOrCtrl+Alt+L: Ctrl+Alt+L on Win/Linux,
+ *  Cmd+Alt+L on macOS. Three-key chord makes collisions with game
+ *  bindings + system shortcuts unlikely. Configurable later if needed
+ *  (tray pref, settings file). */
+const PEEK_ACCELERATOR = 'CmdOrCtrl+Alt+L';
 
 // Forward-declared because applyMode references mainWindow + tray (above)
 // and rebuildTrayMenu references applyMode (below). Hoisted function decls
@@ -166,6 +180,16 @@ function rebuildTrayMenu(t: Tray): void {
         (id) => applyDisplay(id),
       ),
     },
+    // Phase 4C — only show the peek item in wallpaper mode (it's a
+    // no-op in window mode). Label flips between "Peek" and "Exit
+    // peek" based on current state so the user always sees the
+    // action, not the state.
+    ...(current === 'wallpaper'
+      ? [{
+          label: peeking ? 'Exit peek' : `Peek (${PEEK_ACCELERATOR})`,
+          click: () => togglePeek(),
+        }]
+      : []),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ];
@@ -224,6 +248,17 @@ function applyMode(mode: Mode): void {
   // is what they're picking.
   if (getMode() === mode) return;
 
+  // Phase 4C — explicit mode change always wins over a transient peek.
+  // Clear the flag + drop alwaysOnTop BEFORE the new mode is applied so
+  // we don't leave the window pinned above other apps after the user
+  // toggles back to wallpaper from peek. notifyPeek() broadcasts the
+  // reset so any renderer-side UI hint dismisses.
+  if (peeking) {
+    peeking = false;
+    mainWindow.setAlwaysOnTop(false);
+    notifyPeek();
+  }
+
   if (mode === 'wallpaper') {
     const display = resolveDisplay();
     enterWallpaper(mainWindow, display);
@@ -247,6 +282,69 @@ function applyMode(mode: Mode): void {
   } catch {
     // webContents may not be ready on early startup; the renderer can
     // poll getWallpaperMode() on mount as a backstop.
+  }
+}
+
+/** Phase 4C — toggle "peek" state. When peeking on, fully exit
+ *  wallpaper mode (unparent from Progman, restore window styles) and
+ *  pin alwaysOnTop so the wallpaper sits above other apps as a normal
+ *  interactive window. When toggling off, drop alwaysOnTop and
+ *  re-enter wallpaper on the same chosen display. Persisted `mode`
+ *  stays 'wallpaper' the whole time — peek is a transient overlay.
+ *  No-op when persisted mode is 'window' (the window is already
+ *  interactive; nothing to peek into).
+ *
+ *  The throttle controller is NOT stopped/restarted: during peek the
+ *  wallpaper IS the foreground window, so the state machine's
+ *  `foregroundHwnd === wallpaperHwnd → 'full'` short-circuit kicks in
+ *  and agents tick at full speed (the right semantic — the user is
+ *  actively looking at + interacting with the palace).
+ */
+function togglePeek(): void {
+  if (!mainWindow) return;
+  if (getMode() !== 'wallpaper') {
+    // eslint-disable-next-line no-console
+    console.log('[peek] ignored — only meaningful in wallpaper mode');
+    return;
+  }
+  peeking = !peeking;
+  // eslint-disable-next-line no-console
+  console.log(`[peek] toggled ${peeking ? 'on' : 'off'}`);
+  if (peeking) {
+    // Full exit-then-alwaysOnTop. Heavier than a z-order lift but
+    // gives proper Win11 input handling (alt-tab, click events,
+    // keyboard focus all work like a normal interactive window).
+    // Stop the throttle controller so the watchdog inside exitWallpaper
+    // doesn't race the peek transition. We DON'T restart it during
+    // peek — the renderer ticks at full FPS while the user is
+    // interacting, and we restart on peek-off.
+    stopThrottleController();
+    emitThrottleChange('full', true);
+    exitWallpaper(mainWindow);
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.focus();
+  } else {
+    mainWindow.setAlwaysOnTop(false);
+    const display = resolveDisplay();
+    enterWallpaper(mainWindow, display);
+    startThrottleController(mainWindow, {
+      display,
+      onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
+    });
+  }
+  if (tray) rebuildTrayMenu(tray);
+  notifyPeek();
+}
+
+/** Broadcast peek-state change to the renderer. Renderer can use this
+ *  to show a "press Ctrl+Alt+L to exit peek" hint or any other
+ *  peek-aware UI. Same pattern as wallpaper:modeChanged. */
+function notifyPeek(): void {
+  if (!mainWindow) return;
+  try {
+    mainWindow.webContents.send('wallpaper:peekChanged', peeking);
+  } catch {
+    // pre-load: renderer reads getPeeking() on mount as a backstop.
   }
 }
 
@@ -313,6 +411,16 @@ ipcMain.handle('wallpaper:setMode', (_event, mode: unknown) => {
 // then listens for `throttle:state-change` for transitions.
 ipcMain.handle('throttle:getCurrent', () => getCurrentThrottleState());
 
+// Phase 4 slice 4C — peek bridge. The renderer rarely needs to drive
+// these (the global hotkey + tray drive most state changes), but the
+// handlers exist so a renderer-side dismiss button or a peek-aware HUD
+// hint can read state + toggle on demand.
+ipcMain.handle('wallpaper:getPeeking', () => peeking);
+ipcMain.handle('wallpaper:togglePeek', () => {
+  togglePeek();
+  return peeking;
+});
+
 ipcMain.handle('steam:getAuthTicket', async () => {
   if (!steamClient || !steamClient.auth?.getAuthTicketForWebApi) return null;
   try {
@@ -342,6 +450,21 @@ void app.whenReady().then(() => {
   }
 
   tray = createTray();
+
+  // Phase 4C — register the peek global shortcut. Log the result so
+  // false (already registered by another app system-wide) is
+  // user-actionable rather than a silent no-op.
+  const registered = globalShortcut.register(PEEK_ACCELERATOR, () => togglePeek());
+  // eslint-disable-next-line no-console
+  console.log(`[peek] registered ${PEEK_ACCELERATOR} (${registered})`);
+  if (!registered) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[peek] ${PEEK_ACCELERATOR} appears to be in use by another app; ` +
+        'peek hotkey will not fire. Use the tray "Peek" item instead.',
+    );
+  }
+
   const initialMode = getMode();
   // eslint-disable-next-line no-console
   console.log(`[startup] userData=${app.getPath('userData')} initialMode=${initialMode}`);
@@ -372,6 +495,10 @@ void app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // Phase 4C — release any registered global shortcuts BEFORE app.quit()
+  // so the hotkey doesn't linger system-wide for the next process. PLAN.md
+  // Phase 4 task 3 explicitly calls this out.
+  globalShortcut.unregisterAll();
   stopThrottleController();
   tray?.destroy();
   tray = null;
