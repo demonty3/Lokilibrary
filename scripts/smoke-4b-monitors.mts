@@ -29,11 +29,12 @@
  * inside desktop/, per the plan's verification section.
  */
 
-import { createRequire, Module } from 'node:module';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { makeChecker, mockElectronModule } from './lib/smoke.ts';
 
 (globalThis as { require?: NodeRequire }).require = createRequire(import.meta.url);
 
@@ -41,23 +42,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-// --- Mock Electron for config.ts round-trip --------------------------------
-// config.ts does `import { app } from 'electron'` + `app.getPath('userData')`.
-// Electron isn't installed at the repo root (only under desktop/), so
-// we can't `require.resolve('electron')` from this script. Instead we
-// hijack Module._load: any require('electron') returns our mock object.
-// Done BEFORE importing config.ts so the import chain picks up the mock.
-
+// Mock Electron's `app.getPath('userData')` to a tmp dir so the
+// config round-trip test stays hermetic. Must run BEFORE the
+// config.ts import below — Module._load is checked at require time.
 const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'lokilib-4b-'));
-type ModuleLoad = (this: unknown, request: string, ...rest: unknown[]) => unknown;
-interface ModuleWithLoad { _load: ModuleLoad }
-const originalLoad = (Module as unknown as ModuleWithLoad)._load;
-(Module as unknown as ModuleWithLoad)._load = function (request, ...args) {
-  if (request === 'electron') {
-    return { app: { getPath: (_name: string) => tmpUserData } };
-  }
-  return originalLoad.call(this, request, ...args);
-};
+mockElectronModule({ app: { getPath: (_name: string) => tmpUserData } });
 
 // display-picker.ts has no electron runtime dep (it only imports the
 // MenuItemConstructorOptions *type*), so it can load directly. config.ts
@@ -72,12 +61,7 @@ const {
 const config = await import('../desktop/src/config.ts');
 const { getDisplayId, setDisplayId, getMode, setMode } = config;
 
-let passed = 0;
-const failures: string[] = [];
-function check(label: string, cond: boolean, detail?: string): void {
-  if (cond) { passed++; return; }
-  failures.push(`[FAIL] ${label}${detail ? ` — ${detail}` : ''}`);
-}
+const { check, report } = makeChecker('smoke 4B');
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -274,8 +258,4 @@ check(
 // Cleanup + report
 
 fs.rmSync(tmpUserData, { recursive: true, force: true });
-console.log(`\n[smoke 4B] ${passed} assertions passed${failures.length ? `, ${failures.length} failed` : ''}`);
-if (failures.length > 0) {
-  for (const f of failures) console.error(`  ${f}`);
-  process.exit(1);
-}
+report();

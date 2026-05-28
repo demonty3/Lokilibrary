@@ -31,6 +31,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
+import { makeChecker } from './lib/smoke.ts';
 
 (globalThis as { require?: NodeRequire }).require = createRequire(import.meta.url);
 
@@ -50,12 +51,7 @@ const { initialRuntime, clearRuntimes } = await import('../src/state/agentRuntim
 const { mulberry32 } = await import('../src/procedural/prng.ts');
 const { layoutCell } = await import('../src/procedural/cell.ts');
 
-let passed = 0;
-const failures: string[] = [];
-function check(label: string, cond: boolean, detail?: string): void {
-  if (cond) { passed++; return; }
-  failures.push(`[FAIL] ${label}${detail ? ` — ${detail}` : ''}`);
-}
+const { check, report } = makeChecker('smoke 5A');
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -469,8 +465,4 @@ await planPersistenceTest();
 btPlanExecutionTest();
 planStepKindMappingTest();
 
-console.log(`\n[smoke 5A] ${passed} assertions passed${failures.length ? `, ${failures.length} failed` : ''}`);
-if (failures.length > 0) {
-  for (const f of failures) console.error(`  ${f}`);
-  process.exit(1);
-}
+report();

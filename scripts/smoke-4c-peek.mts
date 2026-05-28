@@ -24,9 +24,10 @@
  * inside desktop/, per the plan's verification section.
  */
 
-import { createRequire, Module } from 'node:module';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
+import { makeChecker, mockElectronModule } from './lib/smoke.ts';
 
 (globalThis as { require?: NodeRequire }).require = createRequire(import.meta.url);
 
@@ -63,12 +64,7 @@ function applyModePure(s: PeekState, nextMode: Mode): PeekState {
   return { mode: nextMode, peeking: false };
 }
 
-let passed = 0;
-const failures: string[] = [];
-function check(label: string, cond: boolean, detail?: string): void {
-  if (cond) { passed++; return; }
-  failures.push(`[FAIL] ${label}${detail ? ` — ${detail}` : ''}`);
-}
+const { check, report } = makeChecker('smoke 4C');
 
 // ---------------------------------------------------------------------------
 // 1. togglePeek state-machine
@@ -118,9 +114,6 @@ check('applyMode(window→wallpaper) while not peeking: mode flips, peeking=fals
 // 3. Mock Electron + load src/api/electron.ts to test the renderer-side
 //    defensive guards (warnStalePreload on missing bridge methods)
 
-type ModuleLoad = (this: unknown, request: string, ...rest: unknown[]) => unknown;
-interface ModuleWithLoad { _load: ModuleLoad }
-
 // Build a minimal window.electronAPI stub. Start with no peek methods —
 // triggers the stale-preload warn path. Tests then progressively add
 // methods to verify each guard.
@@ -141,11 +134,7 @@ console.warn = (msg: unknown): void => { warns.push(String(msg)); };
 // Hijack require('electron') as a no-op (api/electron.ts doesn't actually
 // import the electron runtime module — declares the global window type only
 // — but other transitive deps might).
-const originalLoad = (Module as unknown as ModuleWithLoad)._load;
-(Module as unknown as ModuleWithLoad)._load = function (request, ...args) {
-  if (request === 'electron') return {};
-  return originalLoad.call(this, request, ...args);
-};
+mockElectronModule({});
 
 const electron = await import('../src/api/electron.ts');
 const { getPeeking, togglePeek, subscribePeek } = electron;
@@ -222,8 +211,4 @@ unsub3();
 // Cleanup + report
 
 console.warn = originalWarn;
-console.log(`\n[smoke 4C] ${passed} assertions passed${failures.length ? `, ${failures.length} failed` : ''}`);
-if (failures.length > 0) {
-  for (const f of failures) console.error(`  ${f}`);
-  process.exit(1);
-}
+report();
