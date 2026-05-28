@@ -20,17 +20,18 @@
  *   - Multi-monitor picker
  */
 
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
-import { getMode, setMode, type Mode } from './config';
+import { getDisplayId, getMode, setDisplayId, setMode, type Mode } from './config';
 import {
   getCurrentThrottleState,
   startThrottleController,
   stopThrottleController,
   type ThrottleState,
 } from './wallpaper/throttle';
+import { resolveTargetDisplay, buildDisplaySubmenu } from './display-picker';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -138,6 +139,11 @@ function rebuildTrayMenu(t: Tray): void {
   // rebuilds on Win11 (well-known issue). The applyMode no-op guard below
   // catches any stray auto-fire either way; checkbox just makes the menu
   // less weird-looking when both items happen to be unchecked momentarily.
+  //
+  // Phase 4B: the Display submenu uses radio (not checkbox) because the
+  // chosen display IS a single-select set — the auto-fire risk is real
+  // but acceptable: applyDisplay no-ops when the picked id matches the
+  // persisted id, same guard pattern as applyMode.
   const items: MenuItemConstructorOptions[] = [
     {
       label: 'Window mode',
@@ -151,10 +157,58 @@ function rebuildTrayMenu(t: Tray): void {
       checked: current === 'wallpaper',
       click: () => applyMode('wallpaper'),
     },
+    {
+      label: 'Display',
+      submenu: buildDisplaySubmenu(
+        screen.getAllDisplays(),
+        screen.getPrimaryDisplay().id,
+        getDisplayId(),
+        (id) => applyDisplay(id),
+      ),
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ];
   t.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+/** Resolve the wallpaper's target display from current state. Bridges
+ *  the pure helper in `display-picker.ts` to Electron's real `screen`
+ *  API. Falls back to primary when no id is persisted or the persisted
+ *  id no longer matches a connected monitor. */
+function resolveDisplay(): Electron.Display {
+  return resolveTargetDisplay(
+    screen.getAllDisplays(),
+    screen.getPrimaryDisplay(),
+    getDisplayId(),
+  );
+}
+
+/** Phase 4B — pin the wallpaper to a specific monitor (or clear back
+ *  to primary with `undefined`). Persists immediately so the choice
+ *  survives restart; only triggers a re-enter when actually in
+ *  wallpaper mode. In window mode the id is still saved and honored
+ *  on the next wallpaper toggle. */
+function applyDisplay(displayId: number | undefined): void {
+  if (getDisplayId() === displayId) return; // tray auto-fire guard
+  setDisplayId(displayId);
+  if (tray) rebuildTrayMenu(tray);
+  if (!mainWindow) return;
+  if (getMode() !== 'wallpaper') return;
+  // Re-enter to pick up the new bounds. exit-then-enter is heavier
+  // than a bare setBounds(), but it also re-runs the SetParent + style
+  // flips, which is the right reset if the display hot-plug situation
+  // changed under us. The throttle controller is stopped + restarted
+  // so its cached wallpaperHwnd + chosen-display monitorRect stay in
+  // sync.
+  exitWallpaper(mainWindow);
+  stopThrottleController();
+  const display = resolveDisplay();
+  enterWallpaper(mainWindow, display);
+  startThrottleController(mainWindow, {
+    display,
+    onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
+  });
 }
 
 /** Apply a mode transition. Persists the chosen mode so the next launch
@@ -171,8 +225,10 @@ function applyMode(mode: Mode): void {
   if (getMode() === mode) return;
 
   if (mode === 'wallpaper') {
-    enterWallpaper(mainWindow);
+    const display = resolveDisplay();
+    enterWallpaper(mainWindow, display);
     startThrottleController(mainWindow, {
+      display,
       onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
     });
   } else {
@@ -299,8 +355,10 @@ void app.whenReady().then(() => {
       // Bypass applyMode's "already in this mode" guard — config says
       // 'wallpaper' but we haven't actually entered wallpaper yet.
       if (mainWindow) {
-        enterWallpaper(mainWindow);
+        const display = resolveDisplay();
+        enterWallpaper(mainWindow, display);
         startThrottleController(mainWindow, {
+          display,
           onStateChange: (state, isInitial) => emitThrottleChange(state, isInitial),
         });
       }

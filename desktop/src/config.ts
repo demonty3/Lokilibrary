@@ -1,13 +1,20 @@
 /**
  * Tiny per-user config persistence. JSON file in Electron's userData dir.
  *
- * Stores `mode` (window | wallpaper). Multi-monitor `displayId` from the
- * v0.6 build is out of scope for the wallpaper revival (single primary
- * display only); see legacy-desktop-v0.6/src/config.ts if it returns.
+ * Stores:
+ *   - `mode` (window | wallpaper) — Phase 0 wallpaper revival.
+ *   - `displayId` (Electron Display.id) — Phase 4B multi-monitor picker.
+ *     Persisting the *id* rather than (x, y) bounds means a monitor swap
+ *     reassigns the wallpaper to the primary instead of crashing into a
+ *     no-longer-existent display. Undefined ↔ "use primary display."
  *
  * On disk: <userData>/config.json — `%APPDATA%\lokilibrary-desktop\config.json`
  * on Windows, `~/Library/Application Support/lokilibrary-desktop/` on Mac.
  * Survives uninstall/reinstall as long as the userData dir isn't cleared.
+ *
+ * Per-field getter/setter pattern (instead of one big setConfig) so each
+ * call site has a narrow API surface — easier to grep, easier to mock in
+ * tests, and the read-modify-write spread keeps unrelated fields safe.
  */
 
 import { app } from 'electron';
@@ -18,6 +25,7 @@ export type Mode = 'window' | 'wallpaper';
 
 export interface Config {
   mode: Mode;
+  displayId?: number;
 }
 
 const DEFAULT_CONFIG: Config = { mode: 'window' };
@@ -32,6 +40,7 @@ function readConfig(): Config {
     const cfg = JSON.parse(raw) as Partial<Config>;
     return {
       mode: cfg.mode === 'wallpaper' ? 'wallpaper' : 'window',
+      displayId: typeof cfg.displayId === 'number' ? cfg.displayId : undefined,
     };
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -54,4 +63,15 @@ export function getMode(): Mode {
 
 export function setMode(mode: Mode): void {
   writeConfig({ ...readConfig(), mode });
+}
+
+export function getDisplayId(): number | undefined {
+  return readConfig().displayId;
+}
+
+export function setDisplayId(displayId: number | undefined): void {
+  const cfg = readConfig();
+  if (displayId === undefined) delete cfg.displayId;
+  else cfg.displayId = displayId;
+  writeConfig(cfg);
 }

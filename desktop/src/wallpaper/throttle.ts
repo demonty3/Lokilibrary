@@ -34,7 +34,7 @@
  * Windows-native PowerShell to exercise; the user verifies there.
  */
 
-import { screen, type BrowserWindow } from 'electron';
+import { screen, type BrowserWindow, type Display } from 'electron';
 
 interface Koffi {
   load(name: string): {
@@ -305,13 +305,19 @@ function probeWin32(
   wallpaperHwnd: bigint | null,
   shellHwnd: bigint | null,
   isWallpaperMode: boolean,
+  display: Display | null,
 ): ThrottleProbe {
-  const primary = screen.getPrimaryDisplay();
+  // Phase 4B: use the chosen display, not the primary, so the
+  // throttle's fullscreen + coverage detection applies to the
+  // monitor the wallpaper is actually on. Fallback to primary if
+  // somehow not set — defensive; shouldn't happen because
+  // startThrottleController always sets controller.display.
+  const target = display ?? screen.getPrimaryDisplay();
   const monitorRect: Rect = {
-    left: primary.bounds.x,
-    top: primary.bounds.y,
-    right: primary.bounds.x + primary.bounds.width,
-    bottom: primary.bounds.y + primary.bounds.height,
+    left: target.bounds.x,
+    top: target.bounds.y,
+    right: target.bounds.x + target.bounds.width,
+    bottom: target.bounds.y + target.bounds.height,
   };
 
   if (!isWallpaperMode) {
@@ -361,6 +367,14 @@ const DEFAULT_POLL_INTERVAL_MS = 1000;
 export interface ThrottleControllerOptions {
   /** How often to poll Win32. Default 1000ms. */
   readonly pollIntervalMs?: number;
+  /** Phase 4B — the display the wallpaper is rendered on. Used for the
+   *  monitorRect that the foreground-rect heuristic compares against.
+   *  Without this, throttling would use the *primary* display's bounds
+   *  even when the user pinned the wallpaper to a secondary monitor —
+   *  fullscreen + coverage detection would fire on the wrong monitor.
+   *  Stop + restart the controller (with a new display) when the user
+   *  picks a different monitor; main.ts's applyDisplay does this. */
+  readonly display: Display;
   /** Callback fired only when state CHANGES. Initial state is emitted
    *  on `start()` so consumers don't need a separate get-current call.
    *  The `isInitial` flag distinguishes the boot-time emission from
@@ -377,6 +391,10 @@ interface ControllerState {
    *  (very rare; happens before the shell finishes initialising). */
   shellHwnd: bigint | null;
   isWallpaperMode: boolean;
+  /** Phase 4B — the display the throttle is monitoring. Captured once
+   *  at start(); changes require a stop + restart. probeWin32 reads
+   *  bounds from this rather than re-querying screen each tick. */
+  display: Display | null;
   /** Last foreground HWND we observed. Diagnostic logs fire only when
    *  this changes OR the computed state transitions — keeps PowerShell
    *  quiet when the user isn't doing anything, but surfaces every
@@ -391,6 +409,7 @@ const controller: ControllerState = {
   wallpaperHwnd: null,
   shellHwnd: null,
   isWallpaperMode: false,
+  display: null,
   lastForegroundHwnd: null,
 };
 
@@ -409,6 +428,7 @@ export function startThrottleController(
   controller.wallpaperHwnd = win.getNativeWindowHandle().readBigInt64LE(0);
   controller.shellHwnd = findShellHwnd();
   controller.isWallpaperMode = true;
+  controller.display = opts.display;
   controller.current = 'full';
   controller.lastForegroundHwnd = null;
   currentOpts = opts;
@@ -417,7 +437,9 @@ export function startThrottleController(
   console.log(
     `[throttle] controller started ` +
       `wallpaperHwnd=0x${controller.wallpaperHwnd.toString(16)} ` +
-      `shellHwnd=${controller.shellHwnd ? '0x' + controller.shellHwnd.toString(16) : 'null'}`,
+      `shellHwnd=${controller.shellHwnd ? '0x' + controller.shellHwnd.toString(16) : 'null'} ` +
+      `display=${opts.display.id} ${opts.display.bounds.width}×${opts.display.bounds.height}` +
+      `@(${opts.display.bounds.x},${opts.display.bounds.y})`,
   );
 
   // Emit the initial state synchronously so the renderer can drop the
@@ -432,6 +454,7 @@ export function startThrottleController(
         controller.wallpaperHwnd,
         controller.shellHwnd,
         controller.isWallpaperMode,
+        controller.display,
       );
       const next = computeThrottleState(probe);
 
@@ -487,6 +510,7 @@ export function stopThrottleController(): void {
   controller.isWallpaperMode = false;
   controller.wallpaperHwnd = null;
   controller.shellHwnd = null;
+  controller.display = null;
   controller.lastForegroundHwnd = null;
   currentOpts = null;
 }

@@ -11,9 +11,9 @@
  * Electron window above the desktop instead of behind it.
  */
 
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, Display } from 'electron';
 
-export function enterWallpaper(_win: BrowserWindow): void {
+export function enterWallpaper(_win: BrowserWindow, _display: Display): void {
   // eslint-disable-next-line no-console
   console.warn('[wallpaper:macos] not yet implemented; staying in a regular window.');
 }

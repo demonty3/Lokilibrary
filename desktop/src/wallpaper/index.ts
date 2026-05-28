@@ -15,13 +15,13 @@
  * flip back via the tray.
  */
 
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, Display } from 'electron';
 import * as windowsImpl from './windows';
 import * as macosImpl from './macos';
 
-export function enterWallpaper(win: BrowserWindow): void {
-  if (process.platform === 'win32') return windowsImpl.enterWallpaper(win);
-  if (process.platform === 'darwin') return macosImpl.enterWallpaper(win);
+export function enterWallpaper(win: BrowserWindow, display: Display): void {
+  if (process.platform === 'win32') return windowsImpl.enterWallpaper(win, display);
+  if (process.platform === 'darwin') return macosImpl.enterWallpaper(win, display);
   // eslint-disable-next-line no-console
   console.warn(`[wallpaper] platform ${process.platform} not supported; window mode only.`);
 }

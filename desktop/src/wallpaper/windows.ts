@@ -31,7 +31,7 @@
  * `npm install` doesn't need MSVC build tools.
  */
 
-import { screen, type BrowserWindow, type Rectangle } from 'electron';
+import { screen, type BrowserWindow, type Display, type Rectangle } from 'electron';
 
 interface Koffi {
   load(name: string): {
@@ -143,6 +143,11 @@ interface WallpaperState {
   /** Whether the raised-desktop (Win11 22H2+) branch was taken on enter. */
   raisedDesktopOnEnter: boolean;
   watchdog: NodeJS.Timeout | null;
+  /** Phase 4B: the display we entered wallpaper mode on. The watchdog
+   *  re-attaches to the SAME display on WorkerW destruction (no
+   *  surprise jumps to the primary mid-session). Null when not in
+   *  wallpaper mode. Cleared by exitWallpaper. */
+  lastDisplay: Display | null;
 }
 
 const state: WallpaperState = {
@@ -153,6 +158,7 @@ const state: WallpaperState = {
   preWallpaperExStyle: null,
   raisedDesktopOnEnter: false,
   watchdog: null,
+  lastDisplay: null,
 };
 
 // --- Helpers ----------------------------------------------------------------
@@ -286,7 +292,7 @@ function restoreExStyle(hwnd: bigint, original: bigint): void {
 
 // --- Public API -------------------------------------------------------------
 
-export function enterWallpaper(win: BrowserWindow): void {
+export function enterWallpaper(win: BrowserWindow, display: Display): void {
   // Re-entrant guard against concurrent user-toggle and watchdog re-attach.
   if (state.attaching) {
     // eslint-disable-next-line no-console
@@ -294,6 +300,7 @@ export function enterWallpaper(win: BrowserWindow): void {
     return;
   }
   state.attaching = true;
+  state.lastDisplay = display;
   try {
     // Lively gotcha: SetParent against Progman returns ERROR_INVALID_WINDOW_HANDLE
     // (1400) when the caller process is elevated, even on the raised-desktop
@@ -331,16 +338,25 @@ export function enterWallpaper(win: BrowserWindow): void {
 
     const hwnd = electronHwnd(win);
 
-    // Pre-size the window to the primary display while it's still top-
-    // level. Matches Lively's order (sizing first, then style flips,
-    // then SetParent) and gives Windows a chance to settle before we
-    // change the style.
-    const primary = screen.getPrimaryDisplay();
-    const { x, y, width, height } = primary.bounds;
+    // Pre-size the window to the *chosen* display while it's still
+    // top-level. Phase 4B: this used to be hard-coded to the primary
+    // display; the picker passes whichever monitor the user selected
+    // (or the primary as fallback when no id is persisted / the
+    // persisted id no longer matches a connected monitor — see
+    // `resolveTargetDisplay` in main.ts / display-picker.ts).
+    //
+    // Matches Lively's order (sizing first, then style flips, then
+    // SetParent) and gives Windows a chance to settle before we change
+    // the style. Progman/SetParent positioning is virtual-screen-
+    // relative, so the same setBounds() call works for any monitor —
+    // the (x, y) in display.bounds is the monitor's origin in the
+    // virtual desktop coordinate space.
+    const { x, y, width, height } = display.bounds;
     // eslint-disable-next-line no-console
     console.log(
       `[wallpaper:windows] sizing to ${width}×${height} at (${x}, ${y}); ` +
-        `scale ${primary.scaleFactor}`,
+        `scale ${display.scaleFactor} (display ${display.id}` +
+        `${display.id === screen.getPrimaryDisplay().id ? ', primary' : ''})`,
     );
     win.setBounds({ x, y, width, height });
 
@@ -488,6 +504,7 @@ export function exitWallpaper(win: BrowserWindow): void {
 
     state.trackedWorkerW = null;
     state.raisedDesktopOnEnter = false;
+    state.lastDisplay = null;
     // eslint-disable-next-line no-console
     console.log('[wallpaper:windows] detached');
   } catch (e) {
@@ -519,8 +536,12 @@ function startWatchdog(win: BrowserWindow): void {
     console.log('[wallpaper:windows] WorkerW destroyed — re-attaching');
     // Full re-attach. exitWallpaper clears tracked handle + state; the
     // following enterWallpaper re-runs the whole detection + reparent.
+    // Phase 4B: re-attach to the SAME display the user chose, not
+    // necessarily the primary. lastDisplay is cleared by exitWallpaper
+    // so we capture it before the exit call.
+    const display = state.lastDisplay ?? screen.getPrimaryDisplay();
     exitWallpaper(win);
-    enterWallpaper(win);
+    enterWallpaper(win, display);
   }, WATCHDOG_INTERVAL_MS);
 }
 
