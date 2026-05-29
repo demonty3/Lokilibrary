@@ -33,6 +33,7 @@ import {
   type ReflectInput,
   type ReflectOutcome,
 } from '../api/agent';
+import { defaultLoreGatherer, type LoreGatherer } from './lore-context';
 
 /** Recent-memory tuple the router sends with each Tier-1 call.
  *  `id` is required so Tier-2 reflections can populate
@@ -72,6 +73,14 @@ export interface TelemetrySummary {
 export interface PersonaSnippet {
   readonly name: string;
   readonly system_prompt: string;
+}
+
+/** Lore chunk surfaced to the reflection prompt (Phase 5C). Library-
+ *  scoped uploaded canon the agent can weave into its reflection. */
+export interface LoreSnippet {
+  readonly id: string;
+  readonly text: string;
+  readonly source: string;
 }
 
 /** Context the router builds before each Tier-1 dispatch. */
@@ -183,6 +192,23 @@ export interface MemoryWriter {
   recentMemories(agentId: string, n: number): readonly RecentMemorySummary[];
   /** Read the agent's persona row, if any. */
   persona(agentId: string): PersonaSnippet | null;
+
+  // ---- Lore (Phase 5C) — library-scoped, not per-agent ----
+  /** Persist one uploaded lore chunk. `embedding` (768-dim, from the
+   *  worker /api/embed route) is attached when present; FTS5 indexes the
+   *  text regardless. Returns the new lore id or null (null writer). */
+  recordLore(args: {
+    text: string;
+    source: string;
+    embedding?: readonly number[];
+  }): string | null;
+  /** Retrieve top-N lore for the writer's library. With a query
+   *  embedding (and sqlite-vec loaded) ranks by cosine; otherwise by
+   *  recency. */
+  recentLore(n: number, queryEmbedding?: Float32Array): readonly LoreSnippet[];
+  /** Count lore chunks in the writer's library (gates the reflect-time
+   *  query-embed: skip the embed call entirely when there's no lore). */
+  loreCount(): number;
 }
 
 export const nullMemoryWriter: MemoryWriter = {
@@ -194,6 +220,9 @@ export const nullMemoryWriter: MemoryWriter = {
   logTier2: () => undefined,
   recentMemories: () => [],
   persona: () => null,
+  recordLore: () => null,
+  recentLore: () => [],
+  loreCount: () => 0,
   aggregateTelemetry: (windowMs) => ({
     windowMs,
     total: {
@@ -291,6 +320,12 @@ export interface RouteOptions {
    *  surface for the model to find a pattern without blowing the
    *  context budget. */
   reflectionMemoryCount?: number;
+  /** Phase 5C — top-K lore chunks to inject into the reflection prompt.
+   *  Default 4. */
+  loreCount?: number;
+  /** Phase 5C — inject the lore gatherer (embed + retrieve). Defaults to
+   *  `defaultLoreGatherer`; tests pass a deterministic stub. */
+  gatherLore?: LoreGatherer;
   /** Force Tier-2 dispatch even when below threshold AND ignore the
    *  per-real-hour rate-limit. Used by direct user actions (game
    *  launch) per CLAUDE.md "Tier 2 fires only on reflection threshold
@@ -498,10 +533,24 @@ export async function routeTier2(
   // re-trigger on the next tick.
   runtime.reflectionCounter = 0;
 
+  // Phase 5C — gather library lore relevant to these memories. Skips the
+  // embed call when the library has no lore; best-effort otherwise.
+  const gatherLore = opts.gatherLore ?? defaultLoreGatherer;
+  let recentLore: readonly LoreSnippet[] = [];
+  try {
+    recentLore = await gatherLore(memory, recent, opts.loreCount ?? 4);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[router] tier2 ${def.id} lore gather failed: ${(e as Error).message}`);
+  }
+
   const outcome = await transport.reflect({
     agent: { id: def.id, name: def.name },
     recentMemories: recent,
     persona: memory.persona(def.id),
+    ...(recentLore.length > 0 && {
+      recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
+    }),
   });
   if (!outcome.ok) {
     // eslint-disable-next-line no-console

@@ -23,6 +23,7 @@
 import {
   MEMORY_KINDS,
   SCHEMA_VERSION,
+  type LoreRow,
   type MemoryRow,
 } from './schema';
 
@@ -50,6 +51,27 @@ export interface MemoryDb {
   recentByCellAndKind(cellId: string, kind: string, limit: number): MemoryRow[];
   /** FTS5 keyword search over memory text; returns rows ordered by bm25. */
   searchFts(query: string, agentId: string | null, limit: number): MemoryRow[];
+
+  // ---- Lore (Phase 5C) — library-scoped uploaded canon, own tables ----
+  /** Insert a lore chunk row. */
+  insertLore(row: LoreRow): void;
+  /** Attach an embedding to a lore row (lore_vec insert + FK update),
+   *  both in one tx. No-op when sqlite-vec is unavailable. */
+  attachLoreEmbedding(loreId: string, embedding: Float32Array): void;
+  /** Most-recent lore chunks for a library, newest first. */
+  recentLore(libraryId: string, limit: number): LoreRow[];
+  /** FTS5 keyword search over lore text within one library. */
+  searchLoreFts(query: string, libraryId: string, limit: number): LoreRow[];
+  /** Cosine KNN over `lore_vec`. Returns up to `k` nearest rows
+   *  globally (across libraries) with their cosine distance; the caller
+   *  filters by library + slices to topK. Empty array when vec is off. */
+  searchLoreVec(
+    embedding: Float32Array,
+    k: number,
+  ): Array<{ row: LoreRow; distance: number }>;
+  /** Count lore chunks in a library. */
+  loreCount(libraryId: string): number;
+
   /** Upsert per-agent persona row. */
   upsertPersona(agentId: string, name: string, systemPrompt: string, metadataJson: string): void;
   getPersona(agentId: string): { name: string; system_prompt: string; metadata_json: string } | undefined;
@@ -182,13 +204,45 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     ORDER BY created_at ASC
   `);
 
+  // ---- Lore statements (Phase 5C) ----
+  const insertLoreStmt = db.prepare<LoreRow>(`
+    INSERT INTO lore (id, library_id, text, source, created_at, embedding_id)
+    VALUES (@id, @library_id, @text, @source, @created_at, @embedding_id)
+  `);
+  const recentLoreStmt = db.prepare<[string, number]>(
+    `SELECT * FROM lore WHERE library_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+  );
+  const loreFtsStmt = db.prepare<[string, string, number]>(`
+    SELECT l.* FROM lore l
+    JOIN lore_fts f ON f.rowid = l.rowid
+    WHERE lore_fts MATCH ? AND l.library_id = ?
+    ORDER BY bm25(lore_fts)
+    LIMIT ?
+  `);
+  const loreCountStmt = db.prepare<string>(
+    `SELECT COUNT(*) AS n FROM lore WHERE library_id = ?`,
+  );
+
   let insertVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
   let updateEmbeddingFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
+  let insertLoreVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
+  let updateLoreFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
+  let loreVecStmt: { all: (b: Uint8Array, k: number) => unknown[] } | null = null;
   if (hasVec) {
     insertVecStmt = db.prepare(`INSERT INTO memory_vec (embedding) VALUES (?)`);
     updateEmbeddingFkStmt = db.prepare(
       `UPDATE memories SET embedding_id = ? WHERE id = ?`,
     );
+    insertLoreVecStmt = db.prepare(`INSERT INTO lore_vec (embedding) VALUES (?)`);
+    updateLoreFkStmt = db.prepare(`UPDATE lore SET embedding_id = ? WHERE id = ?`);
+    loreVecStmt = db.prepare(`
+      SELECT l.id, l.library_id, l.text, l.source, l.created_at, l.embedding_id,
+             v.distance AS distance
+      FROM lore_vec v
+      JOIN lore l ON l.embedding_id = v.rowid
+      WHERE v.embedding MATCH ? AND k = ?
+      ORDER BY v.distance
+    `) as unknown as { all: (b: Uint8Array, k: number) => unknown[] };
   }
 
   // better-sqlite3 accepts Uint8Array for BLOB binds; no need for Buffer here.
@@ -198,6 +252,15 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
         const res = insertVecStmt!.run(bytes);
         const rowid = Number(res.lastInsertRowid);
         updateEmbeddingFkStmt!.run(rowid, memoryId);
+      })
+    : null;
+
+  const attachLoreEmbeddingTx = hasVec
+    ? db.transaction((loreId: string, vec: Float32Array) => {
+        const bytes = new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength);
+        const res = insertLoreVecStmt!.run(bytes);
+        const rowid = Number(res.lastInsertRowid);
+        updateLoreFkStmt!.run(rowid, loreId);
       })
     : null;
 
@@ -239,6 +302,35 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
         ? stmt.all(query, agentId, limit)
         : stmt.all(query, limit);
       return rows as MemoryRow[];
+    },
+    insertLore(row) {
+      insertLoreStmt.run(row);
+    },
+    attachLoreEmbedding(loreId, embedding) {
+      if (!attachLoreEmbeddingTx) return; // vec disabled — FTS5 fallback
+      attachLoreEmbeddingTx(loreId, embedding);
+    },
+    recentLore(libraryId, limit) {
+      return recentLoreStmt.all(libraryId, limit) as LoreRow[];
+    },
+    searchLoreFts(query, libraryId, limit) {
+      return loreFtsStmt.all(query, libraryId, limit) as LoreRow[];
+    },
+    searchLoreVec(embedding, k) {
+      if (!loreVecStmt) return [];
+      const bytes = new Uint8Array(
+        embedding.buffer,
+        embedding.byteOffset,
+        embedding.byteLength,
+      );
+      const rows = loreVecStmt.all(bytes, k) as Array<
+        LoreRow & { distance: number }
+      >;
+      return rows.map(({ distance, ...row }) => ({ row, distance }));
+    },
+    loreCount(libraryId) {
+      const r = loreCountStmt.get(libraryId) as { n: number } | undefined;
+      return r?.n ?? 0;
     },
     upsertPersona(agentId, name, systemPrompt, metadataJson) {
       upsertPersonaStmt.run({
@@ -375,6 +467,41 @@ function bootstrap(db: SqliteHandle, hasVec: boolean): void {
       metadata_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    -- Lore (Phase 5C). Library-scoped uploaded canon, additive — its own
+    -- table + FTS + vec, never touching the memories contract. id is a
+    -- TEXT PK (UUIDv7) so the implicit rowid still feeds lore_fts/lore_vec.
+    CREATE TABLE IF NOT EXISTS lore (
+      id           TEXT PRIMARY KEY,
+      library_id   TEXT NOT NULL,
+      text         TEXT NOT NULL,
+      source       TEXT NOT NULL,
+      created_at   INTEGER NOT NULL,
+      embedding_id INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_lore_library
+      ON lore(library_id, created_at DESC);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS lore_fts
+      USING fts5(text, content='', contentless_delete=1);
+  `);
+
+  // lore_fts triggers — lore.text is a real column (not JSON), so the
+  // trigger inserts new.text directly rather than json_extract.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS lore_ai_fts
+    AFTER INSERT ON lore BEGIN
+      INSERT INTO lore_fts (rowid, text) VALUES (new.rowid, new.text);
+    END;
+    CREATE TRIGGER IF NOT EXISTS lore_ad_fts
+    AFTER DELETE ON lore BEGIN
+      DELETE FROM lore_fts WHERE rowid = old.rowid;
+    END;
+    CREATE TRIGGER IF NOT EXISTS lore_au_fts
+    AFTER UPDATE ON lore BEGIN
+      DELETE FROM lore_fts WHERE rowid = old.rowid;
+      INSERT INTO lore_fts (rowid, text) VALUES (new.rowid, new.text);
+    END;
   `);
 
   // FTS5 triggers — keep `memory_fts` in sync with `memories`. We use
@@ -407,6 +534,12 @@ function bootstrap(db: SqliteHandle, hasVec: boolean): void {
     // 768-dim matches nomic-embed-text (slice 2D).
     db.exec(
       `CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(embedding float[768]);`,
+    );
+    // Lore uses an explicit cosine metric (Phase 5C): nomic-embed-text
+    // vectors aren't unit-normalised, so cosine — not the default L2 —
+    // is the right semantic-similarity measure for lore retrieval.
+    db.exec(
+      `CREATE VIRTUAL TABLE IF NOT EXISTS lore_vec USING vec0(embedding float[768] distance_metric=cosine);`,
     );
   }
 }

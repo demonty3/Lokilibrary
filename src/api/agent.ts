@@ -94,6 +94,11 @@ export interface ReflectInput {
     created_at: number;
   }>;
   persona?: { name: string; system_prompt: string } | null;
+  /** Phase 5C — library lore chunks retrieved for this reflection. The
+   *  worker folds them into a `recent_lore:` block so the agent can weave
+   *  uploaded canon into its reflection. Omitted when the library has no
+   *  lore. */
+  recentLore?: ReadonlyArray<{ text: string; source: string }>;
 }
 
 export interface ReflectResult {

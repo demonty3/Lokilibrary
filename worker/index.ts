@@ -703,6 +703,7 @@ export default {
           created_at: number;
         }>;
         persona?: { name: string; system_prompt: string } | null;
+        recentLore?: ReadonlyArray<{ text: string; source: string }>;
       };
       try {
         body = (await req.json()) as typeof body;
@@ -741,6 +742,10 @@ export default {
         'Use specific room coordinates (location: {x: 0-23, y: 0-15}) and/or ' +
         'specific bookshelf-slot targets from your recent_memories when they ' +
         'are present. If no plan makes sense, return an empty steps array. ' +
+        'If a recent_lore section is present, it is the user\'s own uploaded ' +
+        'world canon — weave its specific names, places, and themes into your ' +
+        'reflection where they naturally fit (do not quote it verbatim or ' +
+        'announce that you read it). ' +
         'Respond with ONLY valid JSON in this exact shape:\n' +
         '  {"reflection": "<single sentence>", "synthesised_from": ["<id>", ...], ' +
         '"themes": ["<word>", ...], "importance": <integer 1-10>, ' +
@@ -754,7 +759,18 @@ export default {
             `- id=${m.id} kind=${m.kind} importance=${m.importance} text=${JSON.stringify(m.text)}`,
         )
         .join('\n');
-      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nrecent_memories:\n${memoryDigest}`;
+      // Phase 5C — fold in library lore when the caller supplied it.
+      // Capped to bound the Tier-2 context budget.
+      const loreDigest =
+        Array.isArray(body.recentLore) && body.recentLore.length > 0
+          ? body.recentLore
+              .slice(0, 6)
+              .map((l) => `- (${l.source}) ${JSON.stringify(l.text)}`)
+              .join('\n')
+          : '';
+      const userPrompt =
+        `agent: ${JSON.stringify(body.agent)}\nrecent_memories:\n${memoryDigest}` +
+        (loreDigest ? `\nrecent_lore:\n${loreDigest}` : '');
 
       const startedAt = Date.now();
       let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };

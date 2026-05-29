@@ -146,6 +146,24 @@ export type Memory =
       payload: DialoguePayload;
     });
 
+/**
+ * Lore row (Phase 5C). User-uploaded world/canon text, chunked on
+ * ingest. Lives in its OWN `lore` table — NOT `memories` — so it stays
+ * additive (no migration to the stable memories contract) and
+ * **library-scoped** (one upload, every agent in that library can
+ * reference it). `embedding_id` FKs into the `lore_vec` table the same
+ * way `memories.embedding_id` FKs into `memory_vec`.
+ */
+export interface LoreRow {
+  readonly id: string;
+  readonly library_id: string;
+  readonly text: string;
+  /** Provenance — original filename, or 'paste'. */
+  readonly source: string;
+  readonly created_at: number;
+  readonly embedding_id: number | null;
+}
+
 /** Cell namespace helper. Same `profileSeed` → same `cell_id`. */
 export function cellIdFor(profileSeed: number): string {
   return `cell:${(profileSeed >>> 0).toString(16)}`;

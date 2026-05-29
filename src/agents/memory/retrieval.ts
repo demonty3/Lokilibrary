@@ -156,6 +156,61 @@ function textOf(m: Memory): string {
   }
 }
 
+export interface LoreSnippet {
+  readonly id: string;
+  readonly text: string;
+  readonly source: string;
+}
+
+export interface LoreRetrievalOptions {
+  /** Max lore chunks to return. Default 4. */
+  topK?: number;
+  /** Optional query embedding (search_query: prefixed, embedded by the
+   *  caller). When present AND sqlite-vec is loaded, cosine KNN ranks
+   *  lore by semantic similarity. When absent, falls back to recency. */
+  queryEmbedding?: Float32Array;
+}
+
+/**
+ * Retrieve lore chunks for one library (Phase 5C). Two paths:
+ *   - cosine: when a queryEmbedding is supplied and vec is loaded, KNN
+ *     over `lore_vec` (over-fetched, then filtered to this library and
+ *     sliced to topK — robust regardless of how sqlite-vec orders its
+ *     k-limit vs. metadata filtering).
+ *   - recency: otherwise the most-recent topK chunks in the library.
+ *
+ * A freshly-uploaded doc has all chunks equally recent, so the recency
+ * path surfaces it fine for the MVP; the cosine path lights up the
+ * moment a query embedding is threaded in (5D / reflect-query wiring).
+ */
+export function retrieveLore(
+  db: MemoryDb,
+  libraryId: string,
+  opts: LoreRetrievalOptions = {},
+): LoreSnippet[] {
+  const topK = opts.topK ?? 4;
+  if (opts.queryEmbedding && opts.queryEmbedding.length > 0 && db.hasVec) {
+    // Over-fetch so the library filter can't starve the result set when
+    // another library's chunks happen to be globally nearer.
+    const k = Math.min(Math.max(topK * 4, 32), 256);
+    const hits = db.searchLoreVec(opts.queryEmbedding, k);
+    const filtered = hits
+      .filter((h) => h.row.library_id === libraryId)
+      .slice(0, topK);
+    if (filtered.length > 0) {
+      return filtered.map(({ row }) => ({
+        id: row.id,
+        text: row.text,
+        source: row.source,
+      }));
+    }
+    // Fall through to recency if the KNN pool held nothing for this library.
+  }
+  return db
+    .recentLore(libraryId, topK)
+    .map((row) => ({ id: row.id, text: row.text, source: row.source }));
+}
+
 /**
  * Collect `place_mark` steps from all active plans in this cell.
  * Used by the cell renderer at mount to draw persisted marginalia

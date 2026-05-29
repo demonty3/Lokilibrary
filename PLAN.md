@@ -393,17 +393,25 @@ lever." Split into two commits:
   would hit the web bundle for no gain (nomic tokenizes server-side).
 - Client `embedTexts()` wrapper + nomic task prefixes.
 
-**5C.2 ⏳ lore ingestion** (next):
+**5C.2a ✅ lore store + retrieval + reflect injection** (shipped
+2026-05-29):
+- Separate `lore` / `lore_fts` / `lore_vec` tables (additive, no
+  migration, library-scoped). `lore_vec` uses `distance_metric=cosine`.
+- db methods (insert/attach/recent/searchFts/searchVec/count) +
+  `retrieveLore` (cosine KNN with recency fallback) + writer surface
+  (`recordLore`/`recentLore`/`loreCount`).
+- `routeTier2` gathers lore (`lore-context.ts`, best-effort, skips when
+  empty) → `ReflectInput.recentLore` → worker `recent_lore:` prompt
+  block + system-prompt line. **Cosine path verified in WSL** (sqlite-vec
+  loads; 31-assertion smoke exercises real KNN + library isolation).
+
+**5C.2b ⏳ lore drop-zone UI** (next):
 - `.txt` / `.md` drop-zone in the renderer (DOM sibling of the canvas,
   not a PIXI overlay — file drop is a DOM API; toggle via Ctrl+U).
-- Lore lands in a **separate `lore` table** (+ `lore_fts` + `lore_vec`)
-  — additive, no migration, never touches the stable `memories`
-  contract, library-wide by construction.
-- drain→embed→`attachEmbedding` wiring + cosine read query (the
-  `queryEmbedding` param in retrieval.ts is currently a no-op).
-- `will-navigate` drop-safety guard in `desktop/src/main.ts`.
-- Reflection prompts gain a "recent_lore" section so agents weave lore
-  into their reflections.
+- chunk (`chunkText`) → embed (`/api/embed`) → `recordLore` wiring — the
+  only thing missing before a user can actually *put* lore in.
+- `will-navigate` drop-safety guard in `desktop/src/main.ts` (with
+  `contextIsolation:false`, a stray drop navigates Chromium to the file).
 
 **5D — Lore-driven world adaptation (~1-2 weekends).** Per
 CONSOLIDATION.md "the world's aesthetic, factions, events, naming

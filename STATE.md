@@ -99,6 +99,10 @@ Defined inline in router.ts `importanceFor`:
 ### Memory schema (`src/agents/memory/schema.ts`)
 `MemoryKind = 'observation' | 'reflection' | 'plan' | 'dialogue'`
 
+`LoreRow` (5C.2): `{id, library_id, text, source, created_at, embedding_id}`
+— uploaded canon in its OWN `lore` table (NOT `memories`); additive, no
+migration, **library-scoped** (one upload → all agents in the library).
+
 `PlanStep`: `{kind: 'move_to' | 'inspect' | 'place_mark' | 'linger' | 'withdraw', target?: string, location?: CellPoint, status: 'pending' | 'done'}`
 
 `ObservationSource`: `'self_perception' | 'agent_meeting' | 'player_proximity' | 'bookshelf_e' | 'game_launched' | 'external_fullscreen' | 'cell_mount'`
@@ -118,8 +122,40 @@ Transport only — not yet wired into the write/read lifecycle (that's 5C.2).
   would hit the web bundle for no gain (nomic tokenizes server-side).
 - **Storage path already exists** (`db.ts`): `memory_vec` vec0 768-dim +
   `attachEmbedding()` + `embedding_id` FK; `import.ts` `embedQueue` /
-  `drainEmbedQueue()`. Still unpopulated — the drain→embed→attach wiring
-  and the cosine read query land in 5C.2.
+  `drainEmbedQueue()`. Still unpopulated for *agent memories* — the
+  drain→embed→attach wiring for those is a later fast-follow. Lore uses
+  its own attach path (below), populated now.
+
+### Lore store + retrieval (5C.2a)
+Library-scoped uploaded canon. Additive — own tables, never touches the
+`memories` contract. **Cosine path verified in WSL** (sqlite-vec loads
+here; `smoke-5c2-lore-store.mts` exercises the real KNN).
+- **Tables** (`db.ts` bootstrap): `lore` (TEXT PK = UUIDv7) +
+  `idx_lore_library` + `lore_fts` (contentless fts5, trigger inserts
+  `new.text` directly — not json_extract) + `lore_vec`
+  (`vec0(embedding float[768] distance_metric=cosine)` — nomic vectors
+  aren't unit-normalised, so cosine not L2).
+- **db methods**: `insertLore`, `attachLoreEmbedding` (lore_vec insert +
+  FK, one tx), `recentLore`, `searchLoreFts` (library-scoped),
+  `searchLoreVec(embedding, k)` (global cosine KNN → `{row, distance}[]`),
+  `loreCount`.
+- **`retrieval.ts:retrieveLore(db, libraryId, {topK, queryEmbedding})`** —
+  cosine when a query embedding + vec present (over-fetch k=topK×4,
+  JOIN-filter to library, slice topK), else recency. Returns
+  `LoreSnippet{id,text,source}`.
+- **Writer** (`writer.ts`): `recordLore({text,source,embedding?})`
+  (mints UUIDv7, inserts, attaches embedding if supplied),
+  `recentLore(n, queryEmbedding?)`, `loreCount()`. On `MemoryWriter`
+  interface + `nullMemoryWriter` (router.ts).
+- **Reflect injection**: `routeTier2` calls `gatherLore` (default
+  `src/agents/lore-context.ts:defaultLoreGatherer` — skips when
+  `loreCount===0`, else embeds a `search_query:`-prefixed digest of recent
+  memories once, cosine-retrieves) → forwards `recentLore` into
+  `ReflectInput` → worker folds a `recent_lore:` block into the Tier-2
+  user prompt + one system-prompt line. Best-effort: gatherer throw/fail
+  → reflection still runs without lore.
+- **Still TODO (5C.2b)**: the drop-zone UI (chunk→embed→recordLore) — no
+  way to *put* lore in yet except programmatically.
 
 ---
 
@@ -216,8 +252,13 @@ Assertion counts as of 2026-05-28:
 | 5A reflection | smoke-5a-reflection.mts | 41 |
 | 5B sleep | smoke-5b-sleep.mts | 22 |
 | 5C lore (backbone) | smoke-5c-lore.mts | 27 |
+| 5C.2a lore store | smoke-5c2-lore-store.mts | 31 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **315** |
+| **Total numeric** | | **346** |
+
+**No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
+`npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +
+worker) and each `npx tsx scripts/smoke-*.mts` directly.
 
 Shared helpers live in `scripts/lib/smoke.ts` (5H): `makeChecker()`,
 `mockElectronModule()`.

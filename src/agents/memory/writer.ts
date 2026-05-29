@@ -30,7 +30,8 @@ import {
   recordPlan as recordPlanMemory,
   recordReflection as recordReflectionMemory,
 } from './import';
-import { placedMarksForCell, recentForRouter } from './retrieval';
+import { placedMarksForCell, recentForRouter, retrieveLore } from './retrieval';
+import { uuidv7 } from './uuid';
 import { aggregateSince } from '../telemetry';
 import {
   LOKI_AGENT_ID,
@@ -126,6 +127,30 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
     },
     placedMarksForCell(cellId) {
       return placedMarksForCell(db, cellId);
+    },
+    recordLore({ text, source, embedding }) {
+      const id = uuidv7();
+      db.insertLore({
+        id,
+        library_id: ns.libraryId,
+        text,
+        source,
+        created_at: Date.now(),
+        embedding_id: null,
+      });
+      // Attach the embedding (if the caller pre-computed one via the
+      // worker /api/embed route). No-ops when sqlite-vec is unavailable;
+      // FTS5 still indexes the row via the AFTER INSERT trigger.
+      if (embedding && embedding.length > 0) {
+        db.attachLoreEmbedding(id, Float32Array.from(embedding));
+      }
+      return id;
+    },
+    recentLore(n, queryEmbedding) {
+      return retrieveLore(db, ns.libraryId, { topK: n, queryEmbedding });
+    },
+    loreCount() {
+      return db.loreCount(ns.libraryId);
     },
     aggregateTelemetry(windowMs, nowMs) {
       // aggregateSince returns the same shape as TelemetrySummary; the
