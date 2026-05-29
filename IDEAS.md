@@ -311,9 +311,9 @@ Stacking direction carries semantics:
 
 ### Three depths
 
-**Depth 1 — Static multi-pane.** The user can open multiple terminals showing different scales or districts and drag them to reposition. Panes sit adjacent but don't yet *merge* — seams are visual only, no perceptual flow. This is the multi-pane terminal UI already specced, made user-configurable. *Phase 4 territory; lands alongside multi-monitor support since they share a window-management surface.*
+**Depth 1 — Static multi-pane.** The user can open multiple terminals showing different scales or districts and drag them to reposition. Panes sit adjacent but don't yet *merge* — seams are visual only, no perceptual flow. This is the multi-pane terminal UI already specced, made user-configurable. *v1.x. Originally pencilled "alongside multi-monitor" — but Phase 4 shipped multi-monitor (slice 4B) WITHOUT this, and Depth 1 needs a real multi-pane UI + the scale ladder beyond `cell`/`district` first (both deferred past v1.0 per `CONSOLIDATION.md`).*
 
-**Depth 2 — Active merging.** When two panes touch, they actually connect: seam glyph forms, the agent can cross, memory flows across the boundary. The arrangement becomes the agent society's perceptual graph — what touches what determines what the agents can see, where they can go, what they can know about each other. *Phase 5 territory; same persistent-state requirements as agent reflection and lore embedding.*
+**Depth 2 — Active merging.** When two panes touch, they actually connect: seam glyph forms, the agent can cross, memory flows across the boundary. The arrangement becomes the agent society's perceptual graph — what touches what determines what the agents can see, where they can go, what they can know about each other. *v1.x/v2.x — this is the actual "pane-joining". Originally pencilled for Phase 5, but Phase 5 shipped (reflection / sleep / lore) WITHOUT it, and it can't precede Depth 1. It reuses the persistent-state + reflection + lore machinery that Phase 5 put in place.*
 
 **Depth 3 — Arrangement as a first-class personalisation input.** The arrangement is one of the explicit levers — agent behaviour, Loki's climate, and the population's social structure all shift based on topology. *Sleep mode* Depth 3 unlocks here: Loki rearranges panes overnight while the user is away, and the user wakes to a topology that has been resculpted by the world itself. *Year 2 expansion roadmap.*
 
@@ -336,16 +336,22 @@ A clean way to think about the layering: **lore is what the agents read; arrange
 
 This is also where the product gets its strongest screenshot. *"My library, the way I like to arrange it tonight"* — a one-image composition that's specific to the user, beautifully terminal-styled, and demonstrably different from anyone else's. The wallpaper *is* the arrangement, the arrangement *is* the user's relationship to the world, and no two are alike. That's a TikTok artefact that writes itself, and unlike the Lensa pattern it generates a *new* artefact every time the user resculpts.
 
-### Phase placement
+### Sequencing
 
-- **Phase 2 (next).** Architectural seed only — the agent's perception system needs to be pane-aware from the start, not just FOV-aware. If panes are added later they can already join the perceptual graph cleanly. Cheap.
-- **Phase 4.** Depth 1 ships alongside multi-monitor — user can drag panes around, seams form visually but don't yet carry perception. The wallpaper-mode three-tier throttle already handles per-pane state; this extends it.
-- **Phase 5.** Depth 2 — perception flows across seams, the topology becomes load-bearing for agent behaviour. This is when the merge actually means something.
-- **Year 2.** Depth 3 — Loki rearranges overnight (via *Sleep mode*); cross-source corner-touch semantics; saved arrangements; Workshop sharing of topology templates.
+**Corrected 2026-05-29.** The original Phase-2/4/5 placement was **stale** — written before `CONSOLIDATION.md` set the v1.0 scope. Phases 2, 4 and 5 have all since shipped *without* this feature, and `docs/INDEX.md` now files composable panes as **v2.x territory**. The gate is the dependency chain, not a phase number: it needs a multi-pane UI **and** the scale ladder, both of which `CONSOLIDATION.md` defers past v1.0 (today the ladder is `cell` + `district` only; higher levels are stubbed).
+
+Corrected placement:
+
+- **Post-v1.0 prerequisites (must come first).** A real multi-pane terminal UI + the scale ladder beyond `cell`/`district`. Until these exist there is nothing to join.
+- **v1.x — Depth 1 (static multi-pane).** Drag panes around; seams visual only. Pairs with the now-shipped multi-monitor window-management surface (Phase 4B).
+- **v1.x/v2.x — Depth 2 (active merging — the actual "pane-joining").** Seam-crossing + memory flow across the boundary. Reuses the persistent-state / reflection / lore machinery shipped in Phase 5. Cannot precede Depth 1.
+- **v2.x / Year 2 — Depth 3 (arrangement as a personalisation lever).** Loki resculpts the topology overnight (via *Sleep mode*); cross-source corner-touch; saved + shareable layouts.
+
+**The one cheap seed — NOT yet built.** Pane-aware agent perception (vs today's FOV-radius `perception.ts`). The original entry wanted this in Phase 2 so panes could later join the perceptual graph without a refactor — but Phase 2 shipped FOV-only, and the seed isn't needed until the multi-pane UI exists. No urgency to retrofit; build it as step one of the Depth-1 slice.
 
 ### Status
 
-Strategic direction worth committing to. The architectural seed in Phase 2 (pane-aware perception) is cheap and unlocks everything later; resist the temptation to ship Depth 1 in Phase 2 — it wants the multi-monitor work as company.
+Strategic direction worth committing to, but **explicitly post-v1.0 (v2.x per `docs/INDEX.md` + `CONSOLIDATION.md`)** — not a v1.0 feature, and gated behind the multi-pane UI + scale ladder rather than any near-term phase. The cheap pane-aware-perception seed (above) was *not* taken in Phase 2 and isn't blocking anything until the multi-pane UI lands; pick it up as step one of the Depth-1 slice when this is greenlit.
 
 **Depends on:** *The living world* (the arrangement is one of Loki's expressive surfaces — "mood as architecture" from that entry is literally this), *Sleep mode* (Depth 3 unlocks via Loki rearranging overnight), the multi-pane terminal UI in `docs/pivot/DESIGN.md` (which this entry promotes from "layout" to "substrate").
 
