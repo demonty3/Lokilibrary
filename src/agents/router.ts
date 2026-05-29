@@ -34,6 +34,7 @@ import {
   type ReflectOutcome,
 } from '../api/agent';
 import { defaultLoreGatherer, type LoreGatherer } from './lore-context';
+import { buildLoreProfile } from './lore-profile';
 
 /** Recent-memory tuple the router sends with each Tier-1 call.
  *  `id` is required so Tier-2 reflections can populate
@@ -326,6 +327,10 @@ export interface RouteOptions {
   /** Phase 5C — inject the lore gatherer (embed + retrieve). Defaults to
    *  `defaultLoreGatherer`; tests pass a deterministic stub. */
   gatherLore?: LoreGatherer;
+  /** Phase 5D — OPT-IN lore egress (default off). When false, NO lore-derived
+   *  signal leaves the device: routeTier2 gathers no lore and attaches no
+   *  loreContext. Local theming (scatter) is independent of this flag. */
+  loreEnabled?: boolean;
   /** Force Tier-2 dispatch even when below threshold AND ignore the
    *  per-real-hour rate-limit. Used by direct user actions (game
    *  launch) per CLAUDE.md "Tier 2 fires only on reflection threshold
@@ -533,15 +538,30 @@ export async function routeTier2(
   // re-trigger on the next tick.
   runtime.reflectionCounter = 0;
 
-  // Phase 5C — gather library lore relevant to these memories. Skips the
-  // embed call when the library has no lore; best-effort otherwise.
+  // Phase 5C/5D — lore egress is OPT-IN (default off). Only when the user has
+  // enabled lore sharing do we (a) gather raw lore chunks for the reflection
+  // and (b) build a closed-vocab lore-theme context. With it off, NOTHING
+  // lore-derived leaves the device (the reflection still runs, lore-free).
   const gatherLore = opts.gatherLore ?? defaultLoreGatherer;
   let recentLore: readonly LoreSnippet[] = [];
-  try {
-    recentLore = await gatherLore(memory, recent, opts.loreCount ?? 4);
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn(`[router] tier2 ${def.id} lore gather failed: ${(e as Error).message}`);
+  let loreContext: { themes: string[]; tone: string } | undefined;
+  if (opts.loreEnabled) {
+    try {
+      recentLore = await gatherLore(memory, recent, opts.loreCount ?? 4);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[router] tier2 ${def.id} lore gather failed: ${(e as Error).message}`);
+    }
+    try {
+      const profile = buildLoreProfile(memory);
+      if (profile.dominantThemes.length > 0) {
+        loreContext = { themes: profile.dominantThemes, tone: profile.tone };
+      }
+    } catch (e) {
+      // best-effort: a malformed/partial writer must not break the reflection
+      // eslint-disable-next-line no-console
+      console.warn(`[router] tier2 ${def.id} lore profile failed: ${(e as Error).message}`);
+    }
   }
 
   const outcome = await transport.reflect({
@@ -551,6 +571,7 @@ export async function routeTier2(
     ...(recentLore.length > 0 && {
       recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
     }),
+    ...(loreContext && { loreContext }),
   });
   if (!outcome.ok) {
     // eslint-disable-next-line no-console

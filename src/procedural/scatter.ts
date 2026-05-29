@@ -31,17 +31,56 @@ export interface ScatterItem {
   y: number;
 }
 
-/** Compact glyph bible for Phase 1 cell decor. Each tuple is
- *  (glyph, palette-key, weight). Weights sum doesn't need to be 1 —
- *  PRNG picks proportionally. */
-const SCATTER_BIBLE: ReadonlyArray<readonly [string, keyof ThemePalette, number]> = [
-  ['♠', 'green', 5],   // potted plant
-  ['∩', 'fgDim', 4],   // chair
-  ['≡', 'yellow', 3],  // small stack of books
-  ['☼', 'orange', 1],  // standing lamp (rare)
+/** Compact glyph bible for cell decor. Each candidate carries a base weight
+ *  (PRNG picks proportionally — weights need not sum to 1) plus the theme
+ *  tags it leans into. Phase 5D lore uses those tags to REWEIGHT how often
+ *  each decor glyph appears (a nautical library shows more lamps; an arcane
+ *  one more book stacks). Lore only changes WEIGHTS — it never adds, removes,
+ *  reorders, or zeroes a candidate — so a library with no lore renders
+ *  byte-for-byte identically to pre-5D. The tags are plain strings (from
+ *  lore-profile's THEME_TAGS) so this module stays decoupled from src/agents. */
+interface ScatterCandidate {
+  readonly glyph: string;
+  readonly fgKey: keyof ThemePalette;
+  readonly baseWeight: number;
+  readonly themes: readonly string[];
+}
+
+const SCATTER_BIBLE: readonly ScatterCandidate[] = [
+  { glyph: '♠', fgKey: 'green',  baseWeight: 5, themes: ['pastoral', 'folklore', 'cozy'] },      // potted plant
+  { glyph: '∩', fgKey: 'fgDim',  baseWeight: 4, themes: ['cozy', 'noir', 'mystery'] },           // chair
+  { glyph: '≡', fgKey: 'yellow', baseWeight: 3, themes: ['arcane', 'mystery', 'high-fantasy'] }, // small stack of books
+  { glyph: '☼', fgKey: 'orange', baseWeight: 1, themes: ['nautical', 'heroic', 'sci-fi'] },      // standing lamp (rare)
 ];
 
-const TOTAL_WEIGHT = SCATTER_BIBLE.reduce((s, [, , w]) => s + w, 0);
+/** Each matching dominant theme multiplies a candidate's weight by this much.
+ *  Integer so the weighted table + total stay exact (no float drift across
+ *  machines — the determinism contract spans creator + share-viewer). */
+const LORE_BOOST_PER_MATCH = 2;
+
+interface ScatterTable {
+  readonly entries: ReadonlyArray<readonly [string, keyof ThemePalette, number]>;
+  readonly total: number;
+}
+
+/** Build the (optionally lore-weighted) scatter table. No lore profile, or one
+ *  with no dominant themes, returns the base bible — same entries, same order,
+ *  same total — so output is byte-identical to pre-5D. Lore only reweights the
+ *  existing shipped candidates. Exported for the determinism smoke. */
+export function buildScatterTable(
+  loreProfile?: { readonly dominantThemes: readonly string[] },
+): ScatterTable {
+  const themes = loreProfile?.dominantThemes ?? [];
+  const entries = SCATTER_BIBLE.map((c) => {
+    let mult = 1;
+    if (themes.length > 0) {
+      for (const t of c.themes) if (themes.includes(t)) mult += LORE_BOOST_PER_MATCH;
+    }
+    return [c.glyph, c.fgKey, c.baseWeight * mult] as const;
+  });
+  const total = entries.reduce((s, [, , w]) => s + w, 0);
+  return { entries, total };
+}
 
 const MIN_SPACING = 2;
 const MIN_SPACING_SQ = MIN_SPACING * MIN_SPACING;
@@ -52,8 +91,14 @@ export function scatterDecor(
   seed: number,
   layout: CellLayout,
   extraKeepouts: readonly CellPoint[] = [],
+  loreProfile?: { readonly dominantThemes: readonly string[] },
 ): ScatterItem[] {
   const prng = mulberry32((seed ^ 0x5ca7) >>> 0);
+  // Lore reweights the glyph table only; it does NOT touch position sampling,
+  // so the accepted-position sequence (and the number of prng draws) is
+  // identical with or without lore — only WHICH glyph each position gets
+  // changes. No-lore output is therefore byte-identical to pre-5D.
+  const table = buildScatterTable(loreProfile);
 
   // Build the set of forbidden cells: any non-floor tile, the player
   // spawn, plus extras. Encode as `${x},${y}` strings — small allocation,
@@ -84,7 +129,7 @@ export function scatterDecor(
       }
     }
     if (conflict) continue;
-    const [glyph, fgKey] = pickGlyph(prng);
+    const [glyph, fgKey] = pickGlyph(prng, table);
     accepted.push({ glyph, fgKey, x, y });
   }
 
@@ -93,13 +138,14 @@ export function scatterDecor(
 
 function pickGlyph(
   prng: ReturnType<typeof mulberry32>,
+  table: ScatterTable,
 ): readonly [string, keyof ThemePalette] {
-  let r = prng.next() * TOTAL_WEIGHT;
-  for (const [glyph, fgKey, weight] of SCATTER_BIBLE) {
+  let r = prng.next() * table.total;
+  for (const [glyph, fgKey, weight] of table.entries) {
     r -= weight;
     if (r <= 0) return [glyph, fgKey];
   }
-  const last = SCATTER_BIBLE[SCATTER_BIBLE.length - 1];
+  const last = table.entries[table.entries.length - 1];
   return [last[0], last[1]];
 }
 

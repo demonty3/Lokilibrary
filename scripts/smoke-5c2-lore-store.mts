@@ -176,6 +176,7 @@ const memStub = {
 const withLore = await routeTier2(makeDef() as any, makeRuntime() as any, 1_000_000, {
   transport: transport as any,
   memory: memStub as any,
+  loreEnabled: true,
   gatherLore: async () => [{ id: 'l1', text: 'Revachol grey rain', source: 'disco.md' }],
 });
 check('routeTier2 dispatched with lore', withLore.dispatched === true);
@@ -187,6 +188,7 @@ reflectInputs.length = 0;
 const noLore = await routeTier2(makeDef() as any, makeRuntime() as any, 2_000_000, {
   transport: transport as any,
   memory: memStub as any,
+  loreEnabled: true,
   gatherLore: async () => [],
 });
 check('routeTier2 dispatched without lore', noLore.dispatched === true);
@@ -197,6 +199,7 @@ reflectInputs.length = 0;
 const throwLore = await routeTier2(makeDef() as any, makeRuntime() as any, 3_000_000, {
   transport: transport as any,
   memory: memStub as any,
+  loreEnabled: true,
   gatherLore: async () => { throw new Error('embed down'); },
 });
 check('routeTier2 survives gatherer throw', throwLore.dispatched === true);

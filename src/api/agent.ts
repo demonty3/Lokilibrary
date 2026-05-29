@@ -99,6 +99,10 @@ export interface ReflectInput {
    *  uploaded canon into its reflection. Omitted when the library has no
    *  lore. */
   recentLore?: ReadonlyArray<{ text: string; source: string }>;
+  /** Phase 5D — closed-vocab lore-theme context (opt-in). Whitelisted theme
+   *  tags + tone only; never raw lore text. The worker folds these into a
+   *  system line so the agent's voice/plan leans toward the canon. */
+  loreContext?: { themes: string[]; tone: string };
 }
 
 export interface ReflectResult {

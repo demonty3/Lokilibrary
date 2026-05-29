@@ -72,6 +72,13 @@ interface AppState {
   loreUploadOpen: boolean;
   toggleLoreUpload: () => void;
   setLoreUploadOpen: (v: boolean) => void;
+
+  /** Phase 5D — lore-driven world adaptation. OPT-IN, default OFF. Gates
+   *  whether lore-derived signal may LEAVE the device (agent persona/reflect
+   *  lore context now; Stage 1 manifest digest in 5D.4). Local lore-weighted
+   *  scatter is computed on-device and is unaffected by this flag. */
+  loreEnabled: boolean;
+  setLoreEnabled: (on: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -186,5 +193,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleLoreUpload: () => set({ loreUploadOpen: !get().loreUploadOpen }),
   setLoreUploadOpen: (v) => {
     if (get().loreUploadOpen !== v) set({ loreUploadOpen: v });
+  },
+
+  loreEnabled: false,
+  setLoreEnabled: (on) => {
+    if (get().loreEnabled !== on) set({ loreEnabled: on });
   },
 }));

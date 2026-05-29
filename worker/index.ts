@@ -704,6 +704,7 @@ export default {
         }>;
         persona?: { name: string; system_prompt: string } | null;
         recentLore?: ReadonlyArray<{ text: string; source: string }>;
+        loreContext?: { themes?: string[]; tone?: string };
       };
       try {
         body = (await req.json()) as typeof body;
@@ -721,6 +722,18 @@ export default {
       const personaBlock = body.persona?.system_prompt
         ? `[persona]\n${body.persona.system_prompt}\n\n`
         : '';
+      // Phase 5D — closed-vocab lore-theme nudge (opt-in; themes/tone only,
+      // never raw lore text). Steers voice + plan toward the library's canon.
+      const loreThemeLine =
+        body.loreContext &&
+        Array.isArray(body.loreContext.themes) &&
+        body.loreContext.themes.length > 0
+          ? `This library's lore leans toward: ${body.loreContext.themes.join(', ')}` +
+            (typeof body.loreContext.tone === 'string' && body.loreContext.tone !== 'neutral'
+              ? ` (tone: ${body.loreContext.tone})`
+              : '') +
+            '. Let your reflection and plan quietly reflect that canon — never quote or announce it. '
+          : '';
       // Phase 5 5A — reflection prompt extended to ALSO emit a
       // multi-step plan. The plan's step kinds are constrained to a
       // whitelist of 5 (Smallville's verbs, narrowed): move_to,
@@ -730,6 +743,7 @@ export default {
       // the visible output of agent-as-marginalia Depth 1.
       const system =
         personaBlock +
+        loreThemeLine +
         'You are an agent in a small library room. Read your recent memories ' +
         'and write ONE reflection: a single short sentence (< 140 chars) that ' +
         'synthesises a pattern you notice across them. Pick up to 5 memory ids ' +

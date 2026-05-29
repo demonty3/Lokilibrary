@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-28** (slice 5H, after 5A reflection completion).
+Last updated: **2026-05-29** (slices 5D.1 + 5D.2: lore profile + lore-weighted scatter).
 
 ---
 
@@ -173,6 +173,58 @@ here; `smoke-5c2-lore-store.mts` exercises the real KNN).
   blocks navigation away from the app URL so a stray file-drop can't make
   Chromium open the file (contextIsolation:false footgun).
 
+### Lore profile (5D.1)
+- **`src/agents/lore-profile.ts:buildLoreProfile(writer, opts?)`** — pure,
+  sync, deterministic. `Pick<MemoryWriter,'recentLore'|'loreCount'>` →
+  `LoreProfile {dominantThemes: ThemeTag[]; tone: LoreTone; keywords: string[];
+  suggestedTilePaletteBias: ThemeId[]; suggestedDistrictHints:
+  SeasideArchetype[]; sourceCount; corpusHash}`. Term-frequency over a SHIPPED
+  closed-vocab whitelist (`THEME_TAGS` ×14, tone lexicon, keyword→
+  theme/district/palette tables); unmatched terms DROPPED (never echoed).
+  `loreCount()===0` → `emptyLoreProfile()`. No network/LLM/embeddings; no
+  Date.now/Math.random (inlined FNV-1a `corpusHash`). **`keywords` is
+  LOCAL-ONLY (raw vocab) — never egress;** `dominantThemes`+`tone` are the only
+  egress-safe (closed-vocab) fields (the 5D.4 digest draws from these).
+- `src/themes/index.ts` now exports `THEME_IDS` (literal tuple) + `ThemeId` —
+  the palette-whitelist single-source (`keyof typeof THEMES` widens to
+  `string`). 5D.1 smoke asserts `THEME_IDS` == `Object.keys(THEMES)`.
+
+### Lore-weighted scatter (5D.2)
+- **`src/procedural/scatter.ts`** — `SCATTER_BIBLE` entries now carry
+  `themes: string[]`; new exported `buildScatterTable(loreProfile?)` reweights
+  candidates by matching dominant themes (`LORE_BOOST_PER_MATCH=2`, integer →
+  no float drift). `scatterDecor(seed, layout, extraKeepouts, loreProfile?)`
+  gains an optional 4th arg. **Lore reweights glyph WEIGHTS only — never adds/
+  removes/reorders/zeroes a candidate, never touches position sampling.** No
+  lore / empty `dominantThemes` → byte-identical to pre-5D (verified vs HEAD
+  across 6 seeds; base total 13, order ♠∩≡☼). loreProfile is a 2nd
+  deterministic input: same (seed + loreProfile) → same scatter. (Share-URL,
+  when revived, must encode the lore digest to reproduce a lore'd world
+  remotely — noted for that slice.)
+- **`src/render/levels/cell.ts`** computes the profile at mount via
+  `getCurrentMemoryWriter()` (null writer / web → undefined → base scatter) and
+  threads it into `scatterDecor`. Per-mount compute; caching is a 5D.4 job.
+
+### Lore opt-in toggle + persona/reflect egress (5D.3)
+- **Privacy model: opt-in, default OFF** (`store.loreEnabled` /
+  `setLoreEnabled`). Gates whether ANY lore-derived signal LEAVES the device.
+  Local lore-weighted scatter (5D.2) is independent — never egresses.
+- **`router.ts:routeTier2`** gains `RouteOptions.loreEnabled?`. OFF (default):
+  no `gatherLore`, no `loreContext` → reflection runs lore-free (this also
+  gates the 5C.2a raw-lore reflect injection behind the toggle). ON: gathers
+  lore AND attaches `loreContext = {themes, tone}` from
+  `buildLoreProfile(memory)` (closed-vocab; raw lore text never on this field).
+- **`ReflectInput.loreContext`** (api/agent.ts) → worker `/api/agent/reflect`
+  appends ONE closed-vocab system line after the persona block ("This
+  library's lore leans toward: …"); never raw lore.
+- **Wired call sites** pass `loreEnabled: useAppStore.getState().loreEnabled`:
+  `render/agents/cohort.ts` (live reflection) + the cell.ts bookshelf-launch
+  path. `sleep-reflection.ts` (overnight) is NOT yet wired — overnight
+  reflections stay lore-free until the 5D.4 toggle UI lands (default-off is
+  correct meanwhile). No UI toggle yet; flip `loreEnabled` via the store.
+- Smokes: `smoke-5d-persona.mts` (13) asserts the gate both directions;
+  `smoke-5c2` updated to pass `loreEnabled:true` (it exercises the ON path).
+
 ---
 
 ## Desktop wrapper
@@ -270,8 +322,11 @@ Assertion counts as of 2026-05-28:
 | 5C lore (backbone) | smoke-5c-lore.mts | 27 |
 | 5C.2a lore store | smoke-5c2-lore-store.mts | 31 |
 | 5C.2b lore ingest | smoke-5c2b-lore-ingest.mts | 20 |
+| 5D.1 lore profile | smoke-5d-lore-profile.mts | 17 |
+| 5D.2 lore scatter | smoke-5d-scatter.mts | 16 |
+| 5D.3 lore persona/gate | smoke-5d-persona.mts | 10 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **366** |
+| **Total numeric** | | **409** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

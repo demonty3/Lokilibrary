@@ -8,6 +8,8 @@ import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
 import { mountCohort } from '../agents/cohort';
 import { scatterDecor } from '../../procedural/scatter';
+import { getCurrentMemoryWriter } from '../../agents/memory/bootstrap';
+import { buildLoreProfile } from '../../agents/lore-profile';
 import { displaySizeForTile, textureForTile, type SpriteAtlas } from '../sprites';
 import {
   broadcastGameLaunched,
@@ -149,7 +151,12 @@ export function mountCell(
   // so the L doesn't overlap a plant at boot. Scatter does NOT block
   // movement (collision is floor-only via layout.tiles).
   const lokiSpawn = pickLokiSpawn(layout, seed);
-  const scatterItems = scatterDecor(seed, layout, [lokiSpawn]);
+  // Phase 5D: lore reweights decor frequency (computed locally; never
+  // egresses). Null writer (web build) or empty corpus → undefined → no
+  // dominant themes → byte-identical to pre-5D scatter.
+  const loreWriter = getCurrentMemoryWriter();
+  const loreProfile = loreWriter ? buildLoreProfile(loreWriter) : undefined;
+  const scatterItems = scatterDecor(seed, layout, [lokiSpawn], loreProfile);
   const scatterAnchors = new Map<string, CellPoint[]>();
   for (const item of scatterItems) {
     const sprite = new BitmapText({

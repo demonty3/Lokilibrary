@@ -20,6 +20,23 @@ export const THEMES: Readonly<Record<string, Theme>> = Object.freeze({
   'ibm-3270':         ibm3270 as Theme,
 });
 
+/**
+ * Theme ids as a literal tuple — the single source of truth for the
+ * theme-palette whitelist. `THEMES` is typed as `Record<string, Theme>`, so
+ * `keyof typeof THEMES` widens to `string`; this tuple keeps the literal
+ * union for whitelist checks (Phase 5D lore palette bias). Kept in lockstep
+ * with `THEMES` above — the 5D lore smoke asserts `THEME_IDS` deep-equals
+ * `Object.keys(THEMES)` to catch drift.
+ */
+export const THEME_IDS = [
+  'solarized-dark',
+  'gruvbox-dark',
+  'catppuccin-mocha',
+  'tokyo-night',
+  'ibm-3270',
+] as const;
+export type ThemeId = (typeof THEME_IDS)[number];
+
 export const DEFAULT_THEME_ID = 'solarized-dark';
 
 export function getById(id: string): Theme {
