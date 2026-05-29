@@ -189,6 +189,29 @@ legacy-3d/           — preserved 3D Three.js build (reference, not active)
 legacy-desktop-v0.6/ — preserved v0.6 Electron wrapper (pre-prune; reference)
 ```
 
+## How to work (general)
+
+General coding-agent discipline (adapted from karpathy-skills). Biases
+toward caution over speed; on trivial tasks, use judgment.
+
+- **Think before coding.** State assumptions. If multiple readings of a
+  request exist, surface them — don't pick one silently. If a simpler
+  path exists, say so and push back. If something's unclear, stop and
+  name what's confusing before implementing.
+- **Simplicity first.** Minimum code that solves the stated problem — no
+  speculative features, no abstractions for single-use code, no
+  unrequested flexibility/config, no error handling for impossible
+  scenarios. Reinforces the runtime-AI-scoping rule and "aesthetic
+  coherence over scope creep" below.
+- **Surgical changes.** Touch only what the request needs; don't refactor
+  or reformat adjacent code, and match existing style even where you'd do
+  it differently. Remove only the orphans your own change created — flag
+  pre-existing dead code, don't delete it. Every changed line should
+  trace to the request.
+- **Goal-driven execution.** Turn the task into a verifiable goal ("fix
+  the bug" → "write a failing test, then make it pass") and loop until
+  it's verified. Here, typecheck + smoke are the ground truth.
+
 ## Conventions
 
 - **Per-game art = Steam CDN, recognition surface only.** See "Asset
