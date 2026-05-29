@@ -16,6 +16,9 @@ ANTHROPIC_API_KEY=sk-ant-
 # Used only when LLM_PROVIDER=local.
 # OLLAMA_URL=http://localhost:11434
 # OLLAMA_MODEL=qwen3:14b
+# Embedding model for lore upload (Phase 5C). Local-only, 768-dim.
+# One-time: `ollama pull nomic-embed-text`.
+# EMBED_MODEL=nomic-embed-text
 
 # --- CORS ---
 # Comma-separated list of allowed origins. Defaults cover localhost:5183 + 5173.

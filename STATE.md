@@ -103,6 +103,24 @@ Defined inline in router.ts `importanceFor`:
 
 `ObservationSource`: `'self_perception' | 'agent_meeting' | 'player_proximity' | 'bookshelf_e' | 'game_launched' | 'external_fullscreen' | 'cell_mount'`
 
+### Embedding backbone (5C.1)
+Transport only — not yet wired into the write/read lifecycle (that's 5C.2).
+- **Worker** `worker/lib/providers.ts:callEmbed(env, texts)` → Ollama
+  `/api/embed` with `EMBED_MODEL` (default `nomic-embed-text`, 768-dim).
+  `POST /api/embed` `{texts}`→`{embeddings:number[][]}`; **local-only**
+  (cloud 501, privacy contract).
+- **Client** `src/api/embed.ts:embedTexts(texts)` → `{ok,embeddings}` |
+  `{ok:false,error}`; nomic `withDocumentPrefix` / `withQueryPrefix`
+  (`search_document:` / `search_query:`).
+- **Chunker** `src/agents/memory/chunk.ts:chunkText(text, {maxTokens,
+  overlapTokens})` — pure, zero-dep (~4 chars/token; default 500/50). No
+  tiktoken: worker + web share one `package.json`, so a WASM tokenizer
+  would hit the web bundle for no gain (nomic tokenizes server-side).
+- **Storage path already exists** (`db.ts`): `memory_vec` vec0 768-dim +
+  `attachEmbedding()` + `embedding_id` FK; `import.ts` `embedQueue` /
+  `drainEmbedQueue()`. Still unpopulated — the drain→embed→attach wiring
+  and the cosine read query land in 5C.2.
+
 ---
 
 ## Desktop wrapper
@@ -179,7 +197,7 @@ Renderer side: `src/api/electron.ts` mirrors with defensive guards (`warnStalePr
 | `GET /api/world` | 2.7 | Stage 1 manifest (cached 24h) |
 | `POST /api/agent/tick` | 0 / 2C | Tier-1 micro-action |
 | `POST /api/agent/reflect` | 2D + 5A | Tier-2 reflection + plan (5A added plan output) |
-| `POST /api/embed` | 2D (stub) | 501; 5C will implement local-Ollama path |
+| `POST /api/embed` | 5C.1 | `{texts}`→`{embeddings}` 768-dim via local Ollama nomic-embed-text; cloud path 501 (privacy contract) |
 | `POST /api/bake/sprite` | 3C | PixelLab.ai proxy for bake tooling |
 
 ---
@@ -197,8 +215,9 @@ Assertion counts as of 2026-05-28:
 | 4C peek | smoke-4c-peek.mts | 24 |
 | 5A reflection | smoke-5a-reflection.mts | 41 |
 | 5B sleep | smoke-5b-sleep.mts | 22 |
+| 5C lore (backbone) | smoke-5c-lore.mts | 27 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **288** |
+| **Total numeric** | | **315** |
 
 Shared helpers live in `scripts/lib/smoke.ts` (5H): `makeChecker()`,
 `mockElectronModule()`.

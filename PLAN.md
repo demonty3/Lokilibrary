@@ -381,17 +381,29 @@ pieces:
 
 **5C — Lore upload (text-only MVP) (~1.5 weekends).** Per
 CONSOLIDATION.md "lore-seeded worlds = the primary personalisation
-lever." Text-only MVP:
-- `.txt` / `.md` drop-zone in the renderer (overlay; tray opens or
-  Ctrl+L).
-- Chunk via `tiktoken` (500-token windows, 50-token overlap).
-- Embed via `nomic-embed-text` through local Ollama (CLAUDE.md privacy
-  contract — embeddings never leave the machine).
-- Worker `/api/embed` route (currently a 501 stub from Phase 2D) gets
-  implemented for the local provider only.
-- Lore chunks land in `memories` table; retrieval already supports
-  FTS5 + sqlite-vec. Reflection prompts gain a "recent_lore" section
-  so agents weave lore into their reflections.
+lever." Split into two commits:
+
+**5C.1 ✅ embedding backbone** (shipped 2026-05-29):
+- Worker `/api/embed` (was a 501 stub from Phase 2D) implemented for the
+  local provider only — `{texts}`→`{embeddings}` 768-dim via
+  `nomic-embed-text` through local Ollama (CLAUDE.md privacy contract,
+  embeddings never leave the machine). Cloud path stays 501.
+- Pure zero-dep chunker (500-token windows, 50-token overlap) — **no
+  tiktoken**: worker + web share one `package.json`, so a WASM tokenizer
+  would hit the web bundle for no gain (nomic tokenizes server-side).
+- Client `embedTexts()` wrapper + nomic task prefixes.
+
+**5C.2 ⏳ lore ingestion** (next):
+- `.txt` / `.md` drop-zone in the renderer (DOM sibling of the canvas,
+  not a PIXI overlay — file drop is a DOM API; toggle via Ctrl+U).
+- Lore lands in a **separate `lore` table** (+ `lore_fts` + `lore_vec`)
+  — additive, no migration, never touches the stable `memories`
+  contract, library-wide by construction.
+- drain→embed→`attachEmbedding` wiring + cosine read query (the
+  `queryEmbedding` param in retrieval.ts is currently a no-op).
+- `will-navigate` drop-safety guard in `desktop/src/main.ts`.
+- Reflection prompts gain a "recent_lore" section so agents weave lore
+  into their reflections.
 
 **5D — Lore-driven world adaptation (~1-2 weekends).** Per
 CONSOLIDATION.md "the world's aesthetic, factions, events, naming

@@ -26,6 +26,7 @@
 import { buildStageOnePrompt } from './lib/prompt';
 import { extractJson, validateManifest } from './lib/manifest';
 import {
+  callEmbed,
   callStageOne,
   callTier1Agent,
   callTier2Reflect,
@@ -867,14 +868,13 @@ export default {
       );
     }
 
-    // --- Embedding (Phase 2D slice 2D.2 — stub) ------------------------------
-    // POST /api/embed — accepts {texts: string[]} and returns float[][]
-    // embeddings. **Anthropic path is intentionally a 501** (CLAUDE.md
-    // privacy contract: lore + memories never leave the machine). Only the
-    // local Ollama path is supported; when LLM_PROVIDER=anthropic the
-    // renderer must degrade to FTS5-only retrieval. The Ollama call itself
-    // is not implemented in this slice — embedding ranking is a 2D follow-up
-    // (and FTS5 already handles the retrieval path without it).
+    // --- Embedding (Phase 5C slice 5C.1) -------------------------------------
+    // POST /api/embed — accepts {texts: string[]} and returns
+    // {embeddings: number[][]} (768-dim, nomic-embed-text). **Cloud path is
+    // intentionally a 501** (CLAUDE.md privacy contract: lore + memories
+    // never leave the machine). Only the local Ollama path is implemented;
+    // when LLM_PROVIDER=anthropic the renderer degrades to FTS5-only
+    // retrieval.
     if (req.method === 'POST' && url.pathname === '/api/embed') {
       const provider = (env.LLM_PROVIDER ?? 'anthropic').toLowerCase();
       if (provider !== 'local') {
@@ -887,12 +887,34 @@ export default {
           cors,
         );
       }
-      // Local-Ollama path not implemented in this slice.
-      return json(
-        { error: 'local embedding implementation pending — FTS5 fallback active' },
-        { status: 501 },
-        cors,
-      );
+      // Local-Ollama path (Phase 5C). nomic-embed-text via Ollama; 768-dim
+      // vectors land in the renderer's sqlite-vec store. Keep the cloud 501
+      // above — embeddings are local-only by privacy contract.
+      let body: { texts?: unknown };
+      try {
+        body = (await req.json()) as { texts?: unknown };
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      const texts = body.texts;
+      if (
+        !Array.isArray(texts) ||
+        texts.length === 0 ||
+        !texts.every((t) => typeof t === 'string' && t.length > 0)
+      ) {
+        return json(
+          { error: 'body.texts must be a non-empty string[]' },
+          { status: 400 },
+          cors,
+        );
+      }
+      try {
+        const embeddings = await callEmbed(env, texts as string[]);
+        return json({ embeddings }, { status: 200 }, cors);
+      } catch (e) {
+        const status = e instanceof ProviderError ? e.status : 502;
+        return json({ error: (e as Error).message }, { status }, cors);
+      }
     }
 
     // --- Pixel-art bake (Phase 3C) -------------------------------------------

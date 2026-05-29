@@ -29,6 +29,12 @@ export interface ProviderEnv {
   OLLAMA_MODEL?: string;
   /** Tier 1 agent micro-action Ollama model. Defaults to qwen2.5:7b. */
   OLLAMA_TIER1_MODEL?: string;
+  /** Lore/memory embedding model (Phase 5C). Local Ollama only —
+   *  defaults to nomic-embed-text (768-dim, matches the memory_vec table
+   *  in src/agents/memory/db.ts). There is deliberately no cloud
+   *  embedding model: CLAUDE.md's privacy contract keeps lore + memories
+   *  on the machine. */
+  EMBED_MODEL?: string;
 }
 
 export class ProviderError extends Error {
@@ -103,6 +109,38 @@ export async function callStageOne(
   if (provider === 'local') return callOllama(env, system, user);
   if (provider === 'anthropic') return callAnthropic(env, system, user);
   throw new ProviderError(`unknown LLM_PROVIDER "${provider}"`, 500);
+}
+
+/**
+ * Local embedding call (Phase 5C). Embeds a batch of texts via Ollama's
+ * `/api/embed` using nomic-embed-text (768-dim — matches the `memory_vec`
+ * table in src/agents/memory/db.ts).
+ *
+ * **Local-only by contract.** There is no cloud fallback: CLAUDE.md's
+ * privacy contract says lore + memories never leave the machine, so the
+ * `/api/embed` route 501s when LLM_PROVIDER !== 'local' (worker/index.ts).
+ * The caller applies nomic's `search_document:` / `search_query:` task
+ * prefixes; this transport just forwards whatever text it's given.
+ */
+export async function callEmbed(env: ProviderEnv, texts: string[]): Promise<number[][]> {
+  const url = (env.OLLAMA_URL ?? 'http://localhost:11434').replace(/\/$/, '');
+  const model = env.EMBED_MODEL ?? 'nomic-embed-text';
+  const res = await fetch(`${url}/api/embed`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model, input: texts }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new ProviderError(`ollama embed ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { embeddings?: number[][] };
+  if (!data.embeddings || data.embeddings.length !== texts.length) {
+    throw new ProviderError(
+      `ollama embed returned ${data.embeddings?.length ?? 0} vectors for ${texts.length} inputs`,
+    );
+  }
+  return data.embeddings;
 }
 
 async function callAnthropic(env: ProviderEnv, system: string, user: string): Promise<string> {
