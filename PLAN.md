@@ -425,6 +425,22 @@ derive from lore."
   weighted tables (LLM picks from a renderer-shipped whitelist; never
   emits arbitrary tokens).
 
+**5D.4 — option 1 (visible lore) shipped** (2026-05-29): lore now visibly
+transforms the world LOCALLY — the whole theme palette recolors from
+`buildLoreProfile().suggestedTilePaletteBias[0]` (deterministic, no opt-in;
+a `loreVersion` counter remounts the world on ingest), and lore-weighted
+scatter (5D.2) stands. Agent-voice egress is now actually wired: cohort live
+reflection, the cell bookshelf-launch path, and the overnight sleep-reflection
+sweep all pass `loreEnabled` (closing the 5D.3 gap where the gate existed but
+no call site set it). TWO opt-in toggles added to the lore drop-zone (both
+default off): **Theme & mood** egresses closed-vocab `{themes, tone}` only;
+**Quote directly** egresses raw lore excerpts so agents can name specifics —
+each gating its own independent egress path. **Deferred:** the
+manifest-digest → `/api/world` half (lore_context section + cache `v3` bump) is
+NOT done — the 2D renderer does not consume the Stage 1 manifest (`loadManifest`
+is never called), so there is no consumer to feed; revisit if the renderer wires
+the manifest.
+
 ### Deferred from the original Phase 5 (per CONSOLIDATION.md v1.0 scope)
 
 - **Weekly dream sequences** — CONSOLIDATION.md explicitly excludes

@@ -384,6 +384,8 @@ export function mountCell(
       void routeTier2(lokiDef, lokiRuntime, performance.now(), {
         memory: memoryWriter,
         force: true,
+        loreEnabled: useAppStore.getState().loreEnabled,
+        loreQuote: useAppStore.getState().loreQuoteEnabled,
       });
     }
   }

@@ -8,7 +8,8 @@ import {
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
 import { getCurrentRenderContext, mountPalace } from './render/PixiApp';
-import { DEFAULT_THEME_ID, getById } from './themes';
+import { getById } from './themes';
+import { themeFromLore } from './agents/lore-theme';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
 import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
@@ -44,6 +45,7 @@ export function App() {
   const setScale = useAppStore((s) => s.setScale);
   const scale = useAppStore((s) => s.scale);
   const steamId = useAppStore((s) => s.steamId);
+  const loreVersion = useAppStore((s) => s.loreVersion);
   const canvasHost = useRef<HTMLDivElement | null>(null);
   const tickFired = useRef(false);
 
@@ -152,7 +154,14 @@ export function App() {
       }
 
       if (cancelled || !canvasHost.current) return;
-      const fn = await mountPalace(canvasHost.current, getById(DEFAULT_THEME_ID), {
+      // Phase 5D.4 — local lore palette recolor. Derive the theme
+      // deterministically from the lore corpus (suggestedTilePaletteBias[0]
+      // ?? DEFAULT_THEME_ID). LOCAL only: reads loreCount()/recentLore()
+      // on-device, never egresses. Independent of loreEnabled (mirrors the
+      // 5D.2 scatter precedent). Recomputed on each remount; the effect
+      // re-runs when loreVersion bumps after a successful ingest.
+      const themeId = themeFromLore(writer);
+      const fn = await mountPalace(canvasHost.current, getById(themeId), {
         memoryWriter: writer,
       });
       if (cancelled) fn();
@@ -163,7 +172,7 @@ export function App() {
       cancelled = true;
       teardown?.();
     };
-  }, []);
+  }, [loreVersion]);
 
   // Profile-triggered namespace rebuild + cell remount is owned by
   // PixiApp's Zustand subscriber (slice 2G). It calls

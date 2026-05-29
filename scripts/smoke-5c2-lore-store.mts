@@ -10,8 +10,9 @@
  *   - retrieveLore: cosine path when a queryEmbedding is supplied;
  *     recency fallback otherwise
  *   - writer.recordLore / recentLore / loreCount surface
- *   - router lore injection: routeTier2 calls the injected gatherer and
- *     forwards recent_lore into the reflect transport input
+ *   - router lore egress (5D.4): routeTier2 never forwards raw lore snippets
+ *     to the reflect transport (the closed-vocab loreContext is the only
+ *     permitted lore egress) — even with loreEnabled:true
  *
  * NOT covered (needs a live Worker + Ollama): the real /api/embed
  * round-trip that produces the 768-dim vectors — here we hand-craft
@@ -139,7 +140,12 @@ check('nullMemoryWriter.recentLore → []', nullMemoryWriter.recentLore(4).lengt
 check('nullMemoryWriter.loreCount → 0', nullMemoryWriter.loreCount() === 0);
 
 // ---------------------------------------------------------------------------
-// 5. Router lore injection — routeTier2 forwards recent_lore to transport
+// 5. Router lore egress (5D.4 two-flag model). Two INDEPENDENT opt-ins:
+//    - loreEnabled → closed-vocab loreContext {themes, tone} ONLY; raw lore
+//      snippets are NEVER gathered or forwarded on this flag.
+//    - loreQuote   → raw lore excerpts (text + source) ARE gathered + shipped
+//      so agents can reference specific names/places.
+//    Default (both off) → nothing lore-derived egresses.
 
 function makeDef(overrides: Record<string, unknown> = {}) {
   return { id: 'loki', name: 'Loki', archetype: 'trickster', tier1ThrottleMs: 30_000, schedule: [], ...overrides };
@@ -172,38 +178,51 @@ const memStub = {
   persona: () => null,
 };
 
-// Gatherer returns lore → router must forward it.
-const withLore = await routeTier2(makeDef() as any, makeRuntime() as any, 1_000_000, {
+// (a) loreEnabled:true ALONE → gatherer NOT invoked, no recentLore on the
+//     wire. The closed-vocab path never touches raw lore.
+let gatherCalls = 0;
+const themeOnly = await routeTier2(makeDef() as any, makeRuntime() as any, 1_000_000, {
   transport: transport as any,
   memory: memStub as any,
   loreEnabled: true,
-  gatherLore: async () => [{ id: 'l1', text: 'Revachol grey rain', source: 'disco.md' }],
+  gatherLore: async () => { gatherCalls++; return [{ id: 'l1', text: 'Revachol grey rain', source: 'disco.md' }]; },
 });
-check('routeTier2 dispatched with lore', withLore.dispatched === true);
-check('transport received recentLore', Array.isArray(reflectInputs[0]?.recentLore) && reflectInputs[0].recentLore.length === 1);
-check('forwarded lore carries text + source', reflectInputs[0].recentLore[0].text === 'Revachol grey rain' && reflectInputs[0].recentLore[0].source === 'disco.md');
+check('routeTier2 dispatched with loreEnabled', themeOnly.dispatched === true);
+check('loreEnabled-only: raw-lore gatherer NOT invoked', gatherCalls === 0);
+check('loreEnabled-only: transport never receives recentLore', reflectInputs[0]?.recentLore === undefined);
+check(
+  'loreEnabled-only: raw lore text/source absent from ReflectInput',
+  !JSON.stringify(reflectInputs[0] ?? {}).includes('Revachol') &&
+    !JSON.stringify(reflectInputs[0] ?? {}).includes('disco.md'),
+);
 
-// Gatherer returns [] → router omits recentLore entirely.
+// (b) loreQuote:true → gatherer IS invoked and raw excerpts (text + source)
+//     DO reach the wire. This is the deliberate, separately-consented egress.
 reflectInputs.length = 0;
-const noLore = await routeTier2(makeDef() as any, makeRuntime() as any, 2_000_000, {
+gatherCalls = 0;
+const quoted = await routeTier2(makeDef() as any, makeRuntime() as any, 1_500_000, {
   transport: transport as any,
   memory: memStub as any,
-  loreEnabled: true,
-  gatherLore: async () => [],
+  loreQuote: true,
+  gatherLore: async () => { gatherCalls++; return [{ id: 'l1', text: 'Revachol grey rain', source: 'disco.md' }]; },
 });
-check('routeTier2 dispatched without lore', noLore.dispatched === true);
-check('transport input omits recentLore when empty', reflectInputs[0]?.recentLore === undefined);
+check('routeTier2 dispatched with loreQuote', quoted.dispatched === true);
+check('loreQuote: raw-lore gatherer invoked', gatherCalls === 1);
+check('loreQuote: transport receives recentLore', (reflectInputs[0]?.recentLore?.length ?? 0) === 1);
+check(
+  'loreQuote: raw lore text + source DO reach the wire (the opt-in promise)',
+  JSON.stringify(reflectInputs[0] ?? {}).includes('Revachol') &&
+    JSON.stringify(reflectInputs[0] ?? {}).includes('disco.md'),
+);
 
-// Gatherer throws → reflection still proceeds (best-effort).
+// (c) both off (default) → no recentLore.
 reflectInputs.length = 0;
-const throwLore = await routeTier2(makeDef() as any, makeRuntime() as any, 3_000_000, {
+const offLore = await routeTier2(makeDef() as any, makeRuntime() as any, 2_000_000, {
   transport: transport as any,
   memory: memStub as any,
-  loreEnabled: true,
-  gatherLore: async () => { throw new Error('embed down'); },
 });
-check('routeTier2 survives gatherer throw', throwLore.dispatched === true);
-check('throwing gatherer → no recentLore but reflection ran', reflectInputs[0]?.recentLore === undefined);
+check('routeTier2 dispatched with both flags off', offLore.dispatched === true);
+check('OFF: transport omits recentLore', reflectInputs[0]?.recentLore === undefined);
 
 db.close();
 try { nodeFs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }

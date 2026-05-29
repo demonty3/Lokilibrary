@@ -321,16 +321,24 @@ export interface RouteOptions {
    *  surface for the model to find a pattern without blowing the
    *  context budget. */
   reflectionMemoryCount?: number;
-  /** Phase 5C — top-K lore chunks to inject into the reflection prompt.
-   *  Default 4. */
+  /** Phase 5C — top-K lore chunks the gatherer retrieves when raw-lore
+   *  quoting is enabled (see `loreQuote`). Default 4. */
   loreCount?: number;
   /** Phase 5C — inject the lore gatherer (embed + retrieve). Defaults to
-   *  `defaultLoreGatherer`; tests pass a deterministic stub. */
+   *  `defaultLoreGatherer`; tests pass a deterministic stub. Only invoked
+   *  when `loreQuote` is true. */
   gatherLore?: LoreGatherer;
-  /** Phase 5D — OPT-IN lore egress (default off). When false, NO lore-derived
-   *  signal leaves the device: routeTier2 gathers no lore and attaches no
-   *  loreContext. Local theming (scatter) is independent of this flag. */
+  /** Phase 5D — OPT-IN closed-vocab lore egress (default off). When true,
+   *  routeTier2 attaches a CLOSED-VOCAB loreContext {themes, tone} only —
+   *  never raw lore text or keywords. Local theming (palette recolor +
+   *  scatter) is independent of this flag. */
   loreEnabled?: boolean;
+  /** Phase 5D.4 — SECOND, INDEPENDENT opt-in (default off). When true,
+   *  routeTier2 retrieves raw lore excerpts via `gatherLore` and ships them
+   *  (text + source filename) to the model so the agent can reference
+   *  specific names/places. Distinct from `loreEnabled`; either, both, or
+   *  neither may be on. Off → no raw lore is gathered or egressed. */
+  loreQuote?: boolean;
   /** Force Tier-2 dispatch even when below threshold AND ignore the
    *  per-real-hour rate-limit. Used by direct user actions (game
    *  launch) per CLAUDE.md "Tier 2 fires only on reflection threshold
@@ -538,20 +546,28 @@ export async function routeTier2(
   // re-trigger on the next tick.
   runtime.reflectionCounter = 0;
 
-  // Phase 5C/5D — lore egress is OPT-IN (default off). Only when the user has
-  // enabled lore sharing do we (a) gather raw lore chunks for the reflection
-  // and (b) build a closed-vocab lore-theme context. With it off, NOTHING
-  // lore-derived leaves the device (the reflection still runs, lore-free).
-  const gatherLore = opts.gatherLore ?? defaultLoreGatherer;
+  // Phase 5C/5D — lore egress is OPT-IN via two INDEPENDENT flags (both
+  // default off). Each gates a distinct egress path:
+  //   - loreEnabled → a CLOSED-VOCAB loreContext {themes, tone} (whitelisted
+  //     tags + tone; never raw text or user vocabulary).
+  //   - loreQuote   → RAW lore excerpts (uploaded text + source filename),
+  //     retrieved via gatherLore, so the agent can reference specific
+  //     names/places. This deliberately puts uploaded text on the wire and is
+  //     gated behind its own opt-in whose UI copy says exactly that.
+  // With both off, NOTHING lore-derived egresses (the reflection still runs).
   let recentLore: readonly LoreSnippet[] = [];
-  let loreContext: { themes: string[]; tone: string } | undefined;
-  if (opts.loreEnabled) {
+  if (opts.loreQuote) {
+    const gatherLore = opts.gatherLore ?? defaultLoreGatherer;
     try {
       recentLore = await gatherLore(memory, recent, opts.loreCount ?? 4);
     } catch (e) {
+      // best-effort: a gather failure must not break the reflection
       // eslint-disable-next-line no-console
       console.warn(`[router] tier2 ${def.id} lore gather failed: ${(e as Error).message}`);
     }
+  }
+  let loreContext: { themes: string[]; tone: string } | undefined;
+  if (opts.loreEnabled) {
     try {
       const profile = buildLoreProfile(memory);
       if (profile.dominantThemes.length > 0) {

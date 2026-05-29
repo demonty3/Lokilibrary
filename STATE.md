@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-29** (slices 5D.1 + 5D.2: lore profile + lore-weighted scatter).
+Last updated: **2026-05-29** (slice 5D.4: lore palette recolor + agent-voice egress wiring + two-flag opt-in toggles).
 
 ---
 
@@ -209,21 +209,63 @@ here; `smoke-5c2-lore-store.mts` exercises the real KNN).
 - **Privacy model: opt-in, default OFF** (`store.loreEnabled` /
   `setLoreEnabled`). Gates whether ANY lore-derived signal LEAVES the device.
   Local lore-weighted scatter (5D.2) is independent — never egresses.
-- **`router.ts:routeTier2`** gains `RouteOptions.loreEnabled?`. OFF (default):
-  no `gatherLore`, no `loreContext` → reflection runs lore-free (this also
-  gates the 5C.2a raw-lore reflect injection behind the toggle). ON: gathers
-  lore AND attaches `loreContext = {themes, tone}` from
-  `buildLoreProfile(memory)` (closed-vocab; raw lore text never on this field).
+- **`router.ts:routeTier2`** gates lore egress behind TWO independent opt-ins
+  (5D.4; see "two-flag model" below): `RouteOptions.loreEnabled?` →
+  CLOSED-VOCAB `loreContext = {themes, tone}` from `buildLoreProfile(memory)`;
+  `RouteOptions.loreQuote?` → RAW lore excerpts (`recentLore`, text + source)
+  via `gatherLore`. Both default off; either/both/neither may be on. With both
+  off, NOTHING lore-derived egresses (reflection still runs).
 - **`ReflectInput.loreContext`** (api/agent.ts) → worker `/api/agent/reflect`
   appends ONE closed-vocab system line after the persona block ("This
-  library's lore leans toward: …"); never raw lore.
-- **Wired call sites** pass `loreEnabled: useAppStore.getState().loreEnabled`:
-  `render/agents/cohort.ts` (live reflection) + the cell.ts bookshelf-launch
-  path. `sleep-reflection.ts` (overnight) is NOT yet wired — overnight
-  reflections stay lore-free until the 5D.4 toggle UI lands (default-off is
-  correct meanwhile). No UI toggle yet; flip `loreEnabled` via the store.
-- Smokes: `smoke-5d-persona.mts` (13) asserts the gate both directions;
-  `smoke-5c2` updated to pass `loreEnabled:true` (it exercises the ON path).
+  library's lore leans toward: …"); `ReflectInput.recentLore` (when `loreQuote`
+  is on) → the worker folds raw excerpts into a `recent_lore:` prompt block.
+- **Egress wiring landed in 5D.4** (see below). 5D.3 added the
+  `RouteOptions.loreEnabled` gate to `routeTier2` but did NOT thread it through
+  any call site — cohort/cell/sleep-reflection all ran lore-free regardless of
+  the toggle. 5D.4 wires all three.
+- Smokes: `smoke-5d-persona.mts` (10) asserts the closed-vocab gate both
+  directions (still valid — `loreEnabled` alone never ships raw lore);
+  `smoke-5c2` (34) exercises both flags: `loreEnabled`-only ships no raw lore,
+  `loreQuote` ships raw excerpts, both-off ships nothing.
+
+### Lore makes the world visible (5D.4)
+- **Palette recolor (LOCAL, no opt-in).** When a lore corpus exists, the whole
+  world theme is `buildLoreProfile(writer).suggestedTilePaletteBias[0] ??
+  DEFAULT_THEME_ID` (deterministic; same corpus → same ThemeId).
+  `agents/lore-theme.ts:themeFromLore` is the single derivation point; `App.tsx`
+  derives it at mount and passes `getById(themeId)` to `mountPalace`.
+  Independent of `loreEnabled` (mirrors 5D.2 scatter — local theming needs no
+  egress opt-in).
+- **`loreVersion` remount counter** (`store.ts`): `loreVersion: number` +
+  `bumpLoreVersion()`. `LoreDropZone` bumps it once after a successful ingest;
+  the `App.tsx` mount effect depends on `loreVersion` so the world cleanly
+  tears down + remounts with the recomputed theme.
+- **Agent-voice egress wired (the 5D.3 gap, now closed) — TWO-FLAG MODEL.**
+  All three `routeTier2` call sites pass BOTH opt-ins from the store:
+  `loreEnabled: …loreEnabled` + `loreQuote: …loreQuoteEnabled` —
+  `render/agents/cohort.ts` (live reflection), `render/levels/cell.ts`
+  (bookshelf launch), `agents/sleep-reflection.ts` (overnight sweep — one
+  destructured read above the per-agent `Promise.allSettled` so the whole
+  sweep shares one policy). The two flags gate independent egress paths:
+  `loreEnabled` → closed-vocab `loreContext {themes, tone}` (whitelisted; raw
+  text/keywords NEVER on this path); `loreQuote` → raw lore excerpts
+  (`recentLore`, text + source) so agents can name specific people/places.
+  Both default OFF → nothing lore-derived egresses.
+- **Opt-in toggle UI** in `LoreDropZone.tsx`: TWO checkboxes, both default off.
+  **"Theme & mood"** → `store.loreEnabled` (copy: sends only abstract theme
+  tags, never your text). **"Quote directly"** → `store.loreQuoteEnabled`
+  (copy: sends relevant excerpts of your uploaded text + filename so agents can
+  reference specifics). Both gate EGRESS only — NOT the local palette recolor
+  or scatter.
+- **Deferred:** the manifest-digest → `/api/world` half of 5D is NOT done — the
+  2D renderer does not consume the Stage 1 manifest (`loadManifest` is never
+  called), so there is nothing to feed. Revisit if/when the renderer wires the
+  manifest.
+- Smoke: `smoke-5d4-lore-visible.mts` (33) — deterministic theme-from-lore
+  incl. no-lore → DEFAULT fallback; the two-flag egress gate (`loreEnabled`
+  ships closed-vocab {themes,tone} with no raw-keyword leak; `loreQuote` ships
+  raw excerpts; both/neither); and the `loreVersion` + `loreEnabled` +
+  `loreQuoteEnabled` store actions.
 
 ---
 
@@ -307,7 +349,7 @@ Renderer side: `src/api/electron.ts` mirrors with defensive guards (`warnStalePr
 ---
 
 ## Smoke tests (`scripts/smoke-*.mts`)
-Assertion counts as of 2026-05-28:
+Assertion counts as of 2026-05-29:
 | Slice | File | Count |
 |---|---|---|
 | 2B | smoke-2b-cohort.mts | 13 |
@@ -320,13 +362,14 @@ Assertion counts as of 2026-05-28:
 | 5A reflection | smoke-5a-reflection.mts | 41 |
 | 5B sleep | smoke-5b-sleep.mts | 22 |
 | 5C lore (backbone) | smoke-5c-lore.mts | 27 |
-| 5C.2a lore store | smoke-5c2-lore-store.mts | 31 |
+| 5C.2a lore store | smoke-5c2-lore-store.mts | 34 |
 | 5C.2b lore ingest | smoke-5c2b-lore-ingest.mts | 20 |
 | 5D.1 lore profile | smoke-5d-lore-profile.mts | 17 |
 | 5D.2 lore scatter | smoke-5d-scatter.mts | 16 |
 | 5D.3 lore persona/gate | smoke-5d-persona.mts | 10 |
+| 5D.4 lore visible | smoke-5d4-lore-visible.mts | 33 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **409** |
+| **Total numeric** | | **445** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

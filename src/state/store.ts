@@ -79,6 +79,22 @@ interface AppState {
    *  scatter is computed on-device and is unaffected by this flag. */
   loreEnabled: boolean;
   setLoreEnabled: (on: boolean) => void;
+
+  /** Phase 5D.4 — SECOND, INDEPENDENT lore egress opt-in (default OFF).
+   *  Gates whether retrieved RAW lore excerpts (uploaded text + source
+   *  filename) are sent to the model so agents can reference specific names
+   *  and places. Distinct from `loreEnabled` (closed-vocab {themes,tone}
+   *  only): either, both, or neither may be on. */
+  loreQuoteEnabled: boolean;
+  setLoreQuoteEnabled: (on: boolean) => void;
+
+  /** Phase 5D.4 — monotonic counter bumped after a successful lore ingest.
+   *  App.tsx's palace-mount effect depends on this so the world remounts
+   *  with the theme recomputed from the (now larger) lore corpus. Palette
+   *  recolor is LOCAL and applies whenever lore exists — it is independent
+   *  of the `loreEnabled` egress toggle. */
+  loreVersion: number;
+  bumpLoreVersion: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -199,4 +215,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoreEnabled: (on) => {
     if (get().loreEnabled !== on) set({ loreEnabled: on });
   },
+
+  loreQuoteEnabled: false,
+  setLoreQuoteEnabled: (on) => {
+    if (get().loreQuoteEnabled !== on) set({ loreQuoteEnabled: on });
+  },
+
+  loreVersion: 0,
+  bumpLoreVersion: () => set({ loreVersion: get().loreVersion + 1 }),
 }));

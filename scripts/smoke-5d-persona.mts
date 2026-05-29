@@ -2,11 +2,14 @@
  * Phase 5D.3 smoke — `npx tsx scripts/smoke-5d-persona.mts`.
  *
  * Locks the OPT-IN lore-egress gate in routeTier2:
- *   - loreEnabled OFF (default) → gatherLore is NOT called and the reflect
- *     transport input carries NEITHER recentLore NOR loreContext (nothing
- *     lore-derived leaves the device).
- *   - loreEnabled ON → gatherLore runs, recentLore is forwarded, and a
- *     closed-vocab loreContext {themes, tone} (whitelisted) is attached.
+ *   - loreEnabled OFF (default) → the reflect transport input carries
+ *     NEITHER recentLore NOR loreContext (nothing lore-derived leaves the
+ *     device).
+ *   - loreEnabled ON → a closed-vocab loreContext {themes, tone}
+ *     (whitelisted) is attached AND NOTHING else lore-derived egresses. As of
+ *     5D.4 raw lore snippets (recentLore) are NEVER put on the wire — the
+ *     closed-vocab context is the ONLY permitted lore egress — so the lore
+ *     gatherer is not invoked.
  *
  * Pure: a fake MemoryWriter + capture transport (no DB / network).
  */
@@ -91,8 +94,8 @@ await routeTier2(def, freshRuntime(), NOW, {
 });
 const on: ReflectInput | null = captured;
 check('ON: reflect transport was reached', on !== null);
-check('ON: gatherLore called once', gatherCalls === 1);
-check('ON: recentLore forwarded', (on?.recentLore?.length ?? 0) > 0);
+check('ON: gatherLore NOT called (raw lore never gathered for egress)', gatherCalls === 0);
+check('ON: no recentLore on the wire (raw lore never egresses)', !on?.recentLore || on.recentLore.length === 0);
 check('ON: loreContext attached', !!on?.loreContext);
 check('ON: loreContext.themes includes nautical', on?.loreContext?.themes.includes('nautical') === true);
 check('ON: loreContext.tone is a string', typeof on?.loreContext?.tone === 'string');

@@ -48,6 +48,7 @@ import {
   setRuntime,
 } from '../../state/agentRuntime';
 import { playerPosition } from '../../state/playerPos';
+import { useAppStore } from '../../state/store';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -165,6 +166,8 @@ export function mountCohort(opts: MountCohortOptions): () => void {
           void routeTier2(def, runtime, now, {
             transport: opts.agentTransport,
             memory: memoryWriter,
+            loreEnabled: useAppStore.getState().loreEnabled,
+            loreQuote: useAppStore.getState().loreQuoteEnabled,
           });
         });
       }

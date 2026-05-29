@@ -29,6 +29,7 @@ import { COHORT } from './cohort';
 import { defaultAgentTransport, nullMemoryWriter, routeTier2 } from './router';
 import { getCurrentMemoryWriter } from './memory/bootstrap';
 import { listRuntimes } from '../state/agentRuntime';
+import { useAppStore } from '../state/store';
 
 /** Reflection texts produced during the current sleep session,
  *  buffered for the morning-dispatch overlay to consume. Cleared by
@@ -74,6 +75,8 @@ export async function triggerSleepReflection(): Promise<void> {
   const memory = getCurrentMemoryWriter() ?? nullMemoryWriter;
   const defsById = new Map(COHORT.map((d) => [d.id, d]));
   const now = performance.now();
+  // One read for the whole sweep so every agent shares one egress policy.
+  const { loreEnabled, loreQuoteEnabled } = useAppStore.getState();
   const candidates = listRuntimes().filter(
     (rt) => rt.present && rt.reflectionCounter > 0,
   );
@@ -92,6 +95,8 @@ export async function triggerSleepReflection(): Promise<void> {
         const result = await routeTier2(def, runtime, now, {
           transport: defaultAgentTransport,
           memory,
+          loreEnabled,
+          loreQuote: loreQuoteEnabled,
           // Bypass the per-real-hour rate-limit (5A). The sleep
           // budget is the user's intentional choice to spend
           // here — relaxing on this one pass is the whole point

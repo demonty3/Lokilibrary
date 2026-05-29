@@ -37,6 +37,11 @@ function accepted(name: string): boolean {
 export function LoreDropZone() {
   const open = useAppStore((s) => s.loreUploadOpen);
   const close = useAppStore((s) => s.setLoreUploadOpen);
+  const loreEnabled = useAppStore((s) => s.loreEnabled);
+  const setLoreEnabled = useAppStore((s) => s.setLoreEnabled);
+  const loreQuoteEnabled = useAppStore((s) => s.loreQuoteEnabled);
+  const setLoreQuoteEnabled = useAppStore((s) => s.setLoreQuoteEnabled);
+  const bumpLoreVersion = useAppStore((s) => s.bumpLoreVersion);
   const [dragging, setDragging] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -73,8 +78,12 @@ export function LoreDropZone() {
       const result = await ingestLore(text, file.name, writer);
       results.push(result);
     }
+    // Phase 5D.4: the lore corpus grew — bump loreVersion so App.tsx's
+    // palace-mount effect remounts the world with the theme recomputed
+    // from the new corpus (LOCAL palette recolor; no egress).
+    bumpLoreVersion();
     setStatus({ kind: 'done', results });
-  }, []);
+  }, [bumpLoreVersion]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -180,6 +189,54 @@ export function LoreDropZone() {
               </div>
             ))}
         </div>
+
+        <label
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: '1px solid #585b70',
+            cursor: 'pointer',
+            alignItems: 'flex-start',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={loreEnabled}
+            onChange={(e) => setLoreEnabled(e.target.checked)}
+            style={{ accentColor: '#a6e3a1', marginTop: 2 }}
+          />
+          <span style={{ opacity: 0.85 }}>
+            <strong style={{ color: '#a6e3a1' }}>Theme &amp; mood.</strong> Let your
+            lore steer the agents' voice. Sends only abstract theme tags (e.g.{' '}
+            <code>nautical</code>, <code>gothic</code>) to the model — never your
+            uploaded text. Off by default.
+          </span>
+        </label>
+
+        <label
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 10,
+            cursor: 'pointer',
+            alignItems: 'flex-start',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={loreQuoteEnabled}
+            onChange={(e) => setLoreQuoteEnabled(e.target.checked)}
+            style={{ accentColor: '#f9e2af', marginTop: 2 }}
+          />
+          <span style={{ opacity: 0.85 }}>
+            <strong style={{ color: '#f9e2af' }}>Quote directly.</strong> Let agents
+            reference specific names and places from your notes. Sends relevant{' '}
+            <em>excerpts of your uploaded text</em> (and its filename) to the
+            model. Off by default.
+          </span>
+        </label>
       </div>
     </div>
   );
