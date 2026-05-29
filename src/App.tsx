@@ -19,6 +19,7 @@ import {
   triggerSleepReflection,
 } from './agents/sleep-reflection';
 import { mountMorningDispatch } from './render/overlays/morning-dispatch';
+import { LoreDropZone } from './render/LoreDropZone';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -182,6 +183,20 @@ export function App() {
         useAppStore.getState().toggleAgentDebug();
         return;
       }
+      // Phase 5C.2b — Ctrl+U toggles the lore-upload drop-zone. (Not
+      // Ctrl+L: that's mentally adjacent to the desktop-side Ctrl+Alt+L
+      // peek hotkey, and browsers bind Ctrl+L to the address bar.)
+      if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
+        e.preventDefault();
+        useAppStore.getState().toggleLoreUpload();
+        return;
+      }
+      // Esc closes the drop-zone if open.
+      if (e.key === 'Escape' && useAppStore.getState().loreUploadOpen) {
+        e.preventDefault();
+        useAppStore.getState().setLoreUploadOpen(false);
+        return;
+      }
       if (e.key !== '[' && e.key !== ']') return;
       e.preventDefault();
       const current = useAppStore.getState().scale;
@@ -223,6 +238,7 @@ export function App() {
     <>
       <div ref={canvasHost} style={{ position: 'fixed', inset: 0 }} />
       <Hud scale={scale} steamId={steamId} />
+      <LoreDropZone />
     </>
   );
 }

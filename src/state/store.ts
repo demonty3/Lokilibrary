@@ -64,6 +64,14 @@ interface AppState {
    *  App.tsx; the overlay renderer subscribes + mounts/unmounts. */
   agentDebugOverlay: boolean;
   toggleAgentDebug: () => void;
+
+  /** Phase 5C.2b: lore-upload drop-zone visibility. Toggled by Ctrl+U in
+   *  App.tsx; the LoreDropZone DOM component (sibling of the canvas)
+   *  reads this for visibility. A drop-zone is a DOM file-API surface,
+   *  not a PIXI overlay. */
+  loreUploadOpen: boolean;
+  toggleLoreUpload: () => void;
+  setLoreUploadOpen: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -173,4 +181,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   agentDebugOverlay: false,
   toggleAgentDebug: () => set({ agentDebugOverlay: !get().agentDebugOverlay }),
+
+  loreUploadOpen: false,
+  toggleLoreUpload: () => set({ loreUploadOpen: !get().loreUploadOpen }),
+  setLoreUploadOpen: (v) => {
+    if (get().loreUploadOpen !== v) set({ loreUploadOpen: v });
+  },
 }));

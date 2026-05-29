@@ -93,6 +93,11 @@ function makeMockMemory(opts: {
     logTier2: () => undefined,
     recentMemories: () => opts.recent,
     persona: () => null,
+    // Phase 5C — lore surface; this 5A test has no lore, so no-ops keep
+    // defaultLoreGatherer's loreCount()===0 early-return quiet.
+    recordLore: () => null,
+    recentLore: () => [],
+    loreCount: () => 0,
   };
 }
 

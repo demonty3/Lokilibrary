@@ -27,6 +27,7 @@ Zustand slices:
 - **Throttle (4A + 5B)**: `throttleState: 'full' | 'throttled-1hz' | 'paused' | 'sleeping'`, `setThrottleState`
 - **Scale ladder**: `scale: ScaleLevel`, `setScale`
 - **Telemetry overlay (2F)**: `agentDebugOverlay: boolean`, `toggleAgentDebug`
+- **Lore upload (5C.2b)**: `loreUploadOpen: boolean`, `toggleLoreUpload`, `setLoreUploadOpen` (Ctrl+U / Esc; read by `LoreDropZone`)
 
 ### `playerPosition` (`src/state/playerPos.ts`)
 Module-local singleton mutated at frame rate. Cell-grid coords, not pixels.
@@ -154,8 +155,23 @@ here; `smoke-5c2-lore-store.mts` exercises the real KNN).
   `ReflectInput` → worker folds a `recent_lore:` block into the Tier-2
   user prompt + one system-prompt line. Best-effort: gatherer throw/fail
   → reflection still runs without lore.
-- **Still TODO (5C.2b)**: the drop-zone UI (chunk→embed→recordLore) — no
-  way to *put* lore in yet except programmatically.
+### Lore ingestion + drop-zone (5C.2b)
+- **`src/agents/lore-ingest.ts:ingestLore(text, source, writer, opts?)`** —
+  chunk (`chunkText`) → embed (`embedTexts`, doc-prefixed) → `recordLore`
+  per chunk. Best-effort: embed 501/fail/throw/count-mismatch → chunks
+  still persist (FTS-only), `embedError` surfaced, `embeddedCount=0`.
+  Embed fn injectable for the smoke. Returns `IngestResult{source,
+  chunkCount, embeddedCount, loreIds, embedError?}`.
+- **`src/render/LoreDropZone.tsx`** — DOM React component (sibling of the
+  canvas, like `<Hud>` — file drop is a DOM API, not PIXI). Gated on
+  `store.loreUploadOpen`. `.txt`/`.md`, 1 MB cap, `file.text()` →
+  `ingestLore` against `getCurrentMemoryWriter()`. Null writer (web /
+  pre-bootstrap) → "needs the desktop app". Hardcoded terminal palette.
+- **App.tsx**: Ctrl+U toggles, Esc closes; `<LoreDropZone/>` mounted
+  after `<Hud/>`.
+- **`desktop/src/main.ts`**: `will-navigate` guard in `createWindow` —
+  blocks navigation away from the app URL so a stray file-drop can't make
+  Chromium open the file (contextIsolation:false footgun).
 
 ---
 
@@ -253,8 +269,9 @@ Assertion counts as of 2026-05-28:
 | 5B sleep | smoke-5b-sleep.mts | 22 |
 | 5C lore (backbone) | smoke-5c-lore.mts | 27 |
 | 5C.2a lore store | smoke-5c2-lore-store.mts | 31 |
+| 5C.2b lore ingest | smoke-5c2b-lore-ingest.mts | 20 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **346** |
+| **Total numeric** | | **366** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

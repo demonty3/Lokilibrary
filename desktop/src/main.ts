@@ -128,6 +128,17 @@ function createWindow(): BrowserWindow {
   win.once('ready-to-show', () => win.show());
   void win.loadURL(rendererUrl());
   mainWindow = win;
+
+  // Phase 5C.2b — drag-drop safety. With contextIsolation:false +
+  // nodeIntegration:true, a file dropped ANYWHERE in the window (outside
+  // the lore drop-zone) makes Chromium try to navigate to / open that
+  // file as a page, killing the renderer. The lore drop-zone calls
+  // preventDefault on its own dragover/drop; this is the backstop for a
+  // stray miss. We only ever load the dev-server / built index URL —
+  // block every other navigation.
+  win.webContents.on('will-navigate', (e, target) => {
+    if (target !== win.webContents.getURL()) e.preventDefault();
+  });
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
   });

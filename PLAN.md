@@ -405,13 +405,14 @@ lever." Split into two commits:
   block + system-prompt line. **Cosine path verified in WSL** (sqlite-vec
   loads; 31-assertion smoke exercises real KNN + library isolation).
 
-**5C.2b ⏳ lore drop-zone UI** (next):
-- `.txt` / `.md` drop-zone in the renderer (DOM sibling of the canvas,
-  not a PIXI overlay — file drop is a DOM API; toggle via Ctrl+U).
-- chunk (`chunkText`) → embed (`/api/embed`) → `recordLore` wiring — the
-  only thing missing before a user can actually *put* lore in.
-- `will-navigate` drop-safety guard in `desktop/src/main.ts` (with
-  `contextIsolation:false`, a stray drop navigates Chromium to the file).
+**5C.2b ✅ lore drop-zone UI** (shipped 2026-05-29):
+- `LoreDropZone.tsx` — DOM `.txt`/`.md` drop-zone (Ctrl+U toggle, Esc
+  close), 1 MB cap, `file.text()` → `ingestLore`.
+- `ingestLore` (`lore-ingest.ts`): chunk → embed (doc-prefixed) →
+  `recordLore`; best-effort embed (FTS-only fallback on 501/fail).
+- `will-navigate` drop-safety guard in `desktop/src/main.ts`.
+- **Verified in WSL** by 19-assertion ingest smoke; full live story
+  (drop a file → reflection references it) pending Windows + Ollama.
 
 **5D — Lore-driven world adaptation (~1-2 weekends).** Per
 CONSOLIDATION.md "the world's aesthetic, factions, events, naming
