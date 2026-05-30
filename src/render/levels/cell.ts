@@ -21,7 +21,21 @@ import { launchGame } from '../../agents/launch';
 import { listRuntimes, getRuntime } from '../../state/agentRuntime';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
-import { mountBookshelfPrompt, type BookshelfPromptHandle } from '../overlays/bookshelfPrompt';
+import {
+  mountBookshelfPrompt,
+  mountLocalModelStatus,
+  type BookshelfPromptHandle,
+  type StatusPanelHandle,
+} from '../overlays/bookshelfPrompt';
+import {
+  formatLocalModelStatus,
+  landmarkGlyphFor,
+  landmarkVariantFor,
+  pickLandmarkCell,
+  pickLandmarkModel,
+  LANDMARK_FG_KEY,
+} from '../../procedural/localLandmark';
+import { NO_LOCAL_MODEL, type LocalModelResult } from '../../api/localModel';
 import type { BookGame } from '../PixiApp';
 import {
   COZETTE_CELL_HEIGHT,
@@ -60,6 +74,7 @@ export function mountCell(
   seed = 0,
   memoryWriter: MemoryWriter = nullMemoryWriter,
   spriteAtlas: SpriteAtlas | null = null,
+  localModel: LocalModelResult = NO_LOCAL_MODEL,
 ): () => void {
   const container = new Container();
   app.stage.addChild(container);
@@ -67,11 +82,16 @@ export function mountCell(
   const baseLayer = new Container();
   const spineLayer = new Container();
   const scatterLayer = new Container();
+  // Phase 6A: local-model landmark sits between scatter and agents in
+  // Z-order so it reads as a structure (above decor) but agents/player
+  // draw over it when they walk past.
+  const landmarkLayer = new Container();
   const markLayer = new Container();
   const agentLayer = new Container();
   container.addChild(baseLayer);
   container.addChild(spineLayer);
   container.addChild(scatterLayer);
+  container.addChild(landmarkLayer);
   container.addChild(markLayer);
   container.addChild(agentLayer);
 
@@ -177,6 +197,36 @@ export function mountCell(
     else scatterAnchors.set(item.glyph, [{ x: item.x, y: item.y }]);
   }
 
+  // Phase 6A: local-model landmark — "Local AI lives in your world" Depth 1.
+  // If a local Ollama model is present, place ONE deterministic landmark
+  // glyph on a free floor cell (cottage for a small model, tower for a
+  // large one) and glow it when a model is loaded. Placement is seeded +
+  // keepout-aware (Loki's spawn + every scatter cell) so it never overlaps
+  // decor or the agent at boot; the cell only depends on (seed, layout,
+  // keepouts) — the live model state never feeds the PRNG. present:false
+  // (cloud / no Ollama / web build) → no landmark, no glow, no E-status.
+  const landmarkModel = pickLandmarkModel(localModel);
+  let landmarkCell: CellPoint | null = null;
+  let landmarkSprite: BitmapText | null = null;
+  let landmarkRunning = false;
+  if (landmarkModel) {
+    const scatterCells: CellPoint[] = scatterItems.map((i) => ({ x: i.x, y: i.y }));
+    landmarkCell = pickLandmarkCell(layout, seed, [lokiSpawn, ...scatterCells]);
+    landmarkRunning = localModel.present ? localModel.running : false;
+    const variant = landmarkVariantFor(landmarkModel);
+    landmarkSprite = new BitmapText({
+      text: landmarkGlyphFor(variant),
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette[LANDMARK_FG_KEY]),
+      },
+    });
+    landmarkSprite.x = landmarkCell.x * COZETTE_CELL_WIDTH;
+    landmarkSprite.y = landmarkCell.y * COZETTE_CELL_HEIGHT;
+    landmarkLayer.addChild(landmarkSprite);
+  }
+
   // Phase 2B agent cohort — 5 sprites + Tier-0 BT. One shared Ticker
   // inside mountCohort handles all per-agent ticks.
   const teardownCohort = mountCohort({
@@ -228,6 +278,20 @@ export function mountCell(
   // at a time; switching shelves destroys the old prompt + builds a new.
   let promptHandle: BookshelfPromptHandle | null = null;
 
+  // Phase 6A: local-model status panel — spawned on E when the player is
+  // adjacent to the landmark (and no launchable shelf takes precedence).
+  // Auto-despawns when the player steps away from the landmark, matching
+  // the bookshelf prompt's proximity contract.
+  let statusHandle: StatusPanelHandle | null = null;
+
+  /** True when the player stands within Chebyshev-1 of the landmark cell. */
+  function isAdjacentToLandmark(): boolean {
+    if (!landmarkCell) return false;
+    const dx = Math.abs(playerPosition.x - landmarkCell.x);
+    const dy = Math.abs(playerPosition.y - landmarkCell.y);
+    return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
+  }
+
   function nearestAdjacentBookshelf(): { slot: CellPoint; book: BookGame } | null {
     // Check each of the 8 Chebyshev-1 neighbours + the player tile itself.
     // (The shelf itself isn't walkable, so the player can't be ON one;
@@ -252,6 +316,14 @@ export function mountCell(
     const py = playerPosition.y * COZETTE_CELL_HEIGHT;
     if (playerSprite.x !== px) playerSprite.x = px;
     if (playerSprite.y !== py) playerSprite.y = py;
+
+    // Phase 6A: despawn the local-model status panel once the player steps
+    // out of the landmark's neighbourhood (matches the bookshelf prompt's
+    // step-away contract).
+    if (statusHandle && !isAdjacentToLandmark()) {
+      statusHandle.destroy();
+      statusHandle = null;
+    }
 
     // Refresh prompt visibility. Cheap — ≤9 grid checks per frame.
     const target = nearestAdjacentBookshelf();
@@ -279,6 +351,30 @@ export function mountCell(
   };
   app.ticker.add(positionPlayer);
 
+  // Phase 6A: landmark glow. A gentle alpha pulse ONLY while the local
+  // model is loaded (`running`); a steady, un-pulsed glyph otherwise. Driven
+  // off ticker deltaMS (NOT Date.now/performance.now) so the pulse FREEZES
+  // automatically under the 'paused'/'sleeping' throttle states (PixiApp
+  // stops the ticker) and never logically advances while stopped — staying
+  // correct on resume AND honouring the no-wall-clock spirit. This is
+  // render-only (outside src/procedural), so the determinism contract is
+  // untouched (CLAUDE.md explicitly encourages sub-character animation here).
+  let pulsePhase = 0;
+  const PULSE_PERIOD_MS = 1400; // full bright↔dim cycle
+  const pulseLandmark: TickerCallback<unknown> = () => {
+    if (!landmarkSprite) return;
+    if (!landmarkRunning) {
+      if (landmarkSprite.alpha !== 1) landmarkSprite.alpha = 1;
+      return;
+    }
+    pulsePhase = (pulsePhase + app.ticker.deltaMS) % PULSE_PERIOD_MS;
+    const t = pulsePhase / PULSE_PERIOD_MS; // 0..1
+    // Sine ease between 0.55 and 1.0 alpha — visibly "alive" but not flashy.
+    const a = 0.55 + 0.45 * (0.5 - 0.5 * Math.cos(t * 2 * Math.PI));
+    landmarkSprite.alpha = a;
+  };
+  app.ticker.add(pulseLandmark);
+
   // Keyboard movement — debounced per-key so holding doesn't teleport.
   // Wallpaper-mode gates: the wallpaper layer should not consume input.
   const MOVE_DEBOUNCE_MS = 100;
@@ -290,12 +386,33 @@ export function mountCell(
     // Bookshelf launch — only fires when prompt is currently shown.
     if (e.key.toLowerCase() === 'e') {
       const target = nearestAdjacentBookshelf();
-      if (!target) return;
-      const now = performance.now();
-      if (now - lastLaunchAt < LAUNCH_DEBOUNCE_MS) return;
-      lastLaunchAt = now;
-      e.preventDefault();
-      void handleLaunch(target.slot, target.book);
+      if (target) {
+        // Bookshelf-launch takes precedence over the landmark status when
+        // the player is adjacent to both (preserves the shipped E behaviour).
+        const now = performance.now();
+        if (now - lastLaunchAt < LAUNCH_DEBOUNCE_MS) return;
+        lastLaunchAt = now;
+        e.preventDefault();
+        void handleLaunch(target.slot, target.book);
+        return;
+      }
+      // Phase 6A: no shelf in reach — if adjacent to the local-model
+      // landmark, toggle the diegetic status panel. Presence + status only,
+      // never a chatbot (CLAUDE.md).
+      if (landmarkModel && landmarkCell && isAdjacentToLandmark()) {
+        e.preventDefault();
+        if (statusHandle) {
+          statusHandle.destroy();
+          statusHandle = null;
+        } else {
+          statusHandle = mountLocalModelStatus({
+            parent: landmarkLayer,
+            theme,
+            anchor: landmarkCell,
+            text: formatLocalModelStatus(landmarkModel, landmarkRunning),
+          });
+        }
+      }
       return;
     }
 
@@ -407,9 +524,14 @@ export function mountCell(
   return () => {
     window.removeEventListener('keydown', onKeydown);
     app.ticker.remove(positionPlayer);
+    app.ticker.remove(pulseLandmark);
     if (promptHandle) {
       promptHandle.destroy();
       promptHandle = null;
+    }
+    if (statusHandle) {
+      statusHandle.destroy();
+      statusHandle = null;
     }
     teardownCohort();
     app.renderer.off('resize', fit);

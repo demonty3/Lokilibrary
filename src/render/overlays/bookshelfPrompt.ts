@@ -80,3 +80,57 @@ export function mountBookshelfPrompt(opts: MountPromptOptions): BookshelfPromptH
     },
   };
 }
+
+export interface StatusPanelHandle {
+  /** Remove the BitmapText + Container from the parent. Idempotent. */
+  destroy(): void;
+}
+
+export interface MountStatusPanelOptions {
+  parent: Container;
+  theme: Theme;
+  /** Anchor cell — the panel sits one row above it (or below if at y=0),
+   *  identical to the bookshelf prompt's positioning logic. */
+  anchor: CellPoint;
+  /** Arbitrary diegetic text (e.g. "Qwen 2.5 7B · idle · localhost"). */
+  text: string;
+}
+
+/**
+ * Phase 6A: a small diegetic status panel for the local-model landmark.
+ * Reuses the bookshelf-prompt's Container + BitmapText pattern + positioning
+ * (one row above the anchor cell) but renders arbitrary status text. NO
+ * dialogue — presence + status only (CLAUDE.md "don't make the agent a
+ * chatbot"). Tinted `cyan` so it reads as the landmark's own voice rather
+ * than a launch prompt.
+ */
+export function mountLocalModelStatus(opts: MountStatusPanelOptions): StatusPanelHandle {
+  const container = new Container();
+  const panelY = opts.anchor.y === 0 ? opts.anchor.y + 1 : opts.anchor.y - 1;
+  // Shift left a couple cells so the text frames the landmark column rather
+  // than starting at it (the status line is wider than one glyph). Clamp to
+  // 0 so a landmark on the innermost column (x=1) doesn't push the panel off
+  // the left edge.
+  container.x = Math.max(0, opts.anchor.x * COZETTE_CELL_WIDTH - 2 * COZETTE_CELL_WIDTH);
+  container.y = panelY * COZETTE_CELL_HEIGHT;
+
+  const text = new BitmapText({
+    text: opts.text,
+    style: {
+      fontFamily: COZETTE_FONT_FAMILY,
+      fontSize: COZETTE_FONT_SIZE,
+      fill: hexToInt(opts.theme.palette.cyan),
+    },
+  });
+  container.addChild(text);
+  opts.parent.addChild(container);
+
+  let destroyed = false;
+  return {
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      container.destroy({ children: true });
+    },
+  };
+}

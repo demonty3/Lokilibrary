@@ -100,6 +100,101 @@ export async function detectOllamaGpu(env: ProviderEnv): Promise<OllamaGpuSnapsh
   return { available: true, models };
 }
 
+/**
+ * Phase 6A: "Local AI lives in your world" Depth 1 — local-model presence
+ * probe. Mirrors `detectOllamaGpu`'s never-throw, local-only-by-contract
+ * discipline.
+ *
+ * Reads ONLY local model metadata (names / sizes / parameter class) from
+ * the localhost Ollama daemon. NOTHING egresses to any third party: the
+ * cloud / no-Ollama path returns `{present:false}` so a deployed cloud
+ * config simply never sees a model (consistent with CLAUDE.md's privacy
+ * contract extended to model metadata). The renderer treats `present:false`
+ * as a normal "no landmark" state, not an error — hence the worker returns
+ * 200 {present:false} rather than the 501 that /api/embed uses.
+ *
+ * Two Ollama endpoints:
+ *   - `/api/tags` — INSTALLED models (the catalog). `/api/ps` only lists
+ *     LOADED models, so tags is required to know what is installed.
+ *   - `/api/ps` — LOADED / running models (drives the landmark glow).
+ *
+ * Never throws — any fetch / parse failure degrades to
+ * `{present:false, models:[], running:false}` so a down Ollama (or WSL with
+ * no Ollama at all) is a non-event.
+ */
+export interface LocalModelInfo {
+  name: string;
+  sizeBytes?: number;
+  paramClass?: string;
+}
+
+export interface LocalModelSnapshot {
+  present: boolean;
+  models: LocalModelInfo[];
+  running: boolean;
+}
+
+const EMPTY_LOCAL_MODEL: LocalModelSnapshot = { present: false, models: [], running: false };
+
+/**
+ * Normalize an Ollama `details.parameter_size` string ('7B', '13.0B',
+ * '70.6B') into a canonical uppercased token. Pure + exported so the
+ * size→landmark-variant boundary is unit-testable without a live Ollama.
+ * Returns undefined when there is nothing parseable.
+ */
+export function paramClassFromName(parameterSize: string | undefined): string | undefined {
+  if (!parameterSize) return undefined;
+  const trimmed = parameterSize.trim().toUpperCase();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export async function detectLocalModel(env: ProviderEnv): Promise<LocalModelSnapshot> {
+  const provider = (env.LLM_PROVIDER ?? 'anthropic').toLowerCase();
+  if (provider !== 'local') return { ...EMPTY_LOCAL_MODEL };
+  const url = (env.OLLAMA_URL ?? 'http://localhost:11434').replace(/\/$/, '');
+
+  // Installed catalog via /api/tags.
+  let models: LocalModelInfo[] = [];
+  try {
+    const res = await fetch(`${url}/api/tags`);
+    if (res.ok) {
+      type TagsResponse = {
+        models?: Array<{
+          name?: string;
+          size?: number;
+          details?: { parameter_size?: string };
+        }>;
+      };
+      const data = (await res.json()) as TagsResponse;
+      models = (data.models ?? [])
+        .filter((m) => typeof m.name === 'string' && m.name.length > 0)
+        .map((m) => ({
+          name: m.name as string,
+          sizeBytes: typeof m.size === 'number' ? m.size : undefined,
+          paramClass: paramClassFromName(m.details?.parameter_size),
+        }));
+    }
+  } catch {
+    return { ...EMPTY_LOCAL_MODEL };
+  }
+  if (models.length === 0) return { ...EMPTY_LOCAL_MODEL };
+
+  // Running state via /api/ps (≥1 loaded model). Best-effort: a failure here
+  // just means "present but not glowing" — installed models are still shown.
+  let running = false;
+  try {
+    const res = await fetch(`${url}/api/ps`);
+    if (res.ok) {
+      const data = (await res.json()) as { models?: Array<unknown> };
+      running = Array.isArray(data.models) && data.models.length > 0;
+    }
+  } catch {
+    running = false;
+  }
+
+  return { present: true, models, running };
+}
+
 export async function callStageOne(
   env: ProviderEnv,
   system: string,

@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-29** (slice 5D.4: lore palette recolor + agent-voice egress wiring + two-flag opt-in toggles).
+Last updated: **2026-05-29** (slice 6A: local-model landmark — "Local AI lives in your world" Depth 1: `GET /api/local-model` + deterministic cell landmark + press-E status).
 
 ---
 
@@ -267,6 +267,67 @@ here; `smoke-5c2-lore-store.mts` exercises the real KNN).
   raw excerpts; both/neither); and the `loreVersion` + `loreEnabled` +
   `loreQuoteEnabled` store actions.
 
+### Local model presence (6A) — "Local AI lives in your world" Depth 1
+The user's local Ollama model manifests as ONE landmark in the cell —
+presence only (IDEAS.md "The local LLM is visible in the world", Depth 1).
+No dialogue (CLAUDE.md "don't make the agent a chatbot").
+- **Detection (via the Worker).** `worker/lib/providers.ts:detectLocalModel(env)`
+  — never-throws, local-only. `LLM_PROVIDER !== 'local'` → `{present:false}`.
+  Local path: `GET ${OLLAMA_URL}/api/tags` (installed catalog → name /
+  sizeBytes / paramClass) + `GET /api/ps` (≥1 loaded model → `running`).
+  Pure exported `paramClassFromName(parameter_size)` normalises the token.
+  Route `GET /api/local-model` (`worker/index.ts`) just `json()`s the
+  snapshot — 200 `{present:false}` on cloud/no-Ollama (NOT 501: absence is a
+  normal state, unlike `/api/embed`).
+- **Client** `src/api/localModel.ts:getLocalModel()` →
+  `{present:true,models,running} | {present:false}`; never rejects (network /
+  non-ok / cloud → `{present:false}`, same defensive posture as `embedTexts`).
+  Pure exported `parseLocalModelBody(data)` (body→result transform, smoke
+  surface) + `NO_LOCAL_MODEL` default. Reads ONLY local model metadata;
+  nothing egresses to a third party.
+- **Deterministic placement + appearance** `src/procedural/localLandmark.ts`
+  (pure, src/procedural determinism domain):
+  - `pickLandmarkModel(result)` — largest by sizeBytes, paramClass, then
+    name tiebreak → ONE landmark (multiple models = a village is a LATER depth).
+  - `landmarkVariantFor(model)` → `'cottage' | 'tower'`. Cutoff:
+    `paramClass` billions ≥ `TOWER_PARAM_THRESHOLD_B` (30) → tower, else
+    cottage; sizeBytes fallback (`TOWER_SIZE_THRESHOLD_BYTES` = 18 GiB);
+    unknown size → cottage. `landmarkGlyphFor` → whitelisted glyphs only
+    (`⌂` cottage / `║` tower — both confirmed in the Cozette atlas), tinted
+    `LANDMARK_FG_KEY` (`cyan`).
+  - `pickLandmarkCell(layout, seed, keepouts)` — `mulberry32((seed ^
+    0x1a4d)>>>0)` (namespace `0x1a4d`, distinct from cell `0xce11` / scatter
+    `0x5ca7` / Loki `0x10ce`). Picks a T_FLOOR cell that is not a keepout /
+    not the spawn AND has a free floor neighbour (so the player can stand
+    adjacent to press E). NO wall-clock / Math.random. The live `running`
+    state is kept OUT of placement — position depends only on
+    (seed, layout, keepouts).
+  - `formatLocalModelStatus(model, running)` → `"Qwen 2.5 7B · idle ·
+    localhost"` / `"· running ·"`.
+- **Renderer** (`src/render/levels/cell.ts`): new `landmarkLayer` (Z between
+  scatter + agents). After the scatter pass, `pickLandmarkCell` runs with
+  `[lokiSpawn, ...scatterCells]` as keepouts and renders one BitmapText
+  glyph. `pulseLandmark` ticker (sibling of `positionPlayer`, removed in the
+  same teardown) modulates `alpha` 0.55↔1.0 ONLY when `running` — driven off
+  `app.ticker.deltaMS` so it freezes under `paused`/`sleeping` and never uses
+  a wall clock. Press-E on a landmark (when no launchable shelf is adjacent —
+  bookshelf-launch wins) toggles a diegetic status panel
+  (`mountLocalModelStatus` in `bookshelfPrompt.ts`, same Container+BitmapText
+  pattern, tinted `cyan`); auto-despawns on step-away. `localModel` threads
+  `mountPalace` (one-shot `getLocalModel()` in the boot `Promise.all`) →
+  `mountLevel` → `mountCell`, all optional/defaulted to `NO_LOCAL_MODEL`.
+- **Production follow-up (documented, NOT built):** a deployed remote Worker
+  / frontend cannot reach the user's `localhost:11434`. The production path
+  is the Electron main process probing localhost directly and exposing it
+  over IPC (`src/api/electron.ts` + desktop preload), the way the v0.6
+  wrapper checked Ollama. The local wrangler→Ollama path wired here is the
+  dev/WSL-testable equivalent that proves the contract.
+- Smoke: `smoke-6a-local-model.mts` (42) — size→variant thresholds + glyph
+  whitelist, deterministic model selection + placement (same seed → same
+  cell; 200 seeds all land on a valid free floor cell; keepout/spawn
+  avoidance; walkable-neighbour guarantee), the `{present:false}` parse path,
+  and the status formatter.
+
 ---
 
 ## Desktop wrapper
@@ -344,6 +405,7 @@ Renderer side: `src/api/electron.ts` mirrors with defensive guards (`warnStalePr
 | `POST /api/agent/tick` | 0 / 2C | Tier-1 micro-action |
 | `POST /api/agent/reflect` | 2D + 5A | Tier-2 reflection + plan (5A added plan output) |
 | `POST /api/embed` | 5C.1 | `{texts}`→`{embeddings}` 768-dim via local Ollama nomic-embed-text; cloud path 501 (privacy contract) |
+| `GET /api/local-model` | 6A | `{present, models:[{name,sizeBytes?,paramClass?}], running}` via local Ollama `/api/tags`+`/api/ps`; cloud / no-Ollama → 200 `{present:false}` (NOT 501 — absence is a normal state). Reads ONLY local model metadata; never egresses |
 | `POST /api/bake/sprite` | 3C | PixelLab.ai proxy for bake tooling |
 
 ---
@@ -368,8 +430,9 @@ Assertion counts as of 2026-05-29:
 | 5D.2 lore scatter | smoke-5d-scatter.mts | 16 |
 | 5D.3 lore persona/gate | smoke-5d-persona.mts | 10 |
 | 5D.4 lore visible | smoke-5d4-lore-visible.mts | 33 |
+| 6A local model | smoke-6a-local-model.mts | 42 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **445** |
+| **Total numeric** | | **487** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

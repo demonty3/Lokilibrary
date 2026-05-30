@@ -11,6 +11,7 @@ import { mountStubLevel } from './levels/stub';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { waitForCozette } from './fonts';
 import { loadSpriteAtlas, type SpriteAtlas } from './sprites';
+import { getLocalModel, NO_LOCAL_MODEL, type LocalModelResult } from '../api/localModel';
 import { nullMemoryWriter, type MemoryWriter } from '../agents/router';
 import {
   getCurrentMemoryWriter,
@@ -81,10 +82,15 @@ export async function mountPalace(
   currentRenderContext = { app, theme };
 
   // Cozette + sprite atlas can load in parallel — both are bounded by
-  // the network round-trip for static assets in public/.
-  const [, spriteAtlas] = await Promise.all([
+  // the network round-trip for static assets in public/. Phase 6A: also
+  // probe the local-model presence once here (one-shot at mount — never
+  // per-frame, so nothing egresses on a loop and it stays consistent with
+  // the "all AI via the Worker" rule). getLocalModel resolves
+  // {present:false} on any failure, so this never blocks the boot.
+  const [, spriteAtlas, localModel] = await Promise.all([
     waitForCozette(),
     loadSpriteAtlas(theme.id),
+    getLocalModel(),
   ]);
 
   const initialWriter = options.memoryWriter ?? nullMemoryWriter;
@@ -114,6 +120,7 @@ export async function mountPalace(
     useAppStore.getState().scale,
     resolveWriter(),
     spriteAtlas,
+    localModel,
   );
 
   // Phase 4 slice 4A — wallpaper throttle hookup. Phase 5B added the
@@ -199,6 +206,7 @@ export async function mountPalace(
         state.scale,
         resolveWriter(),
         spriteAtlas,
+        localModel,
       );
       lastSeed = nextSeed;
     } else if (seedChanged) {
@@ -233,6 +241,7 @@ function mountLevel(
   scale: ScaleLevel,
   memoryWriter: MemoryWriter,
   spriteAtlas: SpriteAtlas | null,
+  localModel: LocalModelResult = NO_LOCAL_MODEL,
 ): () => void {
   if (scale === 'cell') {
     const { books, seed } = snapshotLibraryState();
@@ -245,6 +254,7 @@ function mountLevel(
       seed,
       memoryWriter,
       spriteAtlas,
+      localModel,
     );
   }
   if (scale === 'district') {

@@ -567,6 +567,283 @@ months-long crisis.
 
 ---
 
+## Phase 7 / v2.x — Composable panes (terminal-merging track)
+
+> **Design-only roadmap. Build NOTHING from this section yet.** Named
+> "Phase 7" to avoid colliding with the existing "Phase 6 — Steam release"
+> above; `docs/INDEX.md` + `CONSOLIDATION.md` file composable panes as
+> **v2.x territory**. The whole track is gated behind TWO hard dependencies
+> that do **not** exist today (IDEAS.md "Composable panes" sequencing,
+> lines 345–347): **a real multi-pane terminal UI AND the scale ladder
+> beyond `cell`/`district`.** Verified against the live code: `PixiApp.ts`
+> mounts `mountStubLevel` for island/continent/planet/solar_system,
+> `district.ts` is a static 3×3 placeholder, and `store.scale` is a single
+> scalar — there is nothing to "join" until both gates clear. Sequence the
+> prerequisites (Phase A → B) before any "panes" work; it is not optional.
+>
+> The one cheap seed IDEAS.md names (line 350) — **pane-aware agent
+> perception** — was deliberately **not** taken in Phase 2 (perception.ts
+> shipped FOV-only) and is **not** blocking anything until the multi-pane
+> UI exists. Pick it up as **step one of the Depth-1/Depth-2 slice**, not a
+> retrofit now.
+
+### Phase A — Scale ladder beyond cell/district
+
+**Goal.** Replace the four stub levels (island, continent, planet,
+solar_system) with real, deterministic, navigable renderers so there is an
+actual ladder of scales to view simultaneously later. Until real higher
+levels exist, a multi-pane UI has nothing distinct to put in each pane —
+IDEAS.md names this the first dependency gate.
+
+**Prerequisites.**
+- Code reality today: `src/types.ts` `SCALE_ORDER` lists all 6 levels but
+  `PixiApp.ts` mounts `mountStubLevel` for island/continent/planet/
+  solar_system (literal "not yet built. keep playing." panel in `stub.ts`).
+  Even `district.ts` is a static 3×3 ASCII minimap with 8 stubbed
+  neighbours ("neighbouring cells not yet built") — it does NOT render real
+  adjacent cells.
+- An aggregation source: higher levels need data to summarize.
+  `profile.topGames` + state tags exist but there is no
+  district-grouping / clustering layer. A deterministic grouping function
+  (seeded by `profileSeed`, in `src/procedural`) is a prerequisite.
+- Determinism harness already in place: `mulberry32` + `profileSeed` + the
+  no-`Math.random` rule. Higher levels MUST reuse these.
+
+**Key work.**
+- Define each higher level's rendering vocabulary (DESIGN.md/SPEC.md §4:
+  island = neighbourhoods/clustered shapes, continent = land-masses,
+  planet = orbital rotating world, solar_system = one planet per data
+  source). Box-glyph only (pixel-art pipeline is a later phase per
+  CLAUDE.md).
+- Deterministic clustering layer in `src/procedural` grouping the library
+  into districts→islands→continents from the profile seed (mirror
+  cell.ts/scatter.ts namespace-isolation, e.g. `mulberry32(seed ^
+  DISTRICT_SALT)`). Same profile → same map is a hard requirement.
+- Replace `mountStubLevel` calls per level in `PixiApp.ts` `mountLevel()`
+  with real mount functions in `src/render/levels/` (island.ts,
+  continent.ts, planet.ts, solar_system.ts), each returning a teardown
+  closure like mountCell/mountDistrict.
+- Upgrade `district.ts` from the static 3×3 placeholder to render real
+  neighbour summaries (agent-activity heatmap, per-cell state glyphs).
+- Keep the existing single-pane `[` / `]` zoom transition (App.tsx) working
+  throughout — this phase does NOT add panes, it fills the ladder rungs the
+  current swap-one-level renderer already cycles through.
+
+**Risks.** Aesthetic-coherence (four new vocabularies must each read as
+terminal under one palette); determinism drift (clustering multiplies the
+seeded-PRNG surface — any `Math.random`/wall-clock leak breaks the WFC /
+share-URL contract; lock same-seed→same-map per level in the smoke suite);
+scope (planet "rotating world" + solar_system "data sources" are the most
+speculative rungs — solar_system implies multi-source ingestion which is
+Year-3; ship island + continent for real first, keep planet/solar_system as
+richer-stub until multi-source lands); no persistent map state today
+(clustering must be pure-from-seed).
+
+**Demo payoff.** Zooming out with `]` no longer hits "not yet built" — the
+user sees their whole library as a coherent map at every rung. The
+precondition that gives the later multi-pane UI distinct content per pane.
+
+### Phase B — Multi-pane terminal UI (N simultaneous level Containers)
+
+**Goal.** Move the renderer from one-active-level-at-a-time to N
+simultaneous panes, each showing a (level, viewport) independently — the
+"multi-pane terminal UI" SPEC §4 names and IDEAS.md's second dependency
+gate. Panes are visual only here — no seams, no joining, no cross-pane
+perception.
+
+**Prerequisites.** Phase A (real higher levels — a pane is only interesting
+if different panes show different real scales). Architectural facts to
+refactor: today `PixiApp.mountPalace` creates ONE Application and
+`mountLevel()` adds exactly ONE level Container to `app.stage`, torn down +
+remounted on the single `store.scale` change; `store.ts` holds a single
+scalar `scale: ScaleLevel`. Multi-pane means N independent (level, viewport,
+teardown) records — the store slice and the renderer router both change
+shape. Input ownership: `cell.ts` owns window-level keydown + the bookshelf
+prompt against a single `playerPos.ts` singleton; with N panes, "which pane
+has focus / owns input / owns the player" becomes a real design question.
+Throttle: `applyThrottle` drives one `app.ticker`; N panes still share one
+Application/ticker (CLAUDE.md: don't destroy the Application) — per-pane
+visibility/pause must compose with the `'full'`/`'throttled-1hz'`/`'paused'`/`'sleeping'`
+ladder.
+
+**Key work.**
+- Generalize `store.scale` (single scalar) into a panes model: ordered list
+  of pane descriptors `{id, level, viewport, rect}` + a `focusedPaneId`.
+  Keep a back-compat path so single-pane (= current behaviour) is the
+  default and the wallpaper use case is unchanged.
+- Refactor the `PixiApp.ts` level router into a `Map<paneId,
+  {container, teardown}>`; mount/unmount per pane; each pane gets its own
+  clipped sub-Container (PIXI mask/rect). The single Application + ticker
+  stays.
+- Resolve input ownership: route keydown/movement/E to the focused pane
+  only; make `playerPos` pane-scoped (the player lives in one pane at a
+  time in Depth-1 — the seam Phase D later makes crossable). bookshelfPrompt
+  + the E-key status overlays read the focused pane's coordinate space.
+- Render seam glyphs as pure decoration where panes abut (U+2502 / U+2500
+  borders) — NO semantics yet. The visual half, so Phase C (drag) + Phase D
+  (join) build on a stable layout primitive.
+- Ship a small library of curated default arrangements (IDEAS.md "Default
+  arrangements": a *study* = cell+district stacked, a *tour* = three
+  districts horizontal, a *voyage* = planet+cell) as named presets —
+  composition stays optional so ambience/wallpaper is preserved.
+- Wallpaper-mode interaction (IDEAS.md line 333): wallpaper mode shows the
+  last-saved arrangement read-only; composition is window-mode only
+  (Ctrl+Alt+L peek, Phase 4, brings the window UI up).
+
+**Risks.** Largest blast radius in the track — the single-scalar `scale`
+slice + single-Container assumption are load-bearing across `PixiApp.ts`,
+`App.tsx` (the `[`/`]` handler), `cell.ts` (input + playerPos), and every
+overlay; must ship behind a feature flag with single-pane as default.
+Performance (N live panes multiply per-frame cost — per-pane throttling,
+only the focused/visible pane runs `'full'`, must extend the Phase 4/5B ladder
+or the thermal budget blows). Ambience-vs-composability (IDEAS.md "load-
+bearing tension", line 328: if composing is mandatory the wallpaper value-
+prop dies — curated defaults + composition-is-optional is a HARD constraint,
+not an afterthought). Input/focus model is novel UX (tmux-like focus in a
+wallpaper) with a discoverability problem (IDEAS.md line 329).
+
+**Demo payoff.** Two terminals side by side — cell of the library room next
+to the district map — both live, dropped in from a one-key preset. The
+tmux-for-your-Steam-library shot.
+
+### Phase C — Composable panes Depth 1 (drag panes, visual-only seams)
+
+**Goal.** Make the multi-pane layout user-configurable: drag panes to
+reposition, snap them adjacent, form/dissolve VISUAL seams — seams carry no
+perceptual semantics yet. Exactly IDEAS.md "Composable panes Depth 1"
+(line 314: *"Panes sit adjacent but don't yet merge — seams are visual only,
+no perceptual flow. This is the multi-pane terminal UI already specced, made
+user-configurable."*).
+
+**Prerequisites.** Phase B (the N-pane renderer + pane descriptors + clipped
+sub-Containers). A snapping/adjacency model: pane rects need a grid or
+snap-target system so "these two panes are touching" is well-defined (the
+adjacency fact Phase D later upgrades into a perceptual edge). Saved-layout
+persistence (implied): reuse the Phase 5 persistent-state machinery (KV /
+SQLite namespace) rather than inventing new storage.
+
+**Key work.**
+- Pointer drag to move a pane's rect; snap to neighbour edges; recompute
+  seam-glyph borders (U+253C `┼` at cross-junctions, U+2524 `┤` at edges per
+  IDEAS.md) when panes touch and fade them out when panes separate
+  (sub-character fade, not snap-to-grid, per CLAUDE.md).
+- Persist arrangement to per-user storage so it survives restart; expose a
+  one-tap "reset to default arrangement" affordance (Townscaper lesson,
+  IDEAS.md line 329: impossible to break).
+- Stacking-direction semantics as METADATA only (no behaviour yet): record
+  vertical-stack = scale, horizontal = parallel, corner = cross-source
+  (IDEAS.md lines 308–310) on the seam so Phase D can read them. Reserve
+  corner-touch for cross-source even though multi-source is Year-3.
+- Pin/lock controls: pin a pane so drag/snap won't move it (groundwork for
+  the IDEAS.md "leave this scope alone" panel that Sleep-mode Depth 3 needs).
+- Keep seams strictly cosmetic: `perception.ts` is untouched in this phase —
+  agents still see only within their own pane's FOV. The explicit Depth-1
+  boundary.
+
+**Risks.** Discoverability (nothing signals panes are draggable — needs a
+first-run reveal; Loki's overnight demonstration is Phase D+/Year-2, so
+Depth 1 needs an interim hint). Snapping UX is fiddly — budget iteration on
+snap feel specifically. Layout persistence is USER state, not seed-derived,
+so it lives OUTSIDE `src/procedural` (arrangement is a personalisation
+lever, distinct from the seeded world). Wallpaper-mode read-only contract
+from Phase B must hold (dragging in wallpaper mode disabled).
+
+**Demo payoff.** The marketing artifact IDEAS.md predicts (line 337): *"my
+library, the way I like to arrange it tonight"* — a one-image,
+terminal-styled composition unique to the user, crisp box-drawing seams
+where panes meet. Re-arrangeable, screenshot-shareable.
+
+### Phase D — Composable panes Depth 2 (seam-crossing + memory flow + pane-aware perception)
+
+**Goal.** Make seams MEAN something: when two panes touch, agents can
+perceive across the seam, walk across it, and memory flows between the
+joined places. The arrangement becomes the agent society's perceptual graph
+(IDEAS.md "Composable panes Depth 2 — active merging", line 316). The
+topology stops being cosmetic and becomes substrate.
+
+**Prerequisites.** Phase C (visual seams + adjacency metadata — you can only
+make a seam crossable once seams exist and record which panes they join).
+**THE cheap seed, deliberately deferred (IDEAS.md line 350): pane-aware
+agent perception.** Today `perception.ts:computePerception` takes a single
+`WorldSnapshot` (player + agents + bookshelves in one cell coordinate
+space), uses a Chebyshev FOV radius, and `void`s the layout param — there is
+ZERO concept of a pane, a seam, or cross-boundary visibility. This refactor
+is the heart of Phase D. Phase 5 machinery to reuse (IDEAS.md line 347): the
+persistent memory stream (SQLite + sqlite-vec), Tier-2 reflection, and lore
+retrieval — memory-flow-across-seam is built on these, not new infra. A
+coordinate-bridging model: each pane has its own cell coordinate space + its
+own `playerPos`; crossing a seam means mapping a position from pane A's
+space into pane B's at the shared edge — a new spatial primitive.
+
+**Key work.**
+- Refactor `perception.ts` from single-WorldSnapshot/FOV to graph-aware: a
+  perceiving agent's FOV may extend across an OPEN seam into the adjacent
+  pane's snapshot. Introduce a perceptual-graph type (panes as nodes, open
+  seams as edges); `computePerception` walks one hop across an open seam,
+  projecting the neighbour pane's subjects into the perceiver's FOV at the
+  seam offset.
+- Seam-crossing movement: when the player/agent reaches a seam cell, transfer
+  to the adjacent pane (translate position into the neighbour's coordinate
+  space, hand input ownership to the now-focused pane). Sub-character
+  animation across the boundary, not a hard snap (CLAUDE.md).
+- Memory flow: when a seam is open, allow memory-stream writes/retrievals to
+  reference subjects in the joined pane (reuse the cellId namespacing in
+  `memory/schema.ts` so a joined pair shares retrieval scope while open, and
+  re-localizes when the seam dissolves — mirrors `resetPerceptionState()` on
+  teardown).
+- Honour Phase C stacking semantics: vertical-stack (same place, two scales)
+  means the agent is visible from multiple altitudes simultaneously (SPEC §4
+  "the user sees all scales; the agent only sees its detail level") — a
+  vertical seam shares observation but not necessarily walkability;
+  horizontal seam = walkable parallel adjacency. Encode as edge types.
+- Visitor-mode + privacy pass (IDEAS.md hard problem): decide what a
+  share-viewer sees of a joined topology; ensure no cross-source corner-touch
+  egresses anything without opt-in (consistent with the
+  `loreEnabled`/`loreQuoteEnabled` second-opt-in pattern in `store.ts` +
+  CLAUDE.md "all AI via the Worker / local-only").
+
+**Risks.** Agent-cost: cross-seam FOV multiplies subjects per Tier-1
+dispatch — can blow the ≤$1/user/month Sonnet budget; cross-seam perception
+must respect the existing `isSalient` dedupe filter and probably needs a
+tighter cross-seam salience window. Highest correctness risk in the track —
+coordinate-bridging + input-ownership transfer + memory-namespace merging
+are three interacting stateful systems; the Phase-2 "reset caches on
+remount" discipline (`resetPerceptionState`) must extend to "reset/
+re-localize on seam open/close" or agents leak state across dissolved seams.
+Trust/diegetic risk: an agent wandering out of a pane the user thought
+isolated feels like a bug — crossing must be legible (visible seam, visible
+traversal), never teleportation. Forward dependency: Composable-panes Depth 3
+(Loki resculpts topology overnight via Sleep-mode) sits ON TOP of this; the
+pin-this-scope panel (seeded in Phase C) becomes load-bearing here. Filed
+v2.x — the riskiest, latest rung; do not attempt until Depth 1 has shipped
+and earned audience trust.
+
+**Demo payoff.** Drag the district pane against the cell pane, the seam glyph
+forms, and an agent walks out of the room and onto the map — memory of the
+room travelling with it. The arrangement is now the network the agent
+society emerges from: the user is sculpting the substrate, not configuring a
+bot.
+
+### Cheap seeds to reserve now (cost ~nothing, avoid later retrofits)
+- **Pane-aware agent perception** — THE one IDEAS.md names (line 350). No
+  urgency until the multi-pane UI exists; refactoring `perception.ts` into a
+  pane/seam graph is the foundational move Phase D rests on.
+- **Reserve corner-touch = cross-source semantics now, build never**
+  (IDEAS.md line 310). Recording the seam's edge-type as metadata in Phase C
+  costs nothing and avoids a retrofit when solar_system/multi-source lands.
+- **Pin/lock-a-scope affordance, seeded in Phase C** — prerequisite for the
+  trust ladder that Depth 3 (Loki resculpting overnight) cannot ship without.
+- **Curated default arrangements as named presets** — resolves the
+  ambience-vs-composability tension and gives discoverability a foothold.
+- **Keep arrangement state OUTSIDE `src/procedural` from day one** —
+  arrangement is a personalisation lever (the 5th, alongside library /
+  profile / theme / lore), NOT seed-derived geometry. The
+  `store.ts` `loreEnabled`/`loreQuoteEnabled`/`loreVersion` pattern is the
+  template for user-controlled, opt-in, persisted state that doesn't touch
+  the deterministic WFC / share-URL contract.
+
+---
+
 ## Realistic timeline
 
 At full-weekend pace (~20h/week), accounting for debugging time and

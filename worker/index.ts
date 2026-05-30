@@ -16,6 +16,8 @@
  *                                    given its state + perception payload
  *   POST /api/agent/reflect        — Tier 2 reflection (Phase 2D)
  *   POST /api/embed                — local-Ollama embeddings stub (Phase 2D)
+ *   GET  /api/local-model          — local-Ollama presence probe (Phase 6A);
+ *                                    cloud / no-Ollama → {present:false}
  *   POST /api/bake/sprite          — Phase 3C bake-time proxy to PixelLab.ai
  *                                    pixflux; dev tool only, not user-runtime
  *
@@ -30,6 +32,7 @@ import {
   callStageOne,
   callTier1Agent,
   callTier2Reflect,
+  detectLocalModel,
   detectOllamaGpu,
   ProviderError,
   type ProviderEnv,
@@ -378,6 +381,22 @@ export default {
         { status: 200 },
         cors,
       );
+    }
+
+    // --- Local-model presence probe (Phase 6A) -------------------------------
+    // GET /api/local-model — "Local AI lives in your world" Depth 1. Reports
+    // the user's installed/running local Ollama models so the cell renderer
+    // can place a presence landmark (cottage for a small model, tower for a
+    // large one) that glows when a model is loaded.
+    //
+    // Local-only by contract, but UNLIKE /api/embed (which 501s on cloud),
+    // absence of a local model is a NORMAL state, not an error: cloud /
+    // no-Ollama returns 200 {present:false} so the renderer silently shows
+    // no landmark. Reads ONLY local model metadata (names/sizes/param class)
+    // from localhost — nothing about a model ever egresses to a third party.
+    if (req.method === 'GET' && url.pathname === '/api/local-model') {
+      const snapshot = await detectLocalModel(env);
+      return json(snapshot, { status: 200 }, cors);
     }
 
     // --- Steam OpenID + session ----------------------------------------------
