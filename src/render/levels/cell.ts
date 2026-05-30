@@ -3,7 +3,7 @@ import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
 import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
-import { playerPosition, setPlayerPosition } from '../../state/playerPos';
+import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
 import { mountCohort } from '../agents/cohort';
@@ -18,7 +18,12 @@ import {
   type MemoryWriter,
 } from '../../agents/router';
 import { launchGame } from '../../agents/launch';
-import { listRuntimes, getRuntime } from '../../state/agentRuntime';
+import {
+  createRuntimeScope,
+  listRuntimesIn,
+  getRuntimeIn,
+} from '../../state/agentRuntime';
+import { registerCellPaneScope } from '../../state/cellPaneScopes';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
 import {
@@ -53,10 +58,10 @@ import {
  * the remaining bookshelves stay as base bookshelf glyphs.
  *
  * Adds two interactive sprites:
- *   - `@` player avatar (bright tint), positioned each frame from the
- *     module-local `playerPosition` singleton. WASD / arrow keys move
- *     one cell per ~100ms keypress, collision-checked against the WFC
- *     grid (floor-only is walkable).
+ *   - `@` player avatar (bright tint), positioned each frame from this
+ *     pane's player position (`getPlayerPos(paneId)`, captured once as
+ *     `pos`). WASD / arrow keys move one cell per ~100ms keypress,
+ *     collision-checked against the WFC grid (floor-only is walkable).
  *   - The Phase 2B agent cohort: 5 BitmapText sprites managed by
  *     `mountCohort()`. Each runs a Tier-0 utility-AI BT
  *     (`src/agents/behavior.ts`) — no LLM calls in this slice. Tier 1
@@ -114,6 +119,17 @@ export function mountCell(
   // the writer uses, so placedMarks written last session land here on
   // mount this session.
   const cellId = cellIdFor(seed);
+
+  // Phase 7 / v2.x — this pane's volatile state. `pos` is the pane's stable
+  // mutable player-position object (captured ONCE; mutated at frame rate).
+  // `scope` is the pane's runtime + perception map (its own cohort). Both
+  // default to the 'root' pane when paneId is unspecified ⇒ single-pane
+  // behaviour is byte-identical. The scope registers with the cell-pane
+  // registry so the sleep-reflection sweep unions over every live cell pane;
+  // teardown unregisters + clears all three pane-local stores.
+  const pos = getPlayerPos(paneId);
+  const scope = createRuntimeScope();
+  const unregisterScope = registerCellPaneScope(scope);
 
   // Base tile layer — one PIXI.Sprite per cell when a sprite is baked
   // for that tile id (Phase 3A; bookshelf only today), else one
@@ -252,6 +268,8 @@ export function mountCell(
     seed,
     scatterAnchors,
     memoryWriter,
+    paneId,
+    scope,
   });
 
   // Phase 2E marginalia: render any placed-mark glyphs from prior
@@ -272,10 +290,10 @@ export function mountCell(
     markLayer.addChild(markSprite);
   }
 
-  // Player avatar — `@` rendered + repositioned each frame from
-  // playerPosition. Reset the singleton to the layout's spawn point on
-  // mount (last value belonged to the previous cell).
-  setPlayerPosition(layout.spawnAt.x, layout.spawnAt.y);
+  // Player avatar — `@` rendered + repositioned each frame from this pane's
+  // player position (`pos`). Reset to the layout's spawn point on mount
+  // (last value belonged to the previous cell for this pane id).
+  setPlayerPos(paneId, layout.spawnAt.x, layout.spawnAt.y);
   const playerSprite = new BitmapText({
     text: '@',
     style: {
@@ -284,8 +302,8 @@ export function mountCell(
       fill: hexToInt(theme.palette.fgBright),
     },
   });
-  playerSprite.x = playerPosition.x * COZETTE_CELL_WIDTH;
-  playerSprite.y = playerPosition.y * COZETTE_CELL_HEIGHT;
+  playerSprite.x = pos.x * COZETTE_CELL_WIDTH;
+  playerSprite.y = pos.y * COZETTE_CELL_HEIGHT;
   agentLayer.addChild(playerSprite);
 
   // Bookshelf prompt — spawned when the player walks adjacent to a
@@ -302,8 +320,8 @@ export function mountCell(
   /** True when the player stands within Chebyshev-1 of the landmark cell. */
   function isAdjacentToLandmark(): boolean {
     if (!landmarkCell) return false;
-    const dx = Math.abs(playerPosition.x - landmarkCell.x);
-    const dy = Math.abs(playerPosition.y - landmarkCell.y);
+    const dx = Math.abs(pos.x - landmarkCell.x);
+    const dy = Math.abs(pos.y - landmarkCell.y);
     return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
   }
 
@@ -314,8 +332,8 @@ export function mountCell(
     // will miss for a non-shelf cell.)
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const nx = playerPosition.x + dx;
-        const ny = playerPosition.y + dy;
+        const nx = pos.x + dx;
+        const ny = pos.y + dy;
         if (nx < 0 || nx >= layout.width || ny < 0 || ny >= layout.height) continue;
         if (layout.tiles[ny][nx] !== T_BOOKSHELF) continue;
         const book = slotToBook.get(`${nx},${ny}`);
@@ -327,8 +345,8 @@ export function mountCell(
   }
 
   const positionPlayer: TickerCallback<unknown> = () => {
-    const px = playerPosition.x * COZETTE_CELL_WIDTH;
-    const py = playerPosition.y * COZETTE_CELL_HEIGHT;
+    const px = pos.x * COZETTE_CELL_WIDTH;
+    const py = pos.y * COZETTE_CELL_HEIGHT;
     if (playerSprite.x !== px) playerSprite.x = px;
     if (playerSprite.y !== py) playerSprite.y = py;
 
@@ -462,11 +480,11 @@ export function mountCell(
     const now = performance.now();
     const last = lastMove.get(e.key) ?? 0;
     if (now - last < MOVE_DEBOUNCE_MS) return;
-    const tx = playerPosition.x + dx;
-    const ty = playerPosition.y + dy;
+    const tx = pos.x + dx;
+    const ty = pos.y + dy;
     if (tx < 0 || tx >= layout.width || ty < 0 || ty >= layout.height) return;
     if (layout.tiles[ty][tx] !== T_FLOOR) return;
-    setPlayerPosition(tx, ty);
+    setPlayerPos(paneId, tx, ty);
     lastMove.set(e.key, now);
   };
   window.addEventListener('keydown', onKeydown);
@@ -498,7 +516,7 @@ export function mountCell(
         {
           kind: 'place_mark',
           target: `shelf:${slot.x},${slot.y}`,
-          location: { x: playerPosition.x, y: playerPosition.y },
+          location: { x: pos.x, y: pos.y },
           status: 'pending',
         },
       ],
@@ -506,8 +524,9 @@ export function mountCell(
       importance: 6,
     });
 
-    // Broadcast to every present agent — game launch is a world event.
-    broadcastGameLaunched(listRuntimes(), {
+    // Broadcast to every present agent in THIS pane — game launch is a
+    // world event for the pane the user E-pressed in.
+    broadcastGameLaunched(listRuntimesIn(scope), {
       appid: book.appid,
       name: book.name,
       at: slot,
@@ -516,7 +535,7 @@ export function mountCell(
 
     // Force-fire Loki's Tier 2 (direct user action override).
     const lokiDef = COHORT.find((d) => d.id === 'loki');
-    const lokiRuntime = getRuntime('loki');
+    const lokiRuntime = getRuntimeIn(scope, 'loki');
     if (lokiDef && lokiRuntime) {
       void routeTier2(lokiDef, lokiRuntime, performance.now(), {
         memory: memoryWriter,
@@ -558,6 +577,12 @@ export function mountCell(
         statusHandle = null;
       }
       teardownCohort();
+      // Phase 7 / v2.x — reclaim this pane's volatile state so a reused pane
+      // id never inherits stale player/runtime/perception. teardownCohort
+      // already cleared the scope's runtime + perception caches; unregister
+      // it from the cell-pane registry + drop the player position entry.
+      unregisterScope();
+      clearPlayerPos(paneId);
       container.destroy({ children: true });
     },
   };

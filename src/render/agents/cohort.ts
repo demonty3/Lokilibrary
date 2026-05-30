@@ -42,12 +42,13 @@ import {
   type AgentTransport,
 } from '../../agents/router';
 import {
-  clearRuntimes,
+  clearRuntimesIn,
   initialRuntime,
-  listRuntimes,
-  setRuntime,
+  listRuntimesIn,
+  setRuntimeIn,
+  type RuntimeScope,
 } from '../../state/agentRuntime';
-import { playerPosition } from '../../state/playerPos';
+import { getPlayerPos } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import {
   COZETTE_CELL_HEIGHT,
@@ -62,6 +63,15 @@ export interface MountCohortOptions {
   parent: Container;
   theme: Theme;
   layout: CellLayout;
+  /** Pane id this cohort belongs to (Phase 7 / v2.x pane-scoping). Drives
+   *  the player-position read for the perception WorldSnapshot so each cell
+   *  pane perceives its OWN `@`. Required — the cell renderer always passes
+   *  its pane id ('root' for the single-pane default). */
+  paneId: string;
+  /** This pane's volatile runtime + perception scope (created by the cell
+   *  renderer at mount). The cohort populates + ticks over THIS scope's map,
+   *  so two cell panes run independent cohorts with no key collision. */
+  scope: RuntimeScope;
   /** Seed for per-agent PRNG namespacing. Use the same seed as the
    *  cell layout so the cohort positions are stable for a given profile. */
   seed: number;
@@ -94,12 +104,14 @@ export function mountCohort(opts: MountCohortOptions): () => void {
     prngs.set(def.id, mulberry32((opts.seed ^ agentSalt) >>> 0));
   }
 
-  // Reset runtimes (previous mount's cell may have left stale state).
-  clearRuntimes();
+  const scope = opts.scope;
+
+  // Reset this pane's runtimes (a previous mount may have left stale state).
+  clearRuntimesIn(scope);
 
   for (const def of defs) {
     const spawn = resolveSpawn(def.spawn, opts.layout, opts.seed);
-    setRuntime(initialRuntime({ id: def.id, x: spawn.x, y: spawn.y }));
+    setRuntimeIn(scope, initialRuntime({ id: def.id, x: spawn.x, y: spawn.y }));
 
     const sprite = new BitmapText({
       text: def.glyph,
@@ -131,7 +143,10 @@ export function mountCohort(opts: MountCohortOptions): () => void {
 
   const tick: TickerCallback<unknown> = () => {
     const now = performance.now();
-    const runtimes = listRuntimes();
+    const runtimes = listRuntimesIn(scope);
+
+    // This pane's player (pane-scoped). Single 'root' pane === today.
+    const player = getPlayerPos(opts.paneId);
 
     // Build the agents Map once per tick so perception's FOV loop sees
     // a coherent snapshot (rather than mid-tick mutated positions from
@@ -141,7 +156,7 @@ export function mountCohort(opts: MountCohortOptions): () => void {
       agentPositions.set(rt.id, { x: rt.x, y: rt.y });
     }
     const world: WorldSnapshot = {
-      player: { x: playerPosition.x, y: playerPosition.y },
+      player: { x: player.x, y: player.y },
       agents: agentPositions,
       bookshelves,
     };
@@ -153,7 +168,8 @@ export function mountCohort(opts: MountCohortOptions): () => void {
       tickBehavior(def, runtime, ctx, now);
 
       // Perception poll → queue; router decides whether to dispatch.
-      computePerception(def, runtime, world, now);
+      // Pass this pane's perception caches so panes don't clobber each other.
+      computePerception(def, runtime, world, now, undefined, undefined, scope.perception);
       if (runtime.perceptionQueue.length > 0) {
         // Fire-and-forget — routeTier1 sets lastTier1At synchronously
         // before awaiting, so concurrent ticks throttle correctly.
@@ -188,8 +204,8 @@ export function mountCohort(opts: MountCohortOptions): () => void {
     for (const sprite of sprites.values()) sprite.destroy();
     sprites.clear();
     prngs.clear();
-    clearRuntimes();
-    resetPerceptionState();
+    clearRuntimesIn(scope);
+    resetPerceptionState(scope.perception);
   };
 }
 

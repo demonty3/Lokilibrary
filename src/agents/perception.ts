@@ -22,6 +22,13 @@
  *
  * Phase 2D will add `salience_score` tuning to drop low-importance
  * events under cost pressure (telemetry-driven).
+ *
+ * Phase 7 / v2.x — PANE-SCOPED. The proximity/hold/salience caches were
+ * module-global singletons keyed by `runtime.id`; two cell panes both
+ * running a 'loki' would clobber each other's caches. `computePerception`
+ * + `resetPerceptionState` now take a trailing optional `PerceptionScope`
+ * (the pane's caches, carried on its `RuntimeScope`); scopeless callers fall
+ * back to the module globals so single-pane / smoke behaviour is unchanged.
  */
 
 import type { CellLayout, CellPoint } from '../procedural/cell';
@@ -29,6 +36,7 @@ import type { AgentDef } from './cohort';
 import type {
   AgentRuntimeState,
   PerceptionEvent,
+  PerceptionScope,
 } from '../state/agentRuntime';
 
 export interface WorldSnapshot {
@@ -68,9 +76,18 @@ export function computePerception(
   now: number,
   opts: PerceptionOptions = {},
   layout?: CellLayout,
+  scope?: PerceptionScope,
 ): PerceptionEvent[] {
   const playerHoldMs = opts.playerHoldMs ?? DEFAULT_PLAYER_HOLD_MS;
   const salienceWindowMs = opts.salienceWindowMs ?? DEFAULT_SALIENCE_WINDOW_MS;
+
+  // Pane-scoped caches when a scope is threaded (cohort renderer); else the
+  // module-global caches (scopeless callers — e.g. smoke-2c). Same key
+  // strings either way, so per-scope dedupe behaves identically within a
+  // single scope.
+  const proximitySince = scope?.proximitySince ?? gProximitySince;
+  const holdFired = scope?.holdFired ?? gHoldFired;
+  const lastSeen = scope?.lastSeen ?? gLastSeen;
 
   if (!runtime.present) return [];
 
@@ -79,7 +96,7 @@ export function computePerception(
 
   // --- player_proximity ---
   if (chebyshev(runtime, world.player) <= fov) {
-    if (push(runtime, events, salienceWindowMs, now, {
+    if (push(lastSeen, runtime, events, salienceWindowMs, now, {
       kind: 'player_proximity',
       subject: 'player',
       at: { x: world.player.x, y: world.player.y },
@@ -91,7 +108,7 @@ export function computePerception(
       // Already-tracked proximity; check hold.
       const since = proximitySince.get(runtime.id)!;
       if (now - since >= playerHoldMs && !holdFired.get(runtime.id)) {
-        push(runtime, events, salienceWindowMs, now, {
+        push(lastSeen, runtime, events, salienceWindowMs, now, {
           kind: 'player_holding',
           subject: 'player',
           at: { x: world.player.x, y: world.player.y },
@@ -109,7 +126,7 @@ export function computePerception(
   for (const [otherId, pos] of world.agents) {
     if (otherId === runtime.id) continue;
     if (chebyshev(runtime, pos) <= fov) {
-      push(runtime, events, salienceWindowMs, now, {
+      push(lastSeen, runtime, events, salienceWindowMs, now, {
         kind: 'agent_meeting',
         subject: otherId,
         at: { x: pos.x, y: pos.y },
@@ -125,7 +142,7 @@ export function computePerception(
   for (let i = 0; i < world.bookshelves.length; i++) {
     const shelf = world.bookshelves[i];
     if (chebyshev(runtime, shelf) <= 1) {
-      push(runtime, events, salienceWindowMs, now, {
+      push(lastSeen, runtime, events, salienceWindowMs, now, {
         kind: 'bookshelf_in_reach',
         subject: `shelf:${i}`,
         at: { x: shelf.x, y: shelf.y },
@@ -142,10 +159,15 @@ export function computePerception(
   return events;
 }
 
-/** Clear per-agent perception caches. Called by cohort renderer
- *  teardown so a remount doesn't carry over the "player was held"
- *  state from the previous cell. */
-export function resetPerceptionState(): void {
+/** Clear per-agent perception caches. Called by cohort renderer teardown so
+ *  a remount doesn't carry over the "player was held" state from the
+ *  previous cell. Pass a `PerceptionScope` (the pane's caches) to clear ONE
+ *  pane; scopeless clears the module-global caches (back-compat — smoke-2c).
+ *  Clearing one pane's scope never touches another's. */
+export function resetPerceptionState(scope?: PerceptionScope): void {
+  const proximitySince = scope?.proximitySince ?? gProximitySince;
+  const holdFired = scope?.holdFired ?? gHoldFired;
+  const lastSeen = scope?.lastSeen ?? gLastSeen;
   proximitySince.clear();
   holdFired.clear();
   lastSeen.clear();
@@ -154,30 +176,34 @@ export function resetPerceptionState(): void {
 // ---------- internals ----------
 
 /**
- * Per-agent caches keyed by `runtime.id`. Module-level so they survive
- * across ticks but get cleared on cell remount via
- * `resetPerceptionState()`. Same pattern as `playerPos.ts`.
+ * Module-global perception caches — the DEFAULT (scopeless) fallback,
+ * keyed by `runtime.id`. Pane-scoped callers pass a `PerceptionScope`
+ * (carried on the pane's `RuntimeScope.perception`) instead; these globals
+ * back only scopeless callers (e.g. smoke-2c) so their behaviour is
+ * unchanged. Same pattern as `playerPos.ts`'s 'root' fallback.
  */
-const proximitySince = new Map<string, number>();
-const holdFired = new Map<string, boolean>();
+const gProximitySince = new Map<string, number>();
+const gHoldFired = new Map<string, boolean>();
 
 /** Salience window dedupe — `${agent_id}|${kind}|${subject}` → lastFireMs */
-const lastSeen = new Map<string, number>();
+const gLastSeen = new Map<string, number>();
 
 function push(
+  lastSeen: Map<string, number>,
   runtime: AgentRuntimeState,
   events: PerceptionEvent[],
   windowMs: number,
   now: number,
   ev: PerceptionEvent,
 ): boolean {
-  if (!isSalient(runtime.id, ev, now, windowMs)) return false;
+  if (!isSalient(lastSeen, runtime.id, ev, now, windowMs)) return false;
   events.push(ev);
   runtime.perceptionQueue.push(ev);
   return true;
 }
 
 function isSalient(
+  lastSeen: Map<string, number>,
   agentId: string,
   ev: PerceptionEvent,
   now: number,

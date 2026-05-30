@@ -28,7 +28,8 @@
 import { COHORT } from './cohort';
 import { defaultAgentTransport, nullMemoryWriter, routeTier2 } from './router';
 import { getCurrentMemoryWriter } from './memory/bootstrap';
-import { listRuntimes } from '../state/agentRuntime';
+import { listRuntimesIn } from '../state/agentRuntime';
+import { listCellPaneScopes } from '../state/cellPaneScopes';
 import { useAppStore } from '../state/store';
 
 /** Reflection texts produced during the current sleep session,
@@ -60,8 +61,10 @@ export function peekSleepReflections(): ReadonlyArray<{ agentId: string; text: s
   return sleepReflectionsSinceWake.map((r) => ({ agentId: r.agentId, text: r.text }));
 }
 
-/** Fire the sleep reflection sweep. Iterates every PRESENT agent in
- *  the runtime, looks up the matching `AgentDef` from COHORT, and
+/** Fire the sleep reflection sweep. Iterates every PRESENT agent across
+ *  the UNION of all live cell panes' runtimes (Phase 7 / v2.x — single
+ *  'root' pane reduces to today's behaviour), looks up the matching
+ *  `AgentDef` from COHORT, and
  *  calls `routeTier2` with `reflectionMinIntervalMs: 0` so the
  *  per-real-hour rate-limit doesn't block (this IS the budget being
  *  spent). Agents with `reflectionCounter === 0` are skipped — no
@@ -77,9 +80,14 @@ export async function triggerSleepReflection(): Promise<void> {
   const now = performance.now();
   // One read for the whole sweep so every agent shares one egress policy.
   const { loreEnabled, loreQuoteEnabled } = useAppStore.getState();
-  const candidates = listRuntimes().filter(
-    (rt) => rt.present && rt.reflectionCounter > 0,
-  );
+  // Phase 7 / v2.x — sweep the UNION of every live cell pane's runtimes.
+  // Each pane is a live world that accrued reflectionCounter overnight, so
+  // every pane's agents get the once-per-sleep dispatch. With the default
+  // single 'root' cell pane this is exactly that pane's runtimes →
+  // byte-identical to the pre-pane-scoping `listRuntimes()` sweep.
+  const candidates = listCellPaneScopes()
+    .flatMap((s) => listRuntimesIn(s))
+    .filter((rt) => rt.present && rt.reflectionCounter > 0);
   if (candidates.length === 0) {
     // eslint-disable-next-line no-console
     console.log('[sleep-reflection] no candidates (no agents with reflectionCounter > 0)');

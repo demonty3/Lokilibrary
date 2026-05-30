@@ -30,12 +30,27 @@ Zustand slices:
 - **Telemetry overlay (2F)**: `agentDebugOverlay: boolean`, `toggleAgentDebug`
 - **Lore upload (5C.2b)**: `loreUploadOpen: boolean`, `toggleLoreUpload`, `setLoreUploadOpen` (Ctrl+U / Esc; read by `LoreDropZone`)
 
-### `playerPosition` (`src/state/playerPos.ts`)
-Module-local singleton mutated at frame rate. Cell-grid coords, not pixels.
-`{x: number, y: number}` + `setPlayerPosition(x, y)`.
+### `playerPosition` (`src/state/playerPos.ts`) — PANE-SCOPED (Phase 7 / v2.x)
+Frame-rate module-local, deliberately OUTSIDE Zustand (60Hz mutation must not
+re-render React). Cell-grid coords, not pixels. Now a `Map<paneId, {x,y}>`
+behind:
+- `getPlayerPos(paneId)` → the STABLE mutable `{x,y}` for that pane (lazily
+  created + cached, default `{0,0}`; the cell renderer captures it ONCE at
+  mount and mutates `.x/.y` in place — zero realloc, zero re-render).
+- `setPlayerPos(paneId, x, y)` — mutate that cached object in place.
+- `clearPlayerPos(paneId)` — drop the entry on pane teardown (clearing one
+  pane never affects another).
+- **Single-pane reduction**: `playerPosition` + `setPlayerPosition(x,y)` are
+  retained as thin aliases bound to the `'root'` pane — `playerPosition` IS the
+  same cached object `getPlayerPos('root')` returns (identity, no lag). With
+  the default single 'root' cell pane every read/write is byte-identical to the
+  pre-pane-scoping singleton.
 
-### `AgentRuntimeState` (`src/state/agentRuntime.ts`)
-Per-agent volatile state. Module-local `Map<id, state>`, cleared on cell unmount.
+### `AgentRuntimeState` (`src/state/agentRuntime.ts`) — PANE-SCOPED (Phase 7 / v2.x)
+Per-agent volatile state. Each cell pane owns its own `RuntimeScope`
+(`{ runtimes: Map<id,state>; perception: PerceptionScope }`, from
+`createRuntimeScope()`), so two cell panes run independent cohorts with no key
+collision. Cleared on cell unmount.
 - `id`, `x`, `y`, `present`, `intent`, `currentAction`, `actionEndsAt`
 - **Phase 2C perception**: `perceptionQueue: PerceptionEvent[]`
 - **Phase 2D reflection trigger**: `reflectionCounter: number`
@@ -44,6 +59,46 @@ Per-agent volatile state. Module-local `Map<id, state>`, cleared on cell unmount
 - **Phase 5A plan execution**: `activePlan: PlanPayload | null`, `activePlanStepIndex: number`
 
 `Tier0Action` discriminated union: `wander | idle | approach | scheduled`.
+
+**Scope API** — `setRuntimeIn / getRuntimeIn / deleteRuntimeIn / listRuntimesIn
+/ clearRuntimesIn(scope, …)` operate on one pane. The module-globals
+(`setRuntime/getRuntime/deleteRuntime/listRuntimes/clearRuntimes`) are retained
+as thin delegates over a module-local eager `DEFAULT_SCOPE`, so single-pane and
+all existing smokes (2b/2c/2e/4a/5a) are byte-identical. `initialRuntime` is a
+PURE constructor (touches no scope) — unchanged.
+
+**Perception caches** (`src/agents/perception.ts`) — `proximitySince /
+holdFired / lastSeen` were module-global singletons keyed by `runtime.id`
+(two panes' 'loki' would clobber). Now bundled onto the scope as
+`PerceptionScope` (`scope.perception`); `computePerception` +
+`resetPerceptionState` take a trailing optional `PerceptionScope`. Scopeless
+callers fall back to the module globals → unchanged.
+
+**Scope wiring + decisions (Phase 7 / v2.x)**
+- `cell.ts` creates `const pos = getPlayerPos(paneId)` + `const scope =
+  createRuntimeScope()` at mount, threads them into `mountCohort` (which gains
+  required `paneId` + `scope`), uses them in `handleLaunch`
+  (`broadcastGameLaunched(listRuntimesIn(scope))`, `getRuntimeIn(scope,'loki')`),
+  registers the scope via `registerCellPaneScope` (`src/state/cellPaneScopes.ts`),
+  and clears all three (`teardownCohort` clears runtime+perception, then
+  `unregisterScope()` + `clearPlayerPos(paneId)`) in teardown.
+- **Sleep-reflection** sweeps the UNION of all live cell panes'
+  runtimes (`listCellPaneScopes().flatMap(listRuntimesIn)`) — every live world
+  reflects overnight. Single 'root' pane → that one scope → unchanged.
+- **App.tsx `external_fullscreen`** broadcast: union over all live cell panes'
+  runtimes, anchored at the FOCUSED pane's player. Single-pane identical
+  (`focusedPaneId === 'root'`).
+- **Telemetry overlay** (`telemetry.ts`): pane-AGNOSTIC. It reads the
+  persistent cell-keyed DB (`aggregateTelemetry`) + process-global
+  `getRouterStats()` — it never reads `listRuntimes()`. So it aggregates across
+  panes "for free" via the persistent store (the union answer); no scoping
+  change. `routerStats` deny-verb counters stay process-global (debug counter).
+- **Persistent memory stays cell-keyed by seed** (`cellIdFor(seed)`), NOT
+  pane-scoped. Two panes of the SAME cell (the only thing `splitPane` yields
+  today) correctly SHARE persistent memory (marks/reflections/telemetry); only
+  the VOLATILE player + runtime + perception is pane-scoped. This is intended —
+  persistent memory is about the PLACE, volatile runtime about the live agents
+  in a pane. Do not "fix" the shared marks as a leak.
 
 ---
 
@@ -461,17 +516,30 @@ are NOT here (Depth-2, deferred).
   they `parent.addChild` (NOT `app.stage`) and fit to `rect.pw/ph` (not
   `app.screen`). Mechanical; read-only (no input/ticker).
 - **Cell input gate** — `mountCell(app, parent, rect, theme, layout, …, paneId
-  = 'root')` → `{teardown, refit}`. ONE player + ONE window keydown listener
-  (added once at mount, removed at teardown — NO per-pane add/remove). The
-  handler gains ONE guard after the wallpaper guard: `if (getState().
-  focusedPaneId !== paneId) return;` so only the FOCUSED cell pane consumes
-  WASD/arrows/E. Default single 'root' pane ⇒ always focused ⇒ unchanged.
-  Multiple simultaneous input-owning cell panes are DEFERRED (the
-  `playerPosition` + `agentRuntime` singletons are the blocker).
+  = 'root')` → `{teardown, refit}`. ONE window keydown listener per pane (added
+  once at mount, removed at teardown — NO per-pane add/remove). The handler
+  gains ONE guard after the wallpaper guard: `if (getState().focusedPaneId !==
+  paneId) return;` so only the FOCUSED cell pane consumes WASD/arrows/E. Default
+  single 'root' pane ⇒ always focused ⇒ unchanged.
+- **Per-pane player + runtime UNBLOCK (Phase 7 / v2.x)** — the 7-B deferred
+  "two cell panes collide on the shared `playerPosition` + `agentRuntime`
+  singletons" limitation is REMOVED. `playerPos`/`agentRuntime`/`perception`
+  are now pane-scoped (see those sections above); each `mountCell` captures its
+  own `getPlayerPos(paneId)` + `createRuntimeScope()`, so splitting a focused
+  cell pane (`|` key → `splitPane`, which inherits the focused pane's `cell`
+  level) yields a SECOND independent cell pane with its own `@` + cohort +
+  perception — no collision. Input still routes to the focused pane only (the
+  gate above). This GATES the Depth-2 seam-crossing / cross-pane memory flow
+  work (NOT built here). The live two-`@` visual is PIXI-only (Windows
+  checklist B4); the pure pane-isolation logic is smoke-locked
+  (`smoke-pane-runtime.mts`, 19 assertions).
 - **Input ownership (App.tsx)** — the globals keydown handler gained `Tab`
-  (`cycleFocus`, `preventDefault` so focus stays on canvas) + `\`
-  (`setArrangement` single↔study), BOTH behind the existing
-  `if (getState().wallpaperMode) return` guard so they no-op in wallpaper mode.
+  (`cycleFocus`, `preventDefault` so focus stays on canvas), `\`
+  (`setArrangement` single↔study), and `|` (Phase 7 / v2.x — `splitPane
+  ('vertical')`; splitting a focused CELL pane yields a SECOND independent cell
+  pane). ALL behind the existing `if (getState().wallpaperMode) return` guard so
+  they no-op in wallpaper mode. `|` is a no-op in the single-pane default until
+  pressed, so the default path is unchanged.
   The `[`/`]` zoom branch is UNCHANGED — it still reads `scale`/calls `setScale`,
   which the store redirects to the focused pane.
 - Smoke: `smoke-7b-panes.mts` (68) — A1–A11 lock the one-pane reduction
@@ -590,9 +658,10 @@ Assertion counts as of 2026-05-30:
 | 6A local model | smoke-6a-local-model.mts | 42 |
 | 7A scale ladder | smoke-7a-scale-ladder.mts | 73 |
 | 7B composable panes | smoke-7b-panes.mts | 68 |
+| 7 per-pane runtime | smoke-pane-runtime.mts | 19 |
 | glyph coverage | smoke-glyph-coverage.mts | 19 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **647** |
+| **Total numeric** | | **666** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

@@ -1,14 +1,33 @@
 /**
- * Per-agent runtime state. Mutated at frame rate by the Tier 0 BT
- * (src/agents/behavior.ts) and by the perception layer (Phase 2C). Lives
- * outside Zustand for the same reason as `playerPos.ts`: 60Hz mutation
- * would re-render every store subscriber. The cohort renderer reads
- * straight from this Map in its Ticker.
+ * Per-agent runtime state — now PANE-SCOPED (Phase 7 / v2.x Composable
+ * panes). Mutated at frame rate by the Tier 0 BT (src/agents/behavior.ts)
+ * and by the perception layer (Phase 2C). Lives outside Zustand for the
+ * same reason as `playerPos.ts`: 60Hz mutation would re-render every store
+ * subscriber. The cohort renderer reads straight from this Map in its
+ * Ticker.
  *
- * On cell unmount the Map is cleared so a remount (theme change, player
- * sign-in) doesn't surface stale positions from the previous room. The
- * `cell_id` namespace in the SQLite memory store keeps the persistent
- * memory stream cleanly separated from this volatile runtime.
+ * Pane-scoping: each cell pane owns its OWN `Map<agentId, state>` via a
+ * `RuntimeScope` handle (created by the cell renderer at mount with
+ * `createRuntimeScope()`). The scope-taking `*In(scope, …)` functions
+ * operate on one pane's map; two cell panes therefore run two independent
+ * cohorts with no key collision (the Phase 7-B deferred limitation this
+ * removes). The RuntimeScope also carries the pane-local perception caches
+ * (`scope.perception`) so the whole volatile-agent state for a pane threads
+ * as ONE handle.
+ *
+ * Single-pane reduction: the existing module-global functions
+ * (`setRuntime`/`getRuntime`/`deleteRuntime`/`listRuntimes`/`clearRuntimes`)
+ * are retained as thin delegates over a module-local `DEFAULT_SCOPE`. With
+ * the default single 'root' cell pane these are byte-identical to the
+ * pre-pane-scoping singleton (same insertion-order Map, same semantics), so
+ * every existing smoke + caller keeps working unchanged.
+ *
+ * On cell unmount the pane's scope is cleared so a remount (theme change,
+ * player sign-in) doesn't surface stale positions from the previous room.
+ * The `cell_id` namespace in the SQLite memory store keeps the PERSISTENT
+ * memory stream cleanly separated from this volatile runtime — and stays
+ * cell-keyed (by seed), NOT pane-scoped, so two panes of the same cell
+ * correctly share persistent memory while keeping independent runtimes.
  *
  * Phase 2B fills in Tier-0 fields (currentAction / actionEndsAt).
  * Phase 2C+ extend with perceptionQueue + reflectionCounter + lastTier1At;
@@ -88,27 +107,105 @@ export interface AgentRuntimeState {
   actionEndsAt: number;
 }
 
-const runtimes = new Map<string, AgentRuntimeState>();
+/**
+ * Pane-local perception caches. The shape is OWNED by `perception.ts` (it
+ * is the only module that reads/writes these); declared here so the
+ * `RuntimeScope` can carry the perception state as one opaque handle
+ * without `agentRuntime` importing `perception` internals. `createRuntimeScope`
+ * fills these with empty Maps; `perception.ts`'s `computePerception` +
+ * `resetPerceptionState` operate on them when a scope is threaded.
+ *
+ *   - proximitySince  agentId → ms the player entered FOV (hold timer)
+ *   - holdFired       agentId → whether the player_holding event already fired
+ *   - lastSeen        `${agentId}|${kind}|${subject}` → lastFireMs (salience dedupe)
+ */
+export interface PerceptionScope {
+  readonly proximitySince: Map<string, number>;
+  readonly holdFired: Map<string, boolean>;
+  readonly lastSeen: Map<string, number>;
+}
+
+/**
+ * One cell pane's volatile agent state: its runtime Map + its perception
+ * caches. Created per pane by the cell renderer (`createRuntimeScope()`),
+ * threaded into `mountCohort` + the cell's launch handler, and cleared on
+ * teardown. Two panes' scopes never alias.
+ */
+export interface RuntimeScope {
+  readonly runtimes: Map<string, AgentRuntimeState>;
+  readonly perception: PerceptionScope;
+}
+
+/** Build a fresh, empty pane scope. */
+export function createRuntimeScope(): RuntimeScope {
+  return {
+    runtimes: new Map<string, AgentRuntimeState>(),
+    perception: {
+      proximitySince: new Map<string, number>(),
+      holdFired: new Map<string, boolean>(),
+      lastSeen: new Map<string, number>(),
+    },
+  };
+}
+
+// ---------- scope-taking operations ----------
+
+export function setRuntimeIn(scope: RuntimeScope, state: AgentRuntimeState): void {
+  scope.runtimes.set(state.id, state);
+}
+
+export function getRuntimeIn(
+  scope: RuntimeScope,
+  id: string,
+): AgentRuntimeState | undefined {
+  return scope.runtimes.get(id);
+}
+
+export function deleteRuntimeIn(scope: RuntimeScope, id: string): void {
+  scope.runtimes.delete(id);
+}
+
+/** Iterate over one pane's runtimes in insertion order. */
+export function listRuntimesIn(scope: RuntimeScope): AgentRuntimeState[] {
+  return Array.from(scope.runtimes.values());
+}
+
+export function clearRuntimesIn(scope: RuntimeScope): void {
+  scope.runtimes.clear();
+}
+
+// ---------- back-compat module globals (delegate to DEFAULT_SCOPE) ----------
+
+/**
+ * The default scope backs the legacy module-global functions. With the
+ * single 'root' cell pane this IS the world's runtime map — byte-identical
+ * to the pre-pane-scoping singleton (same Map identity per process, same
+ * insertion order, same undefined-on-miss). Eagerly created at module load
+ * so the very first global call sees a real Map. Exported so callers that
+ * want the focused/default pane explicitly (App.tsx, sleep-reflection in the
+ * single-pane fallback) can reference it.
+ */
+export const DEFAULT_SCOPE = createRuntimeScope();
 
 export function setRuntime(state: AgentRuntimeState): void {
-  runtimes.set(state.id, state);
+  setRuntimeIn(DEFAULT_SCOPE, state);
 }
 
 export function getRuntime(id: string): AgentRuntimeState | undefined {
-  return runtimes.get(id);
+  return getRuntimeIn(DEFAULT_SCOPE, id);
 }
 
 export function deleteRuntime(id: string): void {
-  runtimes.delete(id);
+  deleteRuntimeIn(DEFAULT_SCOPE, id);
 }
 
 /** Iterate over all known runtimes in insertion order. */
 export function listRuntimes(): AgentRuntimeState[] {
-  return Array.from(runtimes.values());
+  return listRuntimesIn(DEFAULT_SCOPE);
 }
 
 export function clearRuntimes(): void {
-  runtimes.clear();
+  clearRuntimesIn(DEFAULT_SCOPE);
 }
 
 /** Convenience constructor with sensible defaults. */

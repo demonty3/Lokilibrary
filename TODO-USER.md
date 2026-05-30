@@ -225,9 +225,10 @@ focused pane (cell → district → cell …). Confirm:
 - WASD/arrows/`E` drive the player ONLY when a cell pane is focused. Focus the
   district pane → WASD does nothing (district has no movement). Focus back →
   movement resumes (no player jump — the guard just re-enables).
-- Known visual-only quirk (acceptable for 7-B): the player `@` renders at the
-  same coords in any background cell pane (shared `playerPosition` singleton) —
-  per-pane players are the DEFERRED multi-input-cell feature.
+- NOTE: the shared-`playerPosition` quirk is GONE — per-pane player + cohort
+  state landed (the per-pane runtime unblock). The two-cell QA below (B5) is the
+  visual check for it. (The study arrangement is cell+district, so B2 only has
+  one cell pane; B5 covers two cell panes.)
 
 **B3 — resize.** Resize the window. Both panes re-fit to the new split (the seam
 tracks the grid boundary, masks redraw, no content escapes its pane, no double
@@ -239,6 +240,34 @@ only verifiable here).
 arrangement shows read-only; `\` / `Tab` no-op (composition is window-mode
 only). The throttle ladder still freezes/animates all panes uniformly (shared
 ticker — per-pane throttling is deferred).
+
+**B5 — TWO CELL PANES, independent player + cohort (per-pane runtime unblock).**
+This is the visual check for the per-pane `playerPos` + `agentRuntime` +
+`perception` scoping (smoke-locked headlessly by `smoke-pane-runtime.mts`, 19
+assertions; both typecheck legs pass — but the two-`@` on-screen behaviour is
+PIXI-only). From the SINGLE-pane default (boot), focus the cell pane and press
+`|` (shifted backslash, the "split" key) → the cell pane splits into TWO cell
+panes side by side, each rendering the same library room (same seed) with its
+OWN `@` + its OWN 5-agent cohort. Confirm:
+- **Two independent `@`s.** WASD/arrows move ONLY the focused pane's `@`; the
+  other pane's `@` stays put (the shared-singleton drag from 7-B is GONE). `Tab`
+  to the other pane → WASD now moves ITS `@`, the first is now frozen.
+- **Two independent cohorts.** Each pane's 5 agents wander/idle on their own;
+  walking your `@` near a shelf or agent in ONE pane drives THAT pane's
+  perception/prompt only — the other pane's agents don't react to it.
+- **Bookshelf `E` is pane-local.** Focus one pane, walk adjacent to a known-game
+  shelf, press `E` → the launch + Loki marginalia fire for THAT pane; the other
+  pane is unaffected. (Both panes share the same seed, so the persistent magenta
+  mark from a launch shows in BOTH on next mount — that is CORRECT: persistent
+  memory is cell-keyed by seed and shared by design; only the live volatile
+  state is per-pane.)
+- **Single-pane default still identical.** Before any `|`, the boot single 'root'
+  cell pane behaves exactly as today (one `@`, one cohort, WASD/E unchanged) —
+  the `|` key is a no-op until pressed.
+- **Broken looks like**: moving in one pane drags the OTHER pane's `@` (scoping
+  didn't take — the unblock regressed); a split cell pane shows no `@` or no
+  agents (scope/pos not captured at mount); the single 'root' pane behaving
+  differently after pressing `|` then closing back to one pane.
 
 **Broken looks like**: a blank pane after a split (mask geometry wrong); content
 spilling across the seam (mask not applied / wrong rect); the WHOLE app blank

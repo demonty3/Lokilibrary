@@ -695,10 +695,45 @@ reduction + every reducer + rect tiling math + the single→study clip-mask
 regression trigger (A12); the visual multi-pane output (masks, seams,
 focus-switch) needs the Windows checklist (`TODO-USER.md` "Phase 7-B
 multi-pane", check B1's clip-mask regression step). DEFERRED: seam SEMANTICS / agent seam-crossing /
-memory flow (Depth-2); multiple simultaneous input-owning cell panes (the
-`playerPosition` + `agentRuntime` singletons are the blocker); per-pane
+memory flow (Depth-2); per-pane
 throttling beyond the shared ticker; arrangement persistence across restarts;
 `tour`/`voyage` presets; drag-to-reposition (Phase C).
+
+**Phase 7-B follow-up — per-pane playerPos + agentRuntime UNBLOCK (LANDED).**
+Removes the 7-B deferred "two cell panes collide on the shared `playerPosition`
++ `agentRuntime` singletons" limitation — the gating prerequisite for Depth-2
+(below), NOT Depth-2 itself. `src/state/playerPos.ts`, `src/state/agentRuntime.ts`,
+and `src/agents/perception.ts`'s module caches are now PANE-SCOPED:
+- `playerPos` → `Map<paneId,{x,y}>` behind `getPlayerPos/setPlayerPos/
+  clearPlayerPos` (stays a frame-rate module-local, NOT Zustand);
+  `playerPosition`/`setPlayerPosition` are retained as 'root'-bound aliases.
+- `agentRuntime` → per-pane `RuntimeScope` (`createRuntimeScope()` +
+  `*In(scope,…)` ops); the module-globals delegate to an eager `DEFAULT_SCOPE`.
+  The pane-local perception caches (`proximitySince/holdFired/lastSeen`) bundle
+  onto `scope.perception`; `computePerception`/`resetPerceptionState` take a
+  trailing optional scope.
+- Threaded: `PixiApp.mountPaneLevel` → `mountCell(…, paneId)` already carried
+  the paneId; cell.ts now creates the pane's `pos` + `scope` from it, threads
+  them into `mountCohort` (gains required `paneId`+`scope`), registers the scope
+  via `src/state/cellPaneScopes.ts`, and clears them in teardown.
+- Scope decisions (least-surprising, single-pane-preserving): sleep-reflection +
+  App.tsx `external_fullscreen` broadcast UNION over all live cell panes (App
+  anchored at the focused pane's player); the telemetry overlay is pane-agnostic
+  (reads the cell-keyed persistent DB, never `listRuntimes`); persistent memory
+  stays cell-keyed by seed (two same-cell panes share it — only volatile
+  player/runtime/perception is pane-scoped).
+- Demonstrable two-cell arrangement: the `|` key (App.tsx) calls `splitPane`,
+  which inherits the focused pane's `cell` level → a second independent cell
+  pane (own `@` + cohort). Reachable + landed; the on-screen two-`@` behaviour
+  is PIXI-only → Windows checklist (`TODO-USER.md` B4). Single-pane default
+  unchanged (`|` is a no-op until pressed).
+- Verified: `npm run typecheck` (both legs), `smoke-pane-runtime.mts` (19
+  assertions — per-pane player/runtime/perception isolation + single-pane
+  reduction equivalence), and ALL 25 existing smokes re-run green (esp.
+  2b/2c/5a/5b/7b/6a/7a/5d4/glyph-coverage).
+- NOT built (still Depth-2 / Phase D): seam SEMANTICS, agent seam-crossing,
+  cross-pane memory flow; per-pane DIFFERENT cells/seeds beyond what splitPane
+  yields; drag-to-reposition (Depth-1 / Phase C).
 
 **Goal.** Move the renderer from one-active-level-at-a-time to N
 simultaneous panes, each showing a (level, viewport) independently — the
@@ -818,12 +853,19 @@ topology stops being cosmetic and becomes substrate.
 
 **Prerequisites.** Phase C (visual seams + adjacency metadata — you can only
 make a seam crossable once seams exist and record which panes they join).
+**Per-pane playerPos + agentRuntime + perception scoping — SATISFIED** (the
+7-B follow-up, landed): each cell pane now has its OWN player + runtime +
+perception scope (`getPlayerPos(paneId)` / `RuntimeScope` / `scope.perception`),
+so "agent walks across the seam, memory flows" has independent endpoints to
+bridge instead of one shared global. Depth-2 builds the SEAM SEMANTICS on top
+of these scopes; the scoping itself is NOT Depth-2.
 **THE cheap seed, deliberately deferred (IDEAS.md line 350): pane-aware
 agent perception.** Today `perception.ts:computePerception` takes a single
 `WorldSnapshot` (player + agents + bookshelves in one cell coordinate
 space), uses a Chebyshev FOV radius, and `void`s the layout param — there is
-ZERO concept of a pane, a seam, or cross-boundary visibility. This refactor
-is the heart of Phase D. Phase 5 machinery to reuse (IDEAS.md line 347): the
+ZERO concept of a pane, a seam, or cross-boundary visibility (the per-pane
+caches are now isolated per scope, but FOV still stops at the pane edge). This
+refactor is the heart of Phase D. Phase 5 machinery to reuse (IDEAS.md line 347): the
 persistent memory stream (SQLite + sqlite-vec), Tier-2 reflection, and lore
 retrieval — memory-flow-across-seam is built on these, not new infra. A
 coordinate-bridging model: each pane has its own cell coordinate space + its

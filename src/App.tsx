@@ -13,8 +13,9 @@ import { themeFromLore } from './agents/lore-theme';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
 import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
-import { listRuntimes } from './state/agentRuntime';
-import { playerPosition } from './state/playerPos';
+import { listRuntimesIn } from './state/agentRuntime';
+import { listCellPaneScopes } from './state/cellPaneScopes';
+import { getPlayerPos } from './state/playerPos';
 import {
   consumeSleepReflections,
   triggerSleepReflection,
@@ -86,10 +87,18 @@ export function App() {
       setThrottleState(next);
 
       // Phase 4A — broadcast `external_fullscreen` perception on PAUSED
-      // entry. Anchor the perception at the player's last known cell.
+      // entry. Phase 7 / v2.x: union over every live cell pane's runtimes
+      // (every live world's agents should remember "the user vanished into
+      // a fullscreen app"), anchored at the FOCUSED pane's player — its last
+      // known cell. With the default single 'root' cell pane the union is
+      // that pane's runtimes + focused === 'root', so this is byte-identical
+      // to the pre-pane-scoping broadcast.
       if (next === 'paused' && !event.isInitial) {
-        broadcastExternalFullscreen(listRuntimes(), {
-          at: { x: playerPosition.x, y: playerPosition.y },
+        const focusedId = useAppStore.getState().focusedPaneId;
+        const anchor = getPlayerPos(focusedId);
+        const runtimes = listCellPaneScopes().flatMap((s) => listRuntimesIn(s));
+        broadcastExternalFullscreen(runtimes, {
+          at: { x: anchor.x, y: anchor.y },
           when: Date.now(),
         });
       }
@@ -229,6 +238,19 @@ export function App() {
         useAppStore.getState().setArrangement(single ? 'study' : 'single');
         return;
       }
+      // Phase 7 / v2.x — split the FOCUSED pane in two ('|' = shifted
+      // backslash, the "split" mnemonic; a non-letter so it never collides
+      // with WASD/E). Splitting a focused CELL pane yields a SECOND 'cell'
+      // pane (splitPane inherits the focused pane's level) — each mounts its
+      // own pane-scoped player + cohort + perception, so the two `@`s and
+      // two cohorts move independently. This is the demonstrable two-cell
+      // arrangement the per-pane unblock enables. No-op in the single-pane
+      // default until pressed, so the default path is unchanged.
+      if (e.key === '|') {
+        e.preventDefault();
+        useAppStore.getState().splitPane('vertical');
+        return;
+      }
       if (e.key !== '[' && e.key !== ']') return;
       e.preventDefault();
       const current = useAppStore.getState().scale;
@@ -295,7 +317,7 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
       <div>level: {label}</div>
       <div>steamid: {steamId ?? '—'}</div>
       <div style={{ opacity: 0.65 }}>
-        [ zoom out · ] zoom in · WASD walk · \ split · Tab focus
+        [ zoom out · ] zoom in · WASD walk · | split · \ study · Tab focus
       </div>
     </div>
   );
