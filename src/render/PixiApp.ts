@@ -7,7 +7,10 @@ import { useAppStore } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
+import { mountIsland } from './levels/island';
+import { mountContinent } from './levels/continent';
 import { mountStubLevel } from './levels/stub';
+import { clusterLibrary, type ClusterGame } from '../procedural/clusters';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { waitForCozette } from './fonts';
 import { loadSpriteAtlas, type SpriteAtlas } from './sprites';
@@ -258,14 +261,39 @@ function mountLevel(
     );
   }
   if (scale === 'district') {
-    return mountDistrict(app, theme);
+    const { clusterGames, seed } = snapshotLibraryState();
+    return mountDistrict(app, theme, clusterGames, seed);
   }
-  return mountStubLevel(app, theme, scale);
+  if (scale === 'island') {
+    const { clusterGames, seed } = snapshotLibraryState();
+    return mountIsland(app, theme, clusterGames, seed);
+  }
+  if (scale === 'continent') {
+    const { clusterGames, seed } = snapshotLibraryState();
+    return mountContinent(app, theme, clusterGames, seed);
+  }
+  // planet + solar_system stay stubs (planet = speculative rotating world;
+  // solar_system implies multi-source ingestion — Year-3 per CONSOLIDATION).
+  // Enrich the stub panel with an aggregate count from the cluster tree so
+  // the highest rungs still say something about the library size.
+  const { clusterGames, seed } = snapshotLibraryState();
+  const tree = clusterLibrary(clusterGames, seed);
+  return mountStubLevel(
+    app,
+    theme,
+    scale,
+    `${tree.gameCount} games · ${tree.continentCount} continents`,
+  );
 }
 
 interface LibrarySnapshot {
   profile: Profile | null;
   books: BookGame[];
+  /** Phase 7-A — clustering input. Same games as `books` but carrying the
+   *  per-game `engagement` activity signal when authenticated (drives the
+   *  district/island/continent activity glyphs). Anonymous path has no
+   *  engagement (SAMPLE_LIBRARY is GameEntry); it degrades to 'none'. */
+  clusterGames: ClusterGame[];
   seed: number;
 }
 
@@ -281,12 +309,18 @@ function snapshotLibraryState(): LibrarySnapshot {
     return {
       profile,
       books: profile.topGames.map((g) => ({ appid: g.appid, name: g.name })),
+      clusterGames: profile.topGames.map((g) => ({
+        appid: g.appid,
+        name: g.name,
+        engagement: g.engagement,
+      })),
       seed: profileSeed(profile),
     };
   }
   return {
     profile: null,
     books: SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name })),
+    clusterGames: SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name })),
     seed: ANONYMOUS_SEED,
   };
 }

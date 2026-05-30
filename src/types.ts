@@ -68,9 +68,12 @@ export interface LibraryGame {
 }
 
 /**
- * Scale-ladder level. Phase 1 implements `cell` + `district`; the other
- * four are stubbed by `mountStubLevel`. Per SPEC §4 (scale ladder),
- * each level has its own rendering vocabulary + agent-perception scope.
+ * Scale-ladder level. Phase 7-A implements `cell` + `district` + `island` +
+ * `continent` (the last three driven by the `src/procedural/clusters.ts`
+ * tree); `planet` + `solar_system` remain richer stubs via `mountStubLevel`
+ * (planet = speculative rotating world, solar_system = Year-3 multi-source).
+ * Per SPEC §4 (scale ladder), each level has its own rendering vocabulary +
+ * agent-perception scope.
  */
 export type ScaleLevel =
   | 'cell'

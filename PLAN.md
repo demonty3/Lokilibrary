@@ -589,6 +589,23 @@ months-long crisis.
 
 ### Phase A — Scale ladder beyond cell/district
 
+**Status (2026-05-30): SHIPPED for island + continent + district; planet +
+solar_system stay richer stubs.** Deterministic clustering layer
+`src/procedural/clusters.ts` (`clusterLibrary` → `district → island →
+continent` tree, salts `CLUSTER_SALT = 0xc1a5` + `LAYOUT_SALT = 0xc0a5`,
+appid-canonicalised, no `Math.random`/wall-clock). Real renderers
+`src/render/levels/{island,continent}.ts` + upgraded `district.ts` (static
+3×3 → real neighbour summaries with activity glyphs), wired into
+`PixiApp.ts` `mountLevel()` (threading `snapshotLibraryState().clusterGames`,
+engagement-bearing when authenticated). `planet`/`solar_system` keep
+`mountStubLevel` but now carry a one-line library aggregate
+("{games} games · {continents} continents") — the speculative rotating-world
+/ multi-source rungs are deferred (solar_system implies Year-3 multi-source
+ingestion). `[`/`]` zoom transition + throttle ladder untouched. Smoke:
+`smoke-7a-scale-ladder.mts` (69) locks clustering determinism + invariants +
+pure layout/blob helpers. Remaining: visual verification of the new rungs on
+a real Windows wallpaper setup (the PIXI render output is not unit-testable).
+
 **Goal.** Replace the four stub levels (island, continent, planet,
 solar_system) with real, deterministic, navigable renderers so there is an
 actual ladder of scales to view simultaneously later. Until real higher

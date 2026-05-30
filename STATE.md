@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-29** (slice 6A: local-model landmark — "Local AI lives in your world" Depth 1: `GET /api/local-model` + deterministic cell landmark + press-E status).
+Last updated: **2026-05-30** (Phase 7-A: scale ladder beyond cell/district — deterministic `src/procedural/clusters.ts` + real island/continent renderers + district upgrade; planet/solar_system stay richer stubs).
 
 ---
 
@@ -328,6 +328,76 @@ No dialogue (CLAUDE.md "don't make the agent a chatbot").
   avoidance; walkable-neighbour guarantee), the `{present:false}` parse path,
   and the status formatter.
 
+### Scale ladder beyond cell/district (Phase 7-A)
+- **Clustering layer** `src/procedural/clusters.ts` — NEW pure module. Groups
+  the library into a `district → island → continent` tree seeded by the
+  profile seed. Two PRNG namespaces, both isolated from cell `0xce11` /
+  scatter `0x5ca7` / Loki `0x10ce` / landmark `0x1a4d`:
+  `CLUSTER_SALT = 0xc1a5` (bucketing; districts/islands/continents use
+  `CLUSTER_SALT`, `+1`, `+2`) and `LAYOUT_SALT = 0xc0a5` (2D box / blob
+  placement). NO `Math.random`/`Date.now`; games are appid-canonicalised
+  before bucketing so input order (`profile.topGames` vs `SAMPLE_LIBRARY`)
+  never moves the tree.
+  - Input `ClusterGame {appid, name, engagement?}` — decoupled from `Profile`
+    so the anonymous `SAMPLE_LIBRARY` path (no engagement) and the
+    authenticated `profile.topGames` path (carries engagement) both feed it.
+  - `clusterLibrary(games, seed): ClusterTree` — `ClusterTree {continents:
+    Continent[], districtCount, islandCount, continentCount, gameCount}`;
+    `Continent {id, islands}` → `Island {id, districts}` → `District {id,
+    games, activity}`. Fan-out: `districtCountFor(n) = clamp(ceil(sqrt n), 1,
+    8)`, then island = `clamp(ceil(d/2),1,4)`, continent =
+    `clamp(ceil(i/2),1,2)`. Bucketing first-fills one game/district then
+    PRNG-distributes the remainder, so **every district is non-empty + every
+    game lands in exactly one district**. n==0 → empty-but-valid; n==1 → 1/1/1.
+  - Pure helpers (smoke-pinned): `layoutClusterPositions(ids, seed, salt,
+    cols)` (deterministic **collision-free** canonical-grid box placement:
+    box `idx` → `(idx % cols, floor(idx / cols))`, every (x,y) distinct;
+    seed/salt accepted for signature stability but unused — per-seed variety
+    lives in the cluster TREE, not the layout. An earlier row-jitter could
+    land two boxes on one cell, silently overwriting a card; removed in the
+    7-A must-fix), `blobCells(cx, cy,
+    area, w, h, seed, salt)` (continent land-mass raster — diamond footprint,
+    seeded edge erosion, core always emitted, in-bounds), `activityGlyphFor`
+    (engagement → shade ramp `▓ ▒ ░ ·`, the cell/tiles vocabulary),
+    `flattenDistricts`/`flattenIslands`/`islandGameCount`/`continentGameCount`/
+    `aggregateActivity` (aggregation), `truncateLabel`/`districtLabel`.
+- **Real renderers** — `mountStubLevel` for island/continent and the static
+  3×3 district placeholder are replaced:
+  - `src/render/levels/district.ts` `mountDistrict(app, theme, games, seed)` —
+    home district d0 as the centre card + up to 8 real neighbour cards (name +
+    count + activity glyph); empty slots render as floor-dot terrain. YOU
+    marker on the centre. Read-only (no ticker/keydown). Same fit/teardown.
+  - `src/render/levels/island.ts` `mountIsland(app, theme, games, seed)` —
+    the neighbourhood-cards of the primary continent (largest by game count);
+    bordered card per district placed by `layoutClusterPositions`; YOU marker
+    on the home district's card.
+  - `src/render/levels/continent.ts` `mountContinent(app, theme, games, seed)`
+    — continents as filled `blobCells` land-masses on a `·` dot sea, blob size
+    ~ game count; centroid labels (home continent tints `fgBright`).
+  - All three compose a character grid → ONE BitmapText panel (district.ts
+    style, not per-glyph), tint via `hexToInt(theme.palette[key])` with ONE
+    palette + the shared box-glyph vocabulary. Teardown = `off('resize')` +
+    `container.destroy({children:true})`; NEVER `app.destroy()`.
+- **planet + solar_system STAY stubs** — `mountStubLevel(app, theme, level,
+  aggregateNote?)` gained an optional 4th arg; the router passes
+  `"{gameCount} games · {continentCount} continents"` so the highest rungs
+  carry a library aggregate instead of a bare "keep playing".
+- **Router** `src/render/PixiApp.ts` `mountLevel()` — island/continent/district
+  branches added before the `mountStubLevel` fallthrough, each calling
+  `snapshotLibraryState()` (now also returns `clusterGames: ClusterGame[]` —
+  `topGames` with engagement when authenticated, `SAMPLE_LIBRARY` without) →
+  `mount*(app, theme, clusterGames, seed)`. The `[`/`]` zoom transition +
+  `subscribe()` remount loop are untouched (every renderer returns a correct
+  teardown closure).
+- Smoke: `smoke-7a-scale-ladder.mts` (73) — clustering determinism (same
+  games+seed → byte-identical tree; input order invariance), exactly-one-
+  district membership + aggregation, sample/empty/single/15-game edges,
+  fan-out formula, activity-glyph whitelist, `layoutClusterPositions`
+  determinism/bounds/one-box-per-id + **all-distinct positions across 2000
+  seeds × n=1..16 × cols=1..5** + the anonymous demo seed `0xa11ce11`
+  collision-free (the 7-A must-fix regression) + seed-independence,
+  `blobCells` determinism/core/bounds, label helpers.
+
 ---
 
 ## Desktop wrapper
@@ -411,7 +481,7 @@ Renderer side: `src/api/electron.ts` mirrors with defensive guards (`warnStalePr
 ---
 
 ## Smoke tests (`scripts/smoke-*.mts`)
-Assertion counts as of 2026-05-29:
+Assertion counts as of 2026-05-30:
 | Slice | File | Count |
 |---|---|---|
 | 2B | smoke-2b-cohort.mts | 13 |
@@ -431,8 +501,9 @@ Assertion counts as of 2026-05-29:
 | 5D.3 lore persona/gate | smoke-5d-persona.mts | 10 |
 | 5D.4 lore visible | smoke-5d4-lore-visible.mts | 33 |
 | 6A local model | smoke-6a-local-model.mts | 42 |
+| 7A scale ladder | smoke-7a-scale-ladder.mts | 69 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **487** |
+| **Total numeric** | | **556** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

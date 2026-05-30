@@ -19,18 +19,23 @@ export function mountStubLevel(
   app: Application,
   theme: Theme,
   level: ScaleLevel,
+  aggregateNote?: string,
 ): () => void {
   const container = new Container();
   app.stage.addChild(container);
 
   const label = level.replace(/_/g, ' ');
+  // Phase 7-A: planet/solar_system stay stubs, but carry a one-line library
+  // aggregate (game / continent count) so the highest rungs aren't empty.
+  const note = (aggregateNote ?? 'keep playing.').slice(0, 36);
   const panel = new BitmapText({
     text:
       '╔════════════════════════════════════════╗\n' +
       '║                                        ║\n' +
       `║   ${label.padEnd(36)}║\n` +
       '║                                        ║\n' +
-      '║   not yet built. keep playing.         ║\n' +
+      `║   not yet built.                       ║\n` +
+      `║   ${note.padEnd(36)}║\n` +
       '║                                        ║\n' +
       '║   [ zooms out · ] zooms in             ║\n' +
       '║                                        ║\n' +
