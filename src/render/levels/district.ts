@@ -1,7 +1,7 @@
 import { BitmapText, Container } from 'pixi.js';
-import type { Application } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame } from '../../procedural/clusters';
+import type { PixelRect } from '../PixiApp';
 import {
   activityGlyphFor,
   clusterLibrary,
@@ -34,17 +34,24 @@ import {
  * frames `fg`, shade-ramp activity glyphs, the floor dot for empty cells) —
  * one recoloured alphabet across rungs, ONE palette per scene.
  *
- * Teardown: off the resize listener + destroy the per-level Container.
- * NEVER app.destroy() — the Application is owned by mountPalace.
+ * Teardown: destroy the per-level Container. NEVER app.destroy() — the
+ * Application is owned by mountPalace.
+ *
+ * Phase 7-B — pane-scoped: adds its Container to the supplied `parent` (a
+ * per-pane root, NOT app.stage) and fits within `rect` (pixel rect in the
+ * parent's LOCAL space) instead of the full screen. PixiApp drives resize via
+ * the returned `refit`. Single full-grid pane ⇒ rect === full screen ⇒
+ * identical to the pre-7-B path.
  */
 export function mountDistrict(
-  app: Application,
+  parent: Container,
+  rect: PixelRect,
   theme: Theme,
   games: readonly ClusterGame[],
   seed: number,
-): () => void {
+): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
-  app.stage.addChild(container);
+  parent.addChild(container);
 
   const tree = clusterLibrary(games, seed);
   const districts = flattenDistricts(tree);
@@ -140,12 +147,12 @@ export function mountDistrict(
   });
   if (home) container.addChild(youHighlight);
 
-  const fit = () => {
-    const desired = Math.min(app.screen.width, app.screen.height) * 0.55;
+  const fit = (r: PixelRect) => {
+    const desired = Math.min(r.pw, r.ph) * 0.55;
     const scale = Math.max(1, Math.floor(desired / Math.max(1, panel.height)));
     container.scale.set(scale);
-    container.x = Math.floor((app.screen.width - panel.width * scale) / 2);
-    container.y = Math.floor((app.screen.height - panel.height * scale) / 2);
+    container.x = Math.floor((r.pw - panel.width * scale) / 2);
+    container.y = Math.floor((r.ph - panel.height * scale) / 2);
     if (home) {
       // YOU marker just inside the home card's top border. +HEADER_ROWS for
       // the header + blank line preceding the card grid. The marker is a
@@ -160,12 +167,13 @@ export function mountDistrict(
       youHighlight.y = gy;
     }
   };
-  fit();
-  app.renderer.on('resize', fit);
+  fit(rect);
 
-  return () => {
-    app.renderer.off('resize', fit);
-    container.destroy({ children: true });
+  return {
+    refit: fit,
+    teardown: () => {
+      container.destroy({ children: true });
+    },
   };
 }
 

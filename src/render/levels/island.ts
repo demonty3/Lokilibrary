@@ -1,7 +1,7 @@
 import { BitmapText, Container } from 'pixi.js';
-import type { Application } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame, Continent } from '../../procedural/clusters';
+import type { PixelRect } from '../PixiApp';
 import {
   activityGlyphFor,
   clusterLibrary,
@@ -37,18 +37,24 @@ import {
  * space) so the four rungs read as one recoloured alphabet, not four broken
  * maps (CLAUDE.md aesthetic-coherence rule). ONE theme palette per scene.
  *
- * Teardown contract is identical to mountDistrict/mountStubLevel: off the
- * resize listener + destroy the per-level Container. NEVER app.destroy() —
- * the Application is owned by mountPalace.
+ * Teardown contract is identical to mountDistrict/mountStubLevel: destroy the
+ * per-level Container. NEVER app.destroy() — the Application is owned by
+ * mountPalace.
+ *
+ * Phase 7-B — pane-scoped: adds its Container to `parent` (a per-pane root)
+ * and fits within `rect` (pixel rect, local origin) instead of the full
+ * screen; PixiApp drives resize via the returned `refit`. Single full-grid
+ * pane ⇒ rect === full screen ⇒ identical to the pre-7-B path.
  */
 export function mountIsland(
-  app: Application,
+  parent: Container,
+  rect: PixelRect,
   theme: Theme,
   games: readonly ClusterGame[],
   seed: number,
-): () => void {
+): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
-  app.stage.addChild(container);
+  parent.addChild(container);
 
   const tree = clusterLibrary(games, seed);
 
@@ -60,12 +66,13 @@ export function mountIsland(
   if (!activeContinent) {
     const panel = emptyPanel(theme, 'island', 'no library loaded yet.');
     container.addChild(panel);
-    const fitEmpty = makeFit(app, container, panel, 0.45);
-    fitEmpty();
-    app.renderer.on('resize', fitEmpty);
-    return () => {
-      app.renderer.off('resize', fitEmpty);
-      container.destroy({ children: true });
+    const fitEmpty = makeFit(container, panel, 0.45);
+    fitEmpty(rect);
+    return {
+      refit: fitEmpty,
+      teardown: () => {
+        container.destroy({ children: true });
+      },
     };
   }
 
@@ -142,7 +149,7 @@ export function mountIsland(
   });
   if (homeId) container.addChild(youHighlight);
 
-  const fit = makeFit(app, container, panel, 0.6);
+  const fit = makeFit(container, panel, 0.6);
   const placeYou = () => {
     if (!homeId) return;
     // +2 grid rows for the header + blank line; +1 col / +1 row inside the
@@ -157,16 +164,17 @@ export function mountIsland(
     youHighlight.x = gx;
     youHighlight.y = gy;
   };
-  const fitAll = () => {
-    fit();
+  const fitAll = (r: PixelRect) => {
+    fit(r);
     placeYou();
   };
-  fitAll();
-  app.renderer.on('resize', fitAll);
+  fitAll(rect);
 
-  return () => {
-    app.renderer.off('resize', fitAll);
-    container.destroy({ children: true });
+  return {
+    refit: fitAll,
+    teardown: () => {
+      container.destroy({ children: true });
+    },
   };
 }
 
@@ -252,20 +260,20 @@ export function pickPrimaryContinent(
   return best;
 }
 
-/** Integer-scale + center a panel to `frac` of the smaller screen
- *  dimension. Mirrors mountDistrict/mountStubLevel's fit(). */
+/** Integer-scale + center a panel to `frac` of the smaller RECT dimension.
+ *  Mirrors mountDistrict/mountStubLevel's fit(). Phase 7-B: fits to the pane
+ *  rect (local origin), not the full screen. */
 function makeFit(
-  app: Application,
   container: Container,
   panel: BitmapText,
   frac: number,
-): () => void {
-  return () => {
-    const desired = Math.min(app.screen.width, app.screen.height) * frac;
+): (rect: PixelRect) => void {
+  return (rect: PixelRect) => {
+    const desired = Math.min(rect.pw, rect.ph) * frac;
     const scale = Math.max(1, Math.floor(desired / Math.max(1, panel.height)));
     container.scale.set(scale);
-    container.x = Math.floor((app.screen.width - panel.width * scale) / 2);
-    container.y = Math.floor((app.screen.height - panel.height * scale) / 2);
+    container.x = Math.floor((rect.pw - panel.width * scale) / 2);
+    container.y = Math.floor((rect.ph - panel.height * scale) / 2);
   };
 }
 

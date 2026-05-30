@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-30** (Phase 7-A: scale ladder beyond cell/district — deterministic `src/procedural/clusters.ts` + real island/continent renderers + district upgrade; planet/solar_system stay richer stubs).
+Last updated: **2026-05-30** (Phase 7-B: composable panes — multi-pane renderer router replacing the single-active-level model; `panes[]`/`focusedPaneId` + scale-mirror back-compat in the store; per-pane clipped Container Map + pane-scoped level renderers + cell focused-pane input gate + box-glyph seams; SINGLE-PANE DEFAULT behaviour-preserving. Visual-only — seam SEMANTICS/agent crossing/memory flow are Depth-2 deferred).
 
 ---
 
@@ -25,7 +25,8 @@ Zustand slices:
 - **Manifest**: `manifest`, `manifestStatus`, `manifestSource`, `manifestError`, `loadManifest()`
 - **Wallpaper mode**: `wallpaperMode: boolean`, `setWallpaperMode`
 - **Throttle (4A + 5B)**: `throttleState: 'full' | 'throttled-1hz' | 'paused' | 'sleeping'`, `setThrottleState`
-- **Scale ladder**: `scale: ScaleLevel`, `setScale`
+- **Composable panes (7-B)**: `panes: PaneDescriptor[]`, `focusedPaneId: string`, `gridCols`, `gridRows`, `paneSeq` + pure reducers `splitPane(axis)`, `closePane(id)`, `focusPane(id)`, `cycleFocus()`, `setPaneLevel(id, level)`, `setArrangement('single' | 'study')`.
+  - **Scale-mirror back-compat**: `scale: ScaleLevel` + `setScale` are RETAINED as a kept-in-sync MIRROR of the FOCUSED pane's level (a real WRITTEN field, not a selector — so `PixiApp.subscribe`'s `state.scale !== prev.scale` diff still fires; App.tsx's `[`/`]` zoom is unchanged and zooms the focused pane via `setScale`). The `syncScaleToFocused(panes, focusedPaneId)` helper writes `scale` in the SAME `set()` as every focus/level mutation, so the invariant `scale === focused pane level` can never drift. DEFAULT = ONE `'root'` pane, level `'cell'`, rect `{col:0,row:0,cols:1,rows:1}` on a 1×1 grid — byte-equivalent to the pre-7-B scalar. Pane ids come from `paneSeq` only (`root`, `p2`, …) — deterministic, NO Math.random/Date.now. `PaneRect`/`PaneDescriptor` live in `src/types.ts` (pure types; importable by both store + renderer with no cycle). Smoke: `scripts/smoke-7b-panes.mts` (68 assertions; A1–A11 lock the one-pane reduction + every reducer + rect math; A12 locks the single→study clip-mask regression trigger).
 - **Telemetry overlay (2F)**: `agentDebugOverlay: boolean`, `toggleAgentDebug`
 - **Lore upload (5C.2b)**: `loreUploadOpen: boolean`, `toggleLoreUpload`, `setLoreUploadOpen` (Ctrl+U / Esc; read by `LoreDropZone`)
 
@@ -398,6 +399,92 @@ No dialogue (CLAUDE.md "don't make the agent a chatbot").
   collision-free (the 7-A must-fix regression) + seed-independence,
   `blobCells` determinism/core/bounds, label helpers.
 
+### Composable panes — multi-pane router (Phase 7-B, VISUAL-ONLY)
+The renderer moved from one-active-level-at-a-time to N simultaneous panes,
+each showing a `(level, rect)`. **Single-pane is the DEFAULT + behaviour-
+preserving**; multi-pane is opt-in (`\` toggles single↔study, `Tab` cycles
+focus — both window-mode only). Seam SEMANTICS / agent crossing / memory flow
+are NOT here (Depth-2, deferred).
+- **Pure types** `src/types.ts` — `PaneRect {col,row,cols,rows}` (a cell on a
+  uniform integer composition grid) + `PaneDescriptor {id, level, rect}`. Zero
+  runtime; both the store + the renderer import them with no cycle.
+- **Router** `src/render/PixiApp.ts` — the single `let teardownLevel` is
+  replaced by `const livePanes = new Map<paneId, LivePane>` where `LivePane =
+  {paneRoot: Container, mask: Graphics|null, teardown, refit, rect, level}`.
+  - `computePixelRect(rect, gridCols, gridRows, screenW, screenH): PixelRect
+    {px,py,pw,ph}` — pure, integer-floored grid-cell → pixel mapping. A 1×1
+    grid + full-grid rect returns `{0,0,screenW,screenH}` — IDENTICAL to the
+    pre-7-B single-level fit input (the back-compat anchor).
+  - `mountPane(desc, cols, rows)` builds a per-pane `paneRoot` Container,
+    positioned at the rect's pixel origin, added to a dedicated `panesLayer`.
+    Clipped by a `Graphics().rect(0,0,pw,ph).fill()` assigned as `paneRoot.mask`
+    — UNLESS `isFullGrid(rect)` (single-pane case): mask stays `null`, skipping
+    the stencil so the render path is byte-identical to today. The level
+    renderer fits to rect-LOCAL space (origin 0,0) because `paneRoot` carries
+    the screen origin.
+  - `mountPaneLevel(app, parent, rect, theme, level, paneId, writer, atlas,
+    model)` — generalises the old `mountLevel`; dispatches to `mount{Cell,
+    District,Island,Continent,Stub}` with `(parent, rect)` and returns
+    `{teardown, refit}`.
+  - `reconcilePanes(panes, cols, rows, seedChanged)` — the store-subscribe diff:
+    mount added, unmount removed, remount on level/cell-seed change, re-fit on
+    rect-only change. A focusedPaneId-only change never touches the Map (no
+    remount flash). With ONE pane + a level change this reduces to exactly one
+    teardown + one remount — byte-equivalent to the old `scaleChanged` path.
+  - ONE app-level `app.renderer.on('resize')` listener recomputes every pane's
+    pixel rect + drives each pane's `refit` (the 5 per-renderer resize
+    listeners were removed). The single shared Application + ticker STAY — NEVER
+    `app.destroy` on a pane change (only `paneRoot.destroy`; mask detached
+    first to avoid a dangling-mask warning).
+  - `refitAll` → `reconcileMask(live, cols, rows, pr)` reconciles each pane's
+    clip mask against its CURRENT full-grid status (NOT just redrawing an
+    existing one): partial-grid + no mask → CREATE + attach; partial-grid +
+    mask → redraw (no GC churn); full-grid + mask → detach + destroy → null.
+    This closes the single→study clip gap: `\` toggles the `root` pane's rect
+    full-grid→partial WITHOUT changing its id/level, so `reconcilePanes` takes
+    the cheap rect-only branch (`live.rect = desc.rect`) and never re-runs
+    `mountPane` (the only OTHER place a mask is created) — `reconcileMask` in
+    the subsequent `refitAll` is what creates the now-required mask, so every
+    partial-grid pane is genuinely clipped. The full-grid↔partial reconcile is
+    locked at the model layer by `smoke-7b-panes` A12 (id kept + rect flips
+    full→partial); the mask geometry itself is PIXI → Windows checklist B1.
+  - **Seam glyphs** — `seamLayer` (above panes) draws box-drawing decoration
+    where panes abut: Graphics strokes for the seam runs + `drawSeamGlyphs`
+    BitmapText junctions (`│ ─ ┼ ├ ┤ ┬ ┴`, `fgDim`). Pure decoration, NO
+    semantics, NO crossing. Skipped entirely with one pane. Glyph-coverage
+    smoke verifies the codepoints are Cozette-covered.
+  - **Overlay z-order** — telemetry + morning-dispatch still `app.stage.
+    addChild` (top); `keepOverlaysOnTop()` re-asserts `panesLayer`/`seamLayer`
+    at the bottom after every reconcile so overlays stay above all panes.
+- **Pane-scoped renderers** — `mount{District,Island,Continent,Stub}` signatures
+  changed to `(parent: Container, rect: PixelRect, …)` → `{teardown, refit}`;
+  they `parent.addChild` (NOT `app.stage`) and fit to `rect.pw/ph` (not
+  `app.screen`). Mechanical; read-only (no input/ticker).
+- **Cell input gate** — `mountCell(app, parent, rect, theme, layout, …, paneId
+  = 'root')` → `{teardown, refit}`. ONE player + ONE window keydown listener
+  (added once at mount, removed at teardown — NO per-pane add/remove). The
+  handler gains ONE guard after the wallpaper guard: `if (getState().
+  focusedPaneId !== paneId) return;` so only the FOCUSED cell pane consumes
+  WASD/arrows/E. Default single 'root' pane ⇒ always focused ⇒ unchanged.
+  Multiple simultaneous input-owning cell panes are DEFERRED (the
+  `playerPosition` + `agentRuntime` singletons are the blocker).
+- **Input ownership (App.tsx)** — the globals keydown handler gained `Tab`
+  (`cycleFocus`, `preventDefault` so focus stays on canvas) + `\`
+  (`setArrangement` single↔study), BOTH behind the existing
+  `if (getState().wallpaperMode) return` guard so they no-op in wallpaper mode.
+  The `[`/`]` zoom branch is UNCHANGED — it still reads `scale`/calls `setScale`,
+  which the store redirects to the focused pane.
+- Smoke: `smoke-7b-panes.mts` (68) — A1–A11 lock the one-pane reduction
+  (`scale === focused pane level`; `setScale` mutates the focused pane;
+  replaying App.tsx's `[`/`]` algorithm walks `SCALE_ORDER` identically),
+  splitPane/closePane/focusPane/cycleFocus/setPaneLevel/setArrangement reducers,
+  the pane-grid rect tiling (no overlap, full coverage), deterministic
+  split-twice-from-reset ids, zero-pane guard, dangling-focus refocus, all rects
+  in-bounds. A12 locks the single→study clip-mask regression trigger (the `root`
+  pane KEEPS its id + flips full-grid→partial, which is what makes
+  `reconcileMask` create the now-needed mask). The PIXI router (Container Map,
+  masks, seam glyphs) is VISUAL → Windows checklist (`TODO-USER.md`).
+
 ---
 
 ## Desktop wrapper
@@ -501,9 +588,11 @@ Assertion counts as of 2026-05-30:
 | 5D.3 lore persona/gate | smoke-5d-persona.mts | 10 |
 | 5D.4 lore visible | smoke-5d4-lore-visible.mts | 33 |
 | 6A local model | smoke-6a-local-model.mts | 42 |
-| 7A scale ladder | smoke-7a-scale-ladder.mts | 69 |
+| 7A scale ladder | smoke-7a-scale-ladder.mts | 73 |
+| 7B composable panes | smoke-7b-panes.mts | 68 |
+| glyph coverage | smoke-glyph-coverage.mts | 19 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **556** |
+| **Total numeric** | | **647** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

@@ -569,17 +569,19 @@ months-long crisis.
 
 ## Phase 7 / v2.x — Composable panes (terminal-merging track)
 
-> **Design-only roadmap. Build NOTHING from this section yet.** Named
-> "Phase 7" to avoid colliding with the existing "Phase 6 — Steam release"
-> above; `docs/INDEX.md` + `CONSOLIDATION.md` file composable panes as
-> **v2.x territory**. The whole track is gated behind TWO hard dependencies
-> that do **not** exist today (IDEAS.md "Composable panes" sequencing,
-> lines 345–347): **a real multi-pane terminal UI AND the scale ladder
-> beyond `cell`/`district`.** Verified against the live code: `PixiApp.ts`
-> mounts `mountStubLevel` for island/continent/planet/solar_system,
-> `district.ts` is a static 3×3 placeholder, and `store.scale` is a single
-> scalar — there is nothing to "join" until both gates clear. Sequence the
-> prerequisites (Phase A → B) before any "panes" work; it is not optional.
+> **Roadmap. Both dependency gates (Phase A scale ladder + Phase B multi-pane
+> UI) are now SHIPPED (visual-only); the Depth-1 drag / Depth-2 seam-semantics
+> phases below remain design-only — build NOTHING from Phase C onward yet.**
+> Named "Phase 7" to avoid colliding with the existing "Phase 6 — Steam
+> release" above; `docs/INDEX.md` + `CONSOLIDATION.md` file composable panes as
+> **v2.x territory**. The track was gated behind TWO hard dependencies (IDEAS.md
+> "Composable panes" sequencing, lines 345–347): **a real multi-pane terminal
+> UI AND the scale ladder beyond `cell`/`district`** — both cleared as of
+> 2026-05-30 (Phase A = `clusters.ts` + real island/continent renderers; Phase
+> B = the `panes[]` store model + `Map<paneId>` router + clipped per-pane
+> Containers + box-glyph seams, single-pane DEFAULT preserved). Sequence the
+> prerequisites (Phase A → B → C) — it is not optional. Seam SEMANTICS / agent
+> crossing / memory flow stay Depth-2 (Phase D), explicitly NOT built in 7-B.
 >
 > The one cheap seed IDEAS.md names (line 350) — **pane-aware agent
 > perception** — was deliberately **not** taken in Phase 2 (perception.ts
@@ -661,6 +663,42 @@ user sees their whole library as a coherent map at every rung. The
 precondition that gives the later multi-pane UI distinct content per pane.
 
 ### Phase B — Multi-pane terminal UI (N simultaneous level Containers)
+
+**Status (2026-05-30): SHIPPED (visual-only, store + router + pane-scoped
+renderers + seams), single-pane DEFAULT behaviour-preserving.** Filed as
+**Phase 7-B**. The store's single `scale: ScaleLevel` scalar is replaced by
+`panes: PaneDescriptor[]` + `focusedPaneId` + `gridCols`/`gridRows`/`paneSeq`
+(`src/types.ts` holds the pure `PaneRect`/`PaneDescriptor` types). `scale` +
+`setScale` are RETAINED as a kept-in-sync MIRROR of the focused pane's level
+(written field, via the `syncScaleToFocused` invariant) — so App.tsx's `[`/`]`
+zoom + `PixiApp.subscribe`'s `state.scale !== prev.scale` diff are UNCHANGED.
+DEFAULT = ONE `'root'` pane covering the whole 1×1 grid at `'cell'` —
+byte-equivalent to the old scalar. Pure reducers `splitPane`/`closePane`/
+`focusPane`/`cycleFocus`/`setPaneLevel`/`setArrangement('single'|'study')`
+(deterministic `paneSeq` ids, NO Math.random/Date.now). `PixiApp.ts` replaces
+the single `teardownLevel` with `Map<paneId, LivePane>`: per-pane `paneRoot`
+Container positioned + Graphics-masked to its `computePixelRect` (mask SKIPPED
+for the full-grid single pane → byte-identical render path); a `reconcilePanes`
+store-subscribe diff (mount/unmount/relevel/refit); ONE app-level resize
+listener; box-drawing seam glyphs (`│ ─ ┼ ├ ┤ ┬ ┴`, `fgDim`) where panes abut.
+The single Application + ticker STAY (never `app.destroy` on a pane change).
+`refitAll`'s `reconcileMask` reconciles each pane's clip mask against its
+CURRENT full-grid status (create/redraw/destroy) — closing the single→study
+gap where the kept `root` pane flips full-grid→partial via the cheap rect-only
+reconcile branch and would otherwise keep its maskless single-pane mask.
+Read-only level renderers (`district`/`island`/`continent`/`stub`) adapted to
+`(parent, rect) → {teardown, refit}`; `cell.ts` keeps ONE player + ONE keydown
+listener gated on `focusedPaneId === paneId`. App.tsx adds `Tab` (cycleFocus) +
+`\` (single↔study) behind the existing wallpaper guard (no-op in wallpaper
+mode). Smoke: `smoke-7b-panes.mts` (68) locks the one-pane back-compat
+reduction + every reducer + rect tiling math + the single→study clip-mask
+regression trigger (A12); the visual multi-pane output (masks, seams,
+focus-switch) needs the Windows checklist (`TODO-USER.md` "Phase 7-B
+multi-pane", check B1's clip-mask regression step). DEFERRED: seam SEMANTICS / agent seam-crossing /
+memory flow (Depth-2); multiple simultaneous input-owning cell panes (the
+`playerPosition` + `agentRuntime` singletons are the blocker); per-pane
+throttling beyond the shared ticker; arrangement persistence across restarts;
+`tour`/`voyage` presets; drag-to-reposition (Phase C).
 
 **Goal.** Move the renderer from one-active-level-at-a-time to N
 simultaneous panes, each showing a (level, viewport) independently — the

@@ -109,6 +109,9 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   // and the "made a plan" sub-arrow as BitmapText (not just in comments).
   ['──', 'morning-dispatch.ts renderDispatch rule'],
   ['↳', 'morning-dispatch.ts renderDispatch plan arrow'],
+  // Phase 7-B — composable-panes seam glyphs (PixiApp.ts SEAM_GLYPHS +
+  // drawSeamGlyphs). Drawn as box-drawing decoration where panes abut.
+  ['│─┼├┤┬┴', 'PixiApp.ts SEAM_GLYPHS pane seams'],
 ];
 for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
 

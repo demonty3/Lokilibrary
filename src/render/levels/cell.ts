@@ -36,7 +36,7 @@ import {
   LANDMARK_FG_KEY,
 } from '../../procedural/localLandmark';
 import { NO_LOCAL_MODEL, type LocalModelResult } from '../../api/localModel';
-import type { BookGame } from '../PixiApp';
+import type { BookGame, PixelRect } from '../PixiApp';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -62,12 +62,26 @@ import {
  *     (`src/agents/behavior.ts`) — no LLM calls in this slice. Tier 1
  *     dispatch lands in 2C; Tier 2 reflection in 2D.
  *
- * Returns a teardown function that detaches + destroys the Container,
- * removes the keydown listener, and unregisters Tickers (called by
- * PixiApp's level router on scale transitions).
+ * Returns `{teardown, refit}`. `teardown` detaches + destroys the Container,
+ * removes the keydown listener, and unregisters Tickers (called by PixiApp's
+ * pane router on level/pane transitions). `refit` re-fits to a new pixel rect
+ * on resize (PixiApp owns the resize listener now — one app-level listener
+ * drives every pane's refit).
+ *
+ * Phase 7-B — pane-scoped. Adds its Container to `parent` (a per-pane root,
+ * NOT app.stage) and fits within `rect` (pixel rect, local origin) instead of
+ * the full screen. `paneId` gates input: the window keydown handler consumes
+ * movement/E ONLY when `useAppStore.getState().focusedPaneId === paneId`, so
+ * input routes to the focused cell pane only. The listener itself is still
+ * added once at mount + removed at teardown (no per-pane add/remove) — the
+ * focused-pane guard inside the handler is the whole gate. With the default
+ * single 'root' pane, focusedPaneId === paneId always ⇒ behaviour identical to
+ * the pre-7-B path.
  */
 export function mountCell(
   app: Application,
+  parent: Container,
+  rect: PixelRect,
   theme: Theme,
   layout: CellLayout,
   books: readonly BookGame[] = [],
@@ -75,9 +89,10 @@ export function mountCell(
   memoryWriter: MemoryWriter = nullMemoryWriter,
   spriteAtlas: SpriteAtlas | null = null,
   localModel: LocalModelResult = NO_LOCAL_MODEL,
-): () => void {
+  paneId = 'root',
+): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
-  app.stage.addChild(container);
+  parent.addChild(container);
 
   const baseLayer = new Container();
   const spineLayer = new Container();
@@ -383,6 +398,11 @@ export function mountCell(
   let lastLaunchAt = 0;
   const onKeydown = (e: KeyboardEvent) => {
     if (useAppStore.getState().wallpaperMode) return;
+    // Phase 7-B — only the FOCUSED cell pane consumes movement/E. A
+    // non-focused cell pane keeps its listener attached but ignores input
+    // (the single guard, not listener add/remove, is the gate). With the
+    // default single 'root' pane this is always true ⇒ unchanged behaviour.
+    if (useAppStore.getState().focusedPaneId !== paneId) return;
     // Bookshelf launch — only fires when prompt is currently shown.
     if (e.key.toLowerCase() === 'e') {
       const target = nearestAdjacentBookshelf();
@@ -507,35 +527,39 @@ export function mountCell(
     }
   }
 
-  // Center + integer-scale the container to fit the app screen.
-  const fit = () => {
+  // Center + integer-scale the container to fit the pane rect (local origin).
+  // Phase 7-B: PixiApp owns the resize listener now and calls the returned
+  // `refit` with the recomputed pixel rect; with a single full-grid pane the
+  // rect === full screen so the fit output is identical to the pre-7-B path.
+  const fit = (r: PixelRect) => {
     const roomW = layout.width * COZETTE_CELL_WIDTH;
     const roomH = layout.height * COZETTE_CELL_HEIGHT;
-    const sx = Math.floor(app.screen.width / roomW);
-    const sy = Math.floor(app.screen.height / roomH);
+    const sx = Math.floor(r.pw / roomW);
+    const sy = Math.floor(r.ph / roomH);
     const scale = Math.max(1, Math.min(sx, sy));
     container.scale.set(scale);
-    container.x = Math.floor((app.screen.width - roomW * scale) / 2);
-    container.y = Math.floor((app.screen.height - roomH * scale) / 2);
+    container.x = Math.floor((r.pw - roomW * scale) / 2);
+    container.y = Math.floor((r.ph - roomH * scale) / 2);
   };
-  fit();
-  app.renderer.on('resize', fit);
+  fit(rect);
 
-  return () => {
-    window.removeEventListener('keydown', onKeydown);
-    app.ticker.remove(positionPlayer);
-    app.ticker.remove(pulseLandmark);
-    if (promptHandle) {
-      promptHandle.destroy();
-      promptHandle = null;
-    }
-    if (statusHandle) {
-      statusHandle.destroy();
-      statusHandle = null;
-    }
-    teardownCohort();
-    app.renderer.off('resize', fit);
-    container.destroy({ children: true });
+  return {
+    refit: fit,
+    teardown: () => {
+      window.removeEventListener('keydown', onKeydown);
+      app.ticker.remove(positionPlayer);
+      app.ticker.remove(pulseLandmark);
+      if (promptHandle) {
+        promptHandle.destroy();
+        promptHandle = null;
+      }
+      if (statusHandle) {
+        statusHandle.destroy();
+        statusHandle = null;
+      }
+      teardownCohort();
+      container.destroy({ children: true });
+    },
   };
 }
 

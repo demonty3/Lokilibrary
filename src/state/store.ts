@@ -4,11 +4,67 @@ import { fetchMe, logout as logoutRequest } from '../api/auth';
 import { fetchLibrary, type LibraryFailureReason } from '../api/library';
 import { signInWithSteamTicket, type ThrottleState } from '../api/electron';
 import type { Manifest } from '../ai/manifest';
-import type { LibraryGame, Profile, ScaleLevel, SteamPersona } from '../types';
+import type {
+  LibraryGame,
+  PaneDescriptor,
+  PaneRect,
+  Profile,
+  ScaleLevel,
+  SteamPersona,
+} from '../types';
 
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
 export type LibraryStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
+/** Phase 7-B — named pane arrangements. 'single' is the back-compat default
+ *  (one full-grid cell pane); 'study' is the demo composition (cell + district
+ *  side-by-side). More presets ('tour', 'voyage') deferred. */
+export type ArrangementName = 'single' | 'study';
+
+/** The boot level of the default single pane — the back-compat anchor. */
+const BOOT_LEVEL: ScaleLevel = 'cell';
+
+/**
+ * Phase 7-B — the back-compat hinge. Returns the FOCUSED pane's level, which
+ * every focus/level-mutating reducer mirrors into the top-level `scale` field
+ * in the SAME set() so PixiApp's `state.scale !== prev.scale` subscribe diff
+ * keeps firing. Falls back to BOOT_LEVEL if focus is somehow dangling (it never
+ * should be — closePane refocuses a survivor — but this keeps the invariant
+ * total rather than throwing). Pure: no side effects, no store reads.
+ */
+function syncScaleToFocused(
+  panes: readonly PaneDescriptor[],
+  focusedPaneId: string,
+): ScaleLevel {
+  const focused = panes.find((p) => p.id === focusedPaneId);
+  return focused ? focused.level : BOOT_LEVEL;
+}
+
+/**
+ * Phase 7-B — the default single-pane state. ONE 'root' pane covering the whole
+ * 1×1 grid at the boot level. This IS the back-compat default; `setArrangement
+ * ('single')` restores exactly this. Returned fresh each call so callers never
+ * share a mutable pane array. `paneSeq` resets to 1 so the next split is
+ * deterministic from a reset (the smoke's split-twice-from-reset assertion).
+ */
+function singlePaneState(): {
+  panes: PaneDescriptor[];
+  focusedPaneId: string;
+  gridCols: number;
+  gridRows: number;
+  paneSeq: number;
+  scale: ScaleLevel;
+} {
+  return {
+    panes: [{ id: 'root', level: BOOT_LEVEL, rect: { col: 0, row: 0, cols: 1, rows: 1 } }],
+    focusedPaneId: 'root',
+    gridCols: 1,
+    gridRows: 1,
+    paneSeq: 1,
+    scale: BOOT_LEVEL,
+  };
+}
 
 /**
  * Top-level app state. Auth, library, profile, manifest, and Electron
@@ -56,9 +112,57 @@ interface AppState {
 
   /** Scale-ladder level. Phase 1 implements `cell` + `district`; the
    *  other four mount a "not yet built" stub. The level renderer
-   *  subscribes to this slice and tears down + remounts on change. */
+   *  subscribes to this slice and tears down + remounts on change.
+   *
+   *  Phase 7-B — `scale` is now a kept-in-sync MIRROR of the FOCUSED pane's
+   *  level (a real written field, NOT a derived selector — so PixiApp's
+   *  `state.scale !== prev.scale` subscribe diff keeps firing exactly as
+   *  before). Every reducer that can change focus or the focused pane's
+   *  level re-writes `scale` in the same set() via `syncScaleToFocused`, so
+   *  the invariant `scale === focused pane level` can never drift.
+   *  `setScale` is rewired to mutate the FOCUSED pane's level (and mirror
+   *  `scale`), so App.tsx's `[`/`]` zoom keeps working unchanged. With the
+   *  default single 'root' pane this is behavior-equivalent to the old
+   *  scalar. */
   scale: ScaleLevel;
   setScale: (level: ScaleLevel) => void;
+
+  /** Phase 7-B — composable panes. The renderer mounts ONE level Container
+   *  per pane, clipped to the pane's rect. DEFAULT = a single 'root' pane
+   *  covering the whole 1×1 grid at level 'cell' (back-compat with the old
+   *  scale scalar). All ids come from `paneSeq` only — deterministic, no
+   *  Math.random/Date.now, so src/procedural's reproducibility contract is
+   *  untouched. */
+  panes: PaneDescriptor[];
+  /** The pane that owns input + that `setScale`/`[`/`]` zoom mutate. Always
+   *  references an existing pane (never dangling — closePane refocuses a
+   *  survivor). */
+  focusedPaneId: string;
+  /** Composition-grid dimensions. The 'single' arrangement is 1×1; 'study'
+   *  grows to 2×1. PaneRects address cells of this grid. */
+  gridCols: number;
+  gridRows: number;
+  /** Monotonic counter for deterministic pane ids. */
+  paneSeq: number;
+
+  /** Split the FOCUSED pane in two along `axis`, growing the grid as needed
+   *  and re-tiling deterministically. The new pane inherits the focused
+   *  pane's level; focus stays on the original. */
+  splitPane: (axis: 'horizontal' | 'vertical') => void;
+  /** Remove a pane by id. No-op on the last pane (never zero panes). Closing
+   *  the focused pane refocuses a survivor + re-syncs `scale`. */
+  closePane: (id: string) => void;
+  /** Focus a pane by id. No-op if the id doesn't exist. Re-syncs `scale`. */
+  focusPane: (id: string) => void;
+  /** Advance focus to the next pane in array order, wrapping. No-op with one
+   *  pane. Re-syncs `scale`. */
+  cycleFocus: () => void;
+  /** Set a specific pane's level. Re-syncs `scale` only when `id` is the
+   *  focused pane. */
+  setPaneLevel: (id: string, level: ScaleLevel) => void;
+  /** Swap the whole arrangement. 'single' restores the exact default;
+   *  'study' = a cell pane + a district pane side-by-side, focus on cell. */
+  setArrangement: (name: ArrangementName) => void;
 
   /** Phase 2F: telemetry overlay visibility. Toggled by Ctrl+\` in
    *  App.tsx; the overlay renderer subscribes + mounts/unmounts. */
@@ -197,9 +301,159 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().throttleState !== state) set({ throttleState: state });
   },
 
-  scale: 'cell',
+  // Phase 7-B — the default single 'root' pane covering the whole 1×1 grid at
+  // the boot level. `scale` is the kept-in-sync mirror of the focused pane's
+  // level (here, the only pane). This block IS the back-compat default.
+  ...singlePaneState(),
   setScale: (level) => {
-    if (get().scale !== level) set({ scale: level });
+    // Back-compat: mutate the FOCUSED pane's level + mirror `scale` in the
+    // SAME set(). App.tsx's `[`/`]` handler reads `scale` and calls this
+    // unchanged; with the default single pane it zooms that pane exactly as
+    // the old scalar did.
+    const { panes, focusedPaneId } = get();
+    const idx = panes.findIndex((p) => p.id === focusedPaneId);
+    if (idx < 0) return;
+    if (panes[idx].level === level) return; // no-op (matches old guard)
+    const next = panes.slice();
+    next[idx] = { ...next[idx], level };
+    set({ panes: next, scale: syncScaleToFocused(next, focusedPaneId) });
+  },
+
+  splitPane: (axis) => {
+    const state = get();
+    const { panes, focusedPaneId, gridCols, gridRows, paneSeq } = state;
+    const focused = panes.find((p) => p.id === focusedPaneId);
+    if (!focused) return;
+    const newId = `p${paneSeq + 1}`;
+    // Grow the grid along the split axis (uniform integer grid). Existing
+    // rects scale up to keep their proportion; the focused pane's slot is
+    // bisected into the original (kept) + the new pane.
+    let nextCols = gridCols;
+    let nextRows = gridRows;
+    let nextPanes: PaneDescriptor[];
+    if (axis === 'vertical') {
+      // Split into a left + right half along columns.
+      nextCols = gridCols * 2;
+      nextPanes = panes.map((p) => {
+        const scaled: PaneRect = {
+          col: p.rect.col * 2,
+          row: p.rect.row,
+          cols: p.rect.cols * 2,
+          rows: p.rect.rows,
+        };
+        if (p.id !== focusedPaneId) return { ...p, rect: scaled };
+        // Focused pane keeps the left half.
+        const half = Math.max(1, Math.floor(scaled.cols / 2));
+        return { ...p, rect: { ...scaled, cols: half } };
+      });
+      const f = nextPanes.find((p) => p.id === focusedPaneId)!;
+      nextPanes.push({
+        id: newId,
+        level: focused.level,
+        rect: {
+          col: f.rect.col + f.rect.cols,
+          row: f.rect.row,
+          cols: f.rect.cols, // right half mirrors the left half's width
+          rows: f.rect.rows,
+        },
+      });
+    } else {
+      // Horizontal split → a top + bottom half along rows.
+      nextRows = gridRows * 2;
+      nextPanes = panes.map((p) => {
+        const scaled: PaneRect = {
+          col: p.rect.col,
+          row: p.rect.row * 2,
+          cols: p.rect.cols,
+          rows: p.rect.rows * 2,
+        };
+        if (p.id !== focusedPaneId) return { ...p, rect: scaled };
+        const half = Math.max(1, Math.floor(scaled.rows / 2));
+        return { ...p, rect: { ...scaled, rows: half } };
+      });
+      const f = nextPanes.find((p) => p.id === focusedPaneId)!;
+      nextPanes.push({
+        id: newId,
+        level: focused.level,
+        rect: {
+          col: f.rect.col,
+          row: f.rect.row + f.rect.rows,
+          cols: f.rect.cols,
+          rows: f.rect.rows,
+        },
+      });
+    }
+    set({
+      panes: nextPanes,
+      gridCols: nextCols,
+      gridRows: nextRows,
+      paneSeq: paneSeq + 1,
+      // Focus stays on the original pane; scale is unchanged but re-synced
+      // for invariant safety.
+      scale: syncScaleToFocused(nextPanes, focusedPaneId),
+    });
+  },
+
+  closePane: (id) => {
+    const { panes, focusedPaneId } = get();
+    if (panes.length <= 1) return; // never zero panes
+    if (!panes.some((p) => p.id === id)) return;
+    const next = panes.filter((p) => p.id !== id);
+    // If the focused pane was closed, refocus a survivor (the first
+    // remaining pane) so focusedPaneId never dangles + scale re-syncs.
+    const nextFocus = id === focusedPaneId ? next[0].id : focusedPaneId;
+    set({
+      panes: next,
+      focusedPaneId: nextFocus,
+      scale: syncScaleToFocused(next, nextFocus),
+    });
+  },
+
+  focusPane: (id) => {
+    const { panes, focusedPaneId } = get();
+    if (id === focusedPaneId) return;
+    if (!panes.some((p) => p.id === id)) return; // bad id → no-op
+    set({ focusedPaneId: id, scale: syncScaleToFocused(panes, id) });
+  },
+
+  cycleFocus: () => {
+    const { panes, focusedPaneId } = get();
+    if (panes.length <= 1) return;
+    const idx = panes.findIndex((p) => p.id === focusedPaneId);
+    const nextIdx = ((idx < 0 ? 0 : idx) + 1) % panes.length;
+    const nextId = panes[nextIdx].id;
+    set({ focusedPaneId: nextId, scale: syncScaleToFocused(panes, nextId) });
+  },
+
+  setPaneLevel: (id, level) => {
+    const { panes, focusedPaneId } = get();
+    const idx = panes.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    if (panes[idx].level === level) return;
+    const next = panes.slice();
+    next[idx] = { ...next[idx], level };
+    // Re-sync scale only when the changed pane is the focused one.
+    set({ panes: next, scale: syncScaleToFocused(next, focusedPaneId) });
+  },
+
+  setArrangement: (name) => {
+    if (name === 'single') {
+      set(singlePaneState());
+      return;
+    }
+    // 'study' — a cell pane (left) + a district pane (right) on a 2×1 grid,
+    // focus on the cell. Deterministic ids from a fresh seq.
+    set({
+      panes: [
+        { id: 'root', level: 'cell', rect: { col: 0, row: 0, cols: 1, rows: 1 } },
+        { id: 'p2', level: 'district', rect: { col: 1, row: 0, cols: 1, rows: 1 } },
+      ],
+      focusedPaneId: 'root',
+      gridCols: 2,
+      gridRows: 1,
+      paneSeq: 2,
+      scale: 'cell',
+    });
   },
 
   agentDebugOverlay: false,

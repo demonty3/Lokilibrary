@@ -92,6 +92,35 @@ export const SCALE_ORDER: readonly ScaleLevel[] = [
   'solar_system',
 ];
 
+/**
+ * Phase 7-B — composable panes. A `PaneRect` is a cell on a uniform integer
+ * composition grid (gridCols × gridRows): {col, row} is the top-left grid cell
+ * the pane occupies; {cols, rows} is how many grid cells it spans. The renderer
+ * (src/render/PixiApp.ts) maps a PaneRect onto a pixel rectangle against the
+ * live screen size. Pure data: no runtime, importable by both the store and the
+ * renderer with no import cycle.
+ */
+export interface PaneRect {
+  col: number;
+  row: number;
+  cols: number;
+  rows: number;
+}
+
+/**
+ * Phase 7-B — one pane in the composable-panes arrangement. {id} is a
+ * deterministic monotonic id (`root`, `p2`, `p3`, …) sourced from the store's
+ * paneSeq counter — never Math.random/Date.now, so the world stays
+ * reproducible. {level} is the scale rung the pane renders; {rect} is its
+ * placement on the composition grid. The DEFAULT single 'root' pane covers the
+ * whole 1×1 grid at level 'cell' — byte-equivalent to the pre-7-B scale scalar.
+ */
+export interface PaneDescriptor {
+  id: string;
+  level: ScaleLevel;
+  rect: PaneRect;
+}
+
 /** Mirrors worker/lib/state.ts. SPEC §4 enumeration. */
 export type LibraryState =
   | 'loved'

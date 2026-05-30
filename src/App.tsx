@@ -206,6 +206,29 @@ export function App() {
         useAppStore.getState().setLoreUploadOpen(false);
         return;
       }
+      // Phase 7-B — composable panes. All composition keybinds live behind
+      // the same wallpaper guard above (line ~189) so they no-op in
+      // wallpaper mode (wallpaper shows the arrangement read-only). Tab
+      // cycles the focused pane (preventDefault so focus never leaves the
+      // canvas). Backslash toggles between the single + 'study' demo
+      // arrangements — a non-letter so it never collides with cell.ts's
+      // WASD/E movement keys.
+      if (e.key === 'Tab') {
+        // Only claim Tab when there's more than one pane to cycle — in the
+        // single-pane default it's a no-op, so let the key pass through
+        // normally rather than swallowing it.
+        if (useAppStore.getState().panes.length > 1) {
+          e.preventDefault();
+          useAppStore.getState().cycleFocus();
+        }
+        return;
+      }
+      if (e.key === '\\') {
+        e.preventDefault();
+        const single = useAppStore.getState().panes.length === 1;
+        useAppStore.getState().setArrangement(single ? 'study' : 'single');
+        return;
+      }
       if (e.key !== '[' && e.key !== ']') return;
       e.preventDefault();
       const current = useAppStore.getState().scale;
@@ -271,7 +294,9 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
     >
       <div>level: {label}</div>
       <div>steamid: {steamId ?? '—'}</div>
-      <div style={{ opacity: 0.65 }}>[ zoom out · ] zoom in · WASD walk</div>
+      <div style={{ opacity: 0.65 }}>
+        [ zoom out · ] zoom in · WASD walk · \ split · Tab focus
+      </div>
     </div>
   );
 }

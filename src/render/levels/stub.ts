@@ -1,7 +1,7 @@
 import { BitmapText, Container } from 'pixi.js';
-import type { Application } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ScaleLevel } from '../../types';
+import type { PixelRect } from '../PixiApp';
 import {
   COZETTE_FONT_FAMILY,
   COZETTE_FONT_SIZE,
@@ -14,15 +14,23 @@ import {
  * smoke test at every level — if the panel renders here, the renderer
  * pipeline + font load works end-to-end. Higher-level rendering lands
  * in Phase 2+ as the agent + map terminals come online.
+ *
+ * Phase 7-B — pane-scoped. Adds its Container to the supplied `parent` (a
+ * per-pane root, NOT app.stage) and fits to `rect` (a pixel rectangle in the
+ * parent's LOCAL space, origin 0,0) instead of the full screen. The PixiApp
+ * router owns the resize → re-fit by calling the returned `refit`. With a
+ * single full-grid pane rect === full screen and the output is identical to
+ * the pre-7-B path.
  */
 export function mountStubLevel(
-  app: Application,
+  parent: Container,
+  rect: PixelRect,
   theme: Theme,
   level: ScaleLevel,
   aggregateNote?: string,
-): () => void {
+): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
-  app.stage.addChild(container);
+  parent.addChild(container);
 
   const label = level.replace(/_/g, ' ');
   // Phase 7-A: planet/solar_system stay stubs, but carry a one-line library
@@ -48,20 +56,21 @@ export function mountStubLevel(
   });
   container.addChild(panel);
 
-  const fit = () => {
-    // Integer-scale to ~⅓ of the smallest screen dimension so the
-    // panel is readable on any monitor without antialiasing.
-    const desired = Math.min(app.screen.width, app.screen.height) / 3;
+  const fit = (r: PixelRect) => {
+    // Integer-scale to ~⅓ of the smallest rect dimension so the panel is
+    // readable on any monitor without antialiasing. Centre within the rect.
+    const desired = Math.min(r.pw, r.ph) / 3;
     const scale = Math.max(1, Math.floor(desired / panel.height));
     container.scale.set(scale);
-    container.x = Math.floor((app.screen.width - panel.width * scale) / 2);
-    container.y = Math.floor((app.screen.height - panel.height * scale) / 2);
+    container.x = Math.floor((r.pw - panel.width * scale) / 2);
+    container.y = Math.floor((r.ph - panel.height * scale) / 2);
   };
-  fit();
-  app.renderer.on('resize', fit);
+  fit(rect);
 
-  return () => {
-    app.renderer.off('resize', fit);
-    container.destroy({ children: true });
+  return {
+    refit: fit,
+    teardown: () => {
+      container.destroy({ children: true });
+    },
   };
 }

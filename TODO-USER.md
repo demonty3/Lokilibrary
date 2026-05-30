@@ -175,6 +175,83 @@ with `python3 scripts/gen-cozette-coverage.py` only if the font in
 local-model + scale-ladder work can be considered shipped-and-seen, not
 just shipped-and-typechecked.
 
+### ⏳ Phase 7-B multi-pane — visual QA (Windows + PIXI required)
+**Status**: pending. The composable-panes store model + reducers are
+smoke-covered HEADLESSLY (`npx tsx scripts/smoke-7b-panes.mts`, 64 assertions —
+back-compat one-pane reduction + every reducer + rect tiling math; both
+typecheck legs pass). But the multi-pane CONTAINER/MASK/SEAM-GLYPH output is
+VISUAL and unverifiable from WSL (no Electron/PIXI). The single-pane DEFAULT
+must be pixel-identical to today; everything below needs a human eyeball on a
+real Windows window-mode session. **The single-pane regression check (B0) is the
+load-bearing one — do it first.**
+
+**Launch**: pull this branch on Windows. `npm run dev` (repo root) +
+`npm run worker` + `cd desktop; npm run dev` (Windows-native Node). Keep WINDOW
+mode for these checks (the new keybinds are wallpaper-gated; `\`/`Tab`/`[`/`]`/
+WASD all need keydown).
+
+**B0 — single-pane back-compat (MUST NOT REGRESS).** On boot the app opens at
+`cell` with EXACTLY ONE pane covering the whole screen. It must look
+pixel-identical to the pre-7-B build: the room centred + integer-scaled, the
+`@` player, the cohort, scatter, bookshelf prompts, the local-model landmark —
+all exactly as before. WASD/arrows move the player; `E` launches/opens the
+status panel; `[`/`]` zoom through the scale ladder. **There must be NO seam
+glyphs and NO visible clip border** (the full-grid pane skips the mask). One
+canvas only. If anything here differs from the old build, STOP — the back-compat
+anchor regressed.
+
+**B1 — split into the study arrangement.** Press `\`. The view splits into TWO
+abutting panes: the cell room (left, focused) + the district map (right). A
+box-drawing seam (`│` with `┬`/`┴` junctions) draws on the shared border. Each
+pane's content is CLIPPED to its half (nothing bleeds across the seam). Press
+`\` again → back to the single full-grid cell pane (no seam, no border).
+- **CLIP-MASK regression check (was a must-fix):** the LEFT cell pane keeps the
+  `root` id across `\` (its level is unchanged cell→cell), so the renderer takes
+  the cheap rect-only reconcile branch and does NOT remount it. The fix
+  (`reconcileMask` in `refitAll`) must CREATE the clip mask for that now-half-
+  width pane even though it was mounted maskless as a full-grid single pane.
+  Verify the cell room is genuinely clipped to its left half — draw your eye to
+  the seam: NO room content (sprites, glow, proximity-prompt text, agent
+  marginalia) may spill into the right/district half. Then `\` back to single
+  and confirm the cell room re-fills the whole window with NO leftover clip
+  border (the mask is detached + destroyed on the partial→full return). If room
+  content bleeds past the seam on the FIRST `\`, the mask-reconcile fix
+  regressed.
+
+**B2 — focus switching (`Tab`).** In the study arrangement, `Tab` cycles the
+focused pane (cell → district → cell …). Confirm:
+- `[`/`]` zoom only the FOCUSED pane (zoom the cell pane, the district pane is
+  unchanged; `Tab` to the district pane, `[`/`]` now changes IT).
+- WASD/arrows/`E` drive the player ONLY when a cell pane is focused. Focus the
+  district pane → WASD does nothing (district has no movement). Focus back →
+  movement resumes (no player jump — the guard just re-enables).
+- Known visual-only quirk (acceptable for 7-B): the player `@` renders at the
+  same coords in any background cell pane (shared `playerPosition` singleton) —
+  per-pane players are the DEFERRED multi-input-cell feature.
+
+**B3 — resize.** Resize the window. Both panes re-fit to the new split (the seam
+tracks the grid boundary, masks redraw, no content escapes its pane, no double
+canvas). On a HiDPI monitor confirm the clip rect aligns to the pane border
+(the Graphics mask is in stage/local coords under `autoDensity` — the one thing
+only verifiable here).
+
+**B4 — wallpaper mode read-only.** Toggle to wallpaper mode. The current
+arrangement shows read-only; `\` / `Tab` no-op (composition is window-mode
+only). The throttle ladder still freezes/animates all panes uniformly (shared
+ticker — per-pane throttling is deferred).
+
+**Broken looks like**: a blank pane after a split (mask geometry wrong); content
+spilling across the seam (mask not applied / wrong rect); the WHOLE app blank
+after `\` then `\` back (reconcile destroyed the wrong Container); `[`/`]` doing
+nothing in single-pane (the scale-mirror back-compat broke — the headless smoke
+A4 should have caught this, so this would be a render-only regression); two
+stacked canvases (Application destroyed/recreated on a pane change — it must
+NOT be).
+
+**Unblocks**: certifies the visual half of Phase 7-B (the store/reducer half is
+smoke-locked) so composable-panes Depth-1 (drag) can build on a verified layout
+primitive.
+
 ### ⏳ Verify 5B sleep mode on Windows
 **Status**: pending, fresh out of slice 5B (on branch
 `claude/phase5b-sleep-mode`).

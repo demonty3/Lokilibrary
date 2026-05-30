@@ -1,7 +1,7 @@
 import { BitmapText, Container } from 'pixi.js';
-import type { Application } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame, Continent } from '../../procedural/clusters';
+import type { PixelRect } from '../PixiApp';
 import {
   aggregateActivity,
   activityGlyphFor,
@@ -37,29 +37,36 @@ import {
  * island + YOU marker tint `fgBright`, the sea + non-home islands tint
  * `fgDim`. No off-palette colours. Same accent vocabulary as island.
  *
- * Teardown contract identical to mountDistrict/mountStubLevel: off resize +
- * destroy the per-level Container. NEVER app.destroy().
+ * Teardown contract identical to mountDistrict/mountStubLevel: destroy the
+ * per-level Container. NEVER app.destroy().
+ *
+ * Phase 7-B — pane-scoped: adds its Container to `parent` (a per-pane root)
+ * and fits within `rect` (pixel rect, local origin) instead of the full
+ * screen; PixiApp drives resize via the returned `refit`. Single full-grid
+ * pane ⇒ rect === full screen ⇒ identical to the pre-7-B path.
  */
 export function mountContinent(
-  app: Application,
+  parent: Container,
+  rect: PixelRect,
   theme: Theme,
   games: readonly ClusterGame[],
   seed: number,
-): () => void {
+): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
-  app.stage.addChild(container);
+  parent.addChild(container);
 
   const tree = clusterLibrary(games, seed);
 
   if (tree.continents.length === 0) {
     const panel = emptyPanel(theme, 'continent', 'no library loaded yet.');
     container.addChild(panel);
-    const fitEmpty = makeFit(app, container, panel, 0.45);
-    fitEmpty();
-    app.renderer.on('resize', fitEmpty);
-    return () => {
-      app.renderer.off('resize', fitEmpty);
-      container.destroy({ children: true });
+    const fitEmpty = makeFit(container, panel, 0.45);
+    fitEmpty(rect);
+    return {
+      refit: fitEmpty,
+      teardown: () => {
+        container.destroy({ children: true });
+      },
     };
   }
 
@@ -159,7 +166,7 @@ export function mountContinent(
     labelNodes.push(node);
   }
 
-  const fit = makeFit(app, container, panel, 0.6);
+  const fit = makeFit(container, panel, 0.6);
   const placeLabels = () => {
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
@@ -190,16 +197,17 @@ export function mountContinent(
       labelNodes[i].y = gy;
     }
   };
-  const fitAll = () => {
-    fit();
+  const fitAll = (r: PixelRect) => {
+    fit(r);
     placeLabels();
   };
-  fitAll();
-  app.renderer.on('resize', fitAll);
+  fitAll(rect);
 
-  return () => {
-    app.renderer.off('resize', fitAll);
-    container.destroy({ children: true });
+  return {
+    refit: fitAll,
+    teardown: () => {
+      container.destroy({ children: true });
+    },
   };
 }
 
@@ -241,17 +249,16 @@ function clampInt(v: number, lo: number, hi: number): number {
 }
 
 function makeFit(
-  app: Application,
   container: Container,
   panel: BitmapText,
   frac: number,
-): () => void {
-  return () => {
-    const desired = Math.min(app.screen.width, app.screen.height) * frac;
+): (rect: PixelRect) => void {
+  return (rect: PixelRect) => {
+    const desired = Math.min(rect.pw, rect.ph) * frac;
     const scale = Math.max(1, Math.floor(desired / Math.max(1, panel.height)));
     container.scale.set(scale);
-    container.x = Math.floor((app.screen.width - panel.width * scale) / 2);
-    container.y = Math.floor((app.screen.height - panel.height * scale) / 2);
+    container.x = Math.floor((rect.pw - panel.width * scale) / 2);
+    container.y = Math.floor((rect.ph - panel.height * scale) / 2);
   };
 }
 
