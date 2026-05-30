@@ -145,14 +145,17 @@ export function mountIsland(
   const fit = makeFit(app, container, panel, 0.6);
   const placeYou = () => {
     if (!homeId) return;
-    const scale = container.scale.x;
     // +2 grid rows for the header + blank line; +1 col / +1 row inside the
-    // card to sit just inside its top border.
+    // card to sit just inside its top border. The marker is a CHILD of
+    // `container`, so it lives in the container's LOCAL glyph space — the
+    // parent already applies `container.x/y` + `container.scale`. (Earlier
+    // code added `container.x` + multiplied by `scale` here too, which
+    // double-applied both the centering offset and the scale and flung the
+    // marker off-screen.)
     const gx = (homeOriginX + 1) * GLYPH_W;
     const gy = (homeOriginY + 1 + HEADER_ROWS) * GLYPH_H;
-    youHighlight.x = container.x + gx * scale;
-    youHighlight.y = container.y + gy * scale;
-    youHighlight.scale.set(scale);
+    youHighlight.x = gx;
+    youHighlight.y = gy;
   };
   const fitAll = () => {
     fit();

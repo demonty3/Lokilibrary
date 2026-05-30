@@ -148,12 +148,16 @@ export function mountDistrict(
     container.y = Math.floor((app.screen.height - panel.height * scale) / 2);
     if (home) {
       // YOU marker just inside the home card's top border. +HEADER_ROWS for
-      // the header + blank line preceding the card grid.
+      // the header + blank line preceding the card grid. The marker is a
+      // CHILD of `container`, so it lives in the container's LOCAL glyph
+      // space — the parent already applies `container.x/y` + `container.scale`.
+      // (Earlier code added `container.x` + multiplied by `scale` here too,
+      // which double-applied both the centering offset and the scale and
+      // flung the marker off-screen.)
       const gx = (homeOx + 1) * GLYPH_W;
       const gy = (homeOy + 1 + HEADER_ROWS) * GLYPH_H;
-      youHighlight.x = container.x + gx * scale;
-      youHighlight.y = container.y + gy * scale;
-      youHighlight.scale.set(scale);
+      youHighlight.x = gx;
+      youHighlight.y = gy;
     }
   };
   fit();

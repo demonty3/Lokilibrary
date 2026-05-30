@@ -113,9 +113,14 @@ export function mountContinent(
     }
     const islandCount = c.islands.length;
     labels.push({
+      // Budget the label to ONE continent block, not the whole canvas: a
+      // canvasW-wide label anchored at this continent's centroid overruns
+      // the neighbouring continent's centroid + blob on a multi-mass map
+      // (e.g. a long representative game name), overprinting two land-mass
+      // labels. CELL_BLOCK keeps each label inside its own mass's column.
       text: truncateLabel(
         `${continentName(c)} ${area}g/${islandCount}i`,
-        canvasW,
+        CELL_BLOCK,
       ),
       cx,
       cy,
@@ -156,15 +161,33 @@ export function mountContinent(
 
   const fit = makeFit(app, container, panel, 0.6);
   const placeLabels = () => {
-    const scale = container.scale.x;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
       // +HEADER_ROWS for the header + blank line; place just below centroid.
-      const gx = l.cx * GLYPH_W;
+      // Label nodes are CHILDREN of `container`, so they live in the
+      // container's LOCAL glyph space — the parent already applies
+      // `container.x/y` + `container.scale`. (Earlier code added
+      // `container.x` + multiplied by `scale` here too, which double-applied
+      // both the centering offset and the scale and flung labels off-screen.)
+      //
+      // Center the label on the centroid COLUMN, then clamp its start so the
+      // whole label stays inside the panel's glyph width. Left-anchoring at
+      // the centroid let labels run 3–4 cols past the map's right edge (a
+      // centroid sits at col floor(CELL_BLOCK/2)=7 inside its 14-col block, and
+      // a `Name 12g/4i`-class label is ~10–11 cols, so right-edge continents —
+      // including the lone continent of a 1-continent library — spilled their
+      // label onto the bare background to the right of the blob). Clamping
+      // keeps every label visually anchored to its land-mass.
+      const len = l.text.length;
+      const startCol = clampInt(
+        l.cx - Math.floor(len / 2),
+        0,
+        Math.max(0, canvasW - len),
+      );
+      const gx = startCol * GLYPH_W;
       const gy = (l.cy + 1 + HEADER_ROWS) * GLYPH_H;
-      labelNodes[i].x = container.x + gx * scale;
-      labelNodes[i].y = container.y + gy * scale;
-      labelNodes[i].scale.set(scale);
+      labelNodes[i].x = gx;
+      labelNodes[i].y = gy;
     }
   };
   const fitAll = () => {
@@ -210,6 +233,12 @@ const CELL_BLOCK = 14;
 const HEADER_ROWS = 2;
 const GLYPH_W = 6;
 const GLYPH_H = 13;
+
+/** Clamp an integer into [lo, hi]. Used to keep centroid labels inside the
+ *  panel's glyph bounds. */
+function clampInt(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
 
 function makeFit(
   app: Application,
