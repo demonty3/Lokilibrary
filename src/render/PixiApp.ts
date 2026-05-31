@@ -2,9 +2,22 @@ import { Application, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../themes/types';
 import type { PaneDescriptor, PaneRect, Profile, ScaleLevel } from '../types';
 import { layoutCell } from '../procedural/cell';
+import { T_FLOOR } from '../procedural/tiles/library';
 import { profileSeed } from '../procedural/seed';
 import { useAppStore } from '../state/store';
-import { buildSeams, type Seam } from '../state/seams';
+import {
+  buildSeams,
+  seamExitsForPane,
+  type PaneDims,
+  type Seam,
+  type SeamExit,
+} from '../state/seams';
+import { getPane } from '../state/paneRegistry';
+import { getPlayerPos } from '../state/playerPos';
+import {
+  buildSeamEdgesForPane,
+  type CrossSeamDeps,
+} from '../agents/crossSeam';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
@@ -54,6 +67,24 @@ export interface PixelRect {
   /** Pixel height of the pane. */
   ph: number;
 }
+
+/**
+ * Phase 7-D.2 — the live cross-seam wiring threaded from `mountPalace` (the one
+ * place that knows the live pane set + seam graph) down to a cell pane's cohort.
+ * Both are LAZY (re-derived from the live graph each call) so a split/close
+ * keeps a mounted cohort current without a remount. `crossSeamDepsFor(maxFov)`
+ * yields the perception deps (the cohort computes maxFov from its themed defs);
+ * `seamExitsFor()` yields the crossing exits for the BehaviorContext. Single
+ * pane ⇒ both empty.
+ */
+export interface CohortCrossWiring {
+  crossSeamDepsFor: (maxFov: number) => CrossSeamDeps;
+  seamExitsFor: () => ReadonlyMap<string, SeamExit>;
+}
+
+/** Shared empty exits map — avoids per-call allocation on the single-pane hot
+ *  path (seamExitsFor returns THIS when there are no seams). */
+const EMPTY_SEAM_EXITS: ReadonlyMap<string, SeamExit> = new Map();
 
 /** Box-drawing seam glyphs (Phase 7-B) — pure decoration drawn where panes
  *  abut. NO semantics, NO crossing. Cozette-covered (glyph-coverage smoke). */
@@ -329,6 +360,14 @@ export async function mountPalace(
     // The renderer fits to rect-LOCAL space (origin 0,0, size pw×ph) — paneRoot
     // carries the screen-space origin.
     const localRect: PixelRect = { px: 0, py: 0, pw: pixelRect.pw, ph: pixelRect.ph };
+    // Phase 7-D.2 — the live cross-seam wiring for THIS pane. The cohort reads
+    // these lazily each tick so a split/close keeps it current without remount.
+    // Single pane ⇒ both resolve empty (liveSeamGraph short-circuits) ⇒
+    // byte-identical no-seam path.
+    const crossWiring: CohortCrossWiring = {
+      crossSeamDepsFor: (maxFov: number) => crossSeamDepsFor(maxFov),
+      seamExitsFor: () => seamExitsFor(desc.id),
+    };
     const mounted = mountPaneLevel(
       app,
       paneRoot,
@@ -339,6 +378,7 @@ export async function mountPalace(
       resolveWriter(),
       spriteAtlas,
       localModel,
+      crossWiring,
     );
 
     livePanes.set(desc.id, {
@@ -479,7 +519,80 @@ export async function mountPalace(
     drawSeamGlyphs(seamLayer, theme, gridCols, gridRows, app.screen.width, app.screen.height);
   }
 
-  // Initial mount of every pane in the current arrangement.
+  /** Phase 7-D.2 — build the LIVE seam graph + per-pane interior dims from the
+   *  CURRENTLY-mounted panes. The dims come from the paneRegistry (only CELL
+   *  panes register, so only walkable same-level neighbours appear). Returns an
+   *  empty graph for <=1 pane — the load-bearing single-pane short-circuit (no
+   *  buildSeams call, no allocation churn on the cohort tick). */
+  function liveSeamGraph(): { seams: Seam[]; dims: Map<string, PaneDims> } {
+    if (livePanes.size <= 1) return { seams: [], dims: new Map() };
+    const s = useAppStore.getState();
+    const descriptors: PaneDescriptor[] = [];
+    for (const [id, live] of livePanes) {
+      descriptors.push({ id, level: live.level, rect: live.rect });
+    }
+    const seams = buildSeams(descriptors, s.gridCols, s.gridRows);
+    const dims = new Map<string, PaneDims>();
+    for (const [id] of livePanes) {
+      const reg = getPane(id);
+      if (reg) dims.set(id, { width: reg.layout.width, height: reg.layout.height });
+    }
+    return { seams, dims };
+  }
+
+  /** Phase 7-D.2 (must-fix) — walkability oracle for the seam-exit floor gate.
+   *  Reads pane `pid`'s registered CellLayout.tiles; a cell is stand-on-able iff
+   *  it is T_FLOOR (mirrors behavior.ts:walkableNeighbours). An unregistered /
+   *  non-cell pane (no tiles) is treated as non-walkable so no cross is offered
+   *  into it. Out-of-bounds → false. */
+  function isWalkableInPane(pid: string, x: number, y: number): boolean {
+    const reg = getPane(pid);
+    if (!reg) return false;
+    const tiles = reg.layout.tiles;
+    const row = tiles[y];
+    if (!row) return false;
+    return row[x] === T_FLOOR;
+  }
+
+  /** Build the REAL CrossSeamDeps for a pane. The closures re-derive from the
+   *  live graph each call so split/close keeps a mounted cohort's perception +
+   *  crossing current WITHOUT a remount. Single pane ⇒ liveSeamGraph() is
+   *  empty ⇒ openSeamsFor returns [] ⇒ enrichSnapshotAcrossSeams returns base
+   *  BY REFERENCE (the byte-identical no-seam guarantee). */
+  function crossSeamDepsFor(maxFov: number): CrossSeamDeps {
+    return {
+      openSeamsFor: (pid: string) => {
+        const { seams, dims } = liveSeamGraph();
+        if (seams.length === 0) return [];
+        return buildSeamEdgesForPane(seams, pid, dims);
+      },
+      getNeighbourScope: (pid: string) => getPane(pid)?.scope,
+      getNeighbourPlayer: (pid: string) => getPlayerPos(pid),
+      maxFov,
+    };
+  }
+
+  /** Build the live seam-EXITS lookup for a pane (the crossing path). Re-read
+   *  each cohort tick. Empty for a single pane.
+   *
+   *  Phase 7-D.2 (must-fix) — passes a walkability oracle so an exit is offered
+   *  ONLY when BOTH the exit cell (this pane) and the bridged entry cell
+   *  (neighbour) are FLOOR (T_FLOOR). Without it an agent could be offered a
+   *  cross that lands it in a wall (where it has no walkable neighbour out =
+   *  stuck). Under the real cell layout the whole perimeter is wall, so an E/W
+   *  (vertical-split) seam correctly yields ZERO crossable exits today — an
+   *  honest empty result, not a stranding. The oracle reads each pane's
+   *  registered CellLayout.tiles by id from the paneRegistry. */
+  function seamExitsFor(paneId: string): ReadonlyMap<string, SeamExit> {
+    const { seams, dims } = liveSeamGraph();
+    if (seams.length === 0) return EMPTY_SEAM_EXITS;
+    return seamExitsForPane(seams, paneId, dims, isWalkableInPane);
+  }
+
+  // Initial mount of every pane in the current arrangement. ROOT mounts FIRST
+  // (store's panes array lists 'root' first; split appends p2+) so the single
+  // roaming roster is seeded into root's scope BEFORE any split pane mounts
+  // empty — the single-roaming-roster precondition.
   {
     const s0 = useAppStore.getState();
     for (const desc of s0.panes) mountPane(desc, s0.gridCols, s0.gridRows);
@@ -689,6 +802,7 @@ function mountPaneLevel(
   memoryWriter: MemoryWriter,
   spriteAtlas: SpriteAtlas | null,
   localModel: LocalModelResult = NO_LOCAL_MODEL,
+  crossWiring?: CohortCrossWiring,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   if (level === 'cell') {
     const { books, seed } = snapshotLibraryState();
@@ -705,6 +819,7 @@ function mountPaneLevel(
       spriteAtlas,
       localModel,
       paneId,
+      crossWiring,
     );
   }
   if (level === 'district') {

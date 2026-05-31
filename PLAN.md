@@ -971,6 +971,84 @@ bot.
 > - **Open/closed USER control, vertical-stack observe-but-not-walk semantics,
 >   input-ownership transfer, visitor-mode privacy** — all later slices.
 
+> **Phase 7-D.2 — LIVE SEAM WALK (runtime + sprite handoff) LANDED; on-screen
+> visual is Windows-pending (2026-05-31).** The "terminal merging" payoff: an
+> agent now WALKS from one pane into the neighbour — its runtime migrates and
+> its sprite follows. The IDENTITY-MODEL fork is RESOLVED (Harry's call):
+> **SINGLE ROAMING ROSTER** — the 5-agent COHORT exists ONCE across the whole
+> world; each agent lives in exactly ONE pane's `RuntimeScope` at a time and
+> roams by crossing seams. This REPLACES the per-pane model where every cell
+> pane spawned the full COHORT into its own scope (which made "loki crosses
+> A→B" collide with the loki already in B). The `migrateRuntime` duplicate
+> guard is now a BACKSTOP, not the norm.
+>
+> What landed (verifiable, smoke-locked in `smoke-7d2-walk.mts`, 58 assertions;
+> typecheck clean both legs; all 27 prior smokes green):
+> 1. **Single roaming roster + per-tick sprite reconcile** (`cohort.ts`) — the
+>    roster spawns ONCE, into ROOT's scope only (gated `paneId==='root' && scope
+>    empty`); a split pane mounts EMPTY and gains agents only as they walk in.
+>    The root-gate is **ROSTER-AWARE** (must-fix): on a PARTIAL root remount
+>    (relevel root via `]`/`[` while a sibling pane still holds a migrated agent)
+>    it SKIPS re-seeding any id `isAgentLiveElsewhere(id,'root')` reports as live
+>    elsewhere — re-adopting the distributed roster rather than cloning it (else a
+>    root zoom would re-create `loki` while p2 still held it = dup runtime + two
+>    sprites; the migrate dup-guard only backstops the NEXT cross). Single-pane:
+>    no sibling pane ⇒ always false ⇒ full roster seeds, byte-identical.
+>    `mountCohort` is now a renderer+ticker that each tick RECONCILES its sprite
+>    Map to `listRuntimesIn(scope)` — create a sprite for a newly-present id,
+>    destroy+drop one whose id migrated out. The destroy pass is skipped (incl.
+>    its keys() alloc) when no sprite is orphaned, so the single-pane hot path is
+>    allocation-free at 60Hz.
+> 2. **Live `CrossSeamDeps` + `seamExits` wiring** (`PixiApp.ts` +
+>    `crossSeam.ts` `buildSeamEdgesForPane` + `seams.ts` `seamExitsForPane`) —
+>    real per-pane deps built from `buildSeams(live panes)` + `paneRegistry`
+>    interior dims, threaded `mountPaneLevel→mountCell→mountCohort` via a lazy
+>    `CohortCrossWiring`. `livePanes.size<=1` short-circuits BEFORE `buildSeams`
+>    so single-pane is allocation-free + `openSeamsFor` returns [] (enricher
+>    returns base by reference — the X2/X4 identity guarantee). `seamExitsForPane`
+>    is **FLOOR-GATED** (must-fix): it takes a walkability oracle (PixiApp wires it
+>    off each pane's registered `CellLayout.tiles`) and offers a cross ONLY when
+>    BOTH the exit cell and the bridged ENTRY cell are floor — never stranding an
+>    agent in a wall. **Geometry consequence:** today's cell fills its whole
+>    perimeter with wall (only a SOUTH door), so an E/W (`|`-split) seam yields
+>    ZERO crossable exits — an HONEST empty result. A VISIBLE live crossing needs
+>    a walkable seam edge cell, which doesn't exist yet (DEFERRED: a doorway in
+>    the shared wall / a south-door-aligned N/S split). The crossing MECHANISM is
+>    proven headlessly regardless (the smoke builds floor exits by construction).
+> 3. **Cross-intent** (`behavior.ts`) — a wander step at an open walkable
+>    seam-exit edge cell offers "step off the edge" as ONE fixed-position PRNG
+>    candidate (determinism preserved); when picked it writes
+>    `runtime.pendingCross` instead of mutating x/y. No seam exit ⇒ clamp exactly
+>    as today.
+> 4. **Migrate + sprite handoff** (`cohort.ts` consume) — the tick consumes
+>    `pendingCross` via `migrateRuntime`; on 'ok' the agent leaves this scope
+>    (sprite reconciled away here) and lands in the neighbour (sprite reconciled
+>    in there). Guards: exactly-once move (single delete+set of the same object),
+>    no dup (single roaming roster), no leak (reconcile destroys orphaned
+>    sprites), no vanish (only migrate into a LIVE registered neighbour via
+>    `getNeighbourScope`), no ping-pong (deterministic `justArrivedAt` guard —
+>    a just-arrived agent does not re-emit a cross until it steps off the entry
+>    cell), teardown-safe.
+> 5. **Memory** — unchanged. Volatile runtime (activePlan/perceptionQueue)
+>    migrates with the agent (same object); persistent memory stays
+>    library-scoped + already shared.
+>
+> **Windows-pending (NOT WSL-verifiable):** the on-screen WALK + sprite handoff
+> are PIXI-visual (no PIXI/Electron in WSL) AND need a walkable seam edge
+> (deferred) to be observable as a left↔right crossing. They follow MECHANICALLY
+> from the per-tick sprite-to-scope reconcile + the runtime migration that ARE
+> smoke locked. The certifiable-now visual checks are single-pane unchanged +
+> roster-once/no-dup-across-zoom. QA checklist item updated in `TODO-USER.md`
+> ("Phase 7-D.2 live walk", with the geometry caveat called out).
+>
+> **Still DEFERRED (note, NOT built):** a WALKABLE seam edge cell (the
+> follow-up that makes a live crossing VISIBLE — today's solid-wall E/W
+> perimeter has no floor edge to cross); cross-LEVEL crossing (cell→district);
+> user open/close-seam control; per-pane throttling; arrangement persistence;
+> disposition of agents in a CLOSING split pane (they drop on teardown — root
+> re-adopts/reseeds on remount; migrate-home is deferred); visitor-mode/privacy
+> on a joined topology; any new LLM call or cross-pane salience tuning.
+
 ### Cheap seeds to reserve now (cost ~nothing, avoid later retrofits)
 - **Pane-aware agent perception** — THE one IDEAS.md names (line 350). No
   urgency until the multi-pane UI exists; refactoring `perception.ts` into a

@@ -10,10 +10,15 @@ chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-05-31** (Phase 7-D Depth-2 foundation: seam graph +
-bridge + cross-seam perception + migrate primitive landed headless; the only
-new Windows item is the `drawSeams` no-divergence visual check — see "Phase 7-D
-Depth-2 foundation" below. The pure pieces are smoke-locked, no eyeball needed).
+Last updated: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK: single roaming roster
+— the seam-walk MECHANISM (runtime migrates + sprite follows) is smoke-locked
+(`smoke-7d2-walk.mts`, 58 — now incl. roster-aware-remount C1/C2 + floor-gated
+exits F1/F2). GEOMETRY CAVEAT: today's cell layout has a solid-wall E/W edge, so
+a `|`-split shows roster-once (all agents on the LEFT, none on the right) but NO
+live left↔right crossing yet — that is the wall, NOT broken wiring (a walkable
+seam edge is a deferred follow-up). The on-screen items to certify now are W-2
+(single-pane unchanged) + W-3 (roster-once / no dup across a root zoom) — see
+"Phase 7-D.2 live walk" below. Single-pane must look unchanged.).
 
 ---
 
@@ -325,10 +330,84 @@ no-seam anchor; if a seam line appears in single-pane, the early-return
 regressed.
 
 **Unblocks**: certifies the no-divergence draw refactor so the seam GRAPH is the
-single abutment truth that the LIVE agent-crossing wiring (7-D.2, deferred — see
-PLAN.md Phase D status block) builds on. The cross-seam perception + migrate
-primitive are pure/headless and need NO Windows check (smoke-locked) — only the
-seam STROKE rendering does.
+single abutment truth that the LIVE agent-crossing wiring (7-D.2) builds on. The
+cross-seam perception + migrate primitive are pure/headless and need NO Windows
+check (smoke-locked) — only the seam STROKE rendering does.
+
+### ⏳ Phase 7-D.2 live walk — agent crosses a seam on screen (Windows + PIXI)
+**Status**: pending. Phase 7-D.2 landed the LIVE seam-walk MECHANISM: an agent's
+runtime migrates across a seam and its sprite follows (single roaming roster,
+cross-intent, `migrateRuntime` consume, per-tick sprite-to-scope reconcile,
+no-dup/leak/vanish/ping-pong guards) — fully smoke-locked
+(`npx tsx scripts/smoke-7d2-walk.mts`, 58 assertions; typecheck clean both legs;
+all 27 prior smokes green). **Do the 7-B + 7-D foundation passes (above) first;
+this rides on a live split.**
+
+> **GEOMETRY CAVEAT — read before you split (W-1).** A library cell's
+> layout fills its WHOLE perimeter with solid wall (`boundaryAt`: the E/W edge
+> columns are `│` wall, the N/S edge rows are `─` wall) with the ONLY opening a
+> door on the SOUTH wall. Agents only step on FLOOR (`·`). So with TODAY's
+> geometry an agent can never REACH an E/W (left↔right, `|`-split) edge cell —
+> the edge is wall — and the floor-gated crossing wiring (must-fix) correctly
+> offers ZERO crossable exits there. **You will NOT see a left↔right crossing
+> yet, and that is NOT a bug** — it's the wall, not broken wiring. Making a seam
+> edge cell walkable (a doorway in the shared wall, or an N/S split aligned to
+> the south door) is a small DEFERRED follow-up. Until then, the on-screen
+> things to certify are W-2 (single-pane unchanged) + W-3 (roster-once / no
+> ghost copy), NOT a live crossing. The crossing MECHANISM itself is proven
+> headlessly by the smoke (cross-intent emit → `migrateRuntime` A→B exactly
+> once, no dup/leak/vanish/ping-pong); only its on-screen reveal waits on a
+> walkable edge.
+
+**W-1 (DEFERRED until a walkable seam edge exists) — the roster lives ONCE, and
+an agent walks across.** From the boot single 'root' pane, split with `|`
+(shifted backslash) into TWO cell panes. The 5 agents (Loki `L`, the archivist,
+Cat, Visitor, Ghost-if-theme) all start in the LEFT (root) pane; the RIGHT (p2)
+pane starts EMPTY of agents (it has its own `@` player + decor, but no cohort
+sprites yet). **That much (roster-once: all agents on the left, none on the
+right) you CAN verify now — it is the observable part of W-1.** The actual
+walk-through is gated on the geometry caveat above: with the solid-wall E/W edge
+no agent can reach the shared edge, so none will cross left↔right yet. When a
+follow-up opens a walkable seam edge, the payoff to watch for is: an agent
+wandering against the shared edge WALKS THROUGH the seam — its glyph leaves the
+left pane and APPEARS in the right pane at the seam edge, then resumes wandering.
+**Broken (once a walkable edge exists) looks like**: an agent that vanishes at
+the edge and never reappears (vanish — migrate fired but the destination cohort
+didn't reconcile a sprite); an agent that shows in BOTH panes at once (dup — the
+single-delete-then-set or the sprite reconcile broke); an agent that flickers
+back and forth across the seam every tick (ping-pong — the `justArrivedAt` guard
+regressed). Until a walkable edge lands, "no agent crosses" is EXPECTED (wall),
+not broken.
+
+**W-2 — single-pane is UNCHANGED.** From the boot single 'root' pane (NO split),
+confirm all 5 agents are present and wandering exactly as before — same spawn
+spots, same wander, no flicker, no agent ever leaving. This is the load-bearing
+safety constraint (the roster spawns once into root, sprites are created once
+and never reconciled away, no seam ever opens). If single-pane looks different
+from a pre-7-D.2 build, the roster-once gate or the sprite reconcile regressed.
+
+**W-3 — no leak / no dup across a split (and across a root zoom).** The
+load-bearing invariant: the total agent count across ALL panes stays 5 (4 if
+Ghost is theme-filtered), NEVER 6+. Two checks once a walkable edge exists so
+agents actually move between panes:
+- **After a crossing**, the source pane must NOT keep a ghost copy (its sprite is
+  destroyed once its runtime left that scope) — count glyphs, total stays 5.
+- **After a root ZOOM with a split live (must-fix regression check)**: split with
+  `|`, let (or drive) an agent into the right pane, then focus the LEFT (root)
+  pane and zoom it out + back in (`]` then `[`). The remounted root must NOT
+  re-spawn the agent that is living in the right pane — total agent count stays
+  5, never 6. (The roster-aware root gate skips re-seeding any agent already live
+  in a sibling pane; without it the zoom would clone that agent into root while
+  the right pane still held it = a duplicate runtime + two sprites + doubled
+  Tier-1 cost. Headlessly smoke-locked as C1/C2 in `smoke-7d2-walk.mts`.) Until a
+  walkable edge exists you can't move an agent over to test this on-screen, but
+  the roster-once split (all 5 on the left, none on the right) must survive a
+  root zoom: `]`/`[` on root must NOT make a 6th agent appear anywhere.
+
+**Unblocks**: certifies the on-screen half of the "terminal merging" payoff.
+The runtime migration + sprite reconcile + roster-aware-remount logic is
+smoke-locked; this is purely the PIXI-visual confirmation that the handoff reads
+as a continuous walk (and that no zoom/split re-clones an agent).
 
 ### ⏳ Verify 5B sleep mode on Windows
 **Status**: pending, fresh out of slice 5B (on branch

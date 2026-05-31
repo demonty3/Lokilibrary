@@ -317,3 +317,131 @@ export function bridgeCoord(
     cell: { x: clampInt(projX, dstDims.width), y: destY },
   };
 }
+
+// ---------------------------------------------------------------------------
+// seamExitsForPane (Phase 7-D.2 — the crossing exits)
+// ---------------------------------------------------------------------------
+
+/** One open walkable seam exit FROM a pane: the interior edge cell that, when
+ *  stepped off, crosses into a neighbour, plus the bridged entry cell in the
+ *  neighbour's interior space. `entry.paneId` is the neighbour. */
+export interface SeamExit {
+  /** The interior edge cell of THIS pane the agent must be at + step off. */
+  edge: CellPoint2;
+  /** Which physical edge of THIS pane the exit faces ('E'/'W'/'N'/'S'). */
+  sharedEdge: 'N' | 'E' | 'S' | 'W';
+  /** The bridged entry cell in the neighbour pane's interior space. */
+  entry: { paneId: string; x: number; y: number };
+}
+
+/** Stable key for a cell, for the edge-cell → exit lookup map. */
+function cellKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+/**
+ * Phase 7-D.2 (must-fix) — per-pane walkability oracle. `isWalkable(paneId, x, y)`
+ * answers "is the cell (x,y) in pane `paneId`'s interior STAND-ON-ABLE (floor)?".
+ * `seamExitsForPane` gates BOTH the exit cell (this pane) AND the bridged entry
+ * cell (neighbour) through it, so an agent can NEVER be offered a cross that
+ * would step it off a wall or migrate it INTO a wall (where `walkableNeighbours`
+ * returns [] and the agent would be stuck).
+ *
+ * This matters because the real cell layout fills its WHOLE perimeter with wall
+ * (`boundaryAt` → edgeE/edgeW = T_WALL_V, edgeN/edgeS = T_WALL_H) with the only
+ * door on the SOUTH edge. So today an E/W (vertical-split) seam yields ZERO
+ * crossable exits — the honest empty result. A walkable seam edge needs a
+ * follow-up that opens a floor edge cell (deferred; see STATE.md / TODO-USER.md).
+ */
+export type WalkableOracle = (paneId: string, x: number, y: number) => boolean;
+
+/**
+ * Phase 7-D.2 — derive the SAME-LEVEL OPEN walkable seam exits for ONE pane, as
+ * a Map keyed by THIS pane's interior edge cell ("x,y") → the bridged entry into
+ * the neighbour. PURE (no PIXI / Date.now / Math.random): a function of the seam
+ * graph + each pane's interior dims (+ an optional walkability oracle), so the
+ * crossing path stays inside the determinism contract the rest of `seams.ts`
+ * honours.
+ *
+ * For each seam touching `paneId` that is OPEN and SAME-LEVEL, we walk the
+ * along-edge interior span of THIS pane (its full edge band, 0..height for a
+ * vertical seam / 0..width for horizontal — the seam segment is grid-space, but
+ * the exit is offered for every interior cell on the abutting edge) and call
+ * `bridgeCoord` to get the neighbour entry cell. The edge cell is the LAST
+ * interior column/row on the shared side (x=width-1 for an east exit, x=0 for
+ * west, y=height-1 for south, y=0 for north).
+ *
+ * FLOOR GATE (must-fix): when `isWalkable` is supplied, an exit is emitted ONLY
+ * if BOTH the exit cell (this pane) AND the bridged entry cell (neighbour) are
+ * walkable (mirrors behavior.ts:walkableNeighbours, which only steps onto
+ * T_FLOOR). Without the gate an agent could migrate into a wall and be stuck
+ * (no walkable neighbour out). Omitting `isWalkable` (the pure smoke's synthetic
+ * exits) keeps the geometric-only behaviour for tests that build floor cells by
+ * construction.
+ *
+ * Returns an EMPTY map when no open same-level seam touches the pane — so a
+ * single 'root' pane (buildSeams returns []) yields {} and the crossing path is
+ * dead, byte-identical to today. With the real layout an E/W seam also yields {}
+ * because the edge column is solid wall (no floor edge cell to stand on).
+ */
+export function seamExitsForPane(
+  seams: readonly Seam[],
+  paneId: string,
+  dimsByPaneId: ReadonlyMap<string, PaneDims>,
+  isWalkable?: WalkableOracle,
+): Map<string, SeamExit> {
+  const exits = new Map<string, SeamExit>();
+  const myDims = dimsByPaneId.get(paneId);
+  if (!myDims) return exits;
+
+  for (const seam of seams) {
+    if (!seam.open) continue;
+    if (seam.levelA !== seam.levelB) continue; // cross-level deferred
+    const isA = seam.paneA === paneId;
+    const isB = seam.paneB === paneId;
+    if (!isA && !isB) continue;
+
+    const dimsA = dimsByPaneId.get(seam.paneA);
+    const dimsB = dimsByPaneId.get(seam.paneB);
+    if (!dimsA || !dimsB) continue; // neighbour not a live cell pane → skip
+
+    if (seam.segment.axis === 'vertical') {
+      // Crossing moves along x; y is the along-edge axis. paneA is the LEFT
+      // pane (exits its right edge, 'E'); paneB is the RIGHT pane (exits its
+      // left edge, 'W').
+      const sharedEdge: 'E' | 'W' = isA ? 'E' : 'W';
+      const edgeX = isA ? myDims.width - 1 : 0;
+      for (let y = 0; y < myDims.height; y++) {
+        const bridged = bridgeCoord(seam, { paneId, x: edgeX, y }, dimsA, dimsB);
+        if (bridged.kind !== 'same-level') continue;
+        // FLOOR GATE — the exit cell (here) AND the entry cell (neighbour) must
+        // both be stand-on-able, or the cross would strand the agent in a wall.
+        if (isWalkable && !isWalkable(paneId, edgeX, y)) continue;
+        if (isWalkable && !isWalkable(bridged.paneId, bridged.cell.x, bridged.cell.y)) continue;
+        exits.set(cellKey(edgeX, y), {
+          edge: { x: edgeX, y },
+          sharedEdge,
+          entry: { paneId: bridged.paneId, x: bridged.cell.x, y: bridged.cell.y },
+        });
+      }
+    } else {
+      // Horizontal seam: crossing moves along y; x is the along-edge axis.
+      // paneA is the TOP pane (exits its bottom edge, 'S'); paneB is the
+      // BOTTOM pane (exits its top edge, 'N').
+      const sharedEdge: 'S' | 'N' = isA ? 'S' : 'N';
+      const edgeY = isA ? myDims.height - 1 : 0;
+      for (let x = 0; x < myDims.width; x++) {
+        const bridged = bridgeCoord(seam, { paneId, x, y: edgeY }, dimsA, dimsB);
+        if (bridged.kind !== 'same-level') continue;
+        if (isWalkable && !isWalkable(paneId, x, edgeY)) continue;
+        if (isWalkable && !isWalkable(bridged.paneId, bridged.cell.x, bridged.cell.y)) continue;
+        exits.set(cellKey(x, edgeY), {
+          edge: { x, y: edgeY },
+          sharedEdge,
+          entry: { paneId: bridged.paneId, x: bridged.cell.x, y: bridged.cell.y },
+        });
+      }
+    }
+  }
+  return exits;
+}

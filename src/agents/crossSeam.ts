@@ -37,6 +37,7 @@
 
 import type { CellPoint } from '../procedural/cell';
 import type { RuntimeScope } from '../state/agentRuntime';
+import type { Seam, PaneDims } from '../state/seams';
 import type { WorldSnapshot } from './perception';
 
 /** Which physical edge of THIS pane the seam shares. */
@@ -159,6 +160,86 @@ export function enrichSnapshotAcrossSeams(
     agents,
     bookshelves: base.bookshelves,
   };
+}
+
+/**
+ * Phase 7-D.2 — translate the grid-space seam graph into THIS pane's interior
+ * SeamEdge[] (the perception projection). PURE: a function of the seam graph +
+ * each pane's interior dims, importable by the smoke + PixiApp with no PIXI.
+ *
+ * For each OPEN seam touching `paneId`, pick the side this pane is on
+ * (paneA → its E/S edge faces the neighbour; paneB → its W/N), set the edge
+ * band in THIS pane's interior coords (bandLine = width for E / height for S /
+ * 0 for W,N; the along-edge span covers the full edge), and author a
+ * `bridge.toLocal` that projects a NEIGHBOUR-interior point onto THIS pane's
+ * edge band — the INVERSE direction of `bridgeCoord` (which maps THIS→neighbour
+ * for crossing). The neighbour subject lands just OUTSIDE this pane's edge so
+ * Chebyshev-to-band measures correctly and FOV clips the far ones. `walkable`
+ * is true only for a same-level cell↔cell seam (cross-level is a focus hint,
+ * not a flat bridge — the enricher skips it).
+ *
+ * Returns [] when no open seam touches the pane (single 'root' pane:
+ * buildSeams returns [] ⇒ [] ⇒ enricher returns base by reference).
+ */
+export function buildSeamEdgesForPane(
+  seams: readonly Seam[],
+  paneId: string,
+  dimsByPaneId: ReadonlyMap<string, PaneDims>,
+): SeamEdge[] {
+  const out: SeamEdge[] = [];
+  const myDims = dimsByPaneId.get(paneId);
+  if (!myDims) return out;
+
+  for (const seam of seams) {
+    if (!seam.open) continue;
+    const isA = seam.paneA === paneId;
+    const isB = seam.paneB === paneId;
+    if (!isA && !isB) continue;
+
+    const neighbourPaneId = isA ? seam.paneB : seam.paneA;
+    const walkable = seam.levelA === seam.levelB;
+
+    if (seam.segment.axis === 'vertical') {
+      // paneA is the LEFT pane (its EAST edge faces the neighbour); paneB is
+      // the RIGHT pane (its WEST edge). The neighbour sits across x.
+      const sharedEdge: SharedEdge = isA ? 'E' : 'W';
+      const bandLine = isA ? myDims.width : 0;
+      // A neighbour point at its (nx, ny): on an E edge it sits just past our
+      // right column → x = width + nx (nx counts from the neighbour's LEFT
+      // edge = the shared edge). On a W edge it sits just left of x=0 →
+      // x = -(nx+1) (nx counts from the neighbour's RIGHT edge inward).
+      const toLocalX = isA
+        ? (nx: number) => myDims.width + nx
+        : (nx: number) => -(nx + 1);
+      out.push({
+        neighbourPaneId,
+        bridge: { toLocal: (p) => ({ x: toLocalX(p.x), y: p.y }) },
+        sharedEdge,
+        bandLine,
+        bandStart: 0,
+        bandEnd: myDims.height,
+        walkable,
+      });
+    } else {
+      // paneA is the TOP pane (its SOUTH edge faces the neighbour); paneB is
+      // the BOTTOM pane (its NORTH edge). The neighbour sits across y.
+      const sharedEdge: SharedEdge = isA ? 'S' : 'N';
+      const bandLine = isA ? myDims.height : 0;
+      const toLocalY = isA
+        ? (ny: number) => myDims.height + ny
+        : (ny: number) => -(ny + 1);
+      out.push({
+        neighbourPaneId,
+        bridge: { toLocal: (p) => ({ x: p.x, y: toLocalY(p.y) }) },
+        sharedEdge,
+        bandLine,
+        bandStart: 0,
+        bandEnd: myDims.width,
+        walkable,
+      });
+    }
+  }
+  return out;
 }
 
 /** A no-op deps stub: no open seams ever. The cohort default until the real

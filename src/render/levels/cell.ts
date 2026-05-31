@@ -42,7 +42,7 @@ import {
   LANDMARK_FG_KEY,
 } from '../../procedural/localLandmark';
 import { NO_LOCAL_MODEL, type LocalModelResult } from '../../api/localModel';
-import type { BookGame, PixelRect } from '../PixiApp';
+import type { BookGame, CohortCrossWiring, PixelRect } from '../PixiApp';
 import {
   COZETTE_CELL_HEIGHT,
   COZETTE_CELL_WIDTH,
@@ -96,6 +96,7 @@ export function mountCell(
   spriteAtlas: SpriteAtlas | null = null,
   localModel: LocalModelResult = NO_LOCAL_MODEL,
   paneId = 'root',
+  crossWiring?: CohortCrossWiring,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
   parent.addChild(container);
@@ -275,6 +276,11 @@ export function mountCell(
     memoryWriter,
     paneId,
     scope,
+    // Phase 7-D.2 — live cross-seam wiring (perception deps + crossing exits),
+    // threaded from PixiApp which owns the live pane set. Omitted in the
+    // single-pane / non-PixiApp callers ⇒ cohort falls back to the no-op deps
+    // + no exits ⇒ byte-identical no-seam path.
+    crossWiring,
   });
 
   // Phase 2E marginalia: render any placed-mark glyphs from prior

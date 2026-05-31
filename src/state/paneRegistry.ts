@@ -49,6 +49,29 @@ export function getPane(paneId: string): PaneRegistration | undefined {
   return panes.get(paneId);
 }
 
+/**
+ * Phase 7-D.2 — is `agentId` currently live in SOME registered pane OTHER than
+ * `exceptPaneId`? The single-roaming-roster invariant: an agent lives in exactly
+ * ONE pane's scope. The root-gate (cohort.ts) consults this on a root (re)mount
+ * so it never RE-SPAWNS an agent that has already walked out of root into a
+ * sibling cell pane — without it, a partial root remount (zoom root out + back
+ * while p2 holds a migrated `loki`) would re-create `loki` in root AND leave it
+ * in p2 = a duplicate runtime + two sprites + doubled Tier-1 cost.
+ *
+ * Single-pane: with the lone 'root' pane there is no other registered pane, so
+ * this always returns false ⇒ the gate spawns the full roster exactly as before
+ * (byte-identical). On the FIRST world mount the registry holds only 'root'
+ * itself (cell.ts registers before mountCohort runs), and we exclude it via
+ * `exceptPaneId`, so the initial spawn is never suppressed.
+ */
+export function isAgentLiveElsewhere(agentId: string, exceptPaneId: string): boolean {
+  for (const [pid, reg] of panes) {
+    if (pid === exceptPaneId) continue;
+    if (reg.scope.runtimes.has(agentId)) return true;
+  }
+  return false;
+}
+
 /** Test-only — clear the whole registry between smoke sub-sections. */
 export function _resetPaneRegistry(): void {
   panes.clear();

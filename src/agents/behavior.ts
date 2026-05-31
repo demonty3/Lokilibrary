@@ -22,6 +22,7 @@ import { T_FLOOR } from '../procedural/tiles/library';
 import type { Prng } from '../procedural/prng';
 import type { AgentDef, ScheduleRule } from './cohort';
 import type { AgentRuntimeState, Tier0Action } from '../state/agentRuntime';
+import type { SeamExit } from '../state/seams';
 
 export interface BehaviorContext {
   readonly layout: CellLayout;
@@ -32,6 +33,12 @@ export interface BehaviorContext {
   readonly scatterAnchors: ReadonlyMap<string, readonly CellPoint[]>;
   /** Wall clock in hours-of-day (0..24); injected for testability. */
   readonly wallClockHour: () => number;
+  /** Phase 7-D.2 — open walkable seam exits for THIS pane, keyed by the
+   *  interior edge cell ("x,y") the agent must be at to cross. Built once
+   *  per cohort mount from `seamExitsForPane(buildSeams(...), paneId, dims)`.
+   *  EMPTY (or omitted) for a single 'root' pane — no seam ⇒ no exits ⇒ the
+   *  crossing branch is dead and the wander walk is byte-identical to today. */
+  readonly seamExits?: ReadonlyMap<string, SeamExit>;
 }
 
 /** Score-and-execute one BT step for one agent. Mutates `runtime` in
@@ -43,6 +50,17 @@ export function tickBehavior(
   nowMs: number,
 ): Tier0Action {
   if (!runtime.present) return { kind: 'idle' };
+
+  // Phase 7-D.2 — clear the anti-ping-pong guard once the agent is no longer
+  // sitting on the cell it migrated into. Until then the cross-intent branch
+  // is suppressed so a just-arrived agent can't immediately re-cross the seam
+  // it just walked through. Deterministic (position-based, no wall-clock).
+  if (
+    runtime.justArrivedAt &&
+    (runtime.x !== runtime.justArrivedAt.x || runtime.y !== runtime.justArrivedAt.y)
+  ) {
+    runtime.justArrivedAt = null;
+  }
 
   // Phase 5 5A — advance the active plan if the current step is
   // "complete" (we're at the step's target location, or the step
@@ -283,14 +301,46 @@ function executeAction(
   }
 }
 
+/** Sentinel appended to the wander candidate pool to represent "step OFF the
+ *  edge across the open seam" — picked like any other neighbour so the
+ *  per-agent PRNG stays the single source of which direction the agent walks
+ *  (determinism preserved). Carries the bridged entry the cohort migrates to. */
+const CROSS_SENTINEL = '__cross__' as const;
+type WanderCandidate =
+  | CellPoint
+  | { readonly [CROSS_SENTINEL]: true; readonly paneId: string; readonly x: number; readonly y: number };
+
 function stepRandom(
   runtime: AgentRuntimeState,
   ctx: BehaviorContext,
   prng: Prng,
 ): void {
-  const candidates = walkableNeighbours(ctx.layout, runtime.x, runtime.y);
+  const neighbours = walkableNeighbours(ctx.layout, runtime.x, runtime.y);
+
+  // Phase 7-D.2 — if the agent stands on an open walkable seam-exit edge cell
+  // (and isn't under the just-arrived guard), offer "step off the edge across
+  // the seam" as ONE extra wander candidate, appended at a FIXED position
+  // (after the in-bounds neighbours) so the PRNG pick is reproducible. When
+  // picked we set runtime.pendingCross instead of mutating x/y — the cohort
+  // tick performs the single migrate. No seam exit here ⇒ empty/undefined
+  // map ⇒ this is a no-op and the wander walk is byte-identical to today.
+  const candidates: WanderCandidate[] = neighbours.slice();
+  const exit =
+    runtime.justArrivedAt === null
+      ? ctx.seamExits?.get(`${runtime.x},${runtime.y}`)
+      : undefined;
+  if (exit) {
+    candidates.push({ [CROSS_SENTINEL]: true, paneId: exit.entry.paneId, x: exit.entry.x, y: exit.entry.y });
+  }
+
   if (candidates.length === 0) return;
   const pick = prng.pick(candidates);
+  if (CROSS_SENTINEL in pick) {
+    // Cross picked — record the intent; do NOT mutate x/y (exactly-once move:
+    // the cohort's migrateRuntime is the sole mover).
+    runtime.pendingCross = { paneId: pick.paneId, x: pick.x, y: pick.y };
+    return;
+  }
   runtime.x = pick.x;
   runtime.y = pick.y;
 }

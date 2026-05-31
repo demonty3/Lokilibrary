@@ -105,6 +105,24 @@ export interface AgentRuntimeState {
   /** performance.now() at which the current action expires + the BT
    *  picks again. */
   actionEndsAt: number;
+  /** Phase 7-D.2 — the live seam-crossing intent. When the Tier-0 BT
+   *  picks a movement step that would EXIT this pane's interior AT an open
+   *  walkable seam edge, it writes the target neighbour pane id + the
+   *  bridged entry cell HERE instead of mutating x/y, and the cohort tick
+   *  consumes it by calling `migrateRuntime`. `null` means "no cross
+   *  pending" — the byte-identical single-pane default (no seam ⇒ behavior
+   *  never sets this). MUST be cleared on a successful migrate (a stale
+   *  intent travelling to the destination would re-fire = ping-pong). */
+  pendingCross: { paneId: string; x: number; y: number } | null;
+  /** Phase 7-D.2 — anti-ping-pong guard. When an agent migrates INTO a
+   *  pane it lands ON the shared-edge entry cell, which is itself a
+   *  seam-exit back toward the source. This records the cell it arrived
+   *  at; behavior.ts SUPPRESSES emitting a new cross-intent while the agent
+   *  still sits on that exact cell, and clears the guard once the agent has
+   *  stepped strictly off it (into the interior). Deterministic (no
+   *  wall-clock / no timer) so the share-URL reproducibility contract is
+   *  untouched. `null` = not freshly arrived. */
+  justArrivedAt: { x: number; y: number } | null;
 }
 
 /**
@@ -186,12 +204,13 @@ export function clearRuntimesIn(scope: RuntimeScope): void {
  * Result discriminates so the caller can react without try/catch:
  *  - 'ok'        — migrated; `to` now has the id, `from` does not.
  *  - 'absent'    — `from` has no such runtime (nothing to move).
- *  - 'duplicate' — `to` ALREADY has that id (the shared-COHORT collision: every
- *                  pane mounts all 5 agents, so 'loki' already lives in `to`).
- *                  The cross is REFUSED — the agent stays in `from`, unchanged.
- *                  This is the deliberate D.1 guard; the identity model that
- *                  resolves it (distinct rosters / single roaming roster) is a
- *                  separate design fork deferred to 7-D.2.
+ *  - 'duplicate' — `to` ALREADY has that id. Under 7-D.1's per-pane model this
+ *                  was the DEFAULT (every pane mounts all 5 agents, so 'loki'
+ *                  already lives in `to`). Under 7-D.2's SINGLE ROAMING ROSTER
+ *                  an agent lives in exactly ONE scope at a time, so 'duplicate'
+ *                  should NEVER fire in normal flow — it is now a BACKSTOP /
+ *                  bug-signal, not the expected path. The cross is REFUSED —
+ *                  the agent stays in `from`, unchanged (no vanish).
  *
  * On a successful move the agent's entries in `from`'s perception caches
  * (proximitySince / holdFired) are cleared so the departed agent doesn't leave
@@ -226,6 +245,14 @@ export function migrateRuntime(
   from.perception.holdFired.delete(id);
   rt.x = newX;
   rt.y = newY;
+  // Phase 7-D.2 — the intent is consumed: drop it so the SAME object arriving
+  // in `to` does not re-fire a cross on its next tick (ping-pong root cause).
+  rt.pendingCross = null;
+  // Stamp the entry cell as just-arrived. behavior.ts refuses to emit a fresh
+  // cross-intent while the agent still sits here, so it can't immediately
+  // bounce back across the seam it just walked through. Cleared once the agent
+  // steps strictly off this cell (deterministic, no wall-clock).
+  rt.justArrivedAt = { x: newX, y: newY };
   to.runtimes.set(id, rt);
   return 'ok';
 }
@@ -285,5 +312,7 @@ export function initialRuntime(args: {
     activePlanStepIndex: 0,
     currentAction: { kind: 'idle' },
     actionEndsAt: 0,
+    pendingCross: null,
+    justArrivedAt: null,
   };
 }
