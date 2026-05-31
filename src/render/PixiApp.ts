@@ -4,6 +4,7 @@ import type { PaneDescriptor, PaneRect, Profile, ScaleLevel } from '../types';
 import { layoutCell } from '../procedural/cell';
 import { profileSeed } from '../procedural/seed';
 import { useAppStore } from '../state/store';
+import { buildSeams, type Seam } from '../state/seams';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
 import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
@@ -88,6 +89,36 @@ export function computePixelRect(
   const right = Math.floor((rect.col + rect.cols) * cellW);
   const bottom = Math.floor((rect.row + rect.rows) * cellH);
   return { px, py, pw: right - px, ph: bottom - py };
+}
+
+/**
+ * Phase 7-D — project a seam's INTEGER grid segment to a pixel line, using the
+ * SAME float-floor cellW/cellH math as `computePixelRect` (so a seam lands on
+ * the exact pixel column/row the abutting panes' edges land on — no 1px gap,
+ * no divergence). Exported so the pure smoke can assert the projection matches
+ * the old per-pane right/bottom-edge stroke math byte-for-byte.
+ *
+ * Returns the two endpoints {x1,y1}→{x2,y2} of the stroke in screen pixels.
+ */
+export function projectSeamToPixels(
+  seam: Seam,
+  gridCols: number,
+  gridRows: number,
+  screenW: number,
+  screenH: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const cellW = screenW / Math.max(1, gridCols);
+  const cellH = screenH / Math.max(1, gridRows);
+  if (seam.segment.axis === 'vertical') {
+    const x = Math.floor(seam.segment.line * cellW);
+    const y1 = Math.floor(seam.segment.start * cellH);
+    const y2 = Math.floor(seam.segment.end * cellH);
+    return { x1: x, y1, x2: x, y2 };
+  }
+  const y = Math.floor(seam.segment.line * cellH);
+  const x1 = Math.floor(seam.segment.start * cellW);
+  const x2 = Math.floor(seam.segment.end * cellW);
+  return { x1, y1: y, x2, y2: y };
 }
 
 /** True when a pane covers the whole composition grid — the single-pane case.
@@ -395,38 +426,56 @@ export async function mountPalace(
   }
 
   /** Draw box-drawing seam glyphs along every internal pane border. Pure
-   *  decoration; rebuilt from scratch each call (cheap — N panes small). */
+   *  decoration; rebuilt from scratch each call (cheap — N panes small).
+   *
+   *  Phase 7-D — abutment is now derived from the pure seam graph
+   *  (`buildSeams`) instead of an implicit per-pane right/bottom-edge loop, so
+   *  the data model and the strokes CANNOT diverge. `buildSeams` returns [] for
+   *  <2 panes (and the lone full-grid pane), so the `livePanes.size <= 1` guard
+   *  is belt-and-suspenders. Each seam is projected to pixels via
+   *  `projectSeamToPixels` (the SAME float-floor cellW/cellH as
+   *  `computePixelRect`), and seams are deduped by canonical id so a shared edge
+   *  is stroked ONCE (the old loop over-drew it twice — visually identical with
+   *  the opaque fgDim stroke, fewer draw calls now). */
   function drawSeams(gridCols: number, gridRows: number): void {
     seamLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     // With one full-grid pane there are no internal seams — skip entirely so
     // the single-pane visual is unchanged.
     if (livePanes.size <= 1) return;
-    const seam = new Graphics();
-    const stroke = { width: 1, color: hexToSeamColor(theme) };
-    for (const [, live] of livePanes) {
-      const pr = computePixelRect(
-        live.rect,
-        gridCols,
-        gridRows,
-        app.screen.width,
-        app.screen.height,
-      );
-      // Draw the pane's right + bottom edges as seams when they are INTERNAL
-      // (not on the outer screen border). Adjacent panes share the edge, so
-      // drawing right+bottom per pane covers every internal seam once-ish;
-      // overdraw on a shared edge is visually identical (same line).
-      if (pr.px + pr.pw < app.screen.width - 1) {
-        seam.moveTo(pr.px + pr.pw, pr.py).lineTo(pr.px + pr.pw, pr.py + pr.ph);
-      }
-      if (pr.py + pr.ph < app.screen.height - 1) {
-        seam.moveTo(pr.px, pr.py + pr.ph).lineTo(pr.px + pr.pw, pr.py + pr.ph);
-      }
+    // Build the seam graph from the LIVE pane rects (the exact same data the
+    // old per-pane edge loop read), not the store, so seams track precisely
+    // what is currently mounted — no store/live skew during a reconcile.
+    const descriptors: PaneDescriptor[] = [];
+    for (const [id, live] of livePanes) {
+      descriptors.push({ id, level: live.level, rect: live.rect });
     }
-    seam.stroke(stroke);
-    seamLayer.addChild(seam);
+    const seams = buildSeams(descriptors, gridCols, gridRows);
+    // Stroke the seam lines only when there are seams — but DON'T early-return,
+    // because `drawSeamGlyphs` below must still run for >1 pane to keep the
+    // junction-glyph path byte-identical to the pre-7-D behaviour (which gated
+    // glyphs on `livePanes.size <= 1` ONLY, never on seam count). In the
+    // uniform integer-grid tiling, >1 pane always yields >=1 seam, so this is a
+    // defensive belt only.
+    if (seams.length > 0) {
+      const seam = new Graphics();
+      const stroke = { width: 1, color: hexToSeamColor(theme) };
+      for (const s of seams) {
+        const { x1, y1, x2, y2 } = projectSeamToPixels(
+          s,
+          gridCols,
+          gridRows,
+          app.screen.width,
+          app.screen.height,
+        );
+        seam.moveTo(x1, y1).lineTo(x2, y2);
+      }
+      seam.stroke(stroke);
+      seamLayer.addChild(seam);
+    }
     // Box-drawing glyph junctions at internal corners — the recognisable
     // terminal seam vocabulary (│ ─ ┼ ├ ┤ ┬ ┴). One BitmapText overlay of
-    // the junction glyph at each interior grid intersection.
+    // the junction glyph at each interior grid intersection. Gated on
+    // livePanes.size > 1 (the early-return above), exactly as pre-7-D.
     drawSeamGlyphs(seamLayer, theme, gridCols, gridRows, app.screen.width, app.screen.height);
   }
 

@@ -10,8 +10,10 @@ chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-05-30** (static visual-correctness audit of 5D.4 /
-6A / 7-A surfaces — see "Visual verification" below).
+Last updated: **2026-05-31** (Phase 7-D Depth-2 foundation: seam graph +
+bridge + cross-seam perception + migrate primitive landed headless; the only
+new Windows item is the `drawSeams` no-divergence visual check — see "Phase 7-D
+Depth-2 foundation" below. The pure pieces are smoke-locked, no eyeball needed).
 
 ---
 
@@ -280,6 +282,53 @@ NOT be).
 **Unblocks**: certifies the visual half of Phase 7-B (the store/reducer half is
 smoke-locked) so composable-panes Depth-1 (drag) can build on a verified layout
 primitive.
+
+### ⏳ Phase 7-D Depth-2 foundation — seam-graph draw no-divergence (Windows + PIXI)
+**Status**: pending. Phase 7-D landed the pure, headless Depth-2 foundation —
+the seam GRAPH + coordinate bridge (`src/state/seams.ts`), cross-seam perception
+enricher (`src/agents/crossSeam.ts`), paneId registry (`src/state/paneRegistry.ts`),
+and the `migrateRuntime` crossing primitive — all smoke-locked
+(`npx tsx scripts/smoke-7d-seams.mts`, 69 assertions; typecheck clean both legs;
+all 26 prior smokes green). The ONE thing that needs a human eyeball is the
+`drawSeams` refactor: I rewrote it to derive seam strokes from the pure
+`buildSeams()` graph instead of the old implicit per-pane right/bottom-edge loop
+(so the data model and the strokes can't diverge). The projected PAINTED-PIXEL
+set is proven byte-identical to the old loop HEADLESSLY (smoke D1, across clean
+AND asymmetric tilings). NOTE: the seam graph splits a shared edge into collinear
+SEGMENTS, so on an asymmetric tiling the stroke SETS differ from the old loop
+(one full-span line → two abutting segments) while the PAINTED PIXELS are
+identical — the pixel-coverage check is the real lock, and D1 asserts it. The
+actual PIXI render is WSL-unseeable. **This sits ON TOP of the still-unverified
+7-B multi-pane visuals — do the 7-B pass (above) first; this is a small delta on it.**
+
+**D-1 — seams look IDENTICAL to before the refactor.** With the 7-B study /
+split arrangements (press `\` then `|`), the box-drawing seams must look exactly
+as they did pre-7-D: the same `│`/`─` runs on every internal pane border, the
+same `┼`/`┬`/`┴`/`├`/`┤` junction glyphs at internal corners, same dim-foreground
+tint, same 1px stroke. The refactor changes HOW the strokes are derived (graph,
+not per-pane loop): on a clean tiling it DEDUPS a shared edge the old loop drew
+twice (harmless opaque overdraw), and on an asymmetric tiling (a tall pane next
+to two stacked half-height panes) it SPLITS the shared edge into two collinear
+abutting segments instead of one full-span line. With the opaque `fgDim` stroke
+both cases paint the identical pixels — visually identical. **Broken looks like**: a missing internal seam (the graph
+dropped an edge), a seam drawn in the wrong place (projection mismatch), or a
+1px gap between abutting panes at the seam (the float-floor math diverged — it
+must NOT, seams.ts stays integer-grid and PixiApp does the SAME `computePixelRect`
+floor). If a seam is missing or shifted vs the pre-7-D build, the graph→pixel
+projection regressed.
+
+**D-2 — single-pane still has NO seams.** From the boot single 'root' pane,
+confirm there are STILL zero seam strokes and no clip border (the
+`livePanes.size<=1` early-return + `buildSeams` returning `[]` for the lone
+full-grid pane both fire — belt-and-suspenders). This is the byte-identical
+no-seam anchor; if a seam line appears in single-pane, the early-return
+regressed.
+
+**Unblocks**: certifies the no-divergence draw refactor so the seam GRAPH is the
+single abutment truth that the LIVE agent-crossing wiring (7-D.2, deferred — see
+PLAN.md Phase D status block) builds on. The cross-seam perception + migrate
+primitive are pure/headless and need NO Windows check (smoke-locked) — only the
+seam STROKE rendering does.
 
 ### ⏳ Verify 5B sleep mode on Windows
 **Status**: pending, fresh out of slice 5B (on branch

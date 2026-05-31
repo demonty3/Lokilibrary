@@ -24,6 +24,7 @@ import {
   getRuntimeIn,
 } from '../../state/agentRuntime';
 import { registerCellPaneScope } from '../../state/cellPaneScopes';
+import { registerPane } from '../../state/paneRegistry';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
 import {
@@ -130,6 +131,10 @@ export function mountCell(
   const pos = getPlayerPos(paneId);
   const scope = createRuntimeScope();
   const unregisterScope = registerCellPaneScope(scope);
+  // Phase 7-D — paneId-keyed registry so a NEIGHBOUR pane's cross-seam
+  // perception can reach this pane's scope + interior layout by id. Separate
+  // from cellPaneScopes (the sleep-sweep's paneId-less Set, untouched).
+  const unregisterPane = registerPane(paneId, scope, layout);
 
   // Base tile layer — one PIXI.Sprite per cell when a sprite is baked
   // for that tile id (Phase 3A; bookshelf only today), else one
@@ -582,6 +587,7 @@ export function mountCell(
       // already cleared the scope's runtime + perception caches; unregister
       // it from the cell-pane registry + drop the player position entry.
       unregisterScope();
+      unregisterPane();
       clearPlayerPos(paneId);
       container.destroy({ children: true });
     },

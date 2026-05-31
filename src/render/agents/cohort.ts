@@ -35,6 +35,11 @@ import {
   type WorldSnapshot,
 } from '../../agents/perception';
 import {
+  enrichSnapshotAcrossSeams,
+  noCrossSeamDeps,
+  type CrossSeamDeps,
+} from '../../agents/crossSeam';
+import {
   routeTier1,
   routeTier2,
   nullMemoryWriter,
@@ -89,6 +94,13 @@ export interface MountCohortOptions {
   memoryWriter?: MemoryWriter;
   /** Free-text scene label sent in each Tier-1 perception payload. */
   sceneLabel?: string;
+  /** Phase 7-D — cross-seam perception deps. When omitted (the default), a
+   *  no-op stub with NO open seams is used, so the per-tick snapshot is
+   *  returned by reference unchanged — byte-identical to the pre-7-D path. The
+   *  smoke injects a hand-built SeamEdge to exercise the projection + reach
+   *  filter + perception round-trip; the real seam graph wires this when it
+   *  lands. `maxFov` defaults to the cohort's max def.fov. */
+  crossSeamDeps?: CrossSeamDeps;
 }
 
 export function mountCohort(opts: MountCohortOptions): () => void {
@@ -137,6 +149,13 @@ export function mountCohort(opts: MountCohortOptions): () => void {
   const memoryWriter = opts.memoryWriter ?? nullMemoryWriter;
   const sceneLabel = opts.sceneLabel ?? 'a small library room';
   const defById = new Map(defs.map((d) => [d.id, d]));
+
+  // Phase 7-D — cross-seam perception. maxFov = max def.fov across the cohort,
+  // computed once at mount (perception.ts re-clips authoritatively per agent).
+  // Default deps = no open seams → enricher returns the snapshot by reference,
+  // so the no-seam path allocates nothing and is byte-identical to today.
+  const maxFov = defs.reduce((m, d) => Math.max(m, d.fov), 0);
+  const crossSeamDeps = opts.crossSeamDeps ?? noCrossSeamDeps(maxFov);
   // Bookshelf positions are stable per layout — passed by reference to
   // perception every tick, no copy.
   const bookshelves = opts.layout.bookshelfSlots;
@@ -155,11 +174,16 @@ export function mountCohort(opts: MountCohortOptions): () => void {
     for (const rt of runtimes) {
       agentPositions.set(rt.id, { x: rt.x, y: rt.y });
     }
-    const world: WorldSnapshot = {
+    const baseWorld: WorldSnapshot = {
       player: { x: player.x, y: player.y },
       agents: agentPositions,
       bookshelves,
     };
+    // Phase 7-D — splice in projected neighbour subjects across any OPEN seam.
+    // With the default no-op deps this returns `baseWorld` BY REFERENCE (no
+    // alloc, byte-identical). Cost in the common case is one openSeamsFor()
+    // call returning [].
+    const world = enrichSnapshotAcrossSeams(baseWorld, opts.paneId, crossSeamDeps);
 
     for (const runtime of runtimes) {
       const def = defById.get(runtime.id);

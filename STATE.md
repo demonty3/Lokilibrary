@@ -10,7 +10,7 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-30** (Phase 7-B: composable panes — multi-pane renderer router replacing the single-active-level model; `panes[]`/`focusedPaneId` + scale-mirror back-compat in the store; per-pane clipped Container Map + pane-scoped level renderers + cell focused-pane input gate + box-glyph seams; SINGLE-PANE DEFAULT behaviour-preserving. Visual-only — seam SEMANTICS/agent crossing/memory flow are Depth-2 deferred).
+Last updated: **2026-05-31** (Phase 7-D Depth-2 foundation: pure seam GRAPH + coordinate bridge (`src/state/seams.ts`) factored as the SINGLE abutment truth — `PixiApp.drawSeams` refactored to consume `buildSeams` (no-divergence, PAINTED-PIXEL coverage proven byte-identical across clean AND asymmetric tilings; the seam graph splits a shared edge into collinear segments so the stroke SETS differ on asymmetric tilings while the painted pixels stay identical — that pixel-coverage equivalence is the real lock); cross-seam perception enricher (`src/agents/crossSeam.ts`) + paneId registry (`src/state/paneRegistry.ts`) wired into `cohort.ts` behind no-op default deps (no-open-seam path byte-identical, returned by reference); `migrateRuntime` same-level crossing primitive with the shared-COHORT duplicate-identity guard. Seam graph + bridge + cross-seam perception + migrate primitive LANDED; the LIVE agent-crossing wiring (behavior.ts off-grid step + sprite handoff) + cross-level walk are DEFERRED. smoke-7d-seams=69; all 26 prior smokes green; typecheck clean both legs. Earlier 7-B note below.).
 
 ---
 
@@ -66,6 +66,20 @@ collision. Cleared on cell unmount.
 as thin delegates over a module-local eager `DEFAULT_SCOPE`, so single-pane and
 all existing smokes (2b/2c/2e/4a/5a) are byte-identical. `initialRuntime` is a
 PURE constructor (touches no scope) — unchanged.
+
+**`migrateRuntime(from, to, id, newX, newY): MigrateResult` (Phase 7-D)** —
+the same-level seam-crossing PRIMITIVE. SINGLE `from.runtimes.delete(id)` +
+reposition the SAME `AgentRuntimeState` object + `to.runtimes.set(id, rt)` (no
+copy — preserves an in-flight `activePlan`/`perceptionQueue`/`reflectionCounter`
+across the seam). Result: `'ok'` | `'absent'` (no such runtime in `from`) |
+`'duplicate'` (target ALREADY has the id → the shared-COHORT collision: every
+pane mounts all 5 agents, so 'loki' already lives in `to`; the cross is REFUSED,
+agent stays in `from`). On `'ok'` it clears the departed agent's
+`proximitySince`/`holdFired` entries in `from.perception` (no stale FOV hold
+timer left behind). This is the no-dup/no-leak chokepoint. The LIVE wiring
+(behavior.ts off-grid step + cohort sprite handoff) is DEFERRED — it needs the
+identity-model fork resolved + Windows visual verification; the primitive +
+coordinate bridge land + smoke now.
 
 **Perception caches** (`src/agents/perception.ts`) — `proximitySince /
 holdFired / lastSeen` were module-global singletons keyed by `runtime.id`
@@ -553,6 +567,84 @@ are NOT here (Depth-2, deferred).
   `reconcileMask` create the now-needed mask). The PIXI router (Container Map,
   masks, seam glyphs) is VISUAL → Windows checklist (`TODO-USER.md`).
 
+### Seam graph + coordinate bridge (Phase 7-D — Depth-2 foundation)
+
+**`src/state/seams.ts`** — PURE, PIXI-free, store-free (imports ONLY
+`PaneDescriptor`/`ScaleLevel` from `../types`, the leaf). Derives the seam GRAPH
+in INTEGER grid space, the SAME abutment fact `PixiApp.drawSeams` used to derive
+implicitly — but as DATA so the two cannot diverge.
+- `buildSeams(panes, gridCols, gridRows): Seam[]` — O(n²) pairwise. Two panes
+  A,B share a VERTICAL seam iff `A.col+A.cols === B.col` AND their row-spans
+  overlap (segment = grid col `B.col` over `[max(A.row,B.row), min(...))`);
+  symmetric HORIZONTAL. `paneA` is ALWAYS the lower-coord pane (one canonical
+  form). Deduped by `canonicalSeamId` (order-independent), sorted by id
+  (deterministic; no Math.random — mirrors the src/procedural contract).
+  Returns `[]` for <2 panes AND the lone full-grid pane → `PixiApp`'s
+  `livePanes.size<=1` early-return is preserved exactly.
+- `Seam`: `{ id, paneA, edgeA:'right'|'bottom', paneB, edgeB:'left'|'top',
+  levelA, levelB, segment:{axis,line,start,end}, open, edgeType }`. **open/closed
+  model: default OPEN, toggle RESERVED** (`open` ships always-true; `edgeType`
+  reserved `null`) — a future locked pane flips them WITHOUT changing
+  `buildSeams`/`bridgeCoord` signatures.
+- `bridgeCoord(seam, from, dimsA, dimsB): BridgeResult` — same-level open seam →
+  `{kind:'same-level', paneId, cell}` (entry on the shared edge's first interior
+  col/row, along-edge coord proportionally projected dest↔src interior dims,
+  round+clamp; round-trip within ±1, lossy by design). Cross-level seam
+  (`levelA!==levelB`) → `{kind:'cross-level'}` NO cell (focus-transfer/zoom hint,
+  not a literal walk — cell vs district are different coord spaces). Closed seam
+  → `{kind:'closed'}`. `dimsA/dimsB` = each pane's INTERIOR `layout.width/height`
+  (passed by the caller — NEVER looked up in the pure module).
+- **`PixiApp.drawSeams` refactor (no-divergence)**: now iterates
+  `buildSeams(<live pane descriptors>)` and projects each seam to pixels via
+  `projectSeamToPixels` (exported; SAME float-floor `cellW/cellH` as
+  `computePixelRect`) instead of the old per-pane right/bottom-edge loop. Smoke
+  D1 asserts the load-bearing invariant: the projected PAINTED-PIXEL set equals
+  the OLD per-pane edge painted-pixel set, across clean AND asymmetric tilings.
+  On a clean tiling the stroke SETS also match (old loop OVER-drew shared edges
+  twice → graph dedups → ONE stroke each). On an ASYMMETRIC tiling (a full-height
+  pane abutting two stacked half-height panes) the graph SPLITS the shared edge
+  into two collinear segments — so the stroke SETS differ from the old single
+  full-span line, but the painted pixels are identical (collinear opaque 1px
+  segments rasterise to the same line). D1 pins both: pixel-coverage equality
+  AND that the asymmetric stroke sets genuinely differ (so the split path can't
+  silently stop being exercised). `seams.ts` stays pixel-free; ALL float math
+  stays in `PixiApp` at draw time → no 1px gap introduced. `drawSeamGlyphs` still
+  runs whenever `livePanes.size > 1` (gated only by the early-return, NOT by seam
+  count) → junction-glyph path byte-identical to pre-7-D. The actual PIXI render
+  is Windows-checklist (the pixel-coverage equivalence is smoke-locked).
+
+### Cross-seam perception (Phase 7-D — the cheap seed)
+
+**`src/agents/crossSeam.ts`** — PURE enricher. `enrichSnapshotAcrossSeams(base,
+paneId, deps): WorldSnapshot` splices a neighbour's player + agents (within
+`maxFov` Chebyshev of the shared edge) into a COPY of `base.agents`, projected
+into THIS pane's cell space via `deps.openSeamsFor(paneId)[].bridge.toLocal`
+(neighbour space → this pane). **Returns `base` BY REFERENCE when
+`openSeamsFor` is empty** → no-open-seam path allocates nothing, byte-identical.
+Neighbour subjects are namespaced `${neighbourPaneId}:${id}` (own `loki` and
+neighbour `loki` never collide; perception.ts's `otherId===runtime.id`
+self-skip never drops a neighbour). Neighbour PLAYER → synthetic
+`${neighbourPaneId}:player` agent (never overwrites `world.player` → THIS pane's
+own player_proximity/hold-timer intact). Refuses a non-walkable / non-flat-cell
+seam (vertical/scale) and an unregistered (non-cell) neighbour. `perception.ts`
+is UNTOUCHED — the enriched snapshot is the only new input.
+- **`src/state/paneRegistry.ts`** — NEW leaf (imports only types):
+  `Map<paneId,{scope,layout}>` + `registerPane(paneId,scope,layout)→unregister`
+  + `getPane(paneId)`. `cell.ts` registers at mount / unregisters at teardown
+  (alongside `registerCellPaneScope`). SEPARATE from `cellPaneScopes.ts` (the
+  paneId-less sleep-sweep Set, left byte-identical).
+- **`cohort.ts` wiring**: `MountCohortOptions.crossSeamDeps?` (optional). When
+  omitted → `noCrossSeamDeps(maxFov)` (no open seams ever) → enricher returns the
+  snapshot by reference → single-pane / multi-pane-unjoined paths byte-identical.
+  `maxFov` = max `def.fov` across the cohort, computed once at mount. The tick
+  wraps `baseWorld` through the enricher before the perception loop.
+- Smoke: `smoke-7d-seams.mts` (69) — S1–S10 seam graph + bridge, D1 draw
+  no-divergence (pixel-coverage equality across clean + asymmetric tilings),
+  X1–X6 cross-seam perception (sees-across-open /
+  not-across-closed-by-reference / not-across-non-adjacent / no-seam-identical /
+  id-namespacing / unregistered-neighbour), M1–M5 the migrate primitive
+  (ok/no-leak/no-dup/duplicate-guard/cache-cleanup/plan-preserved).
+
 ---
 
 ## Desktop wrapper
@@ -658,10 +750,11 @@ Assertion counts as of 2026-05-30:
 | 6A local model | smoke-6a-local-model.mts | 42 |
 | 7A scale ladder | smoke-7a-scale-ladder.mts | 73 |
 | 7B composable panes | smoke-7b-panes.mts | 68 |
-| 7 per-pane runtime | smoke-pane-runtime.mts | 19 |
+| 7 per-pane runtime | smoke-pane-runtime.mts | 21 |
+| 7D seam-crossing | smoke-7d-seams.mts | 69 |
 | glyph coverage | smoke-glyph-coverage.mts | 19 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
-| **Total numeric** | | **666** |
+| **Total numeric** | | **737** |
 
 **No aggregate runner** — there is no `smoke-all.mts` / `npm run smoke` /
 `npm run test`. Gates: `npm run typecheck` (`tsc --noEmit` ×2, main +

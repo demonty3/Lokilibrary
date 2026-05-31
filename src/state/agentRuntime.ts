@@ -174,6 +174,62 @@ export function clearRuntimesIn(scope: RuntimeScope): void {
   scope.runtimes.clear();
 }
 
+/**
+ * Phase 7-D — migration primitive for same-level seam-crossing. Moves the SAME
+ * `AgentRuntimeState` object from `from` to `to`, repositioning it to the
+ * bridged destination cell. Handing the same object reference to `to` preserves
+ * an in-flight plan / perception queue / reflection counter across the seam
+ * with zero serialization (the whole point: volatile runtime migrates;
+ * persistent memory is library-scoped + already shared, so there is nothing to
+ * merge).
+ *
+ * Result discriminates so the caller can react without try/catch:
+ *  - 'ok'        — migrated; `to` now has the id, `from` does not.
+ *  - 'absent'    — `from` has no such runtime (nothing to move).
+ *  - 'duplicate' — `to` ALREADY has that id (the shared-COHORT collision: every
+ *                  pane mounts all 5 agents, so 'loki' already lives in `to`).
+ *                  The cross is REFUSED — the agent stays in `from`, unchanged.
+ *                  This is the deliberate D.1 guard; the identity model that
+ *                  resolves it (distinct rosters / single roaming roster) is a
+ *                  separate design fork deferred to 7-D.2.
+ *
+ * On a successful move the agent's entries in `from`'s perception caches
+ * (proximitySince / holdFired) are cleared so the departed agent doesn't leave
+ * a stale FOV hold timer in the source pane (mirrors resetPerceptionState
+ * discipline, per-agent). The salience `lastSeen` cache is intentionally NOT
+ * swept: its keys are `${perceiverId}|${kind}|${subject}`, so the departed
+ * agent's entries (`loki|...`) only matter if `loki` is perceived FROM `from`
+ * again — i.e. only if it migrates BACK within the 8s salience window, in which
+ * case suppressing the re-fire is correct dedup, not a bug. Clearing it would be
+ * harmless but unnecessary; leaving it avoids a Map scan on the crossing path.
+ *
+ * This is the no-dup/no-leak chokepoint: a SINGLE delete + a SINGLE set of the
+ * SAME object. Never copy; never set-without-delete (that would tick the agent
+ * in both panes = two sprites, two BT walks, double Tier-1 cost).
+ */
+export type MigrateResult = 'ok' | 'absent' | 'duplicate';
+
+export function migrateRuntime(
+  from: RuntimeScope,
+  to: RuntimeScope,
+  id: string,
+  newX: number,
+  newY: number,
+): MigrateResult {
+  const rt = from.runtimes.get(id);
+  if (!rt) return 'absent';
+  if (to.runtimes.has(id)) return 'duplicate'; // duplicate-identity guard
+  from.runtimes.delete(id);
+  // Clear the departed agent's per-agent FOV/hold state in the source scope so
+  // a now-absent agent can't mis-fire a perception event from a stale timer.
+  from.perception.proximitySince.delete(id);
+  from.perception.holdFired.delete(id);
+  rt.x = newX;
+  rt.y = newY;
+  to.runtimes.set(id, rt);
+  return 'ok';
+}
+
 // ---------- back-compat module globals (delegate to DEFAULT_SCOPE) ----------
 
 /**

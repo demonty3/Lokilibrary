@@ -921,6 +921,56 @@ room travelling with it. The arrangement is now the network the agent
 society emerges from: the user is sculpting the substrate, not configuring a
 bot.
 
+> **Phase 7-D.1 — FOUNDATION LANDED (2026-05-31).** The three pure, headless
+> pieces of Depth-2 are built + smoke-locked (`smoke-7d-seams.mts`, 69
+> assertions; typecheck clean; all 26 prior smokes green):
+> 1. **Pure seam GRAPH + coordinate bridge** (`src/state/seams.ts`) — derives
+>    abutment in INTEGER grid space as DATA. `PixiApp.drawSeams` REFACTORED to
+>    consume `buildSeams()` (was an implicit per-pane right/bottom-edge loop) so
+>    the data model + the strokes are the SAME source of truth and cannot
+>    diverge; the projected PAINTED-PIXEL coverage is proven byte-identical to the
+>    old loop across clean AND asymmetric tilings (smoke D1 — on asymmetric
+>    tilings the graph splits a shared edge into collinear segments so the stroke
+>    SETS differ but the painted pixels match; pixel-coverage equality is the
+>    lock). `bridgeCoord` maps a coord across a same-level open seam
+>    (round-trip ±1), returns `cross-level`/`closed` for the other cases.
+>    open/closed model = default OPEN, toggle RESERVED (`open` field always-true,
+>    `edgeType` reserved null).
+> 2. **Cross-seam perception** (`src/agents/crossSeam.ts` + `paneRegistry.ts`) —
+>    `enrichSnapshotAcrossSeams` splices projected, namespaced neighbour subjects
+>    into the per-tick `WorldSnapshot` so FOV extends one hop across an OPEN seam.
+>    `perception.ts` is UNTOUCHED. Wired into `cohort.ts` behind an OPTIONAL
+>    `crossSeamDeps` defaulting to a no-op (no open seams) → the no-open-seam path
+>    returns the snapshot BY REFERENCE, byte-identical to today. The real seam
+>    graph → `openSeamsFor` adjacency-list wiring is the remaining integration.
+> 3. **Migrate primitive** (`agentRuntime.migrateRuntime`) — single delete + set
+>    of the SAME runtime object (preserves in-flight plan), clears the departed
+>    agent's source-pane perception caches, and REFUSES a cross when the target
+>    id already exists (the shared-COHORT `loki`-in-both-panes collision).
+>
+> **DEFERRED to 7-D.2 (honest — NOT half-built):**
+> - **The LIVE agent crossing wiring** — the `behavior.ts` off-grid step (return
+>   a cross INTENT toward an open walkable seam) + `cohort.ts` sprite handoff
+>   (destroy in A, spawn-mid-tick in B) that actually MOVES an agent across the
+>   seam at runtime. Blocked on the IDENTITY-MODEL fork (shared COHORT = every
+>   agent already lives in every pane: distinct rosters? single roaming roster?
+>   identity-merge?) AND Windows visual verification (sub-character traversal).
+>   The migrate PRIMITIVE + bridge land now; the live walk is the next slice.
+> - **Cross-LEVEL crossing** (cell→district): district/island/continent have no
+>   cohort/walkable grid/agent coord space — `bridgeCoord` returns `cross-level`
+>   (a focus-transfer/zoom HINT), no literal walk. Defer until those levels gain
+>   an agent layer.
+> - **The real `openSeamsFor` graph wiring** (PixiApp builds a per-pane open-seam
+>   adjacency list from `buildSeams` + an open/closed store slice and threads it
+>   into each cohort's `crossSeamDeps`) — the enricher + bridge are proven against
+>   hand-built `SeamEdge`s in the smoke; the live graph→cohort thread is the
+>   integration step that pairs with the live crossing wiring.
+> - **Memory-flow across the seam** — already shared-by-accident (persistent rows
+>   are cellId/libraryId-keyed, NOT pane-scoped; two panes of the same cell share
+>   loki's memory). Nothing to build; do NOT add a per-pane memory namespace.
+> - **Open/closed USER control, vertical-stack observe-but-not-walk semantics,
+>   input-ownership transfer, visitor-mode privacy** — all later slices.
+
 ### Cheap seeds to reserve now (cost ~nothing, avoid later retrofits)
 - **Pane-aware agent perception** — THE one IDEAS.md names (line 350). No
   urgency until the multi-pane UI exists; refactoring `perception.ts` into a
