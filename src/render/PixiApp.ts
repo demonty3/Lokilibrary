@@ -3,11 +3,13 @@ import type { Theme } from '../themes/types';
 import type { Profile, ScaleLevel } from '../types';
 import { layoutCell } from '../procedural/cell';
 import { profileSeed } from '../procedural/seed';
-import { useAppStore } from '../state/store';
+import { useAppStore, type AppState } from '../state/store';
 import { SAMPLE_LIBRARY } from '../data/sampleLibrary';
+import { deriveStats } from '../procedural/macro';
 import { mountCell } from './levels/cell';
 import { mountDistrict } from './levels/district';
 import { mountStubLevel } from './levels/stub';
+import { mountReveal, type RevealContext } from './reveal';
 import { waitForCozette } from './fonts';
 
 /**
@@ -41,18 +43,55 @@ export async function mountPalace(
 
   await waitForCozette();
 
-  let teardownLevel: () => void = mountLevel(app, theme, useAppStore.getState().scale);
+  let teardown: () => void = mountFor(app, theme, useAppStore.getState());
 
   const unsubscribe = useAppStore.subscribe((state, prev) => {
-    if (state.scale === prev.scale) return;
-    teardownLevel();
-    teardownLevel = mountLevel(app, theme, state.scale);
+    const revealChanged = state.revealStatus !== prev.revealStatus;
+    const scaleChanged = state.scale !== prev.scale;
+    if (!revealChanged && !scaleChanged) return;
+    // While the reveal is playing it owns the screen — ignore scale changes.
+    if (state.revealStatus === 'playing' && !revealChanged) return;
+    teardown();
+    teardown = mountFor(app, theme, state);
   });
 
   return () => {
     unsubscribe();
-    teardownLevel();
+    teardown();
     app.destroy(true, { children: true, texture: true });
+  };
+}
+
+/** Mount whatever the current state calls for: the reveal cinematic while it's
+ *  playing, otherwise the interactive level for the active scale. */
+function mountFor(app: Application, theme: Theme, state: AppState): () => void {
+  if (state.revealStatus === 'playing') {
+    return mountReveal(app, theme, buildRevealContext(), () =>
+      useAppStore.getState().endReveal(),
+    );
+  }
+  return mountLevel(app, theme, state.scale);
+}
+
+/** Assemble the reveal's draw context from the live library snapshot. Same
+ *  seed → same reveal (determinism contract). */
+function buildRevealContext(): RevealContext {
+  const { profile, spines, seed } = snapshotLibraryState();
+  const stats = deriveStats(profile, SAMPLE_LIBRARY.length);
+  const heroAppids = profile
+    ? profile.topGames.map((g) => g.appid)
+    : SAMPLE_LIBRARY.map((g) => g.appid);
+  const persona = useAppStore.getState().persona;
+  const totalGames = profile?.totalGames ?? SAMPLE_LIBRARY.length;
+  const hours = profile?.totalPlaytimeHours ?? 0;
+  return {
+    seed,
+    spines,
+    heroAppids,
+    stats,
+    title: persona?.name ?? 'your library',
+    gamesLabel: `${totalGames.toLocaleString()} games`,
+    hoursLabel: hours > 0 ? `${Math.round(hours).toLocaleString()} h played` : 'a new library',
   };
 }
 
@@ -83,7 +122,7 @@ interface LibrarySnapshot {
  *  not-signed-in demo. */
 const ANONYMOUS_SEED = 0xa11ce11 >>> 0;
 
-function snapshotLibraryState(): LibrarySnapshot {
+export function snapshotLibraryState(): LibrarySnapshot {
   const state = useAppStore.getState();
   const profile = state.profile;
   if (profile) {

@@ -9,12 +9,15 @@ import type { LibraryGame, Profile, ScaleLevel, SteamPersona } from '../types';
 export type ManifestStatus = 'idle' | 'loading' | 'loaded' | 'error';
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'anonymous';
 export type LibraryStatus = 'idle' | 'loading' | 'loaded' | 'error';
+/** First-run cinematic reveal. `playing` swaps the interactive level for the
+ *  reveal scene; `done` drops back into the live cell. */
+export type RevealStatus = 'idle' | 'playing' | 'done';
 
 /**
  * Top-level app state. Auth, library, profile, manifest, and Electron
  * wallpaper/peek toggles. Pure data — no renderer dependencies.
  */
-interface AppState {
+export interface AppState {
   menuOpen: boolean;
   openMenu: () => void;
   closeMenu: () => void;
@@ -50,6 +53,13 @@ interface AppState {
    *  subscribes to this slice and tears down + remounts on change. */
   scale: ScaleLevel;
   setScale: (level: ScaleLevel) => void;
+
+  /** First-run reveal flythrough. `playReveal` swaps the interactive level
+   *  for the cinematic (and resets scale to `cell` so it ends in the room);
+   *  `endReveal` is called by the reveal scene's onComplete. */
+  revealStatus: RevealStatus;
+  playReveal: () => void;
+  endReveal: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -143,4 +153,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setScale: (level) => {
     if (get().scale !== level) set({ scale: level });
   },
+
+  revealStatus: 'idle',
+  playReveal: () => set({ revealStatus: 'playing', scale: 'cell' }),
+  endReveal: () => set({ revealStatus: 'done' }),
 }));
