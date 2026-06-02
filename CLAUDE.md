@@ -89,7 +89,9 @@ URL lore ingestion + sparse-input follow-up defer to 5C-follow-ups.
 - **Electron + steamworks.js** for the desktop wrapper in `desktop/`
   (decided May 2026 — `steamworks.js` requires a Node host runtime; Tauri
   is rejected). Wallpaper mode ports Lively Wallpaper's Progman-reparent
-  technique via koffi FFI.
+  technique via koffi FFI on Windows; on macOS it sets the `NSWindow` to the
+  desktop-picture window level through a koffi → Objective-C bridge
+  (`desktop/src/wallpaper/macos.ts`), no reparenting.
 - **HowLongToBeat** for per-game completion-time data (community endpoint,
   cached aggressively in the Worker)
 - **IGDB** (Twitch credentials) for genre / theme / perspective enrichment
