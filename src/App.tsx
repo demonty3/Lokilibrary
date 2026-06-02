@@ -59,11 +59,18 @@ export function App() {
   // never consumes input.
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
-      if (useAppStore.getState().wallpaperMode) return;
+      const st = useAppStore.getState();
+      if (st.wallpaperMode) return;
+      // The reveal scene owns input while it plays (its own skip/advance).
+      if (st.revealStatus === 'playing') return;
+      if (e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        st.playReveal();
+        return;
+      }
       if (e.key !== '[' && e.key !== ']') return;
       e.preventDefault();
-      const current = useAppStore.getState().scale;
-      const idx = SCALE_ORDER.indexOf(current);
+      const idx = SCALE_ORDER.indexOf(st.scale);
       if (idx < 0) return;
       const nextIdx = e.key === '[' ? idx + 1 : idx - 1;
       if (nextIdx < 0 || nextIdx >= SCALE_ORDER.length) return;
@@ -72,6 +79,18 @@ export function App() {
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
   }, [setScale]);
+
+  // First-run reveal: auto-play once (localStorage-gated). Skipped if we
+  // booted straight into wallpaper mode — the wallpaper shouldn't hijack
+  // the screen with a cinematic; it stays replayable via R.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem('loki.revealSeen')) return;
+    const st = useAppStore.getState();
+    if (st.wallpaperMode) return;
+    window.localStorage.setItem('loki.revealSeen', '1');
+    st.playReveal();
+  }, []);
 
   // Phase 0 verification: one Tier 1 round-trip on boot. Logged to console
   // so the spike's pass/fail criterion is visible without UI plumbing. Phase
@@ -124,7 +143,7 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
     >
       <div>level: {label}</div>
       <div>steamid: {steamId ?? '—'}</div>
-      <div style={{ opacity: 0.65 }}>[ zoom out · ] zoom in · WASD walk</div>
+      <div style={{ opacity: 0.65 }}>[ zoom out · ] zoom in · WASD walk · R replay</div>
     </div>
   );
 }
