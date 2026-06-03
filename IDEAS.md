@@ -360,3 +360,70 @@ Strategic direction worth committing to, but **explicitly post-v1.0 (v2.x per `d
 ---
 
 *Add new parked ideas below as separate `##` sections, dated.*
+
+---
+
+## Per-scale perspective: top-down interior, side-on exterior
+
+*Captured 2026-06-03.*
+
+A camera-angle decision the scale ladder has never actually pinned down. `SPEC.md`
+§4 gives each level its own *rendering vocabulary* but never its *projection*, and
+the implementation quietly drifted top-down everywhere: the `cell` is an overhead
+room, and the `island`/`continent` renderers (Phase 7A) draw overhead map
+silhouettes. Meanwhile the headline aesthetic is stated as **"a 2D side-on pixel
+world"** (`docs/pivot/DESIGN.md` + `CONSOLIDATION.md`, opening line). So *side-on is
+currently realised nowhere* — a real inconsistency between the stated vibe and the
+built renderers.
+
+**The proposal:** keep the `cell` **top-down** (it's an *interior* — a library room;
+overhead reads as "you're inside it"), and flip to **side-on, Terraria-style** the
+moment you leave it for the *exterior* landscape levels. Interior-top-down /
+exterior-side-on is a coherent, established split, not a novelty.
+
+### Why it's the right shape, not just a style whim
+
+- **It makes the seam metaphor literal.** Under *Composable panes*, panes snap and
+  agents cross seams. In a side-on world a **horizontal seam = walk across into the
+  next biome** (exactly Terraria's biome adjacency) and a **vertical stack =
+  surface→underground strata** (also Terraria). Top-down panes snapping is abstract;
+  side-on panes snapping is physical. The *cube-world-toy* image gets a body.
+- **The perspective flip *is* the boundary moment the design already wants.**
+  `DESIGN.md`: *"Transition across a boundary is its own visual moment."* Leaving the
+  top-down room and watching the world tilt to side-on IS that beat, rendered as a
+  camera move rather than just a palette change.
+
+### The nuance: it's not a global flip, it's three projection bands
+
+A planet can't be side-on. The honest mapping is a gradient, not a switch:
+
+- **`cell`** — top-down **interior** (the room you inhabit).
+- **`district` / `island`** — **side-on landscape** (the Terraria band — walkable
+  exterior, biome seams, surface/underground).
+- **`continent` / `planet` / `solar_system`** — back to **map / orbital** (you zoom
+  out far enough that side-on stops making sense and aggregate/overhead returns).
+
+So the ladder reads: *inhabit (top-down) → traverse (side-on) → survey (orbital)*.
+Each transition between bands is a "boundary moment."
+
+### Cost / open questions
+
+- The Phase 7A `island`/`continent` renderers + the 7D seam-walk assume a roughly
+  top-down/map projection. Adopting the side-on band rethinks the mid-levels as
+  landscape strata rather than overhead maps — not enormous, but not free, and it
+  touches code that currently only ever ran headlessly (see `TODO-USER.md` visual
+  verification backlog). Worth doing *as part of* that first real visual pass, not
+  as a separate retrofit.
+- Where exactly does the flip fire — at the `cell`→`district` zoom, or on physically
+  walking out the room's door? (The latter is more diegetic and pairs with the
+  existing door/`spawnAt`.)
+- Does the agent's sprite re-render across the projection change the way the persona
+  already "recolours across terminal styles" (`DESIGN.md`)? A side-on Loki vs a
+  top-down Loki is the same being in two projections — a natural extension of the
+  recolour-across-boundaries rule.
+
+**Depends on / extends:** *Composable panes* (this gives the seams a projection that
+makes crossing them physical), the scale-ladder renderers (`src/render/levels/`,
+Phase 7A). **Status:** post-v1.0 design direction; the right time to decide it is the
+first real visual pass on the higher levels, since that's when those renderers get
+touched anyway.
