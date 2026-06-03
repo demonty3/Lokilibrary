@@ -45,8 +45,9 @@
  *         world mount, where only root is registered, still seeds the roster).
  *
  *   FLOOR-GATED SEAM EXITS (must-fix — never strand an agent in a wall)
- *     F1  with the REAL cell layout (solid wall perimeter), an E/W seam yields
- *         ZERO crossable exits through the walkability oracle (honest empty).
+ *     F1  with the REAL cell layout, the carved walkable seam openings
+ *         (layout.seamRows) are EXACTLY the crossable E/W exits through the
+ *         walkability oracle; every other edge row is wall (no stranding).
  *     F2  the oracle rejects an exit whose bridged ENTRY cell is a wall even
  *         when the exit cell is floor (no migrate-into-wall).
  *
@@ -434,9 +435,10 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
 // must refuse exits off / into a WALL so an agent is never stranded.
 // ===========================================================================
 {
-  // The REAL layout fills its whole perimeter with wall (only a south door),
-  // so the E/W edge columns are 100% wall. Build a real same-level seam graph
-  // and a real walkability oracle (T_FLOOR only) over the actual layout tiles.
+  // The REAL layout walls its whole perimeter EXCEPT the carved seam openings
+  // (layout.seamRows) on the side walls + the south door. Build a real same-level
+  // seam graph and a real walkability oracle (T_FLOOR only) over the actual
+  // layout tiles: only the opening rows are crossable.
   get().setArrangement('single');
   get().setArrangement('study');
   get().setPaneLevel('p2', 'cell');
@@ -459,19 +461,33 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
   // WITHOUT the gate: the geometric pass offers an exit for every edge row.
   const ungated = seamExitsForPane(seams, 'root', realDims);
   check('F1 ungated (geometry-only) offers exits on the full right column', ungated.size === layout.height, `got ${ungated.size}`);
-  // Sanity: those geometric exits sit on WALL cells (the perimeter) — exactly
-  // the stranding the gate must prevent.
-  const rightColAllWall = [...ungated.keys()].every((k) => {
+  // Sanity: the geometric (ungated) exits sit on WALL cells EXCEPT the carved
+  // seam-opening rows — those wall cells are exactly the stranding the gate must
+  // prevent, and the opening rows are exactly what it must allow.
+  const openRows = new Set(layout.seamRows);
+  const ungatedFloor = [...ungated.keys()].filter((k) => {
     const [x, y] = k.split(',').map(Number);
-    return layout.tiles[y]?.[x] !== T_FLOOR;
+    return layout.tiles[y]?.[x] === T_FLOOR;
   });
-  check('F1 ungated exits all sit on WALL edge cells (the stranding risk)', rightColAllWall);
+  check(
+    'F1 ungated exits sit on WALL except the carved seam openings',
+    ungatedFloor.length === layout.seamRows.length &&
+      ungatedFloor.every((k) => openRows.has(Number(k.split(',')[1]))),
+    `floor-edge=${ungatedFloor.length} seamRows=${layout.seamRows.length}`,
+  );
 
-  // WITH the gate: zero crossable exits — the wall perimeter has no floor edge
-  // cell to stand on (honest empty result; a walkable seam edge is a deferred
-  // follow-up).
+  // WITH the gate: exactly the carved opening rows are crossable (floor on BOTH
+  // the exit edge and the bridged entry — the walkable seam edge now lands).
   const gated = seamExitsForPane(seams, 'root', realDims, isWalkable);
-  check('F1 floor-gated E/W seam yields ZERO crossable exits (no wall stranding)', gated.size === 0, `got ${gated.size}`);
+  check(
+    'F1 floor-gated E/W seam yields exactly the seam-opening exits',
+    gated.size === layout.seamRows.length,
+    `got ${gated.size}, want ${layout.seamRows.length}`,
+  );
+  check(
+    'F1 each gated exit sits on a carved seam-opening row',
+    [...gated.keys()].every((k) => openRows.has(Number(k.split(',')[1]))),
+  );
 
   // F2 — entry-cell gate: even a FLOOR exit cell is refused if the bridged
   // ENTRY lands in a wall. Use a synthetic oracle: exit cell floor, entry wall.
