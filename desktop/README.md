@@ -1,6 +1,7 @@
 # lokilibrary — desktop wrapper
 
-Electron + steamworks.js + Win11 22H2+ wallpaper-mode reparenting.
+Electron + steamworks.js + wallpaper mode (Win11 22H2+ reparenting on Windows /
+desktop-level `NSWindow` on macOS).
 
 Scope: open a window pointed at the renderer, init Steamworks for auth-
 ticket + overlay, expose a tiny IPC surface, system tray with
@@ -37,6 +38,32 @@ cd desktop
 npm install
 npm run dev               # Electron points at localhost:5183
 ```
+
+## Running on macOS
+
+No WSL caveat — the Mac build runs from any terminal. You need Steam running for
+`steamworks.js` to init (the app still loads without it; Steam-gated features
+just stay disabled).
+
+```bash
+# Terminal 1 — Vite dev server
+npm install
+npm run dev               # localhost:5183, the PixiJS renderer
+
+# Terminal 2 — Cloudflare Worker (optional, for Tier 1+ LLM calls)
+npm run worker
+
+# Terminal 3 — Electron desktop wrapper
+cd desktop
+npm install
+echo 480 > steam_appid.txt   # one-time; SpaceWar dev appid
+npm run dev               # Electron points at localhost:5183
+```
+
+Wallpaper mode drops the window to the macOS desktop-picture window level
+(`-[NSWindow setLevel:]` + an all-Spaces/stationary collection behavior, via a
+koffi → Objective-C bridge — see `src/wallpaper/macos.ts`). No reparenting, so
+the live PixiJS renderer keeps its state across a toggle.
 
 ## One-time Steamworks SDK setup
 
@@ -101,6 +128,28 @@ real appid afterward.
   returned a non-null handle (logged as the parent in attach success
   message).
 
+### Wallpaper mode (macOS)
+
+**Startup logs:** `[wallpaper:macos] entered — level …` on tray → Wallpaper,
+`[wallpaper:macos] exited` on the way back. `objc bridge init failed` or
+`no NSWindow for handle` means it fell back to a normal window.
+
+**Acceptance protocol** (after tray → Wallpaper mode):
+
+1. Window drops **behind the desktop icons**; icons stay clickable.
+2. Content stays visible across a Mission Control swipe and on every Space
+   (CanJoinAllSpaces + Stationary collection behavior).
+3. Survives a resolution / display-mode change (System Settings → Displays).
+4. **Cmd-Tab does not list the window**, and the Dock icon disappears while the
+   menu-bar tray stays (activation policy → `accessory`).
+5. Tray → Window mode restores a normal floating window + Dock icon.
+6. Quit + relaunch reopens in the last-persisted mode.
+
+**Known rough edge:** the window is created `frame: true`; wallpaper mode hides
+the traffic lights and relies on click-through, but a fully chromeless look
+would want a frameless window (a later change). Desktop level may need a ±1
+nudge on some display setups — see the comment in `macos.ts`.
+
 ## File layout
 
 ```
@@ -114,7 +163,7 @@ desktop/
       index.ts              — platform dispatch (win32 vs darwin)
       windows.ts            — Lively-style Progman/WorkerW reparent,
                               raised-desktop + classic branches, koffi FFI
-      macos.ts              — no-op stub (real impl is post-v1.0)
+      macos.ts              — desktop-level NSWindow via koffi→objc bridge
   assets/
     tray-icon.png           — system tray icon
   sdk/                      — Steamworks SDK redistributable (gitignored)

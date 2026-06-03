@@ -48,73 +48,81 @@ interface Koffi {
    *  these, which is what broke the previous bufferToHwnd path. */
   address(value: unknown): bigint;
 }
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const koffi = require('koffi') as Koffi;
 
-// --- Win32 bindings ---------------------------------------------------------
-// Slice 4A: minimum-viable detection — GetForegroundWindow +
-// GetWindowRect + GetShellWindow + FindWindowExW. Slice 5B adds
-// GetLastInputInfo + GetTickCount for system-wide idle detection
-// (SLEEPING state).
+// --- Win32 bindings (lazy) --------------------------------------------------
+// Slice 4A: minimum-viable detection — GetForegroundWindow + GetWindowRect +
+// GetShellWindow + FindWindowExW. Slice 5B adds GetLastInputInfo +
+// GetTickCount for system-wide idle detection (SLEEPING state).
 //
-// Both signatures avoid the koffi struct path: RECT marshals via
-// `_Out_ int32_t*` (4-int array); LASTINPUTINFO marshals via
-// `_Inout_ uint32_t*` (caller sets cbSize=8, GetLastInputInfo fills
-// dwTime in the same buffer). Saves two koffi.struct registrations.
+// Bound LAZILY on first controller start, NOT at module load. `koffi.load(
+// 'user32.dll')` is a dlopen that throws on macOS/Linux; main.ts imports this
+// module statically, so an eager load would crash the whole app at boot on
+// non-Windows hosts (the same trap windows.ts/index.ts avoid). On those
+// platforms getWin32() returns null and the controller degrades to a permanent
+// 'full' state — correct, since the throttle is a Windows wallpaper-mode
+// feature and the renderer should just animate normally elsewhere.
+//
+// Both function signatures avoid the koffi struct path: RECT marshals via
+// `_Out_ int32_t*` (4-int array); LASTINPUTINFO marshals via `_Inout_
+// uint32_t*` (caller sets cbSize=8, GetLastInputInfo fills dwTime in the same
+// buffer). Saves two koffi.struct registrations.
 
-const user32 = koffi.load('user32.dll');
-const kernel32 = koffi.load('kernel32.dll');
+type KoffiFn = (...args: unknown[]) => unknown;
 
-/** Returns the HWND that currently has keyboard focus across the system, or
- *  NULL when no window is foreground (rare — usually only during fast
- *  app switches or when the lock screen is active). */
-const GetForegroundWindow = user32.func('void* GetForegroundWindow()');
+interface Win32 {
+  koffi: Koffi;
+  /** HWND with system keyboard focus, or NULL during fast app switches / lock. */
+  GetForegroundWindow: KoffiFn;
+  /** Fills a RECT (incl. chrome) for fullscreen detection — a true-fullscreen
+   *  game has no chrome, so its rect == monitor rect exactly. */
+  GetWindowRect: KoffiFn;
+  /** Progman (desktop) HWND. Excluded from fullscreen detection so clicking
+   *  the desktop in wallpaper mode doesn't pause the renderer. */
+  GetShellWindow: KoffiFn;
+  /** Class-name fallback when GetShellWindow returns NULL (raised-desktop
+   *  Win11 quirk). FindWindowExW(class="Progman") finds it regardless. */
+  FindWindowExW: KoffiFn;
+  /** Phase 5B idle detection — fills LASTINPUTINFO.dwTime (ms-since-boot of the
+   *  last OS-wide keyboard/mouse/touch input). Idle = GetTickCount() - dwTime. */
+  GetLastInputInfo: KoffiFn;
+  /** Phase 5B — ms since boot; pairs with GetLastInputInfo for idle ms. Wraps
+   *  at 49.7 days (uint32); queryIdleDurationMs handles the wrap modularly. */
+  GetTickCount: KoffiFn;
+}
 
-/** Fills a RECT {left, top, right, bottom} with the foreground window's
- *  screen-coordinate bounds. Includes window chrome (title bar / borders),
- *  which is what we want for fullscreen detection — a "true fullscreen"
- *  game has no chrome, so window rect = monitor rect exactly. */
-const GetWindowRect = user32.func(
-  'bool GetWindowRect(void* hWnd, _Out_ int32_t* lpRect)',
-);
+let win32: Win32 | null = null;
+let win32Tried = false;
 
-/** Handle to the desktop "Program Manager" window (Progman). Returned by
- *  GetShellWindow. Progman occupies the full monitor area, so without an
- *  explicit exclude check the foreground-rect heuristic below would mark
- *  Progman as a fullscreen app the moment the user clicks the desktop in
- *  wallpaper mode — pausing the renderer before it's even shown its
- *  first frame. The shell-window check above the fullscreen detection
- *  in computeThrottleState is what prevents that. */
-const GetShellWindow = user32.func('void* GetShellWindow()');
-
-/** Fallback class-name lookup when GetShellWindow returns NULL — a
- *  documented Windows quirk on some raised-desktop Win11 setups where
- *  the shell process hasn't registered its desktop window even though
- *  Progman exists. FindWindowExW with class="Progman" finds it
- *  regardless of registration state. Already used by windows.ts for the
- *  WorkerW lookup; we re-bind here so throttle.ts doesn't need a
- *  cross-file import. */
-const FindWindowExW = user32.func(
-  'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpszClass, str16 lpszWindow)',
-);
-
-/** Phase 5B — system-wide idle detection. LASTINPUTINFO struct: a
- *  uint32 cbSize + a uint32 dwTime (ms since system boot of last
- *  input). Caller sets cbSize=8 (sizeof the struct), GetLastInputInfo
- *  fills dwTime. Idle duration = GetTickCount() - dwTime. Captures
- *  keyboard + mouse + touch idleness across the whole OS, not just
- *  our app's focus — the right primitive for "user is genuinely
- *  away," fires correctly while a fullscreen game is open OR while
- *  the user has stepped away from the keyboard mid-browse. */
-const GetLastInputInfo = user32.func(
-  'bool GetLastInputInfo(_Inout_ uint32_t* plii)',
-);
-
-/** Phase 5B — system tick count (ms since boot). Pairs with
- *  GetLastInputInfo's dwTime to compute idle ms. Wraps at 49.7 days
- *  (uint32 max); the wrap handling in queryIdleDurationMs() covers
- *  it via uint32 modular subtraction. */
-const GetTickCount = kernel32.func('uint32_t GetTickCount()');
+/** Bind (once) the Win32 FFI surface. Returns null on non-Windows or if koffi /
+ *  user32 can't load — callers then skip Win32 probing entirely. */
+function getWin32(): Win32 | null {
+  if (win32Tried) return win32;
+  win32Tried = true;
+  if (process.platform !== 'win32') return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const koffi = require('koffi') as Koffi;
+    const user32 = koffi.load('user32.dll');
+    const kernel32 = koffi.load('kernel32.dll');
+    win32 = {
+      koffi,
+      GetForegroundWindow: user32.func('void* GetForegroundWindow()'),
+      GetWindowRect: user32.func('bool GetWindowRect(void* hWnd, _Out_ int32_t* lpRect)'),
+      GetShellWindow: user32.func('void* GetShellWindow()'),
+      FindWindowExW: user32.func(
+        'void* FindWindowExW(void* hWndParent, void* hWndChildAfter, str16 lpszClass, str16 lpszWindow)',
+      ),
+      GetLastInputInfo: user32.func('bool GetLastInputInfo(_Inout_ uint32_t* plii)'),
+      GetTickCount: kernel32.func('uint32_t GetTickCount()'),
+    };
+    return win32;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[throttle] Win32 bindings unavailable; throttle disabled:', (e as Error).message);
+    win32 = null;
+    return null;
+  }
+}
 
 // --- Types ------------------------------------------------------------------
 
@@ -298,14 +306,14 @@ lastInputBuf.writeUInt32LE(8, 0); // cbSize = sizeof(LASTINPUTINFO)
  *  touch / pen input across the OS). Returns -1 if the Win32 call
  *  failed — caller treats that as "unknown idle" and falls back to
  *  the safest behavior (don't trigger SLEEPING). */
-function queryIdleDurationMs(): number {
+function queryIdleDurationMs(w: Win32): number {
   // Re-set cbSize each call — the spec says it must be set by the
   // caller before each call, and our buffer is shared across calls.
   lastInputBuf.writeUInt32LE(8, 0);
-  const ok = GetLastInputInfo(lastInputBuf) as boolean;
+  const ok = w.GetLastInputInfo(lastInputBuf) as boolean;
   if (!ok) return -1;
   const lastInputTick = lastInputBuf.readUInt32LE(4);
-  const nowTick = GetTickCount() as number;
+  const nowTick = w.GetTickCount() as number;
   // uint32 modular subtraction handles the 49.7-day wrap correctly:
   // if nowTick wrapped past 0 while lastInputTick is still pre-wrap,
   // (nowTick - lastInputTick) & 0xFFFFFFFF gives the right delta.
@@ -335,10 +343,10 @@ function readRectFromBuffer(): Rect {
  *  bytes are the HWND value (Electron's encoding). Two different
  *  extraction paths because they're two different runtime types,
  *  documented in detail in windows.ts:160. */
-function koffiHwnd(value: unknown): bigint | null {
+function koffiHwnd(w: Win32, value: unknown): bigint | null {
   if (!value) return null;
   try {
-    const addr = koffi.address(value);
+    const addr = w.koffi.address(value);
     return addr === 0n ? null : addr;
   } catch {
     return null;
@@ -351,18 +359,18 @@ function koffiHwnd(value: unknown): bigint | null {
  *  WorkerW watchdog in windows.ts handles re-attach if Progman gets
  *  destroyed (DWM does this on display-mode changes); a future slice
  *  would re-fetch this on the same trigger. */
-function findShellHwnd(): bigint | null {
+function findShellHwnd(w: Win32): bigint | null {
   // Path 1: the documented API. Returns NULL on shells that didn't
   // register their desktop window — observed on at least one
   // raised-desktop Win11 user setup despite Progman existing.
-  const fromGetShell = koffiHwnd(GetShellWindow());
+  const fromGetShell = koffiHwnd(w, w.GetShellWindow());
   if (fromGetShell !== null) return fromGetShell;
 
   // Path 2: class-name lookup. Progman is created by explorer.exe and
   // its class is always "Progman" regardless of shell registration
   // state. This is what windows.ts already does for WorkerW lookup;
   // applying the same trick here.
-  const fromFindWindow = koffiHwnd(FindWindowExW(null, null, 'Progman', null));
+  const fromFindWindow = koffiHwnd(w, w.FindWindowExW(null, null, 'Progman', null));
   if (fromFindWindow !== null) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -391,6 +399,7 @@ function findShellHwnd(): bigint | null {
  *  meaningful (e.g. wallpaper mode is off — caller should pass the
  *  resulting state directly as 'full' without probing). */
 function probeWin32(
+  w: Win32,
   wallpaperHwnd: bigint | null,
   shellHwnd: bigint | null,
   isWallpaperMode: boolean,
@@ -424,8 +433,8 @@ function probeWin32(
     };
   }
 
-  const fgHwndRaw = GetForegroundWindow();
-  const foregroundHwnd = koffiHwnd(fgHwndRaw);
+  const fgHwndRaw = w.GetForegroundWindow();
+  const foregroundHwnd = koffiHwnd(w, fgHwndRaw);
 
   let foregroundRect: Rect | null = null;
   if (foregroundHwnd !== null && fgHwndRaw) {
@@ -434,14 +443,14 @@ function probeWin32(
     // (koffi unwraps it transparently — same pattern windows.ts uses
     // for Progman → SetParent). Passing the bigint pointer value would
     // require a separate cast.
-    const ok = GetWindowRect(fgHwndRaw, rectBuf) as boolean;
+    const ok = w.GetWindowRect(fgHwndRaw, rectBuf) as boolean;
     if (ok) foregroundRect = readRectFromBuffer();
   }
 
   // Phase 5B — idle duration from GetLastInputInfo. Negative means
   // the call failed; we coerce to 0 so the SLEEPING gate never fires
   // on a Win32 failure (safer to render than to silently sleep).
-  const rawIdle = queryIdleDurationMs();
+  const rawIdle = queryIdleDurationMs(w);
   const idleDurationMs = rawIdle < 0 ? 0 : rawIdle;
 
   return {
@@ -523,8 +532,18 @@ export function startThrottleController(
 ): void {
   stopThrottleController(); // idempotent reset
 
+  // Win32 throttle is Windows-only. On macOS/Linux (or if koffi can't load)
+  // degrade to a permanent 'full' state: emit it once so the renderer
+  // configures its ticker, then skip the polling loop entirely.
+  const w = getWin32();
+  if (!w) {
+    controller.current = 'full';
+    opts.onStateChange('full', true);
+    return;
+  }
+
   controller.wallpaperHwnd = win.getNativeWindowHandle().readBigInt64LE(0);
-  controller.shellHwnd = findShellHwnd();
+  controller.shellHwnd = findShellHwnd(w);
   controller.isWallpaperMode = true;
   controller.display = opts.display;
   controller.current = 'full';
@@ -549,6 +568,7 @@ export function startThrottleController(
   controller.timer = setInterval(() => {
     try {
       const probe = probeWin32(
+        w,
         controller.wallpaperHwnd,
         controller.shellHwnd,
         controller.isWallpaperMode,
