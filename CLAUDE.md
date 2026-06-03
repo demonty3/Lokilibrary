@@ -28,10 +28,17 @@ free (Wallpaper Engine's lesson).
 
 ## Current phase
 
-**Phases 0 / 1 / 2 / 3 (partial) / 4 complete (2026-05-27). Phase 5 —
-reflection completion + sleep mode + lore — next.** See
-`docs/INDEX.md` for the authoritative-doc map and
-`docs/pivot/CONSOLIDATION.md` for v1.0 scope.
+**Phases 0–5 + the desktop wrapper shipped; the build then ran ahead into
+Phase 7 (v2.x: real scale ladder, multi-pane terminal UI, seam-walking
+agents). A consolidation / verification pass is in progress (2026-06)** — the
+first real on-screen verification of Phase 5D–7, most of which had only ever
+been smoke-tested headlessly under WSL until the desktop app started booting
+on macOS. **`STATE.md` is the present-tense source of truth** (this section
+summarises; STATE.md is authoritative); `TODO-USER.md` holds the verification
+backlog, `docs/INDEX.md` the authoritative-doc map, `docs/pivot/CONSOLIDATION.md`
+the v1.0 scope. **Still open: the Steam release gate (electron-builder
+packaging + Steam Direct + AI-content disclosure) and finishing the visual
+pass + the resulting ship-v1.0-vs-expand-v2.x decision.**
 
 **Phase 0** (2026-05-22) shipped the integration spike: PixiJS v8 boot
 + Solarized theme, Electron wrapper + Steamworks SDK + wallpaper-mode
@@ -66,14 +73,26 @@ when Phase 5 reveals the aesthetic requirements.
 Ctrl+Alt+L peek hotkey. All verified end-to-end on a real Win11 raised-
 desktop setup.
 
-**Phase 5 (next)** finishes the agent layer. Per `PLAN.md` § Phase 5:
-slice 5R (docs reconciliation), 5A (reflection rate-limit + plan
-output + agents execute plans → lands agent-as-marginalia Depth 1),
-5B (`SLEEPING` 4th throttle state + morning dispatch per IDEAS.md
-2026-05-28), 5C (text-only lore upload via `nomic-embed-text`), 5D
-(lore-driven Stage 1 manifest + persona + scatter adaptation). Per
-`CONSOLIDATION.md` v1.0 scope: dream sequences DEFER to v1.x; image /
-URL lore ingestion + sparse-input follow-up defer to 5C-follow-ups.
+**Phase 5** (2026-05-28/29) finished the agent layer: 5A reflection
+completion (rate-limit + plan output + agents execute plans), 5B `SLEEPING`
+throttle + morning dispatch, 5C text-only lore upload (embed backbone +
+store + drop-zone), 5D lore-driven palette / persona / scatter adaptation.
+Retros `RETROS/phase-5*.md`.
+
+**Phase 6 — desktop wrapper** shipped the Electron skeleton, Steam-ticket
+auth, launch-via-Steamworks, wallpaper mode, multi-monitor perf, peek
+hotkey. **The Steam *release* gate (packaging + Direct submission) is NOT
+done.** **Phase 6A** rendered the local Ollama model as a world landmark.
+
+**Phase 7** (2026-05-30/31, v2.x — ahead of `CONSOLIDATION.md`'s v1.0 scope)
+built real island/continent renderers + scale ladder (7A), the multi-pane
+terminal UI (7B), and seam-walking agents that cross pane boundaries (7D.2).
+
+**Consolidation pass (2026-06, current)** — first on-screen verification on
+macOS: cell aesthetic + agents-as-beings confirmed; carved the walkable seam
+edge (`cell.ts:seamRows`) so the seam-walk is observable. Remaining:
+desktop-surface QA (lore recolor / local-AI landmark / wallpaper) + the
+ship-vs-expand decision. Retro at `RETROS/consolidation-2026-06.md`.
 
 ## Stack
 
