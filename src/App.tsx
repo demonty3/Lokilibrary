@@ -253,7 +253,24 @@ export function App() {
       // default until pressed, so the default path is unchanged.
       if (e.key === '|') {
         e.preventDefault();
+        const before = new Set(useAppStore.getState().panes.map((p) => p.id));
         useAppStore.getState().splitPane('vertical');
+        // Phase 7 / v2.x — make the split land on a DIFFERENT world: bind the
+        // freshly-created pane to the first library wing no other pane is using,
+        // so `|` yields two visibly distinct terminals (own seed/shelves/cohort)
+        // instead of an identical clone — the destination of the seam-walk. Only
+        // for cell panes (regions are cell-only); no wings (tiny library) → the
+        // clone behaviour is unchanged.
+        const after = useAppStore.getState().panes;
+        const fresh = after.find((p) => !before.has(p.id));
+        if (fresh && fresh.level === 'cell') {
+          const { clusterGames, seed } = snapshotLibraryState();
+          const used = new Set(after.map((p) => p.regionId).filter(Boolean));
+          const wing = regionTerminals(clusterGames, seed)
+            .map((rt) => rt.regionId)
+            .find((rid) => !used.has(rid));
+          if (wing) useAppStore.getState().setPaneRegion(fresh.id, wing);
+        }
         return;
       }
       // Phase 7 / v2.x — region terminals. 'r' cycles the FOCUSED cell pane

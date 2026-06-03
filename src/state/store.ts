@@ -169,6 +169,11 @@ interface AppState {
    *  the caller from the current library so the store stays free of the
    *  cluster-tree derivation. No-op when the focused pane is not a cell. */
   cycleFocusedPaneRegion: (regionIds: readonly string[]) => void;
+  /** Phase 7 / v2.x — bind a specific pane to a region wing (or clear it with
+   *  undefined). Used to make a freshly-split pane render a DIFFERENT wing than
+   *  its sibling, so a split immediately yields two distinct worlds. Pure
+   *  setter; no-op if the id is unknown or already on that region. */
+  setPaneRegion: (id: string, regionId: string | undefined) => void;
 
   /** Phase 2F: telemetry overlay visibility. Toggled by Ctrl+\` in
    *  App.tsx; the overlay renderer subscribes + mounts/unmounts. */
@@ -477,6 +482,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = panes.slice();
     next[idx] = { ...next[idx], regionId: nextRegion };
     // No scale re-sync: a region swap never changes the pane's level.
+    set({ panes: next });
+  },
+
+  setPaneRegion: (id, regionId) => {
+    const { panes } = get();
+    const idx = panes.findIndex((p) => p.id === id);
+    if (idx < 0 || panes[idx].regionId === regionId) return;
+    const next = panes.slice();
+    next[idx] = { ...next[idx], regionId };
     set({ panes: next });
   },
 

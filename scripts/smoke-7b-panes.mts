@@ -426,6 +426,19 @@ reset();
   const sibling = get().panes.find((p) => p.id !== focusedId)!;
   check('R5 focused pane took the region', focusedRegion() === 'd0');
   check('R5 sibling pane stays whole-library', sibling.regionId === undefined);
+
+  // R6 — setPaneRegion binds a SPECIFIC pane (used by the split auto-wing wiring
+  // so a freshly-split pane renders a different world than its sibling).
+  reset();
+  get().splitPane('vertical');
+  const sib = get().panes.find((p) => p.id !== get().focusedPaneId)!;
+  get().setPaneRegion(sib.id, 'd1');
+  check('R6 setPaneRegion binds the named pane', get().panes.find((p) => p.id === sib.id)!.regionId === 'd1');
+  check('R6 setPaneRegion leaves the focused pane alone', get().panes.find((p) => p.id === get().focusedPaneId)!.regionId === undefined);
+  get().setPaneRegion(sib.id, undefined);
+  check('R6 setPaneRegion(undefined) clears back to whole-library', get().panes.find((p) => p.id === sib.id)!.regionId === undefined);
+  get().setPaneRegion('nonexistent', 'd0');
+  check('R6 setPaneRegion on unknown id is a no-op', get().panes.every((p) => p.id !== 'nonexistent'));
 }
 reset();
 
