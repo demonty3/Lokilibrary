@@ -53,6 +53,12 @@ if any renderer adds an off-atlas glyph. What still needs a human eyeball:
 **S1 — Lore palette recolor (5D.4). DESKTOP-ONLY** (web build has the null
 writer → `loreCount()===0` → always the default theme + the drop-zone
 refuses ingest with "needs the desktop app"):
+> **NOTE (2026-06, consolidation):** the lore→theme *derivation* is now
+> headless-confirmed against the real shipped code via
+> `npx tsx scripts/lore-preview.mts lore-samples/*.md`
+> (`pastoral.md → gruvbox-dark`, `nautical.md → tokyo-night`). So the only
+> thing left to eyeball here is the on-screen PIXI repaint. Ready-to-drop
+> sample files + **macOS** run/verify steps live in `lore-samples/README.md`.
 - Note the boot palette: it should be **Solarized dark** (`DEFAULT_THEME_ID`)
   on a fresh corpus.
 - Press **Ctrl+U** → the lore drop-zone appears. Drop a `.md`/`.txt` whose
@@ -454,14 +460,15 @@ ready to verify. You can:
 **Unblocks**: future slices land on short-lived branches per the 5R
 PR-cadence note.
 
-### ⏳ Sample lore file for slice 5C testing
-**Status**: not yet started, but 5C needs a real `.md` lore file
-(your D&D campaign, fanfic, worldbuilding doc) for end-to-end
-verification. Anything 2-10 KB of text with consistent vocabulary +
-character/place names works.
+### ✅ Sample lore file for slice 5C testing
+**Status**: RESOLVED (2026-06, consolidation). Two ready-to-drop files now
+live in `lore-samples/` (`pastoral.md`, `nautical.md`) with known expected
+recolors, plus `lore-samples/README.md` and the `scripts/lore-preview.mts`
+predictor. Drop your own `.md` (D&D campaign, fanfic, worldbuilding doc,
+2-10 KB, consistent vocab) anytime for a richer test — run it through
+`lore-preview.mts` first to see which palette it will pick.
 
-**Unblocks**: 5C "drop a real file, watch Loki reference it" verify
-step.
+**Unblocks**: 5C "drop a real file, watch Loki reference it" verify step.
 
 ### ⏳ Bake real PixelLab sprites (Phase 3 follow-up, deferred)
 **Status**: open since slice 3C. Needs `PIXELLAB_API_KEY` in
