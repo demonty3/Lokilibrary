@@ -317,6 +317,47 @@ Stacking direction carries semantics:
 
 **Depth 3 — Arrangement as a first-class personalisation input.** The arrangement is one of the explicit levers — agent behaviour, Loki's climate, and the population's social structure all shift based on topology. *Sleep mode* Depth 3 unlocks here: Loki rearranges panes overnight while the user is away, and the user wakes to a topology that has been resculpted by the world itself. *Year 2 expansion roadmap.*
 
+### Depth 3, sharpened — agent-*initiated* world-joining (added 2026-06-03)
+
+The Depth 3 above is **top-down**: *Loki* resculpts the topology overnight from
+behavioural drift. A sharper, richer version surfaced in conversation —
+**bottom-up, social, agent-initiated world-joining**: agents from different
+worlds *negotiate* to connect them. A Steam-world agent and a lore-district agent
+decide, between themselves, to open a seam — the join is an *event the society
+produced*, not a schedule Loki ran. This is where the RimWorld / Dwarf-Fortress
+"story you actually tell other people" lives, and it's the natural home for the
+reserved **corner-touch cross-source** semantics and **lore-as-mechanics** (two
+districts running *different rule-systems* meeting at a seam the agents brokered —
+the most eventful thing two rule-systems can do).
+
+**The precise build gap (why this isn't "almost done").** Today (Phase 7-D) agents
+only *cross* seams the **user** opened: `behavior.ts` sets `runtime.pendingCross`
+at a seam-exit edge and `migrateRuntime` moves the agent; topology authorship is
+100% user-driven (`splitPane`/`setArrangement` are called only from `App.tsx`
+keyboard handlers). **The agent can walk through a door but cannot open or close
+one.** Depth 3 = granting that authority: an agent *intent/action* that creates or
+closes a seam (split / merge a pane), making the agent a caller of the *same*
+pane-topology API (`splitPane`/`closePane` + the seam machinery) the user already
+drives — no new substrate, just a new caller.
+
+**The guardrails from "Hard problems" below bind harder here, not less.** An agent
+that authors topology can rearrange something the user loved (the severe
+trust-break) and constant reshuffling kills ambience. Same resolution, made
+load-bearing: agent-initiated joins happen during ***Sleep mode***, surface as a
+legible morning dispatch (*"while you were away, the archivist and the cat opened
+a path between Hades and your Spotify wing — here's why"*), are **reversible**, and
+honour a **lock-list** of panes the user pins. Legibility + reversibility + locks
+are the licence to let agents touch structure at all.
+
+**Status:** still v2.x, gated behind Depth 1 (user drag-panes) + Depth 2 (active
+merging) — and behind the *current* seam system actually verifying on screen
+(consolidation pass, 2026-06). The new contribution captured here is the
+**bottom-up / emergent-negotiation** framing; lead candidate for the "expand"
+route once the foundation is confirmed solid. *Prereq worth noting: agents can't
+visibly cross a seam today (the cell's solid-wall E/W perimeter — see `STATE.md`),
+so a **walkable seam edge** is the smallest unlock that makes any of this
+demonstrable.*
+
 ### Why it's the right addition to the personalisation model
 
 The four-tier model in `SPEC.md` §1 (library data → behavioural profile → terminal aesthetic → uploaded lore) is good but stops at *content*. The arrangement adds *structure*. Two users could upload the same lore, play the same games, and pick the same theme, and still inhabit incompatible worlds because their topologies route the agent society differently. This is what makes collective intelligence *tactile* in the sense of the AI-superintelligence reading: the user isn't configuring an agent, they're sculpting the network architecture the agent emerges from. The substrate is the contribution, and the user is now a substrate-sculptor.
