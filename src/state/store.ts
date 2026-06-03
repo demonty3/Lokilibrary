@@ -163,6 +163,12 @@ interface AppState {
   /** Swap the whole arrangement. 'single' restores the exact default;
    *  'study' = a cell pane + a district pane side-by-side, focus on cell. */
   setArrangement: (name: ArrangementName) => void;
+  /** Phase 7 / v2.x — region terminals. Cycle the FOCUSED cell pane through
+   *  `[whole-library, …regionIds]`: undefined → regionIds[0] → … → last →
+   *  undefined. `regionIds` is the live wing list (district ids), computed by
+   *  the caller from the current library so the store stays free of the
+   *  cluster-tree derivation. No-op when the focused pane is not a cell. */
+  cycleFocusedPaneRegion: (regionIds: readonly string[]) => void;
 
   /** Phase 2F: telemetry overlay visibility. Toggled by Ctrl+\` in
    *  App.tsx; the overlay renderer subscribes + mounts/unmounts. */
@@ -454,6 +460,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       paneSeq: 2,
       scale: 'cell',
     });
+  },
+
+  cycleFocusedPaneRegion: (regionIds) => {
+    const { panes, focusedPaneId } = get();
+    const idx = panes.findIndex((p) => p.id === focusedPaneId);
+    if (idx < 0) return;
+    // Region terminals only apply to a cell pane (the only level that takes a
+    // seed + shelf games). Leave district/island/… panes untouched.
+    if (panes[idx].level !== 'cell') return;
+    // Walk [whole-library, …wings]. undefined sits at slot 0, so the current
+    // undefined (or an id that fell out of the live list → indexOf -1 → 0)
+    // advances to the first wing, and the last wing wraps back to whole-library.
+    const order: (string | undefined)[] = [undefined, ...regionIds];
+    const nextRegion = order[(order.indexOf(panes[idx].regionId) + 1) % order.length];
+    const next = panes.slice();
+    next[idx] = { ...next[idx], regionId: nextRegion };
+    // No scale re-sync: a region swap never changes the pane's level.
+    set({ panes: next });
   },
 
   agentDebugOverlay: false,

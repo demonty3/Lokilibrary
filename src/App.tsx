@@ -7,7 +7,12 @@ import {
 } from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
-import { getCurrentRenderContext, mountPalace } from './render/PixiApp';
+import {
+  getCurrentRenderContext,
+  mountPalace,
+  snapshotLibraryState,
+} from './render/PixiApp';
+import { regionTerminals } from './procedural/regions';
 import { getById } from './themes';
 import { themeFromLore } from './agents/lore-theme';
 import { SCALE_ORDER, type ScaleLevel } from './types';
@@ -249,6 +254,21 @@ export function App() {
       if (e.key === '|') {
         e.preventDefault();
         useAppStore.getState().splitPane('vertical');
+        return;
+      }
+      // Phase 7 / v2.x — region terminals. 'r' cycles the FOCUSED cell pane
+      // through the library's wings (the 7-A districts): whole-library → d0 →
+      // d1 → … → whole-library. Each wing is a genuinely different generated
+      // world (own seed / shelves / cohort / persistent memory). Works on the
+      // default single pane too (the whole world becomes one wing). The wing
+      // list is derived here from the live library so the store stays free of
+      // the cluster-tree math; 'r' is safe — cell.ts movement is WASD/arrows/E.
+      if (e.key === 'r' || e.key === 'R') {
+        const { clusterGames, seed } = snapshotLibraryState();
+        const regionIds = regionTerminals(clusterGames, seed).map((rt) => rt.regionId);
+        if (regionIds.length === 0) return; // empty library → nothing to cycle
+        e.preventDefault();
+        useAppStore.getState().cycleFocusedPaneRegion(regionIds);
         return;
       }
       if (e.key !== '[' && e.key !== ']') return;

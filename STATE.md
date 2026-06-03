@@ -10,7 +10,13 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK — single roaming roster: the 5-agent COHORT exists ONCE across the world (spawned into ROOT only; split panes start EMPTY), each agent in exactly ONE pane's `RuntimeScope`, roaming by crossing seams. `mountCohort` is now a renderer+ticker that per-tick RECONCILES sprites to scope (create-on-arrive / destroy-on-depart; allocation-free in the single-pane no-churn case). Real `CrossSeamDeps` + `seamExits` built from `buildSeams(live panes)`+`paneRegistry` and threaded `PixiApp→cell→cohort` (single pane short-circuits to [] before `buildSeams` → enricher returns base by reference). `behavior.ts` emits `runtime.pendingCross` at an open walkable seam-exit edge (fixed-position PRNG candidate; clamp when no seam); the cohort tick consumes it via `migrateRuntime` (exactly-once, no dup/leak/vanish, deterministic `justArrivedAt` anti-ping-pong, teardown-safe via live-neighbour check). The `migrateRuntime` duplicate guard is now a BACKSTOP. The root-gate is ROSTER-AWARE (skips re-spawning any agent already live in a sibling pane — no dup on a partial root relevel), and `seamExitsForPane` is FLOOR-GATED (offers a cross only when both exit + bridged-entry cells are floor — never strands an agent in a wall). RUNTIME walk + sprite-handoff logic LANDED + smoke-locked (smoke-7d2-walk=58, incl. C1/C2 roster-aware-remount + F1/F2 floor-gate). NOTE: today's cell layout has a solid-wall E/W perimeter, so a `|`-split shows roster-once but NO live left↔right crossing yet (the wall, not broken wiring — a walkable seam edge is a DEFERRED follow-up); the crossing MECHANISM is proven headlessly. On-screen sprite VISUAL is Windows-pending. Cross-level crossing + close-seam control + arrangement persistence DEFERRED. All 27 prior smokes green; typecheck clean both legs. Earlier 7-D.1 + 7-B notes below.).
+Last updated: **2026-06-03** (REGION TERMINALS — a cell pane can render ONE
+wing of the library (a 7-A district) with its own seed / shelves / cohort /
+seed-keyed memory instead of the whole-library cell; `regionId?` on
+`PaneDescriptor`, resolved in `mountPaneLevel` via the new pure
+`src/procedural/regions.ts`, cycled by `cycleFocusedPaneRegion` + the `r` key.
+Default panes byte-identical. Foundation for Composable-Panes Depth 3. See
+"Region terminals" below + `smoke-regions.mts`. Prior 7-D.2 LIVE SEAM WALK — single roaming roster: the 5-agent COHORT exists ONCE across the world (spawned into ROOT only; split panes start EMPTY), each agent in exactly ONE pane's `RuntimeScope`, roaming by crossing seams. `mountCohort` is now a renderer+ticker that per-tick RECONCILES sprites to scope (create-on-arrive / destroy-on-depart; allocation-free in the single-pane no-churn case). Real `CrossSeamDeps` + `seamExits` built from `buildSeams(live panes)`+`paneRegistry` and threaded `PixiApp→cell→cohort` (single pane short-circuits to [] before `buildSeams` → enricher returns base by reference). `behavior.ts` emits `runtime.pendingCross` at an open walkable seam-exit edge (fixed-position PRNG candidate; clamp when no seam); the cohort tick consumes it via `migrateRuntime` (exactly-once, no dup/leak/vanish, deterministic `justArrivedAt` anti-ping-pong, teardown-safe via live-neighbour check). The `migrateRuntime` duplicate guard is now a BACKSTOP. The root-gate is ROSTER-AWARE (skips re-spawning any agent already live in a sibling pane — no dup on a partial root relevel), and `seamExitsForPane` is FLOOR-GATED (offers a cross only when both exit + bridged-entry cells are floor — never strands an agent in a wall). RUNTIME walk + sprite-handoff logic LANDED + smoke-locked (smoke-7d2-walk=58, incl. C1/C2 roster-aware-remount + F1/F2 floor-gate). NOTE: today's cell layout has a solid-wall E/W perimeter, so a `|`-split shows roster-once but NO live left↔right crossing yet (the wall, not broken wiring — a walkable seam edge is a DEFERRED follow-up); the crossing MECHANISM is proven headlessly. On-screen sprite VISUAL is Windows-pending. Cross-level crossing + close-seam control + arrangement persistence DEFERRED. All 27 prior smokes green; typecheck clean both legs. Earlier 7-D.1 + 7-B notes below.).
 
 ---
 
@@ -755,6 +761,52 @@ COHORT). The `migrateRuntime` duplicate guard is now a BACKSTOP, not the norm.
   floor-gated exits (real wall-perimeter layout ⇒ ZERO E/W crossable exits;
   entry-cell-wall refused; both-floor control restores them)**, R1 single-pane
   end-to-end (roster present, openSeamsFor [], migrate never invoked).
+
+### Region terminals — per-wing cell panes (Phase 7 / v2.x)
+
+A cell pane can render ONE *wing* (a 7-A cluster-tree district) of the library
+instead of the whole-library cell — its own seed, shelves, agent cohort +
+(seed-keyed) persistent memory, so a split pane becomes a genuinely DIFFERENT
+generated world. This is the foundation for Composable-Panes Depth 3
+(agent-initiated world-joining, IDEAS.md). **Default panes are unaffected**
+(`regionId` absent ⇒ whole-library cell, byte-identical).
+- **`src/procedural/regions.ts`** — PURE, determinism-domain. `regionTerminals
+  (games, profileSeed): RegionTerminal[]` delegates bucketing to `clusterLibrary`
+  (appid-canonical → input-order-invariant) + `flattenDistricts`, mapping each
+  district to `{regionId, seed, label, games}`. `regionSeed(profileSeed,
+  regionId)` mixes the district id into `profileSeed ^ REGION_SALT` via FNV-1a →
+  a uint32 distinct per wing AND distinct from the bare profile seed (a wing
+  never aliases the root pane). `REGION_SALT = 0x7e44` — a fresh PRNG namespace
+  (no collision with cell `0xce11` / scatter `0x5ca7` / Loki `0x10ce` / landmark
+  `0x1a4d` / cluster `0xc1a5` / layout `0xc0a5`). No Math.random/Date.now.
+- **`PaneDescriptor.regionId?: string`** (`src/types.ts`) — OPTIONAL, only
+  meaningful for a cell pane. Absent ⇒ whole-library cell.
+- **Renderer** (`src/render/PixiApp.ts`) — `mountPaneLevel` gains a trailing
+  `regionId?`; the cell branch, when set, resolves the matching `RegionTerminal`
+  from `regionTerminals(snap.clusterGames, snap.seed)` and feeds the wing's
+  `seed` + `games` (as `BookGame[]`) to `mountCell` instead of the snapshot.
+  An unresolvable regionId (library shrank) falls back to the whole-library
+  cell. `LivePane.regionId` is tracked + `reconcilePanes` REMOUNTS on a region
+  change (alongside level/seed change). `snapshotLibraryState` is now EXPORTED
+  so App.tsx can derive the live wing list without re-deriving games+seed.
+- **Store** (`src/state/store.ts`) — `cycleFocusedPaneRegion(regionIds)`: walks
+  the FOCUSED cell pane through `[undefined, …regionIds]` (whole-lib → d0 → … →
+  wrap); no-op on a non-cell pane; never re-syncs `scale` (a wing swap keeps the
+  level). The wing list is passed in by the caller (App.tsx) so the store stays
+  free of the cluster-tree math. A stale regionId (not in the live list) →
+  indexOf -1 → resets to whole-library.
+- **Input** (`src/App.tsx`) — `r`/`R` (behind the wallpaper guard, alongside
+  Tab/`\`/`|`) derives the wings via `snapshotLibraryState()` + `regionTerminals`
+  and calls `cycleFocusedPaneRegion`. Safe — cell.ts movement is WASD/arrows/E.
+  Works on the default single pane too (the whole world becomes one wing).
+- **Windows-pending**: the on-screen per-wing room/shelves/cohort is PIXI-visual;
+  it follows mechanically from the smoke-locked region logic + the existing
+  cell-mount path.
+- Smoke: `smoke-regions.mts` (20) — determinism, exactly-one-wing membership,
+  unique regionId/seed, wing-seed ≠ profile-seed, REGION_SALT namespace
+  isolation, input-order invariance, 0/1-game edges. Reducer coverage in
+  `smoke-7b-panes.mts` R1–R5 (cycle undefined→d0→…→wrap, stale-region fallback,
+  non-cell no-op, focused-only assignment).
 
 ---
 

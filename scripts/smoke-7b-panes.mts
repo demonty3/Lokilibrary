@@ -385,4 +385,48 @@ reset();
 }
 reset();
 
+// ===========================================================================
+// R — cycleFocusedPaneRegion (Phase 7 / v2.x region terminals)
+// ===========================================================================
+{
+  const WINGS = ['d0', 'd1', 'd2'];
+  const focusedRegion = (): string | undefined =>
+    get().panes.find((p) => p.id === get().focusedPaneId)?.regionId;
+
+  reset();
+  // R1 — default focused cell pane starts with no region (whole library).
+  check('R1 default focused pane has no region', focusedRegion() === undefined);
+
+  // R2 — cycles undefined → first wing → … → last wing → back to undefined.
+  get().cycleFocusedPaneRegion(WINGS);
+  check('R2 first cycle → d0', focusedRegion() === 'd0');
+  get().cycleFocusedPaneRegion(WINGS);
+  check('R2 second cycle → d1', focusedRegion() === 'd1');
+  get().cycleFocusedPaneRegion(WINGS);
+  check('R2 third cycle → d2', focusedRegion() === 'd2');
+  get().cycleFocusedPaneRegion(WINGS);
+  check('R2 wraps last wing → whole-library (undefined)', focusedRegion() === undefined);
+
+  // R3 — a stale regionId no longer in the live wing list resets to whole-lib.
+  get().cycleFocusedPaneRegion(WINGS); // → d0
+  get().cycleFocusedPaneRegion(['d5', 'd6']); // d0 absent → indexOf -1 → slot 0 → undefined
+  check('R3 stale region falls back to whole-library', focusedRegion() === undefined);
+
+  // R4 — no-op on a non-cell focused pane (region only applies to cells).
+  reset();
+  get().setPaneLevel('root', 'district');
+  get().cycleFocusedPaneRegion(WINGS);
+  check('R4 non-cell focused pane is untouched', focusedRegion() === undefined);
+
+  // R5 — only the FOCUSED pane gets a region; a split sibling stays whole-lib.
+  reset();
+  get().splitPane('vertical'); // focus stays on root (the focused-pane split)
+  get().cycleFocusedPaneRegion(WINGS); // → focused pane = d0
+  const focusedId = get().focusedPaneId;
+  const sibling = get().panes.find((p) => p.id !== focusedId)!;
+  check('R5 focused pane took the region', focusedRegion() === 'd0');
+  check('R5 sibling pane stays whole-library', sibling.regionId === undefined);
+}
+reset();
+
 report();

@@ -25,6 +25,7 @@ import { mountIsland } from './levels/island';
 import { mountContinent } from './levels/continent';
 import { mountStubLevel } from './levels/stub';
 import { clusterLibrary, type ClusterGame } from '../procedural/clusters';
+import { regionTerminals } from '../procedural/regions';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { BitmapText } from 'pixi.js';
 import {
@@ -168,6 +169,9 @@ interface LivePane {
   /** The grid-cell rect (for resize recompute + change detection). */
   rect: PaneRect;
   level: ScaleLevel;
+  /** Phase 7 / v2.x — region terminal this cell pane renders (undefined =
+   *  whole-library cell). Tracked so a region change triggers a remount. */
+  regionId?: string;
 }
 
 /** Seam line colour — the theme's dim foreground, so seams read as quiet
@@ -379,6 +383,7 @@ export async function mountPalace(
       spriteAtlas,
       localModel,
       crossWiring,
+      desc.regionId,
     );
 
     livePanes.set(desc.id, {
@@ -388,6 +393,7 @@ export async function mountPalace(
       refit: mounted.refit,
       rect: desc.rect,
       level: desc.level,
+      regionId: desc.regionId,
     });
   }
 
@@ -731,15 +737,16 @@ export async function mountPalace(
         continue;
       }
       const levelChanged = live.level !== desc.level;
+      const regionChanged = live.regionId !== desc.regionId;
       const rectChanged =
         live.rect.col !== desc.rect.col ||
         live.rect.row !== desc.rect.row ||
         live.rect.cols !== desc.rect.cols ||
         live.rect.rows !== desc.rect.rows;
-      // Remount on a level change OR a cell-seed change for a cell pane (the
-      // library changed). Rect-only changes are a cheap re-fit (handled by
-      // refitAll below).
-      if (levelChanged || (seedChanged && desc.level === 'cell')) {
+      // Remount on a level change, a region (wing) change, OR a cell-seed change
+      // for a cell pane (the library changed). Rect-only changes are a cheap
+      // re-fit (handled by refitAll below).
+      if (levelChanged || regionChanged || (seedChanged && desc.level === 'cell')) {
         unmountPane(desc.id);
         mountPane(desc, gridCols, gridRows);
       } else if (rectChanged) {
@@ -803,9 +810,25 @@ function mountPaneLevel(
   spriteAtlas: SpriteAtlas | null,
   localModel: LocalModelResult = NO_LOCAL_MODEL,
   crossWiring?: CohortCrossWiring,
+  regionId?: string,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   if (level === 'cell') {
-    const { books, seed } = snapshotLibraryState();
+    const snap = snapshotLibraryState();
+    // Region terminal (Phase 7 / v2.x): when this pane is bound to a wing,
+    // render that district's OWN seed + games instead of the whole library, so
+    // the pane is a genuinely different generated world (room / shelves / cohort
+    // / persistent memory, all seed-keyed). A regionId that no longer resolves
+    // (the library shrank) falls back to the whole-library cell.
+    let { books, seed } = snap;
+    if (regionId) {
+      const region = regionTerminals(snap.clusterGames, snap.seed).find(
+        (r) => r.regionId === regionId,
+      );
+      if (region) {
+        seed = region.seed;
+        books = region.games.map((g) => ({ appid: g.appid, name: g.name }));
+      }
+    }
     const layout = layoutCell(seed);
     return mountCell(
       app,
@@ -865,7 +888,7 @@ interface LibrarySnapshot {
  *  not-signed-in demo. */
 const ANONYMOUS_SEED = 0xa11ce11 >>> 0;
 
-function snapshotLibraryState(): LibrarySnapshot {
+export function snapshotLibraryState(): LibrarySnapshot {
   const state = useAppStore.getState();
   const profile = state.profile;
   if (profile) {
