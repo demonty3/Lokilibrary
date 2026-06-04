@@ -41,10 +41,13 @@ widening. The dev box moving to a Mac unblocked it.
 | Seam-walk (7D.2) | ✅ now **observable** | Was invisible (solid perimeter); built the walkable seam edge → agents cross panes on screen. |
 | Scale ladder (7A island/continent) | 🟡 broad-approved | Serves/compiles + transform-fix confirmed; not individually eyeballed. |
 | Multi-pane split (7B) | 🟡 broad-approved | Split works; not stress-tested. |
-| Desktop surfaces (V2) | ⏳ pending | Lore recolor / local-AI landmark / macOS wallpaper / sleep — need Ollama + lore file + Steam + Harry's eyes. |
+| Desktop surfaces (V2) | 🟢 mostly cleared | Lore recolor LIVE (real pastoral `.md` in desktop SQLite → world rendered gruvbox); macOS wallpaper renders + pins (desktop window level); macOS idle-throttle ladder built + live. Remaining: local-AI landmark (needs Ollama) + Harry's all-day eyeball. |
 
 **Design checkpoints:** ① aesthetic **PASS** · ② agents-as-beings **PASS** ·
-③ wallpaper-all-day **PENDING (V2)** · ④ lore-feels-personal **PENDING (V2)**.
+③ wallpaper-all-day **mostly cleared** (renders + pins on macOS; idle-throttle
+ladder now works on macOS so it's battery-safe to leave on — Harry's all-day
+eyeball still pending) · ④ lore-feels-personal **PASS** (real pastoral lore in
+the desktop DB recolored the world to gruvbox, on the shipping product).
 
 ## Built in-pass
 

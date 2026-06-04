@@ -871,6 +871,21 @@ ABOVE the fullscreen check (idle > threshold + no fullscreen →
 sleeping); fullscreen still wins over sleeping. Testable in WSL via
 mirror in `scripts/smoke-{4a-throttle,5b-sleep}.mts`.
 
+**macOS/Linux idle ladder (consolidation 2026-06)**: the Win32 probe
+(`getWin32()`) returns null off-Windows, so `startThrottleController`
+now branches to `startIdleController(opts)` instead of degrading to a
+permanent `full`. It polls Electron `powerMonitor.getSystemIdleTime()`
+(whole-OS idle seconds — the macOS analogue of `GetLastInputInfo`) and
+maps via the pure `computeIdleThrottleState(idleMs, isWallpaperMode,
+sleepMs?, throttleMs?)`: `full` → `throttled-1hz` (`IDLE_THROTTLE_MS`
+60s) → `sleeping` (`SLEEP_THRESHOLD_MS` 10min, same as Win32; drives
+sleep-reflection + morning dispatch). NO `paused` (no window probe;
+the wallpaper is behind everything, so a covering app hides it for
+free). Shares `controller.timer` + the emit-on-change + IPC path;
+Win32 path untouched. Pure ladder mirrored in `smoke-5b-sleep.mts`
+(idle-ladder block). Verified live on macOS:
+`[throttle] idle controller started (darwin) idle-throttle=60s sleep=600s`.
+
 ### Sleep reflection (`src/agents/sleep-reflection.ts`, 5B)
 On SLEEPING entry (after 5s grace), App.tsx fires
 `triggerSleepReflection()` which iterates present agents with
