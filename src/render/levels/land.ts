@@ -88,6 +88,55 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
 export interface MountLandOptions {
   readonly seed?: number;
   readonly games?: readonly LandGame[];
+  /** The dynamic-edge dial: 'porous' draws a LIVING terminal frame (foliage
+   *  crown, vine-sprouting sides, soil mound) — the window-mode look; 'bleed'
+   *  draws nothing so the world runs to the screen edges — the wallpaper look.
+   *  Default 'porous'. */
+  readonly frame?: 'porous' | 'bleed';
+}
+
+/** The dynamic-edge "porous living frame": the terminal border IS terrain —
+ *  built in screen space (doesn't scroll), in the glyph vocabulary, so the
+ *  chrome and the world read as one living thing. Deterministic index pattern
+ *  (decoration, not seeded geometry). */
+function buildPorousFrame(theme: Theme, screenW: number, screenH: number, scale: number): Container {
+  const cols = Math.ceil(screenW / (COZETTE_CELL_WIDTH * scale));
+  const rows = Math.ceil(screenH / (COZETTE_CELL_HEIGHT * scale));
+  type Key = keyof Theme['palette'];
+  const grid: Array<Array<{ ch: string; key: Key }>> = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ ch: ' ', key: 'green' as Key })),
+  );
+  const setc = (x: number, y: number, ch: string, key: Key) => {
+    if (grid[y] && grid[y][x]) grid[y][x] = { ch, key };
+  };
+  for (let c = 0; c < cols; c++) {
+    if (c % 5 === 0) setc(c, 0, '♣', 'green'); // foliage crown
+    else if (c % 5 === 2) setc(c, 0, '▁', 'green'); // hilltop bumps (sky between)
+    if (c % 7 === 3) setc(c, 1, '♣', 'green'); // a few hanging vines
+    setc(c, rows - 1, c % 2 ? '▒' : '░', 'orange'); // soil mound
+    if (c % 3 === 0) setc(c, rows - 2, '♣', 'green'); // grass tufts on the mound
+  }
+  for (let r = 1; r < rows - 1; r++) {
+    const sprout = r % 4 === 0;
+    setc(0, r, sprout ? '♣' : '║', sprout ? 'green' : 'fgDim'); // trunk + sprouts
+    setc(cols - 1, r, sprout ? '♣' : '║', sprout ? 'green' : 'fgDim');
+  }
+  const cont = new Container();
+  cont.scale.set(scale);
+  const keys = new Set<Key>(grid.flat().map((g) => g.key));
+  for (const key of keys) {
+    const text = grid
+      .map((row) => row.map((g) => (g.key === key ? g.ch : ' ')).join('').replace(/\s+$/u, ''))
+      .join('\n');
+    if (!text.trim()) continue;
+    cont.addChild(
+      new BitmapText({
+        text,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette[key]) },
+      }),
+    );
+  }
+  return cont;
 }
 
 /**
@@ -122,6 +171,11 @@ export function mountLandView(app: Application, theme: Theme, opts: MountLandOpt
   viewport.addChild(mask);
   app.stage.addChild(viewport);
 
+  // The dynamic edge — a living frame in screen space (window mode). 'bleed'
+  // (wallpaper) leaves it null so the world runs to the screen edges.
+  const frameMode = opts.frame ?? 'porous';
+  let frame: Container | null = null;
+
   let scale = 1;
   const layout = () => {
     // Fill the screen HEIGHT (vertical presence); width scrolls.
@@ -130,6 +184,12 @@ export function mountLandView(app: Application, theme: Theme, opts: MountLandOpt
     world.y = Math.floor((app.screen.height - contentH * scale) / 2);
     mask.clear().rect(0, 0, app.screen.width, app.screen.height).fill(0xffffff);
     camera();
+    frame?.destroy({ children: true });
+    frame = null;
+    if (frameMode === 'porous') {
+      frame = buildPorousFrame(theme, app.screen.width, app.screen.height, scale);
+      app.stage.addChild(frame); // on top of the viewport
+    }
   };
   const camera = () => {
     // Centre the player; clamp so we never scroll past the world edges.
@@ -163,6 +223,7 @@ export function mountLandView(app: Application, theme: Theme, opts: MountLandOpt
     }
     try {
       viewport.destroy({ children: true });
+      frame?.destroy({ children: true });
     } catch {
       /* already gone */
     }
