@@ -15,6 +15,7 @@ import {
 import { regionTerminals } from './procedural/regions';
 import { getById } from './themes';
 import { themeFromLore } from './agents/lore-theme';
+import { e2eThemeOverrideId } from './debug/e2eHook';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
 import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
@@ -174,7 +175,10 @@ export function App() {
       // on-device, never egresses. Independent of loreEnabled (mirrors the
       // 5D.2 scatter precedent). Recomputed on each remount; the effect
       // re-runs when loreVersion bumps after a successful ingest.
-      const themeId = themeFromLore(writer);
+      // E2E/DEV harness can force the palette to prove the lore-recolor
+      // repaint without a SQLite writer; null (always, in the Steam build) →
+      // the real lore-derived theme.
+      const themeId = e2eThemeOverrideId() ?? themeFromLore(writer);
       const fn = await mountPalace(canvasHost.current, getById(themeId), {
         memoryWriter: writer,
       });

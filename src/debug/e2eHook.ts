@@ -38,6 +38,20 @@ export interface LokiE2EHook {
   agentRoster(): Record<string, Array<{ id: string; x: number; y: number; seamGoal: boolean }>>;
   /** Store + per-pane player + scene in one call — the harness's `state` verb. */
   snapshot(): unknown;
+  /** Force the world palette to a theme id, exercising the REAL lore-recolor
+   *  path (App.tsx derives `e2eThemeOverrideId() ?? themeFromLore(writer)` and
+   *  remounts on a `loreVersion` bump). Lets the harness prove the on-screen
+   *  repaint a lore drop would trigger, without a SQLite-backed writer. Pass
+   *  null to clear and fall back to the derived theme. DEV/E2E only. */
+  setTheme(themeId: string | null): void;
+}
+
+/** Build-gated theme override read by App.tsx's mount effect. Only ever set via
+ *  `window.__loki.setTheme` (installed under DEV/E2E), so in the shipped Steam
+ *  build this is permanently null and the world theme stays lore-derived. */
+let e2eThemeOverride: string | null = null;
+export function e2eThemeOverrideId(): string | null {
+  return e2eThemeOverride;
 }
 
 export function installE2EHook(): void {
@@ -84,7 +98,12 @@ export function installE2EHook(): void {
         players: s.panes.map((p) => ({ id: p.id, pos: getPlayerPos(p.id) })),
         roster: this.agentRoster(),
         scene: this.paneScene(),
+        theme: e2eThemeOverride,
       };
+    },
+    setTheme(themeId: string | null) {
+      e2eThemeOverride = themeId;
+      useAppStore.getState().bumpLoreVersion();
     },
   };
   (window as unknown as { __loki: LokiE2EHook }).__loki = hook;
