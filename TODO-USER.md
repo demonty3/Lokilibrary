@@ -56,9 +56,18 @@ refuses ingest with "needs the desktop app"):
 > **NOTE (2026-06, consolidation):** the lore→theme *derivation* is now
 > headless-confirmed against the real shipped code via
 > `npx tsx scripts/lore-preview.mts lore-samples/*.md`
-> (`pastoral.md → gruvbox-dark`, `nautical.md → tokyo-night`). So the only
-> thing left to eyeball here is the on-screen PIXI repaint. Ready-to-drop
-> sample files + **macOS** run/verify steps live in `lore-samples/README.md`.
+> (`pastoral.md → gruvbox-dark`, `nautical.md → tokyo-night`). **The on-screen
+> PIXI *repaint* is now ALSO proven** (2026-06): the e2e harness drives the
+> EXACT recolor path (`window.__loki.setTheme(id)` → `loreVersion` bump →
+> `mountPalace` with the new theme) and captured a clean full-palette repaint
+> in solarized (default) → gruvbox (pastoral) → tokyo-night (nautical), one
+> canvas, no artifacts. So the ONLY thing this desktop check still adds is the
+> real ingest leg — the SQLite writer actually persisting a dropped `.md` so
+> `themeFromLore(writer)` reads a non-empty corpus (the harness forces the
+> theme; it doesn't exercise `ingestLore` → `recordLore`). If the recolor
+> fails on desktop after the repaint is proven, suspect the WRITER (null
+> fallback / db-not-ready), not the repaint. Ready-to-drop sample files +
+> **macOS** run/verify steps live in `lore-samples/README.md`.
 - Note the boot palette: it should be **Solarized dark** (`DEFAULT_THEME_ID`)
   on a fresh corpus.
 - Press **Ctrl+U** → the lore drop-zone appears. Drop a `.md`/`.txt` whose

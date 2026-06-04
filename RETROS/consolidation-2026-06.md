@@ -65,6 +65,15 @@ widening. The dev box moving to a Mac unblocked it.
   screen. Before/after A/B'd in the headless e2e harness; typecheck clean,
   `smoke-3a-sprites` 64 + `smoke-glyph-coverage` 19 still green (both test pure
   fns + the KNOWN_SLOTS↔generator cross-check, neither touched).
+- **Lore-recolor repaint proven on screen** (`test(e2e)`): the lore→theme
+  *derivation* was already headless-confirmed (`lore-preview.mts`), but the
+  on-screen palette *repaint* — checkpoint ④'s last unproven bit — had never
+  rendered. Added `window.__loki.setTheme(id)` (build-gated override read by
+  App.tsx's mount effect) that drives the EXACT recolor path a lore drop
+  triggers (`loreVersion` bump → `mountPalace`). A/B'd in the harness: clean
+  full-palette repaint solarized → gruvbox (pastoral) → tokyo-night (nautical),
+  one canvas, no artifacts. Checkpoint ④'s recolor now de-risked end-to-end
+  except the real desktop ingest leg (SQLite writer persisting a dropped `.md`).
 
 ## Punch-list (prioritized)
 
