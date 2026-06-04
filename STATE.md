@@ -32,12 +32,19 @@ byte-identical) so EVERY wing of a profile opens at the SAME row even though the
 rooms differ — VERIFIED ON SCREEN: a `|`-split with p2 set to a DIFFERENT wing
 (d0) shows loki cross repeatedly between the whole-library room and the
 different-looking d0 room (smoke-regions=24, +A-section alignment/floor/distinct).
-REMAINING LIMITATION → NEXT: `stepTowardTarget` is GREEDY Chebyshev with no
-obstacle avoidance, so agents whose spawn has no clear greedy line to the opening
-row get STUCK against a wall near the seam (seamGoal latched, x pinned) — a BFS /
-flow-field path to the seam is the next refinement. Also: changing a live pane's
-region REMOUNTS it and DROPS agents that had walked in (known split-teardown
-behavior). —— REGION TERMINALS (2026-06-03) — a
+BFS SEAM PATHING (2026-06-04) — seam-seeking now routes with a dedicated
+`seek_seam` Tier0Action + `bfsNextStep` (4-connected floor BFS, deterministic,
+greedy fallback if the opening is a disconnected pocket) so agents route AROUND
+shelves to the opening instead of stalling against a wall as the GREEDY
+`stepTowardTarget` did (kept unchanged for plan/schedule movement). VERIFIED ON
+SCREEN: with p2=d0, loki/visitor/archivist all cross both ways (at one tick all
+4 were in p2); cat rests near its ☼ anchor (schedule 1.1 > seam-seek 0.6 — by
+design, not a stall). smoke-7d2-walk=74 (+S6/S6b: BFS routes around a barrier
+where a greedy control provably stalls). REMAINING: a carved opening is not
+GUARANTEED connected to all interior floor (rare disconnected pocket → that agent
+stays put); changing a live pane's region REMOUNTS it and DROPS agents that had
+walked in (known split-teardown behavior). NEXT ARC: orchestration / Composable-
+Panes Depth 3 — the society decides WHICH terminals exist. —— REGION TERMINALS (2026-06-03) — a
 cell pane can render ONE
 wing of the library (a 7-A district) with its own seed / shelves / cohort /
 seed-keyed memory instead of the whole-library cell; `regionId?` on

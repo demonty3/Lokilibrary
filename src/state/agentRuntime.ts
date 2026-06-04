@@ -48,7 +48,13 @@ export type Tier0Action =
   | { readonly kind: 'wander' }
   | { readonly kind: 'idle' }
   | { readonly kind: 'approach'; readonly target: CellPoint }
-  | { readonly kind: 'scheduled'; readonly label: string; readonly target?: CellPoint };
+  | { readonly kind: 'scheduled'; readonly label: string; readonly target?: CellPoint }
+  /** Phase 7-D.2b — walk to a latched seam exit. Distinct from `approach` because
+   *  it routes with BFS (obstacle-avoiding) rather than greedy Chebyshev: the
+   *  carved opening often sits behind a shelf, and greedy gets stuck against the
+   *  wall. Used ONLY for seam-seeking, so plan/schedule movement keeps its
+   *  (verified) greedy stepping unchanged. */
+  | { readonly kind: 'seek_seam'; readonly target: CellPoint };
 
 /** Placeholder for Phase 2C's PerceptionEvent. Defined here so the
  *  runtime state shape stays stable across slices. */

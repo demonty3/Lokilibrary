@@ -658,5 +658,41 @@ const loDef = COHORT.find((d) => d.id === 'loki')!;
   check('S5 a stale seamGoal is dropped + re-latched to a live exit', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
 }
 
+// S6 — BFS pathing routes the agent AROUND a wall barrier to reach the seam,
+// where greedy Chebyshev stalls against it. A vertical wall at x=8 blocks rows
+// 0..4 with a single gap at row 5; the seam edge is at (9,3) behind it.
+{
+  const room = openRoom(10, 6);
+  const WALL = T_FLOOR + 1; // any non-floor id is impassable to BFS + greedy
+  for (let y = 0; y <= 4; y++) room.tiles[y][8] = WALL;
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  let crossed = false;
+  for (let i = 0; i < 120 && !crossed; i++) {
+    rt.actionEndsAt = 0;
+    tickBehavior(loDef, rt, ctx, 1000 + i * 10);
+    if (rt.pendingCross) crossed = true;
+  }
+  check('S6 BFS routes around a wall barrier to reach the seam + cross', crossed, `final x=${rt.x},y=${rt.y}`);
+  check('S6 the cross still targets the bridged entry (0,3)', rt.pendingCross?.x === 0 && rt.pendingCross?.y === 3);
+
+  // S6b control — greedy `approach` to the SAME edge stalls on the barrier (so
+  // S6 isn't trivially passing). No seamExits ⇒ no seek_seam; an intent-driven
+  // approach (0.7) wins and steps greedily. It must never reach x=9.
+  const ctrlRoom = openRoom(10, 6);
+  for (let y = 0; y <= 4; y++) ctrlRoom.tiles[y][8] = WALL;
+  const ctrlCtx: BehaviorContext = { layout: ctrlRoom, prngs: buildPrngs(), scatterAnchors: new Map(), wallClockHour: () => 3 };
+  const g = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  g.intent = 'approach 9,3';
+  let reachedEdge = false;
+  for (let i = 0; i < 120; i++) {
+    g.actionEndsAt = 0;
+    tickBehavior(loDef, g, ctrlCtx, 1000 + i * 10);
+    if (g.x >= 9) reachedEdge = true;
+  }
+  check('S6b control: greedy approach STALLS on the barrier (never reaches x=9)', !reachedEdge, `greedy x=${g.x}`);
+}
+
 get().setArrangement('single');
 report();

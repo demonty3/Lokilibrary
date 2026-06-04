@@ -120,7 +120,7 @@ export function tickBehavior(
   // plan or a character-defining schedule rule still wins — the cross reads as a
   // background drift between rooms, not a compulsion.
   if (runtime.seamGoal) {
-    candidates.push({ score: 0.6, action: { kind: 'approach', target: runtime.seamGoal.edge } });
+    candidates.push({ score: 0.6, action: { kind: 'seek_seam', target: runtime.seamGoal.edge } });
   }
 
   // Schedule-driven candidates.
@@ -329,7 +329,79 @@ function executeAction(
       stepTowardTarget(runtime, ctx, target);
       return;
     }
+    case 'seek_seam':
+      stepTowardSeam(runtime, ctx, action.target);
+      return;
   }
+}
+
+/**
+ * BFS next-step toward `target` over 4-connected floor cells. Returns the first
+ * cell on a shortest path, or null if already there / unreachable. Deterministic
+ * (fixed neighbour order + FIFO, no PRNG) and cheap (the cell grid is tiny). This
+ * is what lets a seam-seeking agent route AROUND a shelf to reach the carved
+ * opening, where the greedy `stepTowardTarget` would stall against the wall.
+ */
+function bfsNextStep(layout: CellLayout, from: CellPoint, target: CellPoint): CellPoint | null {
+  if (from.x === target.x && from.y === target.y) return null;
+  const W = layout.width;
+  const H = layout.height;
+  const key = (x: number, y: number): number => y * W + x;
+  const startK = key(from.x, from.y);
+  const prev = new Map<number, number>([[startK, startK]]);
+  const queue: CellPoint[] = [from];
+  const targetK = key(target.x, target.y);
+  const steps: ReadonlyArray<[number, number]> = [
+    [0, -1],
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+  ];
+  let head = 0;
+  let found = false;
+  while (head < queue.length) {
+    const cur = queue[head++];
+    if (cur.x === target.x && cur.y === target.y) {
+      found = true;
+      break;
+    }
+    for (const [dx, dy] of steps) {
+      const nx = cur.x + dx;
+      const ny = cur.y + dy;
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+      if (layout.tiles[ny][nx] !== T_FLOOR) continue;
+      const k = key(nx, ny);
+      if (prev.has(k)) continue;
+      prev.set(k, key(cur.x, cur.y));
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  if (!found) return null;
+  // Walk the came-from chain back from the target to the cell adjacent to start.
+  let ck = targetK;
+  while (prev.get(ck) !== startK) {
+    const p = prev.get(ck);
+    if (p === undefined) return null; // chain broken (shouldn't happen post-found)
+    ck = p;
+  }
+  return { x: ck % W, y: Math.floor(ck / W) };
+}
+
+/** Move one cell toward the seam edge using BFS pathing; fall back to greedy if
+ *  the edge cell is unreachable (a disconnected opening pocket) so the agent at
+ *  least drifts toward the edge band rather than freezing. */
+function stepTowardSeam(
+  runtime: AgentRuntimeState,
+  ctx: BehaviorContext,
+  target: CellPoint,
+): void {
+  const next = bfsNextStep(ctx.layout, runtime, target);
+  if (!next) {
+    stepTowardTarget(runtime, ctx, target);
+    return;
+  }
+  runtime.x = next.x;
+  runtime.y = next.y;
 }
 
 /** Sentinel appended to the wander candidate pool to represent "step OFF the
