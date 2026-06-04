@@ -33,10 +33,12 @@ export type LandRole =
   | 'star'
   | 'sun'
   | 'cloud'
+  | 'ridge'
   | 'crust'
   | 'topsoil'
   | 'stone'
   | 'deep'
+  | 'bedrock'
   | 'cavern'
   | 'shelf'
   | 'roof'
@@ -86,10 +88,12 @@ export function composeLand(
   games: readonly LandGame[] = SAMPLE_LAND,
   opts: ComposeLandOptions = {},
 ): LandModel {
-  const W = opts.width ?? 92;
-  const SKY_H = opts.skyH ?? 5;
-  const SURFACE_BAND = opts.surfaceBand ?? 4;
-  const UNDER_H = opts.underH ?? 9;
+  // Proportions tuned so the viewport fills a screen rather than letterboxing:
+  // deeper sky (parallax) + deeper strata, a moderate width that scrolls.
+  const W = opts.width ?? 80;
+  const SKY_H = opts.skyH ?? 7;
+  const SURFACE_BAND = opts.surfaceBand ?? 5;
+  const UNDER_H = opts.underH ?? 14;
 
   const rng = mulberry32(seed >>> 0);
   const rows = SKY_H + SURFACE_BAND + 1 + UNDER_H;
@@ -108,28 +112,39 @@ export function composeLand(
     for (let i = 0; i < s.length; i++) set(x + i, y, s[i], r);
   };
 
-  // Rolling horizon — deterministic height field.
+  // Rolling horizon — deterministic height field (a touch more relief).
   const phase = rng.rangeFloat(0, 6.283);
   const surfaceY = (x: number) =>
-    groundLine - Math.round(1.3 * Math.sin(x * 0.1 + phase) + 0.7 * Math.sin(x * 0.23 + phase * 2));
+    groundLine - Math.round(1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2));
 
-  // --- Sky: sparse stars, drifting cloud, one sun --------------------------
-  for (let y = 0; y < SKY_H; y++) {
+  // --- Sky: layered stars, two cloud bands, a sun --------------------------
+  for (let y = 0; y < SKY_H - 1; y++) {
     for (let x = 0; x < cols; x++) {
-      const r = rng.next();
-      if (y <= 1 && r < 0.03) set(x, y, '·', 'star');
-      else if (y >= 1 && y <= 2 && r < 0.012) set(x, y, '~', 'cloud');
+      if (y <= 2 && rng.next() < 0.04) set(x, y, '·', 'star');
     }
   }
   set(rng.range(8, cols - 12), rng.range(0, 2), '☼', 'sun');
-  put(rng.range(20, cols - 24), 2, '~ ~~~ ~', 'cloud');
+  put(rng.range(6, cols - 24), 2, '~ ~~~~ ~', 'cloud');
+  put(rng.range(6, cols - 18), 4, '~~ ~~~', 'cloud');
 
-  // --- Terrain: calm strata with carved caverns ----------------------------
-  const caverns = Array.from({ length: 4 }, () => ({
+  // --- Parallax ridge: a distant hill silhouette behind the structures -----
+  // A second, gentler height field a couple rows above the true ground line,
+  // drawn dim — gives the sky depth + kills the dead-air letterbox feel.
+  // A THIN silhouette (hilltop line + one row of body) so sky shows above it
+  // and it never smears into the surface band behind the structures.
+  const ridgePhase = rng.rangeFloat(0, 6.283);
+  for (let x = 0; x < cols; x++) {
+    const ry = groundLine - 2 - Math.round(1.1 * Math.sin(x * 0.07 + ridgePhase) + 0.6);
+    if (role[ry]?.[x] === 'sky') set(x, ry, '▁', 'ridge');
+    if (role[ry + 1]?.[x] === 'sky') set(x, ry + 1, '░', 'ridge');
+  }
+
+  // --- Terrain: clear bands + big carved caverns (calm, legible) -----------
+  const caverns = Array.from({ length: 6 }, () => ({
     cx: rng.range(8, cols - 8),
-    cy: groundLine + 5 + rng.range(0, Math.max(1, UNDER_H - 4)),
-    rx: 4 + rng.range(0, 4),
-    ry: 1 + rng.range(0, 2),
+    cy: groundLine + 6 + rng.range(0, Math.max(1, UNDER_H - 5)),
+    rx: 5 + rng.range(0, 6),
+    ry: 2 + rng.range(0, 2),
   }));
   const inCavern = (x: number, y: number) =>
     caverns.some((c) => ((x - c.cx) / c.rx) ** 2 + ((y - c.cy) / c.ry) ** 2 < 1);
@@ -139,35 +154,40 @@ export function composeLand(
     for (let y = sy + 1; y < rows; y++) {
       const depth = y - sy;
       if (inCavern(x, y)) {
-        if (rng.next() < 0.06) set(x, y, '░', 'cavern');
+        if (rng.next() < 0.05) set(x, y, '░', 'cavern');
         continue;
       }
       const r = rng.next();
-      if (depth <= 2) set(x, y, r < 0.4 ? '▒' : '░', 'topsoil');
-      else if (depth <= 5) set(x, y, r < 0.82 ? '▓' : '▒', 'stone');
-      else if (r < 0.62) set(x, y, r < 0.5 ? '▓' : '░', 'deep');
+      if (depth <= 2) set(x, y, r < 0.45 ? '▒' : '░', 'topsoil'); // thin, light
+      else if (depth <= 7) {
+        if (r < 0.6) set(x, y, r < 0.4 ? '▓' : '▒', 'stone'); // mostly solid, some gaps
+      } else {
+        if (r < 0.4) set(x, y, r < 0.28 ? '▓' : '░', 'bedrock'); // dark, sparse
+      }
     }
   }
 
-  // --- Surface structures, keyed to engagement -----------------------------
+  // --- Surface structures, keyed to engagement (bigger, more presence) -----
   const labels: Array<{ x: number; y: number; text: string }> = [];
   const surface = games.filter((p) => p.state !== 'abandoned');
   const slot = Math.floor(cols / (surface.length + 1));
   surface.forEach((p, i) => {
-    const x = slot * (i + 1) + rng.range(-3, 4);
+    const x = slot * (i + 1) + rng.range(-2, 3);
     const gy = surfaceY(x);
     if (p.state === 'mastered') {
-      for (let h = 1; h <= 4; h++) set(x, gy - h, '║', 'monument');
-      set(x, gy - 5, '☼', 'sun');
+      for (let h = 1; h <= 6; h++) put(x - 1, gy - h, h === 6 ? ' ║ ' : '▐█▌', 'monument');
+      set(x, gy - 7, '☼', 'sun');
     } else if (p.state === 'loved') {
-      put(x - 1, gy - 2, '▄▄▄', 'roof');
-      put(x - 1, gy - 1, '▓≡▓', 'shelf');
-      set(x + 3, gy - 1, '☼', 'sun');
+      put(x - 2, gy - 3, '▗▄▄▄▖', 'roof');
+      put(x - 2, gy - 2, '▌▓≡▓▐', 'shelf');
+      put(x - 2, gy - 1, '▌▓≡▓▐', 'shelf');
+      set(x + 4, gy - 1, '☼', 'sun');
     } else if (p.state === 'recent') {
-      set(x - 1, gy - 1, '⌂', 'cottage');
+      put(x - 1, gy - 2, '▟▙', 'roof');
+      put(x - 1, gy - 1, '⌂', 'cottage');
     } else {
-      set(x - 1, gy - 1, '⌂', 'cottage');
-      set(x, gy - 2, '♣', 'foliage');
+      put(x - 1, gy - 2, '♣♣', 'foliage');
+      set(x, gy - 1, '⌂', 'cottage');
       set(x + 1, gy - 1, '♣', 'foliage');
     }
     labels.push({ x, y: gy, text: p.name });
@@ -182,13 +202,13 @@ export function composeLand(
     .filter((p) => p.state === 'abandoned')
     .forEach((p, i) => {
       const x = slot * (2 + i * 2) + rng.range(0, 6);
-      const y = rows - 2 - rng.range(0, 2);
+      const y = rows - 3 - rng.range(0, 3);
       set(x - 1, y, '≡', 'relic');
       labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name });
     });
 
   // --- Beings walk the surface; player @ near centre -----------------------
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < 5; k++) {
     const x = rng.range(6, cols - 6);
     set(x, surfaceY(x) - 1, rng.pick(BEINGS), 'being');
   }
@@ -198,7 +218,7 @@ export function composeLand(
   // --- Edges: open scrolling world (carets), trees soften the top ----------
   set(0, surfaceY(0) - 1, '‹', 'edge');
   set(cols - 1, surfaceY(cols - 1) - 1, '›', 'edge');
-  for (let t = 0; t < 3; t++) {
+  for (let t = 0; t < 4; t++) {
     const x = rng.range(4, cols - 4);
     const gy = surfaceY(x);
     set(x, gy - 1, '♣', 'foliage');
