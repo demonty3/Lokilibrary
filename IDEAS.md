@@ -401,3 +401,33 @@ Strategic direction worth committing to, but **explicitly post-v1.0 (v2.x per `d
 ---
 
 *Add new parked ideas below as separate `##` sections, dated.*
+
+---
+
+## Per-terminal identity — each pane a distinct world (parked 2026-06)
+
+*Captured 2026-06-04 (Harry's idea, mid side-on realignment).*
+
+In the composable-panes UI, each open terminal/pane should be able to have
+**truly unique colours, design, and assets** — its own palette, its own
+structural vocabulary, its own sprite/glyph set — so a split screen reads as
+*several different places*, not the same world rendered twice. The endgame of
+the four-tier personalisation model + composable panes: a `|`-split is a portal
+between genuinely distinct worlds.
+
+**What already exists (the seeds):** panes can hold different *regions* (a wing
+of the library, own seed/shelves/cohort — `regions.ts` / `PaneDescriptor.regionId`)
+and theme-per-world exists via the lore recolor (`themeFromLore`). So the data
+model already supports per-pane divergence.
+
+**What's missing:** the theme is currently GLOBAL (one `themeFromLore` derivation
+in `App.tsx`, passed to `mountPalace` for the whole app). Per-pane identity needs:
+the theme/palette to become **pane-scoped** (a pane carries its own `ThemeId`,
+each cell/land mount tints from ITS pane's theme, not a global), plus a per-pane
+structural/asset profile. Touches `App.tsx`'s single-theme mount, the pane
+descriptor, and every renderer's `theme` plumbing.
+
+**Status.** Strong, on-vision; explicitly LATER. Sequence it AFTER the side-on
+land renderer lands (don't stack two structural rewrites). Natural pairing with
+Composable-Panes Depth 3 (agent-initiated world-joining) and the seam-walk —
+crossing a seam between two *visually distinct* worlds is the payoff moment.
