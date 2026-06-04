@@ -83,6 +83,35 @@ check(
   JSON.stringify(regionTerminals(shuffled, SEED)) === JSON.stringify(r1),
 );
 
+// --- A: aligned seams — the "walk into a DIFFERENT-looking room" enabler ----
+// Every wing carves its walkable seam opening from the SHARED profile seed, so
+// all wings (and the whole-library pane) open at the SAME row even though their
+// rooms differ. That alignment is what lets the floor-gate find a crossing
+// between two visibly different terminals.
+const { layoutCell } = await import('../src/procedural/cell.ts');
+const { T_FLOOR } = await import('../src/procedural/tiles/library.ts');
+
+const wholeLib = layoutCell(SEED, SEED);
+const wings = r1.map((rt) => layoutCell(rt.seed, SEED)); // shared seamSeed = profile
+const seamKey = (l: { seamRows: number[] }) => l.seamRows.join(',');
+check(
+  'A every wing carves the SAME seam rows as the whole library (shared seamSeed)',
+  wings.every((l) => seamKey(l) === seamKey(wholeLib)),
+  `whole=${seamKey(wholeLib)} wings=[${wings.map(seamKey).join(' | ')}]`,
+);
+// …yet the rooms themselves still LOOK DIFFERENT (different wing seeds → WFC).
+const distinctRooms = new Set([wholeLib, ...wings].map((l) => JSON.stringify(l.tiles)));
+check('A wings render visibly different rooms (distinct tile grids)', distinctRooms.size >= 2, `distinct=${distinctRooms.size}`);
+// Every aligned row is floor on BOTH side walls in every wing → crossable.
+const W = wholeLib.width;
+check(
+  'A every seam row is floor on both E+W edges in every wing (crossable)',
+  [wholeLib, ...wings].every((l) => l.seamRows.every((rr) => l.tiles[rr][0] === T_FLOOR && l.tiles[rr][W - 1] === T_FLOOR)),
+);
+// Determinism: the seam row is a pure function of seamSeed (independent of which
+// room seed it's paired with — that's exactly why wings align).
+check('A seam rows are deterministic for a given seamSeed', seamKey(layoutCell(0x999, SEED)) === seamKey(wholeLib));
+
 // --- E: edge cases ---------------------------------------------------------
 check('0 games → no regions', regionTerminals([], SEED).length === 0);
 const single = regionTerminals([{ appid: 1, name: 'Solo' }], SEED);

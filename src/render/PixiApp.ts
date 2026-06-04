@@ -829,7 +829,12 @@ function mountPaneLevel(
         books = region.games.map((g) => ({ appid: g.appid, name: g.name }));
       }
     }
-    const layout = layoutCell(seed);
+    // Carve the walkable seam opening from the SHARED profile seed (snap.seed),
+    // not the per-region `seed` — so every wing of this profile opens at the same
+    // row and an agent can cross from one terminal into a DIFFERENT-looking
+    // neighbour (the floor-gate needs the openings aligned). The whole-library
+    // pane has seed === snap.seed, so it is unaffected.
+    const layout = layoutCell(seed, snap.seed);
     return mountCell(
       app,
       parent,

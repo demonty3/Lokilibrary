@@ -50,7 +50,25 @@ export interface CellLayout {
  * Use `LIBRARY_BIBLE` for now; future district types swap in their own
  * bibles via an overload.
  */
-export function layoutCell(seed: number): CellLayout {
+/** PRNG namespace for the walkable seam-opening row. DISTINCT from the cell
+ *  layout salt (0xce11) so the seam row can be drawn from a DIFFERENT seed than
+ *  the room without disturbing the room's PRNG stream. Threading a SHARED seed
+ *  here (the profile seed, identical across every region/wing of a profile) is
+ *  what makes two DIFFERENT-looking rooms carve their openings at the SAME row —
+ *  so an agent can walk from one terminal into a neighbour that looks different
+ *  and the floor-gate still finds an aligned crossing. */
+const SEAM_SALT = 0x5ea3;
+
+/**
+ * @param seed      the layout seed (per-region for a wing, profile seed for the
+ *                  whole library) — drives the room (walls, WFC, shelves).
+ * @param seamSeed  OPTIONAL shared seed for the walkable seam-opening row. When
+ *                  omitted it falls back to `seed` (single-pane / smoke callers
+ *                  keep a self-consistent opening). Pane callers pass the PROFILE
+ *                  seed so every wing of the same profile opens at the same row,
+ *                  making region↔region (different-looking) seams crossable.
+ */
+export function layoutCell(seed: number, seamSeed?: number): CellLayout {
   const bible = LIBRARY_BIBLE;
   const width = bible.width;
   const height = bible.height;
@@ -95,11 +113,15 @@ export function layoutCell(seed: number): CellLayout {
   //     itself stays byte-identical to before; only these few cells change. The
   //     bookshelf walk below runs after this, so a carved-over shelf is correctly
   //     dropped from bookshelfSlots.
-  //     A THREE-cell-tall doorway (not one) so a randomly-wandering agent
-  //     realistically lands on a crossing cell — behavior.ts only crosses when
-  //     the agent is already standing on an exit cell (it doesn't path toward
-  //     seams), so a 1-cell gap would almost never be hit on screen.
-  const seamMid = prng.range(3, height - 3);
+  //     A THREE-cell-tall doorway (not one) for a comfortable opening. Drawn
+  //     from a SEPARATE prng seeded by `seamSeed` (the shared profile seed for
+  //     pane callers) so every wing of a profile opens at the SAME row — the
+  //     alignment that lets an agent cross between DIFFERENT-looking rooms. Uses
+  //     its own prng (not the room `prng`) so the room stays byte-identical
+  //     regardless of which seed feeds the seam; `prng` is unused after WFC, so
+  //     dropping its old seamMid draw shifts nothing downstream.
+  const seamPrng = mulberry32(((seamSeed ?? seed) ^ SEAM_SALT) >>> 0);
+  const seamMid = seamPrng.range(3, height - 3);
   const seamRows = [seamMid - 1, seamMid, seamMid + 1];
   for (const r of seamRows) {
     for (const x of [0, 1, width - 2, width - 1]) {

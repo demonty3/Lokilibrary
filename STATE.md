@@ -25,13 +25,19 @@ stampede/oscillate. `seamGoal`+`seamCooldownUntil` added to `AgentRuntimeState`
 fluidly cross both directions (cat/archivist/visitor each crossed multiple times;
 the new `window.__loki.agentRoster()` reads each pane's live scope). smoke-7d2-walk
 now 71 (S1–S5: latch/approach/cross, nearest-selection, cooldown gate, single-pane
-reduction, stale-goal re-latch). LIMITATION → NEXT: crossing only fires between
-panes with the SAME layout (the carved `seamRows` align). DIFFERENT-region
-neighbours (the "walk into a room that looks DIFFERENT" half of the vision) carve
-openings at different rows per region-seed, so the floor-gate finds no aligned
-exit and no cross happens — the next increment is seed-independent / shared seam
-openings. Also: changing a live pane's region REMOUNTS it and DROPS agents that
-had walked in (known split-teardown behavior). —— REGION TERMINALS (2026-06-03) — a
+reduction, stale-goal re-latch). ALIGNED SEAMS (2026-06-04) — the walkable seam
+opening is now carved from a SHARED seed (the PROFILE seed, threaded as
+`layoutCell(seed, seamSeed)` via a dedicated `SEAM_SALT=0x5ea3` prng, room stays
+byte-identical) so EVERY wing of a profile opens at the SAME row even though the
+rooms differ — VERIFIED ON SCREEN: a `|`-split with p2 set to a DIFFERENT wing
+(d0) shows loki cross repeatedly between the whole-library room and the
+different-looking d0 room (smoke-regions=24, +A-section alignment/floor/distinct).
+REMAINING LIMITATION → NEXT: `stepTowardTarget` is GREEDY Chebyshev with no
+obstacle avoidance, so agents whose spawn has no clear greedy line to the opening
+row get STUCK against a wall near the seam (seamGoal latched, x pinned) — a BFS /
+flow-field path to the seam is the next refinement. Also: changing a live pane's
+region REMOUNTS it and DROPS agents that had walked in (known split-teardown
+behavior). —— REGION TERMINALS (2026-06-03) — a
 cell pane can render ONE
 wing of the library (a 7-A district) with its own seed / shelves / cohort /
 seed-keyed memory instead of the whole-library cell; `regionId?` on
