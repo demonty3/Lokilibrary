@@ -59,13 +59,19 @@ export interface LandModel {
   readonly char: ReadonlyArray<ReadonlyArray<string>>;
   /** Role per cell, parallel to `char` ('sky' = background, not drawn). */
   readonly role: ReadonlyArray<ReadonlyArray<LandRole>>;
+  /** Surface row (the crust `▀`) per column — where a being stands is row-1.
+   *  Lets a movable player walk the terrain without re-deriving the field. */
+  readonly surface: ReadonlyArray<number>;
 }
 
 export interface ComposeLandOptions {
-  readonly width?: number; // visible slice width in cells
+  readonly width?: number; // world width in cells (may exceed the viewport — scrolls)
   readonly skyH?: number;
   readonly surfaceBand?: number;
   readonly underH?: number;
+  /** Bake a static `@` into the scene (default true). A movable LandView passes
+   *  false and owns its own player sprite. */
+  readonly withPlayer?: boolean;
 }
 
 const BEINGS = ['L', 'A', 'M', 'C', 'V'];
@@ -116,6 +122,7 @@ export function composeLand(
   const phase = rng.rangeFloat(0, 6.283);
   const surfaceY = (x: number) =>
     groundLine - Math.round(1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2));
+  const surfaceRows: number[] = Array.from({ length: cols }, (_, x) => surfaceY(x));
 
   // --- Sky: layered stars, two cloud bands, a sun --------------------------
   for (let y = 0; y < SKY_H - 1; y++) {
@@ -212,8 +219,10 @@ export function composeLand(
     const x = rng.range(6, cols - 6);
     set(x, surfaceY(x) - 1, rng.pick(BEINGS), 'being');
   }
-  const px = Math.floor(cols / 2);
-  set(px, surfaceY(px) - 1, '@', 'player');
+  if (opts.withPlayer !== false) {
+    const px = Math.floor(cols / 2);
+    set(px, surfaceY(px) - 1, '@', 'player');
+  }
 
   // --- Edges: open scrolling world (carets), trees soften the top ----------
   set(0, surfaceY(0) - 1, '‹', 'edge');
@@ -233,5 +242,5 @@ export function composeLand(
     for (let i = 0; i < s.length; i++) set(start + i, y, s[i], 'label');
   }
 
-  return { width: cols, height: rows, char, role };
+  return { width: cols, height: rows, char, role, surface: surfaceRows };
 }

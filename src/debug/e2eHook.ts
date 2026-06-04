@@ -20,7 +20,7 @@ import { useAppStore } from '../state/store';
 import { getCurrentRenderContext } from '../render/PixiApp';
 import { getPlayerPos } from '../state/playerPos';
 import { getPane } from '../state/paneRegistry';
-import { mountLandPreview } from '../render/levels/land';
+import { mountLandPreview, mountLandView } from '../render/levels/land';
 
 export interface LokiE2EHook {
   /** The real Zustand store singleton (getState / setState / actions). */
@@ -43,6 +43,9 @@ export interface LokiE2EHook {
    *  screenshot iteration (DEV/E2E only). Optional seed. Call previewLand again
    *  to reseed; clearLand() to remove. Not wired into the pane system yet. */
   previewLand(seed?: number): void;
+  /** PROTOTYPE — mount the WALKABLE land (wide world + scrolling camera; a/d or
+   *  arrows walk the surface). DEV/E2E only. clearLand() removes it. */
+  walkLand(seed?: number): void;
   clearLand(): void;
   /** Force the world palette to a theme id, exercising the REAL lore-recolor
    *  path (App.tsx derives `e2eThemeOverrideId() ?? themeFromLore(writer)` and
@@ -120,6 +123,13 @@ export function installE2EHook(): void {
       const ctx = getCurrentRenderContext();
       if (!ctx) return;
       landTeardown = mountLandPreview(ctx.app, ctx.theme, seed === undefined ? {} : { seed });
+    },
+    walkLand(seed?: number) {
+      landTeardown?.();
+      landTeardown = null;
+      const ctx = getCurrentRenderContext();
+      if (!ctx) return;
+      landTeardown = mountLandView(ctx.app, ctx.theme, seed === undefined ? {} : { seed });
     },
     clearLand() {
       landTeardown?.();

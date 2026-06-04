@@ -91,6 +91,85 @@ export interface MountLandOptions {
 }
 
 /**
+ * PROTOTYPE walkable view — a world WIDER than the screen with a movable player
+ * and a camera that scrolls to follow. a/← and d/→ walk the surface (the player
+ * rides the terrain height). Proves the "land you cross" feel before the full
+ * pane-level + free-roam-physics integration. Returns a teardown.
+ */
+export function mountLandView(app: Application, theme: Theme, opts: MountLandOptions = {}): () => void {
+  const CW = COZETTE_CELL_WIDTH;
+  const CH = COZETTE_CELL_HEIGHT;
+  const model = composeLand(opts.seed ?? 0xca11ed, opts.games, { width: 220, withPlayer: false });
+  const { container: world, contentW, contentH } = buildLandContainer(theme, model);
+
+  // Movable player — a child of `world`, so it scales + scrolls with the land.
+  const player = new BitmapText({
+    text: '@',
+    style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+  });
+  world.addChild(player);
+  let px = Math.floor(model.width / 2);
+  const placePlayer = () => {
+    player.x = px * CW;
+    player.y = (model.surface[px] - 1) * CH;
+  };
+
+  // Viewport: clip to the screen; scroll `world` horizontally to follow player.
+  const viewport = new Container();
+  viewport.addChild(world);
+  const mask = new Graphics();
+  viewport.mask = mask;
+  viewport.addChild(mask);
+  app.stage.addChild(viewport);
+
+  let scale = 1;
+  const layout = () => {
+    // Fill the screen HEIGHT (vertical presence); width scrolls.
+    scale = Math.max(1, Math.floor(app.screen.height / contentH));
+    world.scale.set(scale);
+    world.y = Math.floor((app.screen.height - contentH * scale) / 2);
+    mask.clear().rect(0, 0, app.screen.width, app.screen.height).fill(0xffffff);
+    camera();
+  };
+  const camera = () => {
+    // Centre the player; clamp so we never scroll past the world edges.
+    const target = app.screen.width / 2 - px * CW * scale;
+    const minX = Math.min(0, app.screen.width - contentW * scale);
+    world.x = Math.floor(Math.max(minX, Math.min(0, target)));
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    const k = e.key.toLowerCase();
+    if (k === 'a' || k === 'arrowleft') px = Math.max(0, px - 1);
+    else if (k === 'd' || k === 'arrowright') px = Math.min(model.width - 1, px + 1);
+    else return;
+    e.preventDefault();
+    placePlayer();
+    camera();
+  };
+
+  placePlayer();
+  layout();
+  window.addEventListener('keydown', onKey);
+  const onResize = () => layout();
+  app.renderer.on('resize', onResize);
+
+  return () => {
+    window.removeEventListener('keydown', onKey);
+    try {
+      app.renderer?.off('resize', onResize);
+    } catch {
+      /* app torn down */
+    }
+    try {
+      viewport.destroy({ children: true });
+    } catch {
+      /* already gone */
+    }
+  };
+}
+
+/**
  * PROTOTYPE mount — compose + tint a land and drop it full-screen onto the
  * stage (above everything). Returns a teardown. For harness screenshots only;
  * not wired into the pane system yet.
