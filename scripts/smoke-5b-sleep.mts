@@ -226,4 +226,32 @@ check(
   messy === '── overnight ──\nLoki: the player keeps returning\n──',
 );
 
+// --- macOS/Linux idle-only throttle ladder (consolidation 2026-06) ----------
+// Mirror of computeIdleThrottleState in desktop/src/wallpaper/throttle.ts (same
+// electron-import reason as the SLEEPING mirror above: can't import it under
+// plain Node). The macOS path has NO foreground/fullscreen 'paused' state — it
+// is driven purely by powerMonitor idle time. Drift is caught by reviewing this
+// mirror against the production fn together.
+const IDLE_THROTTLE_MS = 60 * 1000;
+function computeIdle(
+  idleMs: number,
+  isWallpaperMode: boolean,
+  sleepMs = SLEEP_THRESHOLD_MS,
+  throttleMs = IDLE_THROTTLE_MS,
+): ThrottleState {
+  if (!isWallpaperMode) return 'full';
+  if (idleMs >= sleepMs) return 'sleeping';
+  if (idleMs >= throttleMs) return 'throttled-1hz';
+  return 'full';
+}
+check('idle ladder: not wallpaper mode → full regardless of idle', computeIdle(20 * 60 * 1000, false) === 'full');
+check('idle ladder: idle=0 → full', computeIdle(0, true) === 'full');
+check('idle ladder: just below throttle (59s) → full', computeIdle(IDLE_THROTTLE_MS - 1, true) === 'full');
+check('idle ladder: at throttle threshold (60s) → throttled-1hz', computeIdle(IDLE_THROTTLE_MS, true) === 'throttled-1hz');
+check('idle ladder: 5min → throttled-1hz', computeIdle(5 * 60 * 1000, true) === 'throttled-1hz');
+check('idle ladder: just below sleep (10min-1) → throttled-1hz', computeIdle(SLEEP_THRESHOLD_MS - 1, true) === 'throttled-1hz');
+check('idle ladder: at sleep threshold (10min) → sleeping', computeIdle(SLEEP_THRESHOLD_MS, true) === 'sleeping');
+check('idle ladder: well past sleep (30min) → sleeping', computeIdle(30 * 60 * 1000, true) === 'sleeping');
+check('idle ladder: never emits paused (no window probe on macOS)', computeIdle(9 * 60 * 1000, true) !== ('paused' as ThrottleState));
+
 report();

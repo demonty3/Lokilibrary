@@ -34,7 +34,7 @@
  * Windows-native PowerShell to exercise; the user verifies there.
  */
 
-import { screen, type BrowserWindow, type Display } from 'electron';
+import { powerMonitor, screen, type BrowserWindow, type Display } from 'electron';
 
 interface Koffi {
   load(name: string): {
@@ -195,6 +195,34 @@ const FULLSCREEN_TOLERANCE_PX = 2;
  *  Sleep mode entry: "When the app has been unfocused for ~X minutes
  *  AND the PC isn't in active gaming." */
 const SLEEP_THRESHOLD_MS = 10 * 60 * 1000;
+
+/** Phase consolidation 2026-06 — macOS/Linux idle-throttle. Below the
+ *  SLEEP threshold but above this, drop the renderer to throttled-1hz: the
+ *  user has stepped away from the keyboard but not long enough to sleep the
+ *  world, so we save battery/thermal without losing the "alive" read on a
+ *  glance-back. 60 s is short enough to matter on a laptop, long enough not
+ *  to flicker on a pause-to-read. */
+const IDLE_THROTTLE_MS = 60 * 1000;
+
+/** Pure idle-only throttle ladder for platforms without the Win32 window
+ *  probe (macOS/Linux). Driven solely by whole-system idle time (Electron
+ *  `powerMonitor.getSystemIdleTime()`), since we have no foreground-window
+ *  query here. No 'paused' state: detecting a fullscreen app covering the
+ *  wallpaper needs window enumeration we don't do on macOS — and the
+ *  wallpaper sits behind everything anyway, so a covering app already hides
+ *  it for free. Same idea as computeThrottleState's SLEEPING branch, minus
+ *  the fullscreen nuance. Same idleMs → same state; no side effects. */
+export function computeIdleThrottleState(
+  idleMs: number,
+  isWallpaperMode: boolean,
+  sleepThresholdMs: number = SLEEP_THRESHOLD_MS,
+  idleThrottleMs: number = IDLE_THROTTLE_MS,
+): ThrottleState {
+  if (!isWallpaperMode) return 'full';
+  if (idleMs >= sleepThresholdMs) return 'sleeping';
+  if (idleMs >= idleThrottleMs) return 'throttled-1hz';
+  return 'full';
+}
 
 function rectArea(r: Rect): number {
   return Math.max(0, r.right - r.left) * Math.max(0, r.bottom - r.top);
@@ -522,6 +550,55 @@ const controller: ControllerState = {
 
 let currentOpts: ThrottleControllerOptions | null = null;
 
+/** macOS/Linux poll loop — idle-only ladder (no Win32 window probe). Reads
+ *  whole-system idle seconds from Electron's `powerMonitor` each tick and
+ *  maps via `computeIdleThrottleState`. Mirrors the Win32 loop's emit-on-
+ *  change + log discipline; the timer lives in the SHARED `controller.timer`
+ *  so `stopThrottleController` tears it down identically. Caller has already
+ *  run `stopThrottleController()`. */
+function startIdleController(opts: ThrottleControllerOptions): void {
+  controller.isWallpaperMode = true;
+  controller.current = 'full';
+  controller.display = opts.display;
+  currentOpts = opts;
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[throttle] idle controller started (${process.platform}) ` +
+      `idle-throttle=${Math.round(IDLE_THROTTLE_MS / 1000)}s sleep=${Math.round(SLEEP_THRESHOLD_MS / 1000)}s`,
+  );
+
+  // Emit the initial state synchronously (parity with the Win32 path) so the
+  // renderer drops its ticker to the right level before the first frame.
+  opts.onStateChange('full', true);
+
+  const interval = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  controller.timer = setInterval(() => {
+    try {
+      // getSystemIdleTime() is whole-OS idle in SECONDS (keyboard/mouse/
+      // touch), the macOS analogue of GetLastInputInfo.
+      const idleMs = powerMonitor.getSystemIdleTime() * 1000;
+      const next = computeIdleThrottleState(idleMs, controller.isWallpaperMode);
+      if (next !== controller.current) {
+        const idleSec = Math.round(idleMs / 1000);
+        // eslint-disable-next-line no-console
+        console.log(
+          `[throttle] idle=${idleSec}s state=${next} ⟹ ${controller.current}→${next}`,
+        );
+        controller.current = next;
+        currentOpts?.onStateChange(next, false);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[throttle] idle probe failed (continuing on previous state):',
+        (e as Error).message,
+      );
+    }
+  }, interval);
+  controller.timer.unref?.(); // don't block app shutdown on this timer
+}
+
 /** Start the polling loop. Idempotent — calling start() twice does NOT
  *  stack timers. The initial state is emitted synchronously before the
  *  first poll so the renderer can configure its Ticker before any frame
@@ -532,13 +609,17 @@ export function startThrottleController(
 ): void {
   stopThrottleController(); // idempotent reset
 
-  // Win32 throttle is Windows-only. On macOS/Linux (or if koffi can't load)
-  // degrade to a permanent 'full' state: emit it once so the renderer
-  // configures its ticker, then skip the polling loop entirely.
+  // Win32 throttle is Windows-only (rich foreground-window + fullscreen
+  // detection via koffi). On macOS/Linux (or if koffi can't load) fall back
+  // to an idle-only ladder driven by Electron's powerMonitor — full while
+  // active, throttled-1hz after a short idle, sleeping after the long idle
+  // (which also drives sleep-reflection + the morning dispatch). No
+  // foreground/fullscreen 'paused' state here (no window probe), which is
+  // fine: the wallpaper sits behind everything, so a covering app hides it
+  // for free.
   const w = getWin32();
   if (!w) {
-    controller.current = 'full';
-    opts.onStateChange('full', true);
+    startIdleController(opts);
     return;
   }
 
@@ -649,4 +730,5 @@ export const __testing = {
   THROTTLE_COVERAGE_THRESHOLD,
   FULLSCREEN_TOLERANCE_PX,
   SLEEP_THRESHOLD_MS,
+  IDLE_THROTTLE_MS,
 } as const;
