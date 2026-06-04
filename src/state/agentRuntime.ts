@@ -123,6 +123,21 @@ export interface AgentRuntimeState {
    *  wall-clock / no timer) so the share-URL reproducibility contract is
    *  untouched. `null` = not freshly arrived. */
   justArrivedAt: { x: number; y: number } | null;
+  /** Phase 7-D.2b (Increment 2 — the observable walk) — DELIBERATE seam-seeking.
+   *  When the BT chooses to cross (rather than waiting to randomly wander onto an
+   *  exit), it latches the chosen exit here: `edge` is the interior edge cell to
+   *  walk to, `entry` the bridged neighbour cell to migrate into on arrival. The
+   *  BT scores an `approach` toward `edge`; the tick it arrives it writes
+   *  `pendingCross = entry` and clears this. `null` = not seeking. Multi-pane
+   *  ONLY — with no open seam exits the BT never latches it, so the single-pane
+   *  walk is byte-identical. MUST be cleared on migrate (it names the OLD pane's
+   *  exit; the agent re-evaluates seams in the destination next tick). */
+  seamGoal: { edge: CellPoint; entry: { paneId: string; x: number; y: number } } | null;
+  /** Phase 7-D.2b — performance.now() before which the agent won't latch a NEW
+   *  seamGoal. Armed on each successful cross to a per-agent staggered interval
+   *  so agents drift across one at a time and don't immediately re-seek the seam
+   *  they just walked through (anti-oscillation, complements `justArrivedAt`). */
+  seamCooldownUntil: number;
 }
 
 /**
@@ -253,6 +268,11 @@ export function migrateRuntime(
   // bounce back across the seam it just walked through. Cleared once the agent
   // steps strictly off this cell (deterministic, no wall-clock).
   rt.justArrivedAt = { x: newX, y: newY };
+  // Phase 7-D.2b — the latched goal named the SOURCE pane's exit; drop it so the
+  // agent re-evaluates the destination pane's seams afresh next tick. The
+  // cooldown is deliberately NOT reset: it was just armed at cross-time and
+  // travels with this object to gate immediate re-seeking in the new pane.
+  rt.seamGoal = null;
   to.runtimes.set(id, rt);
   return 'ok';
 }
@@ -314,5 +334,7 @@ export function initialRuntime(args: {
     actionEndsAt: 0,
     pendingCross: null,
     justArrivedAt: null,
+    seamGoal: null,
+    seamCooldownUntil: 0,
   };
 }

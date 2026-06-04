@@ -19,6 +19,7 @@
 import { useAppStore } from '../state/store';
 import { getCurrentRenderContext } from '../render/PixiApp';
 import { getPlayerPos } from '../state/playerPos';
+import { getPane } from '../state/paneRegistry';
 
 export interface LokiE2EHook {
   /** The real Zustand store singleton (getState / setState / actions). */
@@ -30,6 +31,11 @@ export interface LokiE2EHook {
    *  ground truth for "did reconcilePanes actually mount N panes", independent
    *  of the store's intent. */
   paneScene(): Array<{ x: number; y: number; w: number; h: number; children: number }> | null;
+  /** Per-pane agent roster read straight from each pane's live RuntimeScope (via
+   *  the pane registry). Ground truth for the single-roaming-roster + seam-walk:
+   *  an agent leaving one pane's array and appearing in another's IS a crossing,
+   *  independent of any sprite. Keyed by paneId. */
+  agentRoster(): Record<string, Array<{ id: string; x: number; y: number; seamGoal: boolean }>>;
   /** Store + per-pane player + scene in one call — the harness's `state` verb. */
   snapshot(): unknown;
 }
@@ -54,6 +60,20 @@ export function installE2EHook(): void {
         children: c.children?.length ?? 0,
       }));
     },
+    agentRoster() {
+      const out: Record<string, Array<{ id: string; x: number; y: number; seamGoal: boolean }>> = {};
+      for (const p of useAppStore.getState().panes) {
+        const scope = getPane(p.id)?.scope;
+        if (!scope) continue;
+        out[p.id] = Array.from(scope.runtimes.values()).map((rt) => ({
+          id: rt.id,
+          x: rt.x,
+          y: rt.y,
+          seamGoal: rt.seamGoal !== null,
+        }));
+      }
+      return out;
+    },
     snapshot() {
       const s = useAppStore.getState();
       return {
@@ -62,6 +82,7 @@ export function installE2EHook(): void {
         grid: `${s.gridCols}x${s.gridRows}`,
         wallpaper: s.wallpaperMode,
         players: s.panes.map((p) => ({ id: p.id, pos: getPlayerPos(p.id) })),
+        roster: this.agentRoster(),
         scene: this.paneScene(),
       };
     },

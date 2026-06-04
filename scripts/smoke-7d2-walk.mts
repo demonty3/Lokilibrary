@@ -544,5 +544,119 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
   check('R1 loki stayed on floor across 300 single-pane ticks', layout.tiles[loki.y]?.[loki.x] === T_FLOOR);
 }
 
+// ===========================================================================
+// S — SEAM-SEEKING (Increment 2, Phase 7-D.2b): an agent DELIBERATELY walks to
+// a seam and crosses, rather than waiting on a lucky random wander onto an exit.
+// Driven on a synthetic all-floor room so the greedy approach provably reaches
+// the edge (the real layout's walls are exercised by the F-section).
+// ===========================================================================
+
+/** A minimal all-floor room (spreads the real layout so every required field is
+ *  present, overrides the grid). tickBehavior only reads width/height/tiles +
+ *  windowAt/spawnAt, so an open grid makes the greedy approach deterministic. */
+function openRoom(w: number, h: number): typeof layout {
+  const tiles = Array.from({ length: h }, () => Array.from({ length: w }, () => T_FLOOR));
+  return { ...layout, width: w, height: h, tiles, spawnAt: { x: 1, y: 1 }, windowAt: { x: 1, y: 1 } };
+}
+
+/** BehaviorContext over an open room with a given exits map. wallClockHour=3 so
+ *  no daytime visit_window rule outscores the 0.6 seam-seek candidate; empty
+ *  scatterAnchors so bias_idle rules stay dormant. */
+function openCtx(room: typeof layout, exits: Map<string, SeamExit>): BehaviorContext {
+  return {
+    layout: room,
+    prngs: buildPrngs(),
+    scatterAnchors: new Map(),
+    wallClockHour: () => 3,
+    seamExits: exits,
+  };
+}
+
+const loDef = COHORT.find((d) => d.id === 'loki')!;
+
+// S1 — latch the nearest exit, walk to it, cross. Agent starts in the interior,
+// one E-edge exit; the deterministic approach must arrive + emit pendingCross.
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+
+  // First tick: it should latch the (only) exit as its goal BEFORE moving.
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S1 agent latches the seam exit as a goal (seamGoal set)', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+  check('S1 agent began walking toward the edge (x increased from 1)', rt.x > 1, `x=${rt.x}`);
+
+  // Drive until it reaches the edge and emits the cross.
+  let crossed = false;
+  for (let i = 0; i < 60 && !crossed; i++) {
+    rt.actionEndsAt = 0;
+    tickBehavior(loDef, rt, ctx, 1100 + i * 10);
+    if (rt.pendingCross) crossed = true;
+  }
+  check('S1 the agent deliberately reached the seam and emitted a cross', crossed);
+  check('S1 cross targets the bridged entry in p2 (0,3)', rt.pendingCross?.paneId === 'p2' && rt.pendingCross?.x === 0 && rt.pendingCross?.y === 3, JSON.stringify(rt.pendingCross));
+  check('S1 seamGoal cleared once the cross is emitted', rt.seamGoal === null);
+  check('S1 a staggered cooldown was armed on the cross', rt.seamCooldownUntil > 0, `${rt.seamCooldownUntil}`);
+}
+
+// S2 — nearest selection: with two exits, the Chebyshev-closest is latched.
+{
+  const room = openRoom(10, 6);
+  const near: SeamExit = { edge: { x: 9, y: 1 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 1 } };
+  const far: SeamExit = { edge: { x: 9, y: 5 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 5 } };
+  const ctx = openCtx(room, new Map([[`9,1`, near], [`9,5`, far]]));
+  const rt = initialRuntime({ id: 'loki', x: 8, y: 2 }); // adjacent column, closest to (9,1)
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S2 the NEARER of two exits is latched (9,1 over 9,5)', rt.seamGoal?.edge.y === 1, JSON.stringify(rt.seamGoal));
+}
+
+// S3 — cooldown gates re-seeking: within the cooldown window no goal latches;
+// past it, seeking resumes. (Anti-oscillation across the just-crossed seam.)
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamCooldownUntil = 100_000; // freshly crossed → settling
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 5_000); // now < cooldown
+  check('S3 no new goal is latched during the cooldown window', rt.seamGoal === null, JSON.stringify(rt.seamGoal));
+
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 200_000); // now > cooldown
+  check('S3 seeking resumes once the cooldown elapses', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+}
+
+// S4 — single-pane reduction: no seam exits ⇒ seamGoal is never set (and a
+// stray goal is cleared), so the byte-identical single-pane walk is preserved.
+{
+  const room = openRoom(10, 6);
+  const ctxNoSeam: BehaviorContext = { layout: room, prngs: buildPrngs(), scatterAnchors: new Map(), wallClockHour: () => 3 };
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamGoal = { edge: { x: 9, y: 3 }, entry: { paneId: 'p2', x: 0, y: 3 } }; // stray
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctxNoSeam, 1000);
+  check('S4 no-seam ctx clears any seamGoal (never seeks)', rt.seamGoal === null);
+  check('S4 no cross ever emitted without seam exits', rt.pendingCross === null);
+}
+
+// S5 — a stale goal (exit no longer present) is dropped, then re-latched to a
+// current exit the same tick (so a re-split doesn't leave the agent chasing a
+// vanished cell).
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamGoal = { edge: { x: 9, y: 99 }, entry: { paneId: 'gone', x: 0, y: 0 } }; // not in exits
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S5 a stale seamGoal is dropped + re-latched to a live exit', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+}
+
 get().setArrangement('single');
 report();

@@ -10,7 +10,29 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
-Last updated: **2026-06-03** (REGION TERMINALS — a cell pane can render ONE
+Last updated: **2026-06-04** (SEAM-SEEKING / the observable walk, Increment 2 —
+agents now DELIBERATELY walk to a seam and cross, instead of waiting on a random
+wander onto an exit cell. `behavior.ts:maybeSeekSeam` latches the nearest open
+walkable `SeamExit` as `runtime.seamGoal` (multi-pane only — empty `ctx.seamExits`
+clears it, so single-pane is byte-identical), the BT scores an `approach` toward
+it at 0.6 (above wander/idle, BELOW plan-step/intent/schedule peaks so a character
+schedule still wins — loki, near its anchor, keeps to its room by design), and on
+arrival writes `pendingCross` + arms a per-agent FNV-staggered cooldown
+(`seamCooldownMs`, 6–12s) so agents DRIFT across one-at-a-time rather than
+stampede/oscillate. `seamGoal`+`seamCooldownUntil` added to `AgentRuntimeState`
+(cleared on `migrateRuntime`; cooldown travels with the agent). VERIFIED ON SCREEN
+(macOS, e2e harness): a `|`-split of two whole-library cell panes shows the roster
+fluidly cross both directions (cat/archivist/visitor each crossed multiple times;
+the new `window.__loki.agentRoster()` reads each pane's live scope). smoke-7d2-walk
+now 71 (S1–S5: latch/approach/cross, nearest-selection, cooldown gate, single-pane
+reduction, stale-goal re-latch). LIMITATION → NEXT: crossing only fires between
+panes with the SAME layout (the carved `seamRows` align). DIFFERENT-region
+neighbours (the "walk into a room that looks DIFFERENT" half of the vision) carve
+openings at different rows per region-seed, so the floor-gate finds no aligned
+exit and no cross happens — the next increment is seed-independent / shared seam
+openings. Also: changing a live pane's region REMOUNTS it and DROPS agents that
+had walked in (known split-teardown behavior). —— REGION TERMINALS (2026-06-03) — a
+cell pane can render ONE
 wing of the library (a 7-A district) with its own seed / shelves / cohort /
 seed-keyed memory instead of the whole-library cell; `regionId?` on
 `PaneDescriptor`, resolved in `mountPaneLevel` via the new pure
