@@ -36,7 +36,7 @@ widening. The dev box moving to a Mac unblocked it.
 
 | Surface | Verdict | Notes |
 |---|---|---|
-| Cell render (aesthetic) | ✅ **Checkpoint ① PASS** | Reads as intentional terminal-art (Harry). |
+| Cell render (aesthetic) | ✅ **Checkpoint ① PASS** | Reads as intentional terminal-art (Harry). Sharpened: dropped the placeholder bookshelf sprites (rainbow noise) → themed glyph shelves, full palette coherence. |
 | 5-agent cohort (agents-as-beings) | ✅ **Checkpoint ② PASS** | The hardest, riskiest checkpoint — it landed. |
 | Seam-walk (7D.2) | ✅ now **observable** | Was invisible (solid perimeter); built the walkable seam edge → agents cross panes on screen. |
 | Scale ladder (7A island/continent) | 🟡 broad-approved | Serves/compiles + transform-fix confirmed; not individually eyeballed. |
@@ -52,6 +52,19 @@ widening. The dev box moving to a Mac unblocked it.
   3-cell doorway in both side walls (`CellLayout.seamRows`), so a vertical pane
   split has a crossable seam. `smoke-7d2-walk` F1 updated (old solid-perimeter
   "zero exits" → "openings are exactly the crossable rows"). 59 assertions.
+- **Glyph-only shelves** (`feat(render)`): on the first real on-screen pass the
+  ~20 bookshelves dominated the frame as off-palette colour-NOISE — the
+  auto-generated placeholder PNGs from `gen-placeholder-sprites.mts` rendered as
+  rainbow static against the themed terminal scene, fighting the palette
+  coherence the rest of the cell already had. The renderer already supported the
+  intended fallback (`▓` shelf + bright spine letter, themed walls), so a new
+  `CURATED_SLOTS` allow-list in `sprites.ts` (EMPTY today) gates *loading* to
+  hand-curated survivors only — placeholders never load, the whole sprite
+  pipeline stays wired for when a real Phase-3D bake lands (add the slot id,
+  one survivor at a time). This is `CLAUDE.md`'s "glyphs-only MVP" made real on
+  screen. Before/after A/B'd in the headless e2e harness; typecheck clean,
+  `smoke-3a-sprites` 64 + `smoke-glyph-coverage` 19 still green (both test pure
+  fns + the KNOWN_SLOTS↔generator cross-check, neither touched).
 
 ## Punch-list (prioritized)
 

@@ -74,9 +74,9 @@ const TILE_TO_SLOT: ReadonlyMap<number, SpriteSlotId> = new Map([
   [T_TABLE, 'table' as const],
 ]);
 
-/** All slot ids the atlas loader will try to fetch per theme. Missing
- *  PNGs are NOT errors — they just leave the slot unset and the
- *  renderer falls back. */
+/** All slot ids the atlas loader knows about (kept in sync with the
+ *  generator's LAYOUTS registry). Missing PNGs are NOT errors — they
+ *  just leave the slot unset and the renderer falls back. */
 const KNOWN_SLOTS: readonly SpriteSlotId[] = [
   'bookshelf',
   'wall-h',
@@ -90,6 +90,22 @@ const KNOWN_SLOTS: readonly SpriteSlotId[] = [
   'window',
   'table',
 ];
+
+/** Slots whose on-disk PNG is a HAND-CURATED survivor (Phase 3D), as
+ *  opposed to an auto-generated placeholder from
+ *  `scripts/gen-placeholder-sprites.mts`. Only these are actually
+ *  loaded; everything else falls back to the themed box-drawing glyph.
+ *
+ *  This is the "glyphs-only MVP" gate (CLAUDE.md: *"Pre-v1.0 MVP renders
+ *  with box-drawing glyphs only — pixel-art comes later"*). The
+ *  placeholder PNGs read as off-palette colour-noise against a themed
+ *  terminal scene; the glyph fallback (`▓` shelf + bright spine letter,
+ *  `─`/`│` walls, etc.) is the intended look. The whole sprite pipeline
+ *  stays wired — when a real curated bake lands in
+ *  `public/sprites/{theme}/<slot>.png`, add its slot id here to light it
+ *  up, one survivor at a time (the same per-asset curation discipline as
+ *  the Stage-1 sprite whitelist). EMPTY today = pure glyph aesthetic. */
+const CURATED_SLOTS: ReadonlySet<SpriteSlotId> = new Set<SpriteSlotId>();
 
 export interface SpriteAtlas {
   readonly themeId: string;
@@ -164,7 +180,7 @@ export function loadSpriteAtlas(themeId: string): Promise<SpriteAtlas> {
   const p = (async (): Promise<SpriteAtlas> => {
     const textures = new Map<SpriteSlotId, Texture>();
     await Promise.all(
-      KNOWN_SLOTS.map(async (slot) => {
+      KNOWN_SLOTS.filter((slot) => CURATED_SLOTS.has(slot)).map(async (slot) => {
         const url = spriteUrl(themeId, slot);
         try {
           const tex = (await Assets.load(url)) as Texture;
