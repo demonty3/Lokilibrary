@@ -32,6 +32,7 @@ import {
   type ThrottleState,
 } from './wallpaper/throttle';
 import { resolveTargetDisplay, buildDisplaySubmenu } from './display-picker';
+import { startTerminalsMode } from './terminals';
 
 // steamworks.js types aren't perfectly matched to our usage so we import as
 // `any` at the require boundary and contain the looseness here.
@@ -449,6 +450,18 @@ ipcMain.handle('steam:getAuthTicket', async () => {
 
 void app.whenReady().then(() => {
   initSteam();
+
+  // T0 spike — snapping-terminals mode (docs/PRD-snapping-terminals.md).
+  // `LOKILIBRARY_TERMINALS=N` boots N terminal windows + the topology broker
+  // instead of the palace window. Window-mode only: no tray, no wallpaper
+  // restore, no peek (those singletons get a real multi-window registry in
+  // T1). Early-return keeps the default path byte-identical.
+  const terminalCount = Number(process.env.LOKILIBRARY_TERMINALS) || 0;
+  if (terminalCount >= 2) {
+    startTerminalsMode(terminalCount, rendererUrl());
+    return;
+  }
+
   createWindow();
 
   // Steam overlay must be enabled after the BrowserWindow exists so it
