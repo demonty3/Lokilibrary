@@ -35,11 +35,12 @@ When two docs disagree:
 
 ## Recent strategic updates worth knowing
 
-- **2026-06-11 `docs/PRD-composable-panes.md`** (new): the active build
-  PRD — snap/drag panes, diegetic glyph chrome, topology → agent
-  perception, Depth-3 orchestration. Supersedes the Terminal-Terraria
-  visual PRD's P1/P2; that PRD is parked at its V0 gate (spike shipped,
-  verdict "not yet").
+- **2026-06-11 `docs/PRD-snapping-terminals.md`** (new, ACTIVE): separate
+  terminal OS windows that snap together to join side-on worlds — agents
+  walk between windows. Supersedes same-day `PRD-composable-panes.md`
+  (in-app panes; deleted — see git history) after Harry clarified the
+  vision. The Terminal-Terraria visual PRD stays parked at its V0 gate
+  (spike shipped, verdict "not yet").
 
 - **2026-05-28 `IDEAS.md`** (your additions): Sleep mode, Living
   world, Composable panes. The Sleep mode entry promotes itself to
