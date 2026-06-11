@@ -215,12 +215,15 @@ export function composeLand(
   // --- V0 spike: the mural-bearing HALL — a glyph LUMINANCE FIELD, not an
   // outline. Dense glyphs low / sparse high; `shade` carries the vertical
   // gradient (0 dim at the top → 3 bright at the base) for the renderer's
-  // per-step tint. Stands at the first surface game's slot; its poster rect
-  // receives that game's ANSI capsule mural.
+  // per-step tint. Centred on the strip (the hero-shot anchor; the static
+  // player stands at its base); represents the first surface game, whose
+  // poster rect receives that game's ANSI capsule mural.
   let hallSpan: readonly [number, number] | null = null;
+  let hallCx = 0;
   let poster: LandModel['poster'];
   if (opts.hall && shade && surface.length > 0) {
-    const x0 = Math.max(1, slot - Math.floor(HALL_W / 2));
+    hallCx = Math.floor(cols / 2);
+    const x0 = Math.max(1, hallCx - Math.floor(HALL_W / 2));
     const x1 = Math.min(cols - 2, x0 + HALL_W - 1);
     hallSpan = [x0, x1];
     let minSurface = rows;
@@ -253,7 +256,7 @@ export function composeLand(
     const x = slot * (i + 1) + rng.range(-2, 3);
     const gy = surfaceY(x);
     if (hallSpan && i === 0) {
-      labels.push({ x, y: gy, text: p.name }); // the hall stands here
+      labels.push({ x: hallCx, y: surfaceY(hallCx), text: p.name }); // the hall stands here
       return;
     }
     if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall

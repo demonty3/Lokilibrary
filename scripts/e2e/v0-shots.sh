@@ -17,6 +17,9 @@ shot() { # shot <theme> <seed-js> <name>
     sleep 1
   done
   echo "mural[${name}]: ${s}"
+  # Hide the DOM HUD for clean hero shots (idempotent; per-shot because a
+  # theme swap can re-render it).
+  node scripts/e2e/drive.mjs eval "document.querySelectorAll('[data-hud]').forEach((el) => { el.style.display = 'none' })" >/dev/null
   node scripts/e2e/drive.mjs shot "${OUT}/${name}.png"
 }
 

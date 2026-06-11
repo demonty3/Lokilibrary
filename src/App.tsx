@@ -342,6 +342,7 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
   const label = scale.replace(/_/g, ' ');
   return (
     <div
+      data-hud=""
       style={{
         position: 'fixed',
         top: 8,
