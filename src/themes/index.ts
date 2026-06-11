@@ -3,6 +3,7 @@ import gruvboxDark from './gruvbox-dark.json';
 import catppuccinMocha from './catppuccin-mocha.json';
 import tokyoNight from './tokyo-night.json';
 import ibm3270 from './ibm-3270.json';
+import phosphor from './phosphor.json';
 import type { Theme } from './types';
 
 /**
@@ -18,6 +19,7 @@ export const THEMES: Readonly<Record<string, Theme>> = Object.freeze({
   'catppuccin-mocha': catppuccinMocha as Theme,
   'tokyo-night':      tokyoNight as Theme,
   'ibm-3270':         ibm3270 as Theme,
+  'phosphor':         phosphor as Theme,
 });
 
 /**
@@ -34,6 +36,7 @@ export const THEME_IDS = [
   'catppuccin-mocha',
   'tokyo-night',
   'ibm-3270',
+  'phosphor',
 ] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 

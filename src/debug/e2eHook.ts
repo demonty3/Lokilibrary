@@ -20,7 +20,7 @@ import { useAppStore } from '../state/store';
 import { getCurrentRenderContext } from '../render/PixiApp';
 import { getPlayerPos } from '../state/playerPos';
 import { getPane } from '../state/paneRegistry';
-import { mountLandPreview, mountLandView } from '../render/levels/land';
+import { getLandMuralState, mountLandPreview, mountLandView } from '../render/levels/land';
 
 export interface LokiE2EHook {
   /** The real Zustand store singleton (getState / setState / actions). */
@@ -47,6 +47,10 @@ export interface LokiE2EHook {
    *  arrows walk the surface). DEV/E2E only. clearLand() removes it. */
   walkLand(seed?: number): void;
   clearLand(): void;
+  /** V0 spike — the land preview's ANSI capsule-mural lifecycle
+   *  ('idle' | 'loading' | 'ready' | 'failed-cors' | 'failed-load'), so the
+   *  harness can poll readiness before screenshotting. */
+  landMuralState(): string;
   /** Force the world palette to a theme id, exercising the REAL lore-recolor
    *  path (App.tsx derives `e2eThemeOverrideId() ?? themeFromLore(writer)` and
    *  remounts on a `loreVersion` bump). Lets the harness prove the on-screen
@@ -134,6 +138,9 @@ export function installE2EHook(): void {
     clearLand() {
       landTeardown?.();
       landTeardown = null;
+    },
+    landMuralState() {
+      return getLandMuralState();
     },
   };
   (window as unknown as { __loki: LokiE2EHook }).__loki = hook;

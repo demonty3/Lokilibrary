@@ -17,12 +17,33 @@ import { Application, BitmapText, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import { COZETTE_CELL_HEIGHT, COZETTE_CELL_WIDTH, COZETTE_FONT_FAMILY, COZETTE_FONT_SIZE, hexToInt } from '../fonts';
 import { composeLand, type LandGame, type LandModel, type LandRole } from '../../procedural/land';
+import { buildMuralContainer, capsuleToCells } from '../ansiSpike';
+
+// ── V0 spike knobs (PRD: Terminal Terraria visual direction) ──────────────
+const MURAL_APPID = 1145360; // Hades — SAMPLE_LAND's first surface game, so hall + capsule match
+const GRADIENT_FACTORS = [0.35, 0.55, 0.78, 1.0] as const; // shade 0..3 → tint scale (steepness knob)
+const SHADED_ROLES: ReadonlySet<LandRole> = new Set<LandRole>(['hall']);
+/** PRD V0 scene: ~200×56 cells — tall sky for the hall + poster, shallow strata. */
+const V0_SCENE = { width: 200, skyH: 38, surfaceBand: 4, underH: 13, hall: true } as const;
+
+/** Scale a theme colour's RGB channels — the per-step tint for shaded roles.
+ *  Derived from the ACTIVE theme (not hard-coded hexes) so setTheme hot-swap
+ *  re-tints the gradient along with everything else. */
+function shadeOf(hex: string, f: number): number {
+  const n = hexToInt(hex);
+  const r = Math.round(((n >> 16) & 0xff) * f);
+  const g = Math.round(((n >> 8) & 0xff) * f);
+  const b = Math.round((n & 0xff) * f);
+  return (r << 16) | (g << 8) | b;
+}
 
 /** Role -> theme palette key. The whole point of the side-on look: layers
  *  separate by hue, not by glyph density. */
 const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   sky: 'bg',
   star: 'fgDim',
+  starBright: 'fg',
+  hall: 'violet',
   sun: 'yellow',
   cloud: 'fgDim',
   ridge: 'bgAlt',
@@ -66,20 +87,35 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
   for (let y = 0; y < model.height; y++) for (let x = 0; x < model.width; x++) roles.add(model.role[y][x]);
   roles.delete('sky'); // background, never drawn
 
-  for (const r of roles) {
+  const layerFor = (pred: (x: number, y: number) => boolean): string => {
     const rows: string[] = [];
     for (let y = 0; y < model.height; y++) {
       let line = '';
-      for (let x = 0; x < model.width; x++) line += model.role[y][x] === r ? model.char[y][x] : ' ';
+      for (let x = 0; x < model.width; x++) line += pred(x, y) ? model.char[y][x] : ' ';
       rows.push(line.replace(/\s+$/u, ''));
     }
-    const text = rows.join('\n');
-    if (!text.trim()) continue;
-    const layer = new BitmapText({
-      text,
-      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette[ROLE_KEY[r]]) },
-    });
-    container.addChild(layer);
+    return rows.join('\n');
+  };
+  const addLayer = (text: string, fill: number) => {
+    if (!text.trim()) return;
+    container.addChild(
+      new BitmapText({ text, style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill } }),
+    );
+  };
+  for (const r of roles) {
+    const shadeGrid = model.shade;
+    if (shadeGrid && SHADED_ROLES.has(r)) {
+      // V0: vertical gradient — one layer per luminance step (≤4 extra
+      // objects), tint scaled from the role's theme colour.
+      for (let s = 0; s < GRADIENT_FACTORS.length; s++) {
+        addLayer(
+          layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s),
+          shadeOf(theme.palette[ROLE_KEY[r]], GRADIENT_FACTORS[s]),
+        );
+      }
+    } else {
+      addLayer(layerFor((x, y) => model.role[y][x] === r), hexToInt(theme.palette[ROLE_KEY[r]]));
+    }
   }
 
   return { container, contentW, contentH };
@@ -230,14 +266,47 @@ export function mountLandView(app: Application, theme: Theme, opts: MountLandOpt
   };
 }
 
+/** V0 mural lifecycle, polled by the e2e harness (`__loki.landMuralState()`)
+ *  so screenshots wait for the async capsule load. */
+export type LandMuralState = 'idle' | 'loading' | 'ready' | 'failed-cors' | 'failed-load';
+let muralState: LandMuralState = 'idle';
+export function getLandMuralState(): LandMuralState {
+  return muralState;
+}
+
 /**
  * PROTOTYPE mount — compose + tint a land and drop it full-screen onto the
  * stage (above everything). Returns a teardown. For harness screenshots only;
  * not wired into the pane system yet.
+ *
+ * V0 spike: composes the PRD scene (200×56, hall + poster) and mounts the
+ * game's ANSI capsule mural onto the poster rect once the image resolves.
  */
 export function mountLandPreview(app: Application, theme: Theme, opts: MountLandOptions = {}): () => void {
-  const model = composeLand(opts.seed ?? 0xca11ed, opts.games);
+  const model = composeLand(opts.seed ?? 0xca11ed, opts.games, V0_SCENE);
   const { container, contentW, contentH } = buildLandContainer(theme, model);
+
+  muralState = 'idle';
+  let dead = false;
+  if (model.poster) {
+    const p = model.poster;
+    muralState = 'loading';
+    capsuleToCells(MURAL_APPID, p.w, p.h)
+      .then((cells) => {
+        if (dead) return;
+        const mural = buildMuralContainer(cells, p.w, p.h);
+        mural.x = p.x * COZETTE_CELL_WIDTH;
+        mural.y = p.y * COZETTE_CELL_HEIGHT;
+        container.addChild(mural); // child of the world → inherits scale + position
+        muralState = 'ready';
+      })
+      .catch((err: unknown) => {
+        // CORS contingency (PRD): report, leave the dim poster fill visible,
+        // do NOT silently add a Worker proxy.
+        muralState = err instanceof Error && err.name === 'SecurityError' ? 'failed-cors' : 'failed-load';
+        console.warn('[land] capsule mural failed:', err);
+      });
+  }
 
   const fit = () => {
     const scale = Math.max(1, Math.floor(Math.min(app.screen.width / contentW, app.screen.height / contentH)));
@@ -252,6 +321,7 @@ export function mountLandPreview(app: Application, theme: Theme, opts: MountLand
   app.renderer.on('resize', onResize);
 
   return () => {
+    dead = true; // a late mural resolve must not touch the destroyed container
     // Defensive: a theme remount can destroy `app` before this teardown runs
     // (the renderer/stage go null) — don't throw on a stale handle.
     try {

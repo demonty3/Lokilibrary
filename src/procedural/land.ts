@@ -20,6 +20,19 @@
 
 import { mulberry32 } from './prng';
 
+// ── V0 spike knobs (PRD: Terminal Terraria visual direction) ──────────────
+// The tuning dials Harry iterates between screenshot rounds.
+const HALL_GLYPH_RAMP = '.:-=+*#%░▒▓█'; // luminance-field vocabulary, sparse → dense
+const HALL_JITTER = 0.45; // noise mixed into the field (0 = clean bands)
+const SKY_SCATTER_DENSITY = 0.04; // PRD ~4% of sky cells
+const SKY_SCATTER_TIER2 = 0.1; // fraction of scatter in the bright tier
+const SKY_SCATTER_DIM = ['·', '.', "'", ','];
+const SKY_SCATTER_BRIGHT = ['✦', '*'];
+const HALL_W = 50; // mural-bearing hall; poster is 46×14, so 2-cell inset each side
+const HALL_H = 24;
+const POSTER_W = 46;
+const POSTER_H = 14;
+
 export type EngagementState = 'loved' | 'recent' | 'mastered' | 'dusty' | 'abandoned';
 
 export interface LandGame {
@@ -31,6 +44,8 @@ export interface LandGame {
 export type LandRole =
   | 'sky'
   | 'star'
+  | 'starBright'
+  | 'hall'
   | 'sun'
   | 'cloud'
   | 'ridge'
@@ -62,6 +77,13 @@ export interface LandModel {
   /** Surface row (the crust `▀`) per column — where a being stands is row-1.
    *  Lets a movable player walk the terrain without re-deriving the field. */
   readonly surface: ReadonlyArray<number>;
+  /** V0 spike: per-cell luminance step (0 dim … 3 bright) for SHADED roles
+   *  (the hall's vertical gradient), parallel to `char`. Only present when
+   *  composed with `hall: true`. */
+  readonly shade?: ReadonlyArray<ReadonlyArray<0 | 1 | 2 | 3>>;
+  /** V0 spike: cell rect on the hall face where the renderer mounts the ANSI
+   *  capsule mural. Only present when composed with `hall: true`. */
+  readonly poster?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
 }
 
 export interface ComposeLandOptions {
@@ -72,6 +94,10 @@ export interface ComposeLandOptions {
   /** Bake a static `@` into the scene (default true). A movable LandView passes
    *  false and owns its own player sprite. */
   readonly withPlayer?: boolean;
+  /** V0 spike: replace the first surface game's structure with the mural-
+   *  bearing HALL — a glyph luminance field with a vertical gradient and a
+   *  poster rect for the ANSI capsule. Default false (walkLand untouched). */
+  readonly hall?: boolean;
 }
 
 const BEINGS = ['L', 'A', 'M', 'C', 'V'];
@@ -108,6 +134,9 @@ export function composeLand(
 
   const char: string[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ' '));
   const role: LandRole[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'sky' as LandRole));
+  const shade: Array<Array<0 | 1 | 2 | 3>> | undefined = opts.hall
+    ? Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0 as 0 | 1 | 2 | 3))
+    : undefined;
   const set = (x: number, y: number, c: string, r: LandRole) => {
     if (y >= 0 && y < rows && x >= 0 && x < cols) {
       char[y][x] = c;
@@ -124,10 +153,14 @@ export function composeLand(
     groundLine - Math.round(1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2));
   const surfaceRows: number[] = Array.from({ length: cols }, (_, x) => surfaceY(x));
 
-  // --- Sky: layered stars, two cloud bands, a sun --------------------------
+  // --- Sky: seeded scatter (PRD V0 — no dead cells), two cloud bands, a sun.
+  // Two luminance tiers: dim punctuation everywhere, the odd bright ✦/*.
   for (let y = 0; y < SKY_H - 1; y++) {
     for (let x = 0; x < cols; x++) {
-      if (y <= 2 && rng.next() < 0.04) set(x, y, '·', 'star');
+      if (rng.next() < SKY_SCATTER_DENSITY) {
+        if (rng.next() < SKY_SCATTER_TIER2) set(x, y, rng.pick(SKY_SCATTER_BRIGHT), 'starBright');
+        else set(x, y, rng.pick(SKY_SCATTER_DIM), 'star');
+      }
     }
   }
   set(rng.range(8, cols - 12), rng.range(0, 2), '☼', 'sun');
@@ -178,9 +211,52 @@ export function composeLand(
   const labels: Array<{ x: number; y: number; text: string }> = [];
   const surface = games.filter((p) => p.state !== 'abandoned');
   const slot = Math.floor(cols / (surface.length + 1));
+
+  // --- V0 spike: the mural-bearing HALL — a glyph LUMINANCE FIELD, not an
+  // outline. Dense glyphs low / sparse high; `shade` carries the vertical
+  // gradient (0 dim at the top → 3 bright at the base) for the renderer's
+  // per-step tint. Stands at the first surface game's slot; its poster rect
+  // receives that game's ANSI capsule mural.
+  let hallSpan: readonly [number, number] | null = null;
+  let poster: LandModel['poster'];
+  if (opts.hall && shade && surface.length > 0) {
+    const x0 = Math.max(1, slot - Math.floor(HALL_W / 2));
+    const x1 = Math.min(cols - 2, x0 + HALL_W - 1);
+    hallSpan = [x0, x1];
+    let minSurface = rows;
+    for (let x = x0; x <= x1; x++) minSurface = Math.min(minSurface, surfaceY(x));
+    const top = Math.max(1, minSurface - HALL_H);
+    const span = Math.max(1, minSurface - top - 1);
+    for (let x = x0; x <= x1; x++) {
+      for (let y = top; y < surfaceY(x); y++) {
+        const fromTop = (y - top) / span; // 0 top → 1 base
+        const t = Math.min(1, Math.max(0, fromTop + (rng.next() - 0.5) * HALL_JITTER));
+        const idx = Math.min(HALL_GLYPH_RAMP.length - 1, Math.floor(t * HALL_GLYPH_RAMP.length));
+        set(x, y, HALL_GLYPH_RAMP[idx], 'hall');
+        shade[y][x] = Math.min(3, Math.floor(fromTop * 4)) as 0 | 1 | 2 | 3;
+      }
+    }
+    // Poster slot, centred on the face: a dim placeholder fill so the scene
+    // reads before (or without) the capsule image.
+    const px0 = x0 + Math.floor((x1 - x0 + 1 - POSTER_W) / 2);
+    const py0 = top + 3;
+    poster = { x: px0, y: py0, w: POSTER_W, h: POSTER_H };
+    for (let y = py0; y < py0 + POSTER_H; y++) {
+      for (let x = px0; x < px0 + POSTER_W; x++) {
+        set(x, y, HALL_GLYPH_RAMP[0], 'hall');
+        shade[y][x] = 0;
+      }
+    }
+  }
+
   surface.forEach((p, i) => {
     const x = slot * (i + 1) + rng.range(-2, 3);
     const gy = surfaceY(x);
+    if (hallSpan && i === 0) {
+      labels.push({ x, y: gy, text: p.name }); // the hall stands here
+      return;
+    }
+    if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall
     if (p.state === 'mastered') {
       for (let h = 1; h <= 6; h++) put(x - 1, gy - h, h === 6 ? ' ║ ' : '▐█▌', 'monument');
       set(x, gy - 7, '☼', 'sun');
@@ -229,6 +305,7 @@ export function composeLand(
   set(cols - 1, surfaceY(cols - 1) - 1, '›', 'edge');
   for (let t = 0; t < 4; t++) {
     const x = rng.range(4, cols - 4);
+    if (hallSpan && x >= hallSpan[0] && x <= hallSpan[1]) continue; // not inside the hall
     const gy = surfaceY(x);
     set(x, gy - 1, '♣', 'foliage');
     set(x, gy - 2, '♣', 'foliage');
@@ -242,5 +319,13 @@ export function composeLand(
     for (let i = 0; i < s.length; i++) set(start + i, y, s[i], 'label');
   }
 
-  return { width: cols, height: rows, char, role, surface: surfaceRows };
+  return {
+    width: cols,
+    height: rows,
+    char,
+    role,
+    surface: surfaceRows,
+    ...(shade ? { shade } : {}),
+    ...(poster ? { poster } : {}),
+  };
 }
