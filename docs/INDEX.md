@@ -35,6 +35,12 @@ When two docs disagree:
 
 ## Recent strategic updates worth knowing
 
+- **2026-06-11 `docs/PRD-composable-panes.md`** (new): the active build
+  PRD — snap/drag panes, diegetic glyph chrome, topology → agent
+  perception, Depth-3 orchestration. Supersedes the Terminal-Terraria
+  visual PRD's P1/P2; that PRD is parked at its V0 gate (spike shipped,
+  verdict "not yet").
+
 - **2026-05-28 `IDEAS.md`** (your additions): Sleep mode, Living
   world, Composable panes. The Sleep mode entry promotes itself to
   Phase 5 slice 5B per the 5R reconciliation. Living world is a v1.x
