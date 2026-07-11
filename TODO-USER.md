@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # TODO — things only you can do
 
 Accreting list of items blocked on user action. When I (Claude)

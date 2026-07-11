@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # Memory Palace — Spec
 
 **One-line pitch:** A terminal-aesthetic desktop application that renders

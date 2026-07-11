@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # Live state snapshot
 
 The current shape of the data structures and modules that change

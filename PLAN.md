@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # Memory Palace — PLAN.md
 
 **Status:** Build plan for the Memory Palace 2D pixel-art terminal-aesthetic
