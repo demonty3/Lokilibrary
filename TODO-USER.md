@@ -33,16 +33,16 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 
 ## Active
 
-### 🔔 Flip the repo public (2026-07-11 direction change)
-**Status**: licence DECIDED + LANDED — **MIT**, `LICENSE` at repo root
-plus `"license": "MIT"` in both package.json manifests (2026-07-11).
-The one remaining act only you can do: **flip the repo public** on
-GitHub. Secrets pass over full git history came back CLEAN
-(2026-07-11): the only env-shaped file ever committed is
-`worker/.dev.vars.example` (placeholders only), and no key-shaped
-strings (sk-ant- / AKIA / ghp_ / xoxb-) appear in any commit.
-**Unblocks**: Phase 6 "public release" (redefined in PLAN.md). README +
-demo capture can proceed without this; the flip itself is the release.
+### ✅ DONE — repo is PUBLIC (2026-07-11)
+**Status**: complete. MIT licence landed (`LICENSE` at repo root +
+`"license": "MIT"` in both package.json manifests), full-history
+secrets scan clean (only `worker/.dev.vars.example` with placeholders
+ever committed; no key-shaped strings), consolidation branch merged to
+main, and the repo flipped public the same day:
+https://github.com/demonty3/Lokilibrary. Remaining Phase 6 "public
+release" work is buildable, not blocked on you: clone-and-run README +
+demo capture + tagged release. (Optional polish only you can do:
+GitHub About description + topics for discoverability.)
 
 ### ⏳ Visual verification (5D.4 / 6A / 7-A) — first real render of these surfaces
 **Status**: pending. These three surfaces shipped but were NEVER rendered
