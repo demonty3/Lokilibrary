@@ -671,10 +671,10 @@ orchestration surface; the frontend never holds an API key.
    default (explicit self-hoster opt-in only).
 7. **Cloudflare account** for Workers + Pages + KV. Free tier is plenty.
 8. ~~**Steamworks partner account**~~ — RETIRED 2026-07-11 (no Steam
-   distribution; the dev appid 480 covers the SDK launch path). An
-   **OSS licence choice** (MIT / Apache-2.0 / GPL / …) replaces it as
-   the release-gating input — a `LICENSE` file must land before the
-   repo flips public.
+   distribution; the dev appid 480 covers the SDK launch path). The
+   replacement release-gating input, the OSS licence choice, resolved
+   same day: **MIT** (`LICENSE` at repo root). Remaining: flip the
+   repo public.
 9. **Harry's Steam ID** for the dev loop and permission to use his
    library as the first real test case.
 10. **A starting theme + lore default.** Phase 1 ships Solarized Dark

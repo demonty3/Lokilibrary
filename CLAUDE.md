@@ -347,9 +347,9 @@ dev work in the meantime.
 - PixelLab.ai API key (`PIXELLAB_API_KEY`, from Phase 3 cloud fallback)
 - ElevenLabs API key (`ELEVENLABS_API_KEY`, optional, from v0.8+ for
   reveal narration)
-- OSS licence choice (MIT / Apache-2.0 / GPL / …) — gates making the
-  repo public (2026-07-11 direction change; a `LICENSE` file must land
-  before the repo flips public)
+- ~~OSS licence choice~~ — DONE 2026-07-11: **MIT**; `LICENSE` file at
+  repo root. Remaining release-gating act: flip the repo public (after
+  a secrets pass over git history)
 - ~~Steamworks partner account~~ — RETIRED 2026-07-11 (no Steam
   distribution; dev appid 480 covers the SDK launch path)
 

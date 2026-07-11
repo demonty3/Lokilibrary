@@ -33,16 +33,14 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 
 ## Active
 
-### 🔔 DECIDE — OSS licence + flip the repo public (2026-07-11 direction change)
-**Status**: pending decision. The project is now free, public open source
-(no Steam distribution, no monetization — CLAUDE.md "Product direction" +
-SPEC.md § 2.5). Two things only you can do:
-1. **Pick the licence** — MIT / Apache-2.0 (permissive, maximum reach) vs
-   GPL / AGPL (copyleft, forks must stay open). A `LICENSE` file must land
-   before the repo flips public.
-2. **Flip the repo public** on GitHub once the licence lands — after a
-   final secrets sanity pass over history (`worker/.dev.vars` is
-   gitignored, but confirm no key ever landed in a commit).
+### 🔔 Flip the repo public (2026-07-11 direction change)
+**Status**: licence DECIDED + LANDED — **MIT**, `LICENSE` at repo root
+plus `"license": "MIT"` in both package.json manifests (2026-07-11).
+The one remaining act only you can do: **flip the repo public** on
+GitHub. Secrets pass over full git history came back CLEAN
+(2026-07-11): the only env-shaped file ever committed is
+`worker/.dev.vars.example` (placeholders only), and no key-shaped
+strings (sk-ant- / AKIA / ghp_ / xoxb-) appear in any commit.
 **Unblocks**: Phase 6 "public release" (redefined in PLAN.md). README +
 demo capture can proceed without this; the flip itself is the release.
 
