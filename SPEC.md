@@ -170,23 +170,30 @@ composition.
 Phase 3 work; the renderer foundation in Phase 1 ships with no
 generated art at all.
 
-### 2.5 Distribution → **Hybrid: open-source on GitHub, paid on Steam**
+### 2.5 Distribution → **Free & open source on GitHub** *(changed 2026-07-11)*
 
-Open-source engine + default world-pack on GitHub (credibility, early
-audience, dev-cred — the geek-coded craft audience *rewards* OSS
-positioning with trust). Curated themed product + platform features
-(Steam Workshop, cloud sync, achievements, easy install) sold on
-**Steam at ~$15–20**. Precedent: Wallpaper Engine, iA Writer, Working
-Copy, Obsidian, Aseprite's "source-on-GitHub, pay-for-the-binary"
-model. Each distribution channel does what it's good at.
+**Direction change (2026-07-11): the project no longer aims to make
+money — the aim is to make something really cool.** The hybrid model
+this section previously specified (open-source engine on GitHub +
+curated product sold on Steam at ~$15–20) is retired. The whole product
+— engine, default world-pack, themes — ships free on GitHub, and users
+bring their own API keys (Anthropic + Steam Web API). The deliverable
+bar replaces the storefront: **a stranger clones the repo and has a
+living palace running on their own keys in ~10 minutes, plus one killer
+demo moment** (the snapping-terminals crossing). Dropping Steam
+distribution retires the entire release gate — Steam Direct, partner
+onboarding, the AI Content Survey, packaging-for-Steam (see § 8.1 and
+§ 11). Licence hygiene does *not* relax: the repo is public, so fonts,
+audio, art, and Steam-CDN usage still need clean licences.
 
-**Workshop content axes:** district types, agent skins/personalities,
-terminal themes, social-attractor templates, lore packs (original
-universes). Workshop is a *natural* moat here (modular, well-defined
-units) rather than an afterthought. **Workshop content stays free** —
-Wallpaper Engine tried a paid Workshop store and abandoned it for
-verification/codec-licensing/buyer-confusion problems. Don't repeat
-that.
+**Community content axes** (formerly "Workshop content axes"): district
+types, agent skins/personalities, terminal themes, social-attractor
+templates, lore packs (original universes). Modular, well-defined units
+— now shared GitHub-style (repos / releases / a curated index) rather
+than via Steam Workshop. **Community content stays free** — Wallpaper
+Engine tried a paid Workshop store and abandoned it for
+verification/codec-licensing/buyer-confusion problems; the lesson
+outlives the storefront.
 
 ---
 
@@ -432,7 +439,7 @@ and users can lock things they don't want moved.
 | LLM hosts | **Anthropic** (production: Haiku 4.5 Tier 1, Sonnet 4.6 Tier 2); **Ollama + Qwen 2.5 7B** (dev) | Tiered router; provider switchable via `LLM_PROVIDER` config |
 | Embeddings (Phase 5) | **`nomic-embed-text` via Ollama** | Local-only embeddings for lore upload + memory retrieval; never sends user lore over the network |
 | Audio (Phase 5+) | **Stable Audio 2.5** + **ElevenLabs Music** (template-build time only) | Clear commercial-use terms; legally safer than Suno/Udio |
-| Distribution (v1.0) | **Steam** — one-time ~$15–20 purchase | The real product. Workshop integration for community templates is the post-v1.0 moat. |
+| Distribution (v1.0) | **GitHub** — free, open source, BYO API keys *(2026-07-11 direction change; was Steam ~$15–20)* | The product is the repo + the demo. Community templates share GitHub-style, free, per § 2.5. |
 
 ### 8.1 Multi-model AI orchestration
 
@@ -454,19 +461,14 @@ reveal, on-demand template variations) may add scoped runtime calls —
 each one requires a CLAUDE.md entry documenting cost model, caching
 strategy, and fallback before shipping.
 
-**Valve AI disclosure (Jan 2026 policy).** Memory Palace is *both*
-**Pre-Generated** (Stage 3 baked sprites shipping with the build) *and*
-**Live-Generated** (Stages 1+2 — Tier 1+2 LLM calls run against the
-user's library + lore at runtime). Steam Direct's Content Survey
-requires disclosing both, and Live-Generated triggers a guardrails
-statement: *"All live LLM calls pass through provider-side safety
-filters (Anthropic default moderation, or for local Ollama models, a
-local content classifier). Generated sprites are constrained to a
-fixed palette and a 32×32 grid, eliminating photo-realistic output.
-Users can flag any output via an in-app report that sends to a
-moderation queue. The Steam Overlay 'illegal AI generation' report
-channel is supported."* Build the disclosure copy as a config string
-editable without a code release (the policy is still tightening).
+**Valve AI disclosure (Jan 2026 policy) — RETIRED 2026-07-11.** With no
+Steam distribution there is no Steam Direct Content Survey to file and
+no disclosure copy to maintain. The substance survives as good practice
+rather than obligation: live LLM calls pass through provider-side
+safety filters, generated sprites stay constrained to a fixed palette
+and a 32×32 grid, and template-build assets stay curated. (The original
+disclosure copy is preserved in git history should a storefront ever
+return.)
 
 ---
 
@@ -505,8 +507,9 @@ Lifted from `docs/pivot/FEASIBILITY.md` § Phased v1.0 MVP Build Plan
 - **Phase 0 — Spike (complete, 2026-05-22).** PixiJS hello-world,
   Electron + Steamworks ticket auth + wallpaper-mode revival on
   Win11 22H2+ (Lively port), Worker Tier 1 agent round-trip, all
-  five integration checks green. File the Steam Direct paperwork now
-  — the 30-day clock starts here.
+  five integration checks green. (The "file the Steam Direct paperwork
+  now" step was never filed and is retired — 2026-07-11 direction
+  change, no Steam distribution.)
 - **Phase 1 — Renderer foundations (in progress).** Cozette bitmap
   font, 5 themes (Solarized + Gruvbox + Catppuccin + Tokyo Night +
   IBM-3270), hand-rolled WFC + library-room tile bible, scale-ladder
@@ -542,16 +545,19 @@ Lifted from `docs/pivot/FEASIBILITY.md` § Phased v1.0 MVP Build Plan
   palette. **Per `docs/pivot/CONSOLIDATION.md`, weekly dream
   sequences DEFER to v1.x** — sleep mode's morning dispatch is the
   Depth-1 surface for v1.0. Share-URL revival is post-launch.
-- **Phase 6 — Steam release.** Store page polish, screenshots, capsule
-  art (disclose pre-gen AI on assets), trailer. Content Survey:
-  disclose pre-gen + live-gen AI with the guardrails text in § 8.1.
-  30-day wait will already be elapsed if Phase 0 paperwork was filed
-  on time. Build review; release.
-- **v1.x — Steam Workshop integration.** Community-built templates,
-  themes, lore packs (original universes). **Free content only.**
-  Moderation pipeline (image-moderation API on previews, kill-switch,
-  pre-publish queue, DMCA flow) is a v1.x **prerequisite**, not a
-  follow-up. Per DESIGN.md "Workshop content axes."
+- **Phase 6 — Public release (REDEFINED 2026-07-11; was "Steam
+  release").** No storefront: pick an OSS licence, flip the repo
+  public, write the clone-and-run README (a stranger running on their
+  own keys in ~10 minutes), record the demo (snapping-terminals
+  crossing + wallpaper mode), tag a release. Store-page assets, the
+  Content Survey, and the 30-day Steam Direct clock are all retired.
+- **v1.x — Community content sharing (was "Steam Workshop
+  integration").** Community-built templates, themes, lore packs
+  (original universes) — shared GitHub-style, not via Workshop.
+  **Free content only.** Static-baked-assets-only + curation before
+  anything gets indexed; the heavyweight Workshop moderation pipeline
+  scales down to match the venue. Per DESIGN.md "Workshop content
+  axes" (now "community content axes", § 2.5).
 - **Year 2** — Beyond Steam (multi-source via filesystem dream mode,
   Spotify / Letterboxd / GitHub / Goodreads integrations).
 - **Year 3** — Year-in-Library annual moment, agent-to-agent across
@@ -570,7 +576,9 @@ Lifted from `docs/pivot/FEASIBILITY.md` § Phased v1.0 MVP Build Plan
 - **Per-user pixel-art cost at scale** — solved by tiered offload
   (local SDXL if VRAM detected, PixelLab cloud fallback if not) +
   aggressive caching (regenerate only when library state changes).
-  Cost target ≤ $1/user/month under PixelLab pay-per-image rates.
+  (2026-07-11: users run on their own keys, so scale cost is
+  self-funded per user; the old ≤ $1/user/month figure survives as the
+  default-config sanity bar.)
 - **WorkerW destroyed on Windows insider builds** — solved by the
   Lively-port watchdog pattern (2-second `IsWindow` poll; on
   destruction, re-`SendMessageTimeout 0x052C` to Progman and re-run
@@ -580,29 +588,25 @@ Lifted from `docs/pivot/FEASIBILITY.md` § Phased v1.0 MVP Build Plan
   entries per agent; age out via importance × recency decay; FTS5 +
   sqlite-vec keep retrieval fast at that cap.
 - **Local LLM ceiling** — Qwen 2.5 7B is fine for prompt iteration
-  but ships below frontier on Tier 1+2 quality. Production must stay
-  on a frontier model; never default `LLM_PROVIDER=local` in any
-  deployed Worker.
+  but ships below frontier on Tier 1+2 quality. The shipped default
+  stays a frontier model; never default `LLM_PROVIDER=local` in any
+  deployed Worker (local is an explicit self-hoster opt-in).
 - **Determinism** — any `Math.random()` in `src/procedural/` silently
   breaks the WFC + share-URL contract. Lint or test-enforced.
-- **Valve AI policy — Live-Generated guardrails** (v1.0 launch
-  obligation). See § 8.1 disclosure copy. The policy is "voluntary
-  and not enforced by moderation" per Jan 2026 GameSpot reporting,
-  but tightening; build the runtime so we can ship without any
-  runtime AI in an emergency (curated default-template pool as
-  fallback).
-- **Workshop moderation timebomb** (v1.x prerequisite). Static baked
-  assets only — no live AI generation from community templates.
-  Pre-publish moderation queue. Image-moderation API (Cloudflare
-  Images, Hive, AWS Rekognition) on every preview. Polycount +
-  file-size + asset-type validation at submission. DMCA flow.
-  Remote kill-switch in Cloudflare Workers (desktop app checks on
-  launch; blocked template ids refuse to load).
-- **Steam Direct launch logistics.** $100 USD non-refundable Direct
-  fee (recoupable against first $1,000 AGR); 30-day mandatory wait;
-  Coming Soon page ≥ 2 weeks public; AI Content Survey for both
-  Pre- and Live-Generated stages; Steamworks partner onboarding
-  (start ahead of Phase 6 — review queue is the long pole).
+- **Valve AI policy — Live-Generated guardrails** — RETIRED 2026-07-11
+  (no Steam distribution; see § 8.1). Still worth keeping regardless
+  of storefront: the ability to run without any runtime AI (curated
+  default-template pool as fallback) is good resilience.
+- **Community-content moderation** (v1.x; was "Workshop moderation
+  timebomb" — Steam Workshop retired 2026-07-11). The rule that
+  survives: community templates are static baked assets only — no
+  live AI generation from community content. The storefront-scale
+  pipeline (image-moderation API, pre-publish queue, DMCA flow,
+  remote kill-switch) scales down to curation-before-indexing for
+  GitHub-style sharing.
+- **Steam Direct launch logistics** — RETIRED 2026-07-11 (no Steam
+  distribution; the $100 fee, 30-day wait, Coming Soon window, AI
+  Content Survey, and partner onboarding all fall away).
 - **Privacy / dream mode** (year 2). Filesystem access through
   per-folder opt-in only. When local-files mode is on, the LLM
   router MUST refuse all non-local providers (boolean in the
@@ -635,8 +639,9 @@ never at runtime.
   engine pretending to be a terminal; lean on that.
 - **Cozette ships permissive; future fonts must too.** Berkeley Mono
   is paid commercial; Cascadia Mono + Iosevka are free + .ttf and need
-  msdf-bake. Whichever ships in v1.0 must clear Steam Direct's
-  licensing review.
+  msdf-bake. Whichever ships in v1.0 must carry a licence compatible
+  with public open-source redistribution (the repo is public —
+  2026-07-11 direction change).
 
 Past Phase 3, commissioned custom hero sprites from paid pixel artists
 become the polish move for hero templates on the most-loved themes.
@@ -662,13 +667,14 @@ orchestration surface; the frontend never holds an API key.
 5. **(Optional) Stable Audio + ElevenLabs API keys** for Phase 5+
    audio + optional reveal narration.
 6. **(Optional, dev) Ollama running locally** with `qwen2.5:7b` pulled.
-   Set `LLM_PROVIDER=local` in `worker/.dev.vars`. Never ship to
-   production.
+   Set `LLM_PROVIDER=local` in `worker/.dev.vars`. Never the shipped
+   default (explicit self-hoster opt-in only).
 7. **Cloudflare account** for Workers + Pages + KV. Free tier is plenty.
-8. **Steamworks partner account** — required for the desktop app's
-   Steamworks SDK integration and v1.0 Steam distribution. Brings its
-   own NDA / partner-onboarding steps. **Filed in Phase 0** (30-day
-   clock runs in parallel with Phases 1–5); confirm filing status.
+8. ~~**Steamworks partner account**~~ — RETIRED 2026-07-11 (no Steam
+   distribution; the dev appid 480 covers the SDK launch path). An
+   **OSS licence choice** (MIT / Apache-2.0 / GPL / …) replaces it as
+   the release-gating input — a `LICENSE` file must land before the
+   repo flips public.
 9. **Harry's Steam ID** for the dev loop and permission to use his
    library as the first real test case.
 10. **A starting theme + lore default.** Phase 1 ships Solarized Dark

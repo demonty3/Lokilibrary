@@ -14,6 +14,13 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Direction change 2026-07-11 — free, public open source.** No Steam
+distribution, no monetization; users bring their own API keys. The Steam
+release gate is RETIRED and ship-vs-expand resolves to: consolidate to
+demo-ready (clone-and-run README + the snapping-terminals demo), then
+expand into the snapping-terminals arc. Authoritative wording: CLAUDE.md
+"Product direction" + SPEC.md § 2.5. (Doc-only change; no code moved.)
+
 Last updated: **2026-06-04** (SEAM-SEEKING / the observable walk, Increment 2 —
 agents now DELIBERATELY walk to a seam and cross, instead of waiting on a random
 wander onto an exit cell. `behavior.ts:maybeSeekSeam` latches the nearest open

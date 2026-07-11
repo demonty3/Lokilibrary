@@ -14,7 +14,12 @@ chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK: single roaming roster
+Last updated: **2026-07-11** (direction change: free, public open source —
+no Steam distribution, no monetization. New decide-item below: OSS licence
++ flipping the repo public. The prior note below still describes the open
+verification work.)
+
+Prior update: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK: single roaming roster
 — the seam-walk MECHANISM (runtime migrates + sprite follows) is smoke-locked
 (`smoke-7d2-walk.mts`, 58 — now incl. roster-aware-remount C1/C2 + floor-gated
 exits F1/F2). GEOMETRY CAVEAT: today's cell layout has a solid-wall E/W edge, so
@@ -27,6 +32,19 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 ---
 
 ## Active
+
+### 🔔 DECIDE — OSS licence + flip the repo public (2026-07-11 direction change)
+**Status**: pending decision. The project is now free, public open source
+(no Steam distribution, no monetization — CLAUDE.md "Product direction" +
+SPEC.md § 2.5). Two things only you can do:
+1. **Pick the licence** — MIT / Apache-2.0 (permissive, maximum reach) vs
+   GPL / AGPL (copyleft, forks must stay open). A `LICENSE` file must land
+   before the repo flips public.
+2. **Flip the repo public** on GitHub once the licence lands — after a
+   final secrets sanity pass over history (`worker/.dev.vars` is
+   gitignored, but confirm no key ever landed in a commit).
+**Unblocks**: Phase 6 "public release" (redefined in PLAN.md). README +
+demo capture can proceed without this; the flip itself is the release.
 
 ### ⏳ Visual verification (5D.4 / 6A / 7-A) — first real render of these surfaces
 **Status**: pending. These three surfaces shipped but were NEVER rendered
