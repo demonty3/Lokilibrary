@@ -35,6 +35,13 @@ When two docs disagree:
 
 ## Recent strategic updates worth knowing
 
+- **2026-06-11 `docs/PRD-snapping-terminals.md`** (new, ACTIVE): separate
+  terminal OS windows that snap together to join side-on worlds — agents
+  walk between windows. Supersedes same-day `PRD-composable-panes.md`
+  (in-app panes; deleted — see git history) after Harry clarified the
+  vision. The Terminal-Terraria visual PRD stays parked at its V0 gate
+  (spike shipped, verdict "not yet").
+
 - **2026-05-28 `IDEAS.md`** (your additions): Sleep mode, Living
   world, Composable panes. The Sleep mode entry promotes itself to
   Phase 5 slice 5B per the 5R reconciliation. Living world is a v1.x

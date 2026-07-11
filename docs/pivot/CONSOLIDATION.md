@@ -74,6 +74,8 @@ These are orthogonal axes. Two users would need all four layers to match to get 
 
 ## Distribution
 
+> **Superseded 2026-07-11:** the project is now free, public open source — no Steam distribution, no monetization. Authoritative wording: SPEC.md § 2.5 + CLAUDE.md “Product direction”. The hybrid model below is preserved as the pivot-era record.
+
 **Hybrid model.** Open-source engine + default world-pack on GitHub (credibility, early audience, dev-cred — the audience *rewards* OSS positioning with trust). Curated, themed product + platform features (Steam Workshop, cloud sync, achievements, easy install) sold on **Steam at ~$15–20** (geek-coded craft audience pays more per head and retains longer; precedent: Wallpaper Engine, iA Writer, Working Copy, Obsidian, Aseprite's "source-on-GitHub, pay-for-the-binary" model). Each distribution channel does what it's good at.
 
 **Workshop content axes:** district types, agent skins/personalities, terminal themes, social-attractor templates, lore packs (original universes). Workshop is a *natural* moat here (modular, well-defined units) rather than an afterthought. Moderation pipeline (image moderation, static-baked-assets-only for community content, kill-switch) is a prerequisite, not a follow-up.
@@ -103,7 +105,7 @@ Single terminal, one district type, one main agent (limited perception + small e
 3. **Multi-agent simulation architecture** — running a believable agent society cheaply: when to call an LLM vs. cheap behaviour-tree/FSM logic, batching strategies, local-model options (Ollama), persistent agent memory/state, generative-agents research (e.g. Stanford "Smallville" patterns).
 4. **Local-only filesystem access + privacy/permission model** — patterns for sandboxed, opt-in, local-processing-only file access in a desktop app (Electron/Tauri).
 5. **Terminal-aesthetic rendering tech** — TUI vs. pixel-art-that-looks-like-TUI; libraries (blessed/ink/notcurses vs. a sprite engine); achieving themeable colour schemes; performance for 24/7 operation.
-6. **Steam Direct + AI content disclosure** — current obligations for a generative desktop app; AI Content Survey requirements; Workshop revenue share for non-game apps.
+6. *(retired 2026-07-11 — no Steam distribution)* **Steam Direct + AI content disclosure** — current obligations for a generative desktop app; AI Content Survey requirements; Workshop revenue share for non-game apps.
 7. **Engine/wrapper choice** — Electron vs. Tauri given Steamworks SDK needs and the lighter rendering load of 2D (the 3D build had settled on Electron for `steamworks.js`; a 2D build may reopen this).
 8. **Product name** — memory-palace-flavoured, brandable, not colliding with existing software (note: "Loki" alone collides with Grafana Loki).
 

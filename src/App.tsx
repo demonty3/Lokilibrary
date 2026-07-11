@@ -7,9 +7,15 @@ import {
 } from './api/electron';
 import { tickAgent } from './api/agent';
 import { useAppStore } from './state/store';
-import { getCurrentRenderContext, mountPalace } from './render/PixiApp';
+import {
+  getCurrentRenderContext,
+  mountPalace,
+  snapshotLibraryState,
+} from './render/PixiApp';
+import { regionTerminals } from './procedural/regions';
 import { getById } from './themes';
 import { themeFromLore } from './agents/lore-theme';
+import { e2eThemeOverrideId } from './debug/e2eHook';
 import { SCALE_ORDER, type ScaleLevel } from './types';
 import { bootstrapMemory, namespaceFor } from './agents/memory/bootstrap';
 import { broadcastExternalFullscreen, nullMemoryWriter } from './agents/router';
@@ -169,7 +175,10 @@ export function App() {
       // on-device, never egresses. Independent of loreEnabled (mirrors the
       // 5D.2 scatter precedent). Recomputed on each remount; the effect
       // re-runs when loreVersion bumps after a successful ingest.
-      const themeId = themeFromLore(writer);
+      // E2E/DEV harness can force the palette to prove the lore-recolor
+      // repaint without a SQLite writer; null (always, in the Steam build) →
+      // the real lore-derived theme.
+      const themeId = e2eThemeOverrideId() ?? themeFromLore(writer);
       const fn = await mountPalace(canvasHost.current, getById(themeId), {
         memoryWriter: writer,
       });
@@ -248,7 +257,39 @@ export function App() {
       // default until pressed, so the default path is unchanged.
       if (e.key === '|') {
         e.preventDefault();
+        const before = new Set(useAppStore.getState().panes.map((p) => p.id));
         useAppStore.getState().splitPane('vertical');
+        // Phase 7 / v2.x — make the split land on a DIFFERENT world: bind the
+        // freshly-created pane to the first library wing no other pane is using,
+        // so `|` yields two visibly distinct terminals (own seed/shelves/cohort)
+        // instead of an identical clone — the destination of the seam-walk. Only
+        // for cell panes (regions are cell-only); no wings (tiny library) → the
+        // clone behaviour is unchanged.
+        const after = useAppStore.getState().panes;
+        const fresh = after.find((p) => !before.has(p.id));
+        if (fresh && fresh.level === 'cell') {
+          const { clusterGames, seed } = snapshotLibraryState();
+          const used = new Set(after.map((p) => p.regionId).filter(Boolean));
+          const wing = regionTerminals(clusterGames, seed)
+            .map((rt) => rt.regionId)
+            .find((rid) => !used.has(rid));
+          if (wing) useAppStore.getState().setPaneRegion(fresh.id, wing);
+        }
+        return;
+      }
+      // Phase 7 / v2.x — region terminals. 'r' cycles the FOCUSED cell pane
+      // through the library's wings (the 7-A districts): whole-library → d0 →
+      // d1 → … → whole-library. Each wing is a genuinely different generated
+      // world (own seed / shelves / cohort / persistent memory). Works on the
+      // default single pane too (the whole world becomes one wing). The wing
+      // list is derived here from the live library so the store stays free of
+      // the cluster-tree math; 'r' is safe — cell.ts movement is WASD/arrows/E.
+      if (e.key === 'r' || e.key === 'R') {
+        const { clusterGames, seed } = snapshotLibraryState();
+        const regionIds = regionTerminals(clusterGames, seed).map((rt) => rt.regionId);
+        if (regionIds.length === 0) return; // empty library → nothing to cycle
+        e.preventDefault();
+        useAppStore.getState().cycleFocusedPaneRegion(regionIds);
         return;
       }
       if (e.key !== '[' && e.key !== ']') return;
@@ -301,6 +342,7 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
   const label = scale.replace(/_/g, ' ');
   return (
     <div
+      data-hud=""
       style={{
         position: 'fixed',
         top: 8,

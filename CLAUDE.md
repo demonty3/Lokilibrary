@@ -20,18 +20,34 @@ this file is the day-to-day rulebook. The 3D-era spec is preserved as
 SPEC.md Appendix A for historical context; the 3D codebase lives in
 `legacy-3d/` for reference.
 
-**Product direction.** A Steam-distributed desktop utility, ~$15–20 one-time
-purchase. Designer-led, LLM-assisted, solo build. Open-source engine + default
-world-pack on GitHub (credibility, dev audience); curated themed product +
-Workshop / cloud sync / achievements sold on Steam. Workshop content stays
-free (Wallpaper Engine's lesson).
+**Product direction (changed 2026-07-11).** A free, public open-source
+project — the aim is to make something really cool, not to make money.
+Designer-led, LLM-assisted, solo build. The whole product ships on GitHub:
+engine, default world-pack, themes. Users bring their own API keys
+(Anthropic + Steam Web API; BYO-key). The deliverable bar: a stranger can
+clone the repo and have a living palace running on their own keys in
+~10 minutes, plus one killer demo moment (the snapping-terminals
+crossing). No Steam distribution, no price tag, no paid channels — the
+earlier Steam-at-~$15–20 hybrid model is retired (SPEC.md § 2.5 has the
+supersession note). The repo is public, so licence hygiene (fonts, audio,
+art, Steam-CDN recognition-surface rules) does NOT relax.
 
 ## Current phase
 
-**Phases 0 / 1 / 2 / 3 (partial) / 4 complete (2026-05-27). Phase 5 —
-reflection completion + sleep mode + lore — next.** See
-`docs/INDEX.md` for the authoritative-doc map and
-`docs/pivot/CONSOLIDATION.md` for v1.0 scope.
+**Phases 0–5 + the desktop wrapper shipped; the build then ran ahead into
+Phase 7 (v2.x: real scale ladder, multi-pane terminal UI, seam-walking
+agents). A consolidation / verification pass is in progress (2026-06)** — the
+first real on-screen verification of Phase 5D–7, most of which had only ever
+been smoke-tested headlessly under WSL until the desktop app started booting
+on macOS. **`STATE.md` is the present-tense source of truth** (this section
+summarises; STATE.md is authoritative); `TODO-USER.md` holds the verification
+backlog, `docs/INDEX.md` the authoritative-doc map, `docs/pivot/CONSOLIDATION.md`
+the v1.0 scope. **Still open: finishing the visual pass + desktop-surface
+QA, then demo readiness (clone-and-run README + the snapping-terminals
+demo). The Steam release gate (electron-builder packaging + Steam Direct
++ AI-content disclosure) was RETIRED by the 2026-07-11 direction change,
+and the ship-v1.0-vs-expand-v2.x decision resolved with it: consolidate
+to demo-ready, then expand into the snapping-terminals arc.**
 
 **Phase 0** (2026-05-22) shipped the integration spike: PixiJS v8 boot
 + Solarized theme, Electron wrapper + Steamworks SDK + wallpaper-mode
@@ -66,14 +82,26 @@ when Phase 5 reveals the aesthetic requirements.
 Ctrl+Alt+L peek hotkey. All verified end-to-end on a real Win11 raised-
 desktop setup.
 
-**Phase 5 (next)** finishes the agent layer. Per `PLAN.md` § Phase 5:
-slice 5R (docs reconciliation), 5A (reflection rate-limit + plan
-output + agents execute plans → lands agent-as-marginalia Depth 1),
-5B (`SLEEPING` 4th throttle state + morning dispatch per IDEAS.md
-2026-05-28), 5C (text-only lore upload via `nomic-embed-text`), 5D
-(lore-driven Stage 1 manifest + persona + scatter adaptation). Per
-`CONSOLIDATION.md` v1.0 scope: dream sequences DEFER to v1.x; image /
-URL lore ingestion + sparse-input follow-up defer to 5C-follow-ups.
+**Phase 5** (2026-05-28/29) finished the agent layer: 5A reflection
+completion (rate-limit + plan output + agents execute plans), 5B `SLEEPING`
+throttle + morning dispatch, 5C text-only lore upload (embed backbone +
+store + drop-zone), 5D lore-driven palette / persona / scatter adaptation.
+Retros `RETROS/phase-5*.md`.
+
+**Phase 6 — desktop wrapper** shipped the Electron skeleton, Steam-ticket
+auth, launch-via-Steamworks, wallpaper mode, multi-monitor perf, peek
+hotkey. **The Steam *release* gate (packaging + Direct submission) is NOT
+done.** **Phase 6A** rendered the local Ollama model as a world landmark.
+
+**Phase 7** (2026-05-30/31, v2.x — ahead of `CONSOLIDATION.md`'s v1.0 scope)
+built real island/continent renderers + scale ladder (7A), the multi-pane
+terminal UI (7B), and seam-walking agents that cross pane boundaries (7D.2).
+
+**Consolidation pass (2026-06, current)** — first on-screen verification on
+macOS: cell aesthetic + agents-as-beings confirmed; carved the walkable seam
+edge (`cell.ts:seamRows`) so the seam-walk is observable. Remaining:
+desktop-surface QA (lore recolor / local-AI landmark / wallpaper) + the
+ship-vs-expand decision. Retro at `RETROS/consolidation-2026-06.md`.
 
 ## Stack
 
@@ -121,9 +149,13 @@ importance-threshold-150 reflection trigger or direct user interaction,
 (Phase 5 slice 5A; default `REFLECTION_MIN_INTERVAL_MS = 3600000`).
 The rate-limit relaxes during Phase 5 5B's `SLEEPING` throttle state so
 overnight reflection has room to populate the morning dispatch. Cost
-target: **≤ $1/user/month at Claude Sonnet rates** for the full agent
-runtime. Telemetry from day one: log `{agent_id, tier, tokens_in,
-tokens_out, latency_ms, model, provider}` for every Tier 1/2 call.
+discipline: users run on their own keys (BYO-key), so the router's job
+is keeping the *default config* affordable — the old **≤ $1/user/month
+at Claude Sonnet rates** target survives as a sanity bar, not a business
+constraint; spending above it on the magic surface (richer reflection,
+better models) is now a legitimate dial. Telemetry from day one: log
+`{agent_id, tier, tokens_in, tokens_out, latency_ms, model, provider}`
+for every Tier 1/2 call.
 
 ### Asset libraries
 
@@ -315,8 +347,11 @@ dev work in the meantime.
 - PixelLab.ai API key (`PIXELLAB_API_KEY`, from Phase 3 cloud fallback)
 - ElevenLabs API key (`ELEVENLABS_API_KEY`, optional, from v0.8+ for
   reveal narration)
-- Steamworks partner account (in progress for v1.0 launch; required
-  before shipping with a real appid)
+- ~~OSS licence choice~~ — DONE 2026-07-11: **MIT**; `LICENSE` file at
+  repo root. Remaining release-gating act: flip the repo public (after
+  a secrets pass over git history)
+- ~~Steamworks partner account~~ — RETIRED 2026-07-11 (no Steam
+  distribution; dev appid 480 covers the SDK launch path)
 
 ## Things to NOT do
 
@@ -326,9 +361,12 @@ dev work in the meantime.
   pixel-art is *template-build-time only*. New runtime AI calls require
   an entry in this file documenting cost model, caching strategy, and
   fallback before shipping.
-- **Don't ship local LLM to production.** Local is for dev iteration only.
-  The Tier 1+2 quality ceiling on a 12GB-VRAM-class model is meaningfully
-  below frontier; agent dialogue is the magic surface.
+- **Don't make local LLM the shipped default.** With BYO-key open source
+  there is no "production", but the default config stays a frontier
+  model: the Tier 1+2 quality ceiling on a 12GB-VRAM-class model is
+  meaningfully below frontier, and agent dialogue is the magic surface.
+  Local (Ollama) is a legitimate *explicit opt-in* for dev iteration and
+  self-hosters — never the out-of-the-box path.
 - **Don't conflate the AI stages.** The Tier 1 LLM (Haiku/Qwen) doesn't
   generate sprites; the pixel-art pipeline doesn't generate dialogue;
   the embedding model doesn't generate text. Each stage has its own
@@ -362,12 +400,14 @@ dev work in the meantime.
   and stay our defaults for Phase 5 baking; if a track needs to come
   from anywhere else, use Epidemic Sound / Artlist (subscription, broad
   license) — never Suno/Udio.
-- **Don't monetize Workshop content** (when Workshop opens, v1.x).
-  Workshop templates / themes / lore packs stay free, full stop.
-  Wallpaper Engine tried a paid item store and shut it down over
-  verification / codec-licensing / buyer-confusion problems; we don't
-  repeat that. Monetization is on the base-app price and (later, if
-  needed) on first-party DLC template packs we curate ourselves.
+- **Don't monetize, period** (2026-07-11 direction change). No price
+  tag, no DLC, no paid channels — the project is free and open-source.
+  If community content sharing ever exists (templates / themes / lore
+  packs, GitHub-based now that Steam Workshop is off the table), it
+  stays free too; Wallpaper Engine's paid-store lesson (verification /
+  codec-licensing / buyer-confusion) still applies. What "free" does
+  NOT relax: licence hygiene on fonts, audio, art, and Steam CDN usage
+  — the repo is public.
 - **Don't run the Electron desktop wrapper from WSL.** Linux Electron-
   in-WSL can't reach the Windows Steam client, so `steamworks.init()`
   always fails on `steamclient.so`; WSLg's graphics passthrough also

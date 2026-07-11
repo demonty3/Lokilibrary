@@ -45,8 +45,9 @@
  *         world mount, where only root is registered, still seeds the roster).
  *
  *   FLOOR-GATED SEAM EXITS (must-fix — never strand an agent in a wall)
- *     F1  with the REAL cell layout (solid wall perimeter), an E/W seam yields
- *         ZERO crossable exits through the walkability oracle (honest empty).
+ *     F1  with the REAL cell layout, the carved walkable seam openings
+ *         (layout.seamRows) are EXACTLY the crossable E/W exits through the
+ *         walkability oracle; every other edge row is wall (no stranding).
  *     F2  the oracle rejects an exit whose bridged ENTRY cell is a wall even
  *         when the exit cell is floor (no migrate-into-wall).
  *
@@ -434,9 +435,10 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
 // must refuse exits off / into a WALL so an agent is never stranded.
 // ===========================================================================
 {
-  // The REAL layout fills its whole perimeter with wall (only a south door),
-  // so the E/W edge columns are 100% wall. Build a real same-level seam graph
-  // and a real walkability oracle (T_FLOOR only) over the actual layout tiles.
+  // The REAL layout walls its whole perimeter EXCEPT the carved seam openings
+  // (layout.seamRows) on the side walls + the south door. Build a real same-level
+  // seam graph and a real walkability oracle (T_FLOOR only) over the actual
+  // layout tiles: only the opening rows are crossable.
   get().setArrangement('single');
   get().setArrangement('study');
   get().setPaneLevel('p2', 'cell');
@@ -459,19 +461,33 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
   // WITHOUT the gate: the geometric pass offers an exit for every edge row.
   const ungated = seamExitsForPane(seams, 'root', realDims);
   check('F1 ungated (geometry-only) offers exits on the full right column', ungated.size === layout.height, `got ${ungated.size}`);
-  // Sanity: those geometric exits sit on WALL cells (the perimeter) — exactly
-  // the stranding the gate must prevent.
-  const rightColAllWall = [...ungated.keys()].every((k) => {
+  // Sanity: the geometric (ungated) exits sit on WALL cells EXCEPT the carved
+  // seam-opening rows — those wall cells are exactly the stranding the gate must
+  // prevent, and the opening rows are exactly what it must allow.
+  const openRows = new Set(layout.seamRows);
+  const ungatedFloor = [...ungated.keys()].filter((k) => {
     const [x, y] = k.split(',').map(Number);
-    return layout.tiles[y]?.[x] !== T_FLOOR;
+    return layout.tiles[y]?.[x] === T_FLOOR;
   });
-  check('F1 ungated exits all sit on WALL edge cells (the stranding risk)', rightColAllWall);
+  check(
+    'F1 ungated exits sit on WALL except the carved seam openings',
+    ungatedFloor.length === layout.seamRows.length &&
+      ungatedFloor.every((k) => openRows.has(Number(k.split(',')[1]))),
+    `floor-edge=${ungatedFloor.length} seamRows=${layout.seamRows.length}`,
+  );
 
-  // WITH the gate: zero crossable exits — the wall perimeter has no floor edge
-  // cell to stand on (honest empty result; a walkable seam edge is a deferred
-  // follow-up).
+  // WITH the gate: exactly the carved opening rows are crossable (floor on BOTH
+  // the exit edge and the bridged entry — the walkable seam edge now lands).
   const gated = seamExitsForPane(seams, 'root', realDims, isWalkable);
-  check('F1 floor-gated E/W seam yields ZERO crossable exits (no wall stranding)', gated.size === 0, `got ${gated.size}`);
+  check(
+    'F1 floor-gated E/W seam yields exactly the seam-opening exits',
+    gated.size === layout.seamRows.length,
+    `got ${gated.size}, want ${layout.seamRows.length}`,
+  );
+  check(
+    'F1 each gated exit sits on a carved seam-opening row',
+    [...gated.keys()].every((k) => openRows.has(Number(k.split(',')[1]))),
+  );
 
   // F2 — entry-cell gate: even a FLOOR exit cell is refused if the bridged
   // ENTRY lands in a wall. Use a synthetic oracle: exit cell floor, entry wall.
@@ -526,6 +542,156 @@ function rootGateSpawn(rootScope: RuntimeScope): void {
   }
   check('R1 migrateRuntime NEVER invoked in single-pane (no pendingCross ever)', migrateCalls === 0, `got ${migrateCalls}`);
   check('R1 loki stayed on floor across 300 single-pane ticks', layout.tiles[loki.y]?.[loki.x] === T_FLOOR);
+}
+
+// ===========================================================================
+// S — SEAM-SEEKING (Increment 2, Phase 7-D.2b): an agent DELIBERATELY walks to
+// a seam and crosses, rather than waiting on a lucky random wander onto an exit.
+// Driven on a synthetic all-floor room so the greedy approach provably reaches
+// the edge (the real layout's walls are exercised by the F-section).
+// ===========================================================================
+
+/** A minimal all-floor room (spreads the real layout so every required field is
+ *  present, overrides the grid). tickBehavior only reads width/height/tiles +
+ *  windowAt/spawnAt, so an open grid makes the greedy approach deterministic. */
+function openRoom(w: number, h: number): typeof layout {
+  const tiles = Array.from({ length: h }, () => Array.from({ length: w }, () => T_FLOOR));
+  return { ...layout, width: w, height: h, tiles, spawnAt: { x: 1, y: 1 }, windowAt: { x: 1, y: 1 } };
+}
+
+/** BehaviorContext over an open room with a given exits map. wallClockHour=3 so
+ *  no daytime visit_window rule outscores the 0.6 seam-seek candidate; empty
+ *  scatterAnchors so bias_idle rules stay dormant. */
+function openCtx(room: typeof layout, exits: Map<string, SeamExit>): BehaviorContext {
+  return {
+    layout: room,
+    prngs: buildPrngs(),
+    scatterAnchors: new Map(),
+    wallClockHour: () => 3,
+    seamExits: exits,
+  };
+}
+
+const loDef = COHORT.find((d) => d.id === 'loki')!;
+
+// S1 — latch the nearest exit, walk to it, cross. Agent starts in the interior,
+// one E-edge exit; the deterministic approach must arrive + emit pendingCross.
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+
+  // First tick: it should latch the (only) exit as its goal BEFORE moving.
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S1 agent latches the seam exit as a goal (seamGoal set)', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+  check('S1 agent began walking toward the edge (x increased from 1)', rt.x > 1, `x=${rt.x}`);
+
+  // Drive until it reaches the edge and emits the cross.
+  let crossed = false;
+  for (let i = 0; i < 60 && !crossed; i++) {
+    rt.actionEndsAt = 0;
+    tickBehavior(loDef, rt, ctx, 1100 + i * 10);
+    if (rt.pendingCross) crossed = true;
+  }
+  check('S1 the agent deliberately reached the seam and emitted a cross', crossed);
+  check('S1 cross targets the bridged entry in p2 (0,3)', rt.pendingCross?.paneId === 'p2' && rt.pendingCross?.x === 0 && rt.pendingCross?.y === 3, JSON.stringify(rt.pendingCross));
+  check('S1 seamGoal cleared once the cross is emitted', rt.seamGoal === null);
+  check('S1 a staggered cooldown was armed on the cross', rt.seamCooldownUntil > 0, `${rt.seamCooldownUntil}`);
+}
+
+// S2 — nearest selection: with two exits, the Chebyshev-closest is latched.
+{
+  const room = openRoom(10, 6);
+  const near: SeamExit = { edge: { x: 9, y: 1 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 1 } };
+  const far: SeamExit = { edge: { x: 9, y: 5 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 5 } };
+  const ctx = openCtx(room, new Map([[`9,1`, near], [`9,5`, far]]));
+  const rt = initialRuntime({ id: 'loki', x: 8, y: 2 }); // adjacent column, closest to (9,1)
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S2 the NEARER of two exits is latched (9,1 over 9,5)', rt.seamGoal?.edge.y === 1, JSON.stringify(rt.seamGoal));
+}
+
+// S3 — cooldown gates re-seeking: within the cooldown window no goal latches;
+// past it, seeking resumes. (Anti-oscillation across the just-crossed seam.)
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamCooldownUntil = 100_000; // freshly crossed → settling
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 5_000); // now < cooldown
+  check('S3 no new goal is latched during the cooldown window', rt.seamGoal === null, JSON.stringify(rt.seamGoal));
+
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 200_000); // now > cooldown
+  check('S3 seeking resumes once the cooldown elapses', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+}
+
+// S4 — single-pane reduction: no seam exits ⇒ seamGoal is never set (and a
+// stray goal is cleared), so the byte-identical single-pane walk is preserved.
+{
+  const room = openRoom(10, 6);
+  const ctxNoSeam: BehaviorContext = { layout: room, prngs: buildPrngs(), scatterAnchors: new Map(), wallClockHour: () => 3 };
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamGoal = { edge: { x: 9, y: 3 }, entry: { paneId: 'p2', x: 0, y: 3 } }; // stray
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctxNoSeam, 1000);
+  check('S4 no-seam ctx clears any seamGoal (never seeks)', rt.seamGoal === null);
+  check('S4 no cross ever emitted without seam exits', rt.pendingCross === null);
+}
+
+// S5 — a stale goal (exit no longer present) is dropped, then re-latched to a
+// current exit the same tick (so a re-split doesn't leave the agent chasing a
+// vanished cell).
+{
+  const room = openRoom(10, 6);
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  rt.seamGoal = { edge: { x: 9, y: 99 }, entry: { paneId: 'gone', x: 0, y: 0 } }; // not in exits
+  rt.actionEndsAt = 0;
+  tickBehavior(loDef, rt, ctx, 1000);
+  check('S5 a stale seamGoal is dropped + re-latched to a live exit', rt.seamGoal?.edge.x === 9 && rt.seamGoal?.edge.y === 3, JSON.stringify(rt.seamGoal));
+}
+
+// S6 — BFS pathing routes the agent AROUND a wall barrier to reach the seam,
+// where greedy Chebyshev stalls against it. A vertical wall at x=8 blocks rows
+// 0..4 with a single gap at row 5; the seam edge is at (9,3) behind it.
+{
+  const room = openRoom(10, 6);
+  const WALL = T_FLOOR + 1; // any non-floor id is impassable to BFS + greedy
+  for (let y = 0; y <= 4; y++) room.tiles[y][8] = WALL;
+  const exit: SeamExit = { edge: { x: 9, y: 3 }, sharedEdge: 'E', entry: { paneId: 'p2', x: 0, y: 3 } };
+  const ctx = openCtx(room, new Map([[`9,3`, exit]]));
+  const rt = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  let crossed = false;
+  for (let i = 0; i < 120 && !crossed; i++) {
+    rt.actionEndsAt = 0;
+    tickBehavior(loDef, rt, ctx, 1000 + i * 10);
+    if (rt.pendingCross) crossed = true;
+  }
+  check('S6 BFS routes around a wall barrier to reach the seam + cross', crossed, `final x=${rt.x},y=${rt.y}`);
+  check('S6 the cross still targets the bridged entry (0,3)', rt.pendingCross?.x === 0 && rt.pendingCross?.y === 3);
+
+  // S6b control — greedy `approach` to the SAME edge stalls on the barrier (so
+  // S6 isn't trivially passing). No seamExits ⇒ no seek_seam; an intent-driven
+  // approach (0.7) wins and steps greedily. It must never reach x=9.
+  const ctrlRoom = openRoom(10, 6);
+  for (let y = 0; y <= 4; y++) ctrlRoom.tiles[y][8] = WALL;
+  const ctrlCtx: BehaviorContext = { layout: ctrlRoom, prngs: buildPrngs(), scatterAnchors: new Map(), wallClockHour: () => 3 };
+  const g = initialRuntime({ id: 'loki', x: 1, y: 3 });
+  g.intent = 'approach 9,3';
+  let reachedEdge = false;
+  for (let i = 0; i < 120; i++) {
+    g.actionEndsAt = 0;
+    tickBehavior(loDef, g, ctrlCtx, 1000 + i * 10);
+    if (g.x >= 9) reachedEdge = true;
+  }
+  check('S6b control: greedy approach STALLS on the barrier (never reaches x=9)', !reachedEdge, `greedy x=${g.x}`);
 }
 
 get().setArrangement('single');

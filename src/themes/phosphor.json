@@ -1,0 +1,19 @@
+{
+  "id": "phosphor",
+  "name": "Phosphor",
+  "palette": {
+    "bg":        "#0a0a0a",
+    "bgAlt":     "#161616",
+    "fgDim":     "#4a564a",
+    "fg":        "#b8c4b8",
+    "fgBright":  "#f2fff2",
+    "yellow":    "#ffe14d",
+    "orange":    "#ff9f40",
+    "red":       "#ff4d4d",
+    "magenta":   "#ff5fd2",
+    "violet":    "#9d6bff",
+    "blue":      "#4f8cff",
+    "cyan":      "#2de2e6",
+    "green":     "#3dff8c"
+  }
+}

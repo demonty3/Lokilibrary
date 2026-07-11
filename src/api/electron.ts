@@ -63,6 +63,20 @@ export interface ElectronAPI {
   getPeeking(): Promise<boolean>;
   togglePeek(): Promise<boolean>;
   onPeekChanged(cb: (peeking: boolean) => void): () => void;
+
+  // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
+  // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
+  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
+  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+}
+
+/** T0 spike — a live horizontal join between two terminal windows. */
+export interface TerminalJoin {
+  left: string;
+  right: string;
 }
 
 declare global {
@@ -274,5 +288,61 @@ export function subscribePeek(
     return () => undefined;
   }
   return api.onPeekChanged(cb);
+}
+
+/**
+ * T0 spike — terminal-mode helpers. Web build (or stale preload) degrades
+ * to a solo terminal: no joins, edges stay closed, spawns accepted locally,
+ * exits refused (the being turns around).
+ */
+
+export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[] }> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [] };
+  try {
+    return await api.terminalGetTopology();
+  } catch {
+    return { joins: [] };
+  }
+}
+
+export function subscribeTerminalTopology(
+  cb: (event: { joins: TerminalJoin[] }) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;
+  return api.onTerminalTopology(cb);
+}
+
+export async function terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalAgentSpawn !== 'function') return true;
+  try {
+    return await api.terminalAgentSpawn(agentId, terminalId);
+  } catch {
+    return true;
+  }
+}
+
+export async function terminalAgentExit(
+  agentId: string,
+  terminalId: string,
+  side: 'left' | 'right',
+): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalAgentExit !== 'function') return false;
+  try {
+    return await api.terminalAgentExit(agentId, terminalId, side);
+  } catch {
+    return false;
+  }
+}
+
+export function subscribeTerminalAgentEnter(
+  cb: (event: { agentId: string; side: 'left' | 'right' }) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api || typeof api.onTerminalAgentEnter !== 'function') return () => undefined;
+  return api.onTerminalAgentEnter(cb);
 }
 

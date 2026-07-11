@@ -103,6 +103,29 @@ export interface ElectronAPI {
    *  change wins over a transient peek. Returns an unsubscribe
    *  function. */
   onPeekChanged(cb: (peeking: boolean) => void): () => void;
+
+  // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md) ----
+  // Present on every window but only live in terminals mode
+  // (LOKILIBRARY_TERMINALS=N); the palace renderer never calls these.
+
+  /** Current joins, for hydration on terminal mount. */
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
+  /** Topology changes from the main-process broker (snap/un-snap). */
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  /** Register a freshly spawned being with the roster. False = the id is
+   *  already live in another terminal; despawn the local copy. */
+  terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
+  /** A being walked off an open edge. True = the neighbour accepted it
+   *  (despawn locally); false = refused (keep it, turn it around). */
+  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
+  /** A being handed over by the broker arrives at `side`. */
+  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+}
+
+/** A live horizontal join between two terminals (broker-derived). */
+export interface TerminalJoin {
+  left: string;
+  right: string;
 }
 
 declare global {
@@ -140,6 +163,25 @@ const api: ElectronAPI = {
     const handler = (_e: IpcRendererEvent, peeking: boolean): void => cb(peeking);
     ipcRenderer.on('wallpaper:peekChanged', handler);
     return () => ipcRenderer.off('wallpaper:peekChanged', handler);
+  },
+  terminalGetTopology: () =>
+    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[] }>,
+  onTerminalTopology: (cb) => {
+    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[] }): void => cb(event);
+    ipcRenderer.on('terminal:topology', handler);
+    return () => ipcRenderer.off('terminal:topology', handler);
+  },
+  terminalAgentSpawn: (agentId, terminalId) =>
+    ipcRenderer.invoke('terminal:agentSpawn', { agentId, terminalId }) as Promise<boolean>,
+  terminalAgentExit: (agentId, terminalId, side) =>
+    ipcRenderer.invoke('terminal:agentExit', { agentId, terminalId, side }) as Promise<boolean>,
+  onTerminalAgentEnter: (cb) => {
+    const handler = (
+      _e: IpcRendererEvent,
+      event: { agentId: string; side: 'left' | 'right' },
+    ): void => cb(event);
+    ipcRenderer.on('terminal:agentEnter', handler);
+    return () => ipcRenderer.off('terminal:agentEnter', handler);
   },
 };
 

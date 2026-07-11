@@ -114,11 +114,20 @@ export interface PaneRect {
  * reproducible. {level} is the scale rung the pane renders; {rect} is its
  * placement on the composition grid. The DEFAULT single 'root' pane covers the
  * whole 1×1 grid at level 'cell' — byte-equivalent to the pre-7-B scale scalar.
+ *
+ * {regionId} (Phase 7 / v2.x — region terminals) is OPTIONAL and only meaningful
+ * for a `cell` pane: when set to a district id (`d0`, `d1`, … from the 7-A
+ * cluster tree), the pane renders that ONE wing of the library — its own seed,
+ * shelves, cohort + persistent memory (src/procedural/regions.ts) — instead of
+ * the whole-library cell. Absent (the default) ⇒ the whole-library cell, exactly
+ * as before. This is the foundation for Composable-Panes Depth 3
+ * (agent-initiated world-joining, IDEAS.md).
  */
 export interface PaneDescriptor {
   id: string;
   level: ScaleLevel;
   rect: PaneRect;
+  regionId?: string;
 }
 
 /** Mirrors worker/lib/state.ts. SPEC §4 enumeration. */

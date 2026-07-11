@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # TODO — things only you can do
 
 Accreting list of items blocked on user action. When I (Claude)
@@ -10,7 +14,12 @@ chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK: single roaming roster
+Last updated: **2026-07-11** (direction change: free, public open source —
+no Steam distribution, no monetization. New decide-item below: OSS licence
++ flipping the repo public. The prior note below still describes the open
+verification work.)
+
+Prior update: **2026-05-31** (Phase 7-D.2 LIVE SEAM WALK: single roaming roster
 — the seam-walk MECHANISM (runtime migrates + sprite follows) is smoke-locked
 (`smoke-7d2-walk.mts`, 58 — now incl. roster-aware-remount C1/C2 + floor-gated
 exits F1/F2). GEOMETRY CAVEAT: today's cell layout has a solid-wall E/W edge, so
@@ -23,6 +32,17 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 ---
 
 ## Active
+
+### 🔔 Flip the repo public (2026-07-11 direction change)
+**Status**: licence DECIDED + LANDED — **MIT**, `LICENSE` at repo root
+plus `"license": "MIT"` in both package.json manifests (2026-07-11).
+The one remaining act only you can do: **flip the repo public** on
+GitHub. Secrets pass over full git history came back CLEAN
+(2026-07-11): the only env-shaped file ever committed is
+`worker/.dev.vars.example` (placeholders only), and no key-shaped
+strings (sk-ant- / AKIA / ghp_ / xoxb-) appear in any commit.
+**Unblocks**: Phase 6 "public release" (redefined in PLAN.md). README +
+demo capture can proceed without this; the flip itself is the release.
 
 ### ⏳ Visual verification (5D.4 / 6A / 7-A) — first real render of these surfaces
 **Status**: pending. These three surfaces shipped but were NEVER rendered
@@ -53,6 +73,21 @@ if any renderer adds an off-atlas glyph. What still needs a human eyeball:
 **S1 — Lore palette recolor (5D.4). DESKTOP-ONLY** (web build has the null
 writer → `loreCount()===0` → always the default theme + the drop-zone
 refuses ingest with "needs the desktop app"):
+> **NOTE (2026-06, consolidation):** the lore→theme *derivation* is now
+> headless-confirmed against the real shipped code via
+> `npx tsx scripts/lore-preview.mts lore-samples/*.md`
+> (`pastoral.md → gruvbox-dark`, `nautical.md → tokyo-night`). **The on-screen
+> PIXI *repaint* is now ALSO proven** (2026-06): the e2e harness drives the
+> EXACT recolor path (`window.__loki.setTheme(id)` → `loreVersion` bump →
+> `mountPalace` with the new theme) and captured a clean full-palette repaint
+> in solarized (default) → gruvbox (pastoral) → tokyo-night (nautical), one
+> canvas, no artifacts. So the ONLY thing this desktop check still adds is the
+> real ingest leg — the SQLite writer actually persisting a dropped `.md` so
+> `themeFromLore(writer)` reads a non-empty corpus (the harness forces the
+> theme; it doesn't exercise `ingestLore` → `recordLore`). If the recolor
+> fails on desktop after the repaint is proven, suspect the WRITER (null
+> fallback / db-not-ready), not the repaint. Ready-to-drop sample files +
+> **macOS** run/verify steps live in `lore-samples/README.md`.
 - Note the boot palette: it should be **Solarized dark** (`DEFAULT_THEME_ID`)
   on a fresh corpus.
 - Press **Ctrl+U** → the lore drop-zone appears. Drop a `.md`/`.txt` whose
@@ -454,14 +489,15 @@ ready to verify. You can:
 **Unblocks**: future slices land on short-lived branches per the 5R
 PR-cadence note.
 
-### ⏳ Sample lore file for slice 5C testing
-**Status**: not yet started, but 5C needs a real `.md` lore file
-(your D&D campaign, fanfic, worldbuilding doc) for end-to-end
-verification. Anything 2-10 KB of text with consistent vocabulary +
-character/place names works.
+### ✅ Sample lore file for slice 5C testing
+**Status**: RESOLVED (2026-06, consolidation). Two ready-to-drop files now
+live in `lore-samples/` (`pastoral.md`, `nautical.md`) with known expected
+recolors, plus `lore-samples/README.md` and the `scripts/lore-preview.mts`
+predictor. Drop your own `.md` (D&D campaign, fanfic, worldbuilding doc,
+2-10 KB, consistent vocab) anytime for a richer test — run it through
+`lore-preview.mts` first to see which palette it will pick.
 
-**Unblocks**: 5C "drop a real file, watch Loki reference it" verify
-step.
+**Unblocks**: 5C "drop a real file, watch Loki reference it" verify step.
 
 ### ⏳ Bake real PixelLab sprites (Phase 3 follow-up, deferred)
 **Status**: open since slice 3C. Needs `PIXELLAB_API_KEY` in

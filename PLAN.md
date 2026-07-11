@@ -1,3 +1,7 @@
+---
+up: "[[Lokilibrary]]"
+---
+
 # Memory Palace — PLAN.md
 
 **Status:** Build plan for the Memory Palace 2D pixel-art terminal-aesthetic
@@ -15,6 +19,13 @@ seeded procedural layout (mulberry32 + FNV-1a), the Cloudflare Worker
 backend, the Electron wrapper with Steamworks SDK + wallpaper-mode revival.
 The phase numbering below is the **Memory Palace numbering**, not a
 continuation of the 3D-era numbering.
+
+**Direction change (2026-07-11).** The project is now a free, public
+open-source build — no Steam distribution, no monetization (CLAUDE.md
+"Product direction" + SPEC.md § 2.5 have the authoritative wording).
+Wherever this plan says "Steam release" / "Steam Direct" / "Workshop",
+see the Phase 6 retirement banner below; the engineering phases
+themselves are unaffected.
 
 ---
 
@@ -73,11 +84,10 @@ minimal new `desktop/` (Electron + Steamworks + IPC, no wallpaper
 initially). Wallpaper revival landed on `claude/wallpaper-revival` on
 top of the minimal base.
 
-**Filed during Phase 0 (long-pole paperwork):**
-- ⬜ Steam Direct partner application (30-day clock — confirm filing
-  status; FEASIBILITY says file during Phase 0 so the clock runs
-  parallel to Phases 1–5)
-- ⬜ Tax interview / identity verification
+**Filed during Phase 0 (long-pole paperwork) — RETIRED 2026-07-11
+(no Steam distribution; neither item was ever filed):**
+- ~~Steam Direct partner application~~
+- ~~Tax interview / identity verification~~
 
 ---
 
@@ -485,9 +495,17 @@ lore's themes (5D).
 
 ---
 
-## Phase 6 — Steam release (2 weeks)
+## Phase 6 — Steam release (2 weeks) — RETIRED 2026-07-11
 
-**Goal:** ship on Steam. Store page polish, build review, release-day.
+> **Direction change (2026-07-11):** the project is free, public open
+> source — no Steam distribution, no monetization. Phase 6 is redefined
+> as **public release**: pick an OSS licence, flip the repo public,
+> write the clone-and-run README (a stranger running on their own keys
+> in ~10 minutes), capture the demo (snapping-terminals crossing +
+> wallpaper mode), tag a release. The tasks below are preserved for
+> reference; none of them run.
+
+**Goal (retired):** ship on Steam. Store page polish, build review, release-day.
 
 ### Tasks
 
@@ -526,7 +544,13 @@ Steamworks dashboard.
 
 ---
 
-## Beyond Phase 6: v1.x Steam Workshop
+## Beyond Phase 6: v1.x Steam Workshop — RETIRED 2026-07-11
+
+> **Direction change (2026-07-11):** Steam Workshop retires with Steam
+> distribution. Community sharing, if it happens, is GitHub-style and
+> free; the static-baked-assets-only rule survives, and the
+> storefront-scale moderation pipeline below scales down to
+> curation-before-indexing. Preserved for reference.
 
 These are out of scope for the build plan above, but Workshop is the
 long-term moat — and on day one it imports every UGC platform's chronic
@@ -1082,15 +1106,16 @@ the inevitable detours:
 | Phase 3 — Pixel-art pipeline | 3–4 |
 | Phase 4 — Wallpaper polish | 2–3 |
 | Phase 5 — Reflection + lore | 3–4 |
-| Phase 6 — Steam release | 2 |
-| **Total to v1.0 (Steam launch)** | **~16–21 weekends** |
+| Phase 6 — Public release (was Steam release; redefined 2026-07-11) | 2 |
+| **Total to v1.0 (public release; was "Steam launch")** | **~16–21 weekends** |
 
 That's roughly four to five months at full weekend cadence. Phase 2
 (agent layer) is the biggest single phase and the most likely to
 overrun; everything downstream gets cleaner once the Smallville
-architecture is in place. Phase 6 (Steam release) is calendar-bound
-by the 30-day Steam Direct clock + Coming Soon page ≥ 2 weeks; it
-can't be compressed by working harder.
+architecture is in place. (Phase 6's calendar-bound Steam Direct
+clock + Coming Soon window retired with the 2026-07-11 direction
+change — public release is licence + README + demo, compressible at
+will.)
 
 If you hit 5 weekends on Phase 2 and the agents still feel like
 canned-response bots rather than beings, that's a real signal — pause
@@ -1144,8 +1169,8 @@ the project's chosen kit. Push back if the LLM tries to swap any of
 these without good reason.
 
 - **PixiJS v8** — 2D sprite renderer (WebGL/WebGPU)
-- **Cozette 6×13** — bitmap font for Phase 1 (later fonts must clear
-  Steam Direct licensing review)
+- **Cozette 6×13** — bitmap font for Phase 1 (later fonts must be
+  licence-clean for public open-source redistribution)
 - **Vite + React 19 + TypeScript** — build / dev / type-checking
 - **Zustand** — app state (not Redux, not Recoil, not Context-everything)
 - **Cloudflare Workers + KV** — backend, cache, share storage; the
@@ -1168,7 +1193,8 @@ these without good reason.
 - **Stable Audio 2.5 + ElevenLabs Music** — Phase 5+ audio
   (template-build time only)
 - **ElevenLabs TTS** — optional reveal narration (v0.8+)
-- **Steam Direct + Steamworks SDK** — distribution
+- **Steamworks SDK** — game launching (dev appid 480); distribution
+  is GitHub, free (2026-07-11 direction change)
 
 ---
 

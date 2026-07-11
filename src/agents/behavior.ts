@@ -62,6 +62,12 @@ export function tickBehavior(
     runtime.justArrivedAt = null;
   }
 
+  // Phase 7-D.2b (Increment 2) — deliberate seam-seeking. Multi-pane only; a
+  // no-op (and clears any stale goal) when this pane has no open seam exits, so
+  // the single-pane walk is byte-identical. Latches the nearest exit so the BT
+  // below can score an approach toward it and the agent actually crosses.
+  maybeSeekSeam(runtime, ctx, nowMs);
+
   // Phase 5 5A — advance the active plan if the current step is
   // "complete" (we're at the step's target location, or the step
   // has no location and at least one BT cycle has elapsed since
@@ -108,6 +114,15 @@ export function tickBehavior(
     if (action) candidates.push({ score: 0.75, action, source: 'plan-step' });
   }
 
+  // Phase 7-D.2b — walk toward a latched seam exit. Scored 0.6: above
+  // wander (0.4) / idle (0.2) so a chosen cross actually happens, but below the
+  // plan-step (0.75), live intent (0.7) and schedule peaks (0.8) so a Tier-2
+  // plan or a character-defining schedule rule still wins — the cross reads as a
+  // background drift between rooms, not a compulsion.
+  if (runtime.seamGoal) {
+    candidates.push({ score: 0.6, action: { kind: 'seek_seam', target: runtime.seamGoal.edge } });
+  }
+
   // Schedule-driven candidates.
   for (const rule of def.schedule) {
     const scored = scoreSchedule(rule, def, runtime, ctx);
@@ -142,6 +157,22 @@ export function tickBehavior(
         runtime.activePlanStepIndex = 0;
       }
     }
+  }
+
+  // Phase 7-D.2b — arrived at the latched seam edge → cross. Write pendingCross
+  // (the cohort tick performs the single migrate), clear the goal, and arm the
+  // staggered cooldown so the agent settles in the neighbour before seeking
+  // again — no bounce back across the seam it just walked through. Fires the
+  // tick the agent steps ONTO the edge cell (stepTowardTarget moved it here this
+  // cycle), so there's no visible "stuck on the wall" beat.
+  if (
+    runtime.seamGoal &&
+    runtime.x === runtime.seamGoal.edge.x &&
+    runtime.y === runtime.seamGoal.edge.y
+  ) {
+    runtime.pendingCross = runtime.seamGoal.entry;
+    runtime.seamGoal = null;
+    runtime.seamCooldownUntil = nowMs + seamCooldownMs(def.id);
   }
 
   return best.action;
@@ -298,7 +329,79 @@ function executeAction(
       stepTowardTarget(runtime, ctx, target);
       return;
     }
+    case 'seek_seam':
+      stepTowardSeam(runtime, ctx, action.target);
+      return;
   }
+}
+
+/**
+ * BFS next-step toward `target` over 4-connected floor cells. Returns the first
+ * cell on a shortest path, or null if already there / unreachable. Deterministic
+ * (fixed neighbour order + FIFO, no PRNG) and cheap (the cell grid is tiny). This
+ * is what lets a seam-seeking agent route AROUND a shelf to reach the carved
+ * opening, where the greedy `stepTowardTarget` would stall against the wall.
+ */
+function bfsNextStep(layout: CellLayout, from: CellPoint, target: CellPoint): CellPoint | null {
+  if (from.x === target.x && from.y === target.y) return null;
+  const W = layout.width;
+  const H = layout.height;
+  const key = (x: number, y: number): number => y * W + x;
+  const startK = key(from.x, from.y);
+  const prev = new Map<number, number>([[startK, startK]]);
+  const queue: CellPoint[] = [from];
+  const targetK = key(target.x, target.y);
+  const steps: ReadonlyArray<[number, number]> = [
+    [0, -1],
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+  ];
+  let head = 0;
+  let found = false;
+  while (head < queue.length) {
+    const cur = queue[head++];
+    if (cur.x === target.x && cur.y === target.y) {
+      found = true;
+      break;
+    }
+    for (const [dx, dy] of steps) {
+      const nx = cur.x + dx;
+      const ny = cur.y + dy;
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+      if (layout.tiles[ny][nx] !== T_FLOOR) continue;
+      const k = key(nx, ny);
+      if (prev.has(k)) continue;
+      prev.set(k, key(cur.x, cur.y));
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  if (!found) return null;
+  // Walk the came-from chain back from the target to the cell adjacent to start.
+  let ck = targetK;
+  while (prev.get(ck) !== startK) {
+    const p = prev.get(ck);
+    if (p === undefined) return null; // chain broken (shouldn't happen post-found)
+    ck = p;
+  }
+  return { x: ck % W, y: Math.floor(ck / W) };
+}
+
+/** Move one cell toward the seam edge using BFS pathing; fall back to greedy if
+ *  the edge cell is unreachable (a disconnected opening pocket) so the agent at
+ *  least drifts toward the edge band rather than freezing. */
+function stepTowardSeam(
+  runtime: AgentRuntimeState,
+  ctx: BehaviorContext,
+  target: CellPoint,
+): void {
+  const next = bfsNextStep(ctx.layout, runtime, target);
+  if (!next) {
+    stepTowardTarget(runtime, ctx, target);
+    return;
+  }
+  runtime.x = next.x;
+  runtime.y = next.y;
 }
 
 /** Sentinel appended to the wander candidate pool to represent "step OFF the
@@ -343,6 +446,71 @@ function stepRandom(
   }
   runtime.x = pick.x;
   runtime.y = pick.y;
+}
+
+/**
+ * Phase 7-D.2b (Increment 2 — the observable walk) — DELIBERATE seam-seeking.
+ * Multi-pane only: when this pane exposes open walkable seam exits and the agent
+ * is neither freshly-arrived nor cooling down, latch the NEAREST exit as a goal
+ * so the BT walks the agent to the seam and crosses — making the A→B walk happen
+ * on purpose instead of waiting on a lucky random wander onto an exit cell
+ * (`stepRandom`'s probabilistic branch, which still exists as a fallback).
+ *
+ * Determinism: "nearest" is Chebyshev, tie-broken by the exits map's key order
+ * (which `seamExitsForPane` builds deterministically), and the cooldown stagger
+ * is an id hash — so this draws NOTHING from the wander PRNG and the wander
+ * sequence stays byte-identical. No exits (single pane) ⇒ clears any goal and
+ * returns ⇒ the BT below behaves exactly as before seams existed.
+ */
+function maybeSeekSeam(
+  runtime: AgentRuntimeState,
+  ctx: BehaviorContext,
+  nowMs: number,
+): void {
+  const exits = ctx.seamExits;
+  if (!exits || exits.size === 0) {
+    runtime.seamGoal = null; // single-pane / seam closed → never seeking
+    return;
+  }
+  // Just walked in across a seam → let the agent step into the interior before
+  // it considers seeking again (works with `justArrivedAt` + the cooldown to
+  // stop an immediate bounce back).
+  if (runtime.justArrivedAt) return;
+  // Drop a stale goal whose exit no longer exists (pane closed / re-split).
+  if (runtime.seamGoal && !exits.has(`${runtime.seamGoal.edge.x},${runtime.seamGoal.edge.y}`)) {
+    runtime.seamGoal = null;
+  }
+  if (runtime.seamGoal) return; // already seeking — hold the target
+  if (nowMs < runtime.seamCooldownUntil) return; // settling after a recent cross
+
+  let best: SeamExit | null = null;
+  let bestD = Infinity;
+  for (const exit of exits.values()) {
+    const d = chebyshev(runtime, exit.edge);
+    if (d < bestD) {
+      bestD = d;
+      best = exit;
+    }
+  }
+  if (best) runtime.seamGoal = { edge: best.edge, entry: best.entry };
+}
+
+/**
+ * Per-agent staggered cooldown (ms) armed after a seam crossing. A fixed base
+ * plus an id-derived spread so the five agents don't cross in lockstep and a
+ * just-crossed agent settles before seeking again. Derived from an FNV-1a hash
+ * of the agent id — NOT the wander PRNG — so it neither perturbs the wander
+ * sequence nor depends on draw count.
+ */
+function seamCooldownMs(id: string): number {
+  const BASE_MS = 6000;
+  const SPREAD_MS = 6000;
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return BASE_MS + ((h >>> 0) % SPREAD_MS);
 }
 
 function stepTowardTarget(

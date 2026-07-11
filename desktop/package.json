@@ -2,6 +2,7 @@
   "name": "lokilibrary-desktop",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
   "description": "Electron wrapper for lokilibrary (Memory Palace).",
   "main": "dist/main.js",
   "scripts": {

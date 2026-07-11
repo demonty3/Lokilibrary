@@ -1,0 +1,22 @@
+[
+  {"query": "can you boot up the desktop app and show me the current cell render", "should_trigger": true},
+  {"query": "launch lokilibrary on my mac and screenshot it", "should_trigger": true},
+  {"query": "fire up the electron wrapper, i want to actually see it running not just the web build", "should_trigger": true},
+  {"query": "does the region terminal thing actually work in the real desktop app? run it and press r a couple times to check", "should_trigger": true},
+  {"query": "spin up the memory palace desktop build, i changed the HUD and want to eyeball it on screen", "should_trigger": true},
+  {"query": "get the app running with devtools attached so we can drive it and grab a screenshot", "should_trigger": true},
+  {"query": "show me a screenshot of the desktop app in wallpaper mode", "should_trigger": true},
+  {"query": "run the electron app and verify the lore recolor shows up on screen after i drop in a lore file", "should_trigger": true},
+  {"query": "open the memory palace so i can look at it", "should_trigger": true},
+  {"query": "start the vite dev server so i can open localhost:5183 in chrome myself", "should_trigger": false},
+  {"query": "run npm run worker, i need the cloudflare worker up for the tier-1 agent calls", "should_trigger": false},
+  {"query": "typecheck the desktop/ main process, i think main.ts has a type error in initSteam", "should_trigger": false},
+  {"query": "fix the macOS wallpaper window-level code in desktop/src/wallpaper/macos.ts, the NSWindow level looks wrong", "should_trigger": false},
+  {"query": "package the desktop app with electron-builder for steam distribution", "should_trigger": false},
+  {"query": "run the 7b panes smoke test and tell me if it's still green", "should_trigger": false},
+  {"query": "build the production web bundle with vite build", "should_trigger": false},
+  {"query": "add a tray menu item to the electron app for toggling the telemetry overlay", "should_trigger": false},
+  {"query": "explain how the wallpaper-mode progman reparenting works on windows vs the NSWindow approach on mac", "should_trigger": false},
+  {"query": "the steamworks init keeps failing, can you look at what initSteam does when steam isn't running", "should_trigger": false},
+  {"query": "drive the web frontend with headless chrome and cycle through the scale ladder levels", "should_trigger": false}
+]
