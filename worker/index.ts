@@ -619,6 +619,9 @@ export default {
           persona?: { name: string; system_prompt: string } | null;
           reprompt?: boolean;
           denyVerbs?: readonly string[];
+          /** Agent-mind pass — capped library-context line (Task 3);
+           *  flows structurally into buildTickPrompt's context.library. */
+          library?: string;
         };
       };
       try {

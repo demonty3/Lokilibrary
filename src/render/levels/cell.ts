@@ -78,6 +78,23 @@ function captionFor(text: string, maxWidth: number): string {
   const lines: string[] = [];
   let line = '';
   for (const w of words) {
+    if (w.length > width) {
+      // Hard-break: a single token wider than the interior can't fit on
+      // any line, wrapped or not — flush what's pending and slice the
+      // token into width-sized chunks so the box never exceeds the
+      // room-width clamp (`maxWidth`).
+      if (line) {
+        lines.push(line);
+        line = '';
+      }
+      let i = 0;
+      while (w.length - i > width) {
+        lines.push(w.slice(i, i + width));
+        i += width;
+      }
+      line = w.slice(i);
+      continue;
+    }
     const candidate = line ? `${line} ${w}` : w;
     if (candidate.length > width && line) {
       lines.push(line);
@@ -174,12 +191,18 @@ export function mountCell(
   const landmarkLayer = new Container();
   const markLayer = new Container();
   const agentLayer = new Container();
+  // Final-review fix — the walk-over caption reveal must draw ABOVE agents
+  // (an agent sprite crossing the note tile was rendering over the caption
+  // text). Mark GLYPHS stay in markLayer (agents may walk over marks); only
+  // the caption + its opaque backing live here, added after agentLayer.
+  const captionLayer = new Container();
   container.addChild(baseLayer);
   container.addChild(spineLayer);
   container.addChild(scatterLayer);
   container.addChild(landmarkLayer);
   container.addChild(markLayer);
   container.addChild(agentLayer);
+  container.addChild(captionLayer);
 
   // Phase 2E: cell-level namespace for memory writes/reads — same hash
   // the writer uses, so placedMarks written last session land here on
@@ -374,10 +397,11 @@ export function mountCell(
   // BitmapText, no DOM — the caption is part of the world. An opaque
   // theme-bg backing rect sits UNDER the text (same key PixiApp paints
   // the app background with) so the note reads over shelves/scatter
-  // instead of bleeding through them.
+  // instead of bleeding through them. Both live in captionLayer (added
+  // after agentLayer) so the reveal draws above agent sprites, not under.
   const markCaptionBacking = new Graphics();
   markCaptionBacking.visible = false;
-  markLayer.addChild(markCaptionBacking);
+  captionLayer.addChild(markCaptionBacking);
   const markCaption = new BitmapText({
     text: '',
     style: {
@@ -387,7 +411,7 @@ export function mountCell(
     },
   });
   markCaption.visible = false;
-  markLayer.addChild(markCaption);
+  captionLayer.addChild(markCaption);
   let captionTile: string | null = null;
   const updateMarkCaption = (): void => {
     const hit = markRecords.find((m) => m.tileX === pos.x && m.tileY === pos.y);
