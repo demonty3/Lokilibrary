@@ -51,6 +51,12 @@ line ("your taste binds to what the library actually holds — its loved
 things, its dusty things"). Storage unchanged: `agent_personas.
 system_prompt` seeded idempotently by the writer, as today.
 
+**Personas reach the model even without a DB.** When
+`memory.persona()` returns null (the null writer: web build, dev
+without SQLite), the router falls back to the persona modules — the
+model never sees a characterless agent. (Added during planning; the
+pre-pass behaviour shipped persona-less prompts on that path.)
+
 **Denylists become real.** Source of truth stays the persona modules
 (`LOKI_DENY_VERBS`, `NpcPersona.denylist`); wire them through the cohort's
 `AgentDef` into `routeTier1`, where the effective deny set = global base
@@ -96,11 +102,13 @@ changes this pass.
 ## 3 · Library context snippet
 
 New `src/agents/library-context.ts`:
-`buildLibraryContext(games, profile) → string | null` — one capped line
-(~40 tokens): top 2–3 genres, counts by state
-(`loved/recent/mastered/abandoned/dusty`), up to 4 named games chosen
-deterministically (highest-affinity loved + dustiest; FNV-stable
-tie-break so the line doesn't churn between calls). Threaded through the
+`buildLibraryContext(games) → string | null` — one capped line
+(~40 tokens): total count, counts by state
+(`loved/recent/mastered/abandoned/dusty`), up to 4 named "poles" chosen
+deterministically (top loved/mastered by playtime + top dusty/abandoned
+by playtime, appid tie-break so the line doesn't churn between calls).
+Genres are not available client-side (`LibraryGame` carries none) — the
+named poles carry the specificity instead. Threaded through the
 existing `Tier1Context` and `ReflectInput` as an optional `library`
 field; worker renders it as its own context line. Null when the library
 is empty → line omitted. No new egress class (game names already flow to
