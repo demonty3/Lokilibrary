@@ -12,6 +12,13 @@
 # module instance + React StrictMode double-mounting effects. A built bundle has
 # exactly one instance of everything and no StrictMode re-runs.
 #
+# GOTCHA (2026-07-12): vite.config.ts defines the /api proxy only under
+# `server:` (dev), not `preview:` — so this harness NEVER has a real Steam
+# library: auth fails, store.library stays null, and shelves render from the
+# hard-coded SAMPLE_LIBRARY fallback (a separate code path). Driver scripts
+# needing real appids must use src/data/sampleLibrary.ts's constants, not
+# __loki.store.getState().library (always empty here).
+#
 # Flags: --no-build reuses the existing dist/ (faster when only re-driving).
 # Logs: /tmp/loki-e2e-preview.log, /tmp/loki-e2e-chrome.log
 set -euo pipefail
