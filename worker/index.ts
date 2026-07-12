@@ -26,6 +26,7 @@
  */
 
 import { buildStageOnePrompt } from './lib/prompt';
+import { buildTickPrompt, buildReflectPrompt } from './lib/agent-prompt';
 import { extractJson, validateManifest } from './lib/manifest';
 import {
   callEmbed,
@@ -629,32 +630,19 @@ export default {
         return json({ error: 'agent + perception required' }, { status: 400 }, cors);
       }
 
-      // Phase 2C: persona (if supplied) is injected at the top of the system
-      // prompt; recent memories are listed under the perception in the user
-      // turn. Back-compat — Phase-0 callers omit `context` and get the
-      // generic system prompt + perception-only user turn.
-      const baseSystem =
-        'You are an agent in a 2D memory palace populated by short-lived sprites. ' +
-        'Given your own state and what you currently perceive, choose your next ' +
-        'short action. Respond with ONLY valid JSON in this exact shape:\n' +
-        '  {"action": "<verb phrase, ≤60 chars>", "intent": "<one sentence, ≤120 chars>"}\n' +
-        'No extra fields, no prose outside the JSON.';
-      const personaBlock = body.context?.persona?.system_prompt
-        ? `[persona]\n${body.context.persona.system_prompt}\n\n[task]\n`
-        : '';
-      const repromptBlock = body.context?.reprompt
-        ? `[reprompt]\nYour previous response used a forbidden verb${
-            body.context.denyVerbs?.length
-              ? ` (${body.context.denyVerbs.join(', ')})`
-              : ''
-          }. Pick a different verb consistent with your persona. Your action must NOT begin with any of those verbs.\n\n`
-        : '';
-      const system = `${personaBlock}${repromptBlock}${baseSystem}`;
-
-      const memoryBlock = body.context?.recentMemories?.length
-        ? `\nrecent_memories: ${JSON.stringify(body.context.recentMemories)}`
-        : '';
-      const userPrompt = `agent: ${JSON.stringify(body.agent)}\nperception: ${JSON.stringify(body.perception)}${memoryBlock}`;
+      // Agent-mind pass: assembly delegated to lib/agent-prompt.ts —
+      // house rules + persona-as-character + task, context rendered as
+      // legible lines (not JSON blobs). Back-compat: Phase-0 callers
+      // omitting `context` get house rules + task only.
+      const { system, user: userPrompt } = buildTickPrompt({
+        agent: (body.agent ?? {}) as { id?: string; name?: string },
+        perception: (body.perception ?? {}) as {
+          scene?: string;
+          saw?: string[];
+          lastAction?: string;
+        },
+        context: body.context,
+      });
 
       const startedAt = Date.now();
       let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };
@@ -738,72 +726,20 @@ export default {
         );
       }
 
-      const personaBlock = body.persona?.system_prompt
-        ? `[persona]\n${body.persona.system_prompt}\n\n`
-        : '';
-      // Phase 5D — closed-vocab lore-theme nudge (opt-in; themes/tone only,
-      // never raw lore text). Steers voice + plan toward the library's canon.
-      const loreThemeLine =
-        body.loreContext &&
-        Array.isArray(body.loreContext.themes) &&
-        body.loreContext.themes.length > 0
-          ? `This library's lore leans toward: ${body.loreContext.themes.join(', ')}` +
-            (typeof body.loreContext.tone === 'string' && body.loreContext.tone !== 'neutral'
-              ? ` (tone: ${body.loreContext.tone})`
-              : '') +
-            '. Let your reflection and plan quietly reflect that canon — never quote or announce it. '
-          : '';
-      // Phase 5 5A — reflection prompt extended to ALSO emit a
-      // multi-step plan. The plan's step kinds are constrained to a
-      // whitelist of 5 (Smallville's verbs, narrowed): move_to,
-      // inspect, place_mark, linger, withdraw. The router clamps any
-      // out-of-whitelist verbs server-side. `place_mark` is the
-      // load-bearing one — it produces the marginalia glyph that's
-      // the visible output of agent-as-marginalia Depth 1.
-      const system =
-        personaBlock +
-        loreThemeLine +
-        'You are an agent in a small library room. Read your recent memories ' +
-        'and write ONE reflection: a single short sentence (< 140 chars) that ' +
-        'synthesises a pattern you notice across them. Pick up to 5 memory ids ' +
-        'whose content most directly informs the reflection. Suggest up to 3 ' +
-        'short themes (one-word tags). ALSO propose a short plan: 1-3 steps ' +
-        'you intend to take in the room next, each step using one of these ' +
-        'verbs: move_to (walk to a location), inspect (look at a target), ' +
-        'place_mark (leave a small marginalia note at a location), linger ' +
-        '(stay where you are for a beat), withdraw (move away from a target). ' +
-        'Use specific room coordinates (location: {x: 0-23, y: 0-15}) and/or ' +
-        'specific bookshelf-slot targets from your recent_memories when they ' +
-        'are present. If no plan makes sense, return an empty steps array. ' +
-        'If a recent_lore section is present, it is the user\'s own uploaded ' +
-        'world canon — weave its specific names, places, and themes into your ' +
-        'reflection where they naturally fit (do not quote it verbatim or ' +
-        'announce that you read it). ' +
-        'Respond with ONLY valid JSON in this exact shape:\n' +
-        '  {"reflection": "<single sentence>", "synthesised_from": ["<id>", ...], ' +
-        '"themes": ["<word>", ...], "importance": <integer 1-10>, ' +
-        '"plan": {"text": "<one sentence>", "steps": [{"kind": "<verb>", ' +
-        '"target": "<optional id>", "location": {"x": <int>, "y": <int>}}, ...]}}\n' +
-        'No prose outside the JSON.';
-
-      const memoryDigest = body.recentMemories
-        .map(
-          (m) =>
-            `- id=${m.id} kind=${m.kind} importance=${m.importance} text=${JSON.stringify(m.text)}`,
-        )
-        .join('\n');
-      // Phase 5C — fold in library lore when the caller supplied it.
-      // Capped to bound the Tier-2 context budget.
-      const loreDigest =
-        Array.isArray(body.recentLore) && body.recentLore.length > 0
-          ? body.recentLore
-              .slice(0, 6)
-              .map((l) => `- (${l.source}) ${JSON.stringify(l.text)}`)
-              .join('\n')
-          : '';
-      const userPrompt =
-        `agent: ${JSON.stringify(body.agent)}\nrecent_memories:\n${memoryDigest}` +
-        (loreDigest ? `\nrecent_lore:\n${loreDigest}` : '');
+      // Agent-mind pass: assembly delegated to lib/agent-prompt.ts.
+      // `roomDims` arrives from the router when the caller knows its
+      // layout (Task 5); absent → the builder's 24×16 fallback keeps
+      // pre-pass callers byte-compatible. `library` is the capped
+      // library-context line (Task 3).
+      const { system, user: userPrompt } = buildReflectPrompt({
+        agent: body.agent as { id?: string; name?: string },
+        recentMemories: body.recentMemories,
+        persona: body.persona,
+        recentLore: body.recentLore,
+        loreContext: body.loreContext,
+        library: (body as { library?: string }).library,
+        roomDims: (body as { roomDims?: { width: number; height: number } }).roomDims,
+      });
 
       const startedAt = Date.now();
       let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };

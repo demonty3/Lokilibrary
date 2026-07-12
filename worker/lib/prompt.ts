@@ -26,7 +26,7 @@ export interface StageOneInput {
   }>;
 }
 
-const SYSTEM = `You are casting a small inhabitable 3D world for a single Steam library. Each game becomes one diegetic object — a lighthouse, a fish market, a detective's office. Your job is to pick a metaphor and cast each game.
+const SYSTEM = `You are casting a small inhabitable 2D pixel-art world, rendered in terminal glyphs, for a single Steam library. Each game becomes one diegetic object — a lighthouse, a fish market, a detective's office. Your job is to pick a metaphor and cast each game.
 
 You MUST return JSON only. No prose, no markdown fence, no commentary. The output validates against this shape:
 
