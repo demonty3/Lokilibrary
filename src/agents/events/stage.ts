@@ -8,10 +8,11 @@
  * "legible" constraint — every event's rationale is findable on the
  * floor), and one world_event perception per staged event.
  *
- * Invoked through a cell-registered closure (the e2e-hook registration
- * pattern) because effects need the live layout: mountCell registers
- * stageNow at mount and runs it once (boot path); App.tsx's wake handler
- * calls callStageNow() (a day may roll over mid-sleep). Best-effort:
+ * Invoked through cell-registered closures (the registerCellPaneScope
+ * pattern) because effects need the live layout: mountCell registers a
+ * staging closure per pane at mount and runs it once (boot path);
+ * App.tsx's wake handler calls callStageNow() (a day may roll over
+ * mid-sleep), which runs every live pane's closure. Best-effort:
  * failures warn, never throw into mount or the wake handler.
  */
 
@@ -51,9 +52,17 @@ export function consumeCalendarDispatch(): typeof calendarDispatch {
   return out;
 }
 
+/** Session-level staging guard keyed by writer identity: the ledger is
+ *  the real idempotence source (day PK), but the null writer has no
+ *  ledger — without this, every cell remount in a web session re-walks
+ *  today and re-broadcasts world_event perceptions. WeakMap so smoke
+ *  fakes (distinct objects) stay independent while the null-writer
+ *  singleton is guarded session-wide. */
+const sessionStagedDay = new WeakMap<MemoryWriter, string>();
+
 export function stageMissedDays(deps: StageDeps): StagedSummary {
   const today = dayKey(deps.now);
-  const last = deps.writer.lastStagedDay();
+  const last = deps.writer.lastStagedDay() ?? sessionStagedDay.get(deps.writer) ?? null;
   // First run: today only. Otherwise from the day after `last`, capped to
   // the most recent CATCHUP_CAP_DAYS — a month away yields ≤7 rows and
   // older days collapse into quiet (the palace kept its calendar; it
@@ -97,6 +106,8 @@ export function stageMissedDays(deps: StageDeps): StagedSummary {
     }
   }
 
+  sessionStagedDay.set(deps.writer, today);
+
   if (staged > 0) {
     calendarDispatch = {
       agentName: 'the palace',
@@ -107,14 +118,25 @@ export function stageMissedDays(deps: StageDeps): StagedSummary {
   return { staged };
 }
 
-/** Cell-registered staging closure (last mount wins; cleared at
- *  teardown) — the e2e-hook registration pattern. */
-let stageNow: (() => void) | null = null;
-export function registerStageNow(fn: (() => void) | null): void {
-  stageNow = fn;
+/** Live cell-pane staging closures — the registerCellPaneScope pattern
+ *  (`src/state/cellPaneScopes.ts`). A single last-mount-wins slot would
+ *  drop every pane but the last in a split; the Set runs every live
+ *  pane's closure on callStageNow(). */
+const stageNowFns = new Set<() => void>();
+
+/** Register a live cell pane's staging closure. Returns the unregister
+ *  fn the cell's teardown calls (idempotent) — the registerCellPaneScope
+ *  pattern. Every live pane's closure runs on callStageNow(); the
+ *  ledger day-PK (or the session guard above) makes overlapping walks
+ *  idempotent. */
+export function registerStageNow(fn: () => void): () => void {
+  stageNowFns.add(fn);
+  return () => {
+    stageNowFns.delete(fn);
+  };
 }
 export function callStageNow(): boolean {
-  if (!stageNow) return false;
-  stageNow();
+  if (stageNowFns.size === 0) return false;
+  for (const fn of stageNowFns) fn();
   return true;
 }

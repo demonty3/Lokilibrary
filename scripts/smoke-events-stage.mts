@@ -79,4 +79,37 @@ if (far.events.length + fr.events.length > 0) {
 }
 check('buffer drains', consumeCalendarDispatch() === null);
 
+// session guard: a null-ledger writer (lastStagedDay always null) called
+// twice in one session stages once — no duplicate perceptions on remount
+{
+  const rt2 = { id: 'cat', present: true, perceptionQueue: [] as any[] } as any;
+  const plans2: any[] = [];
+  const noLedger = {
+    ...nullMemoryWriter,
+    recordPlan(args: any) { plans2.push(args); return 'p'; },
+  };
+  const a = stageMissedDays({ writer: noLedger as any, games: GAMES, profileSeed: SEED,
+    slotForAppid: () => ({ x: 5, y: 5 }), runtimes: [rt2], now: NOW });
+  const qAfterFirst = rt2.perceptionQueue.length;
+  const b = stageMissedDays({ writer: noLedger as any, games: GAMES, profileSeed: SEED,
+    slotForAppid: () => ({ x: 5, y: 5 }), runtimes: [rt2], now: NOW });
+  check('session guard: second same-day call stages 0', b.staged === 0);
+  check('session guard: no duplicate perceptions', rt2.perceptionQueue.length === qAfterFirst);
+  check('session guard: first call behaved normally', a.staged === qAfterFirst);
+}
+// registration set: two panes both run on callStageNow; unregister works
+{
+  const { registerStageNow, callStageNow } = await import('../src/agents/events/stage.ts');
+  let ran: string[] = [];
+  const u1 = registerStageNow(() => ran.push('p1'));
+  const u2 = registerStageNow(() => ran.push('p2'));
+  check('callStageNow runs every registered pane', callStageNow() === true && ran.join(',') === 'p1,p2');
+  u1();
+  ran = [];
+  callStageNow();
+  check('unregister removes only its own', ran.join(',') === 'p2');
+  u2();
+  check('empty set → false', callStageNow() === false);
+}
+
 report();

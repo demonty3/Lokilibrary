@@ -28,7 +28,7 @@ import { registerCellPaneScope } from '../../state/cellPaneScopes';
 import { registerPane } from '../../state/paneRegistry';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
-import { callStageNow, registerStageNow, stageMissedDays } from '../../agents/events/stage';
+import { registerStageNow, stageMissedDays } from '../../agents/events/stage';
 import { dayKey } from '../../procedural/calendar';
 import {
   mountBookshelfPrompt,
@@ -406,7 +406,7 @@ export function mountCell(
     const [sx, sy] = key.split(',').map(Number);
     slotOfAppid.set(book.appid, { x: sx, y: sy });
   }
-  registerStageNow(() => {
+  const runStageNow = () => {
     stageMissedDays({
       writer: memoryWriter,
       games: useAppStore.getState().library,
@@ -415,9 +415,12 @@ export function mountCell(
       runtimes: listRuntimesIn(scope),
       now: new Date(),
     });
-  });
+  };
+  const unregisterStageNow = registerStageNow(runStageNow);
   try {
-    callStageNow(); // boot path — idempotent per day via the ledger PK
+    runStageNow(); // boot path — idempotent per day via the ledger PK (or
+    // the session guard); invoke directly so mounting a new pane doesn't
+    // also re-run OTHER live panes' closures via callStageNow().
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(`[cell] boot staging failed: ${(e as Error).message}`);
@@ -842,7 +845,7 @@ export function mountCell(
       app.ticker.remove(pulseLandmark);
       app.ticker.remove(updateMarkCaption);
       e2ePlaceMark = null;
-      registerStageNow(null);
+      unregisterStageNow();
       if (promptHandle) {
         promptHandle.destroy();
         promptHandle = null;
