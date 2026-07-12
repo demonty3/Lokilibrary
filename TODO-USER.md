@@ -33,6 +33,20 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 
 ## Active
 
+### 🔔 Agent-mind taste gate — needs your ANTHROPIC_API_KEY (2026-07-12)
+**Status**: the agent-mind pass is CODE-COMPLETE (9 commits, `314967c..8b6cd3d`;
+spec + plan in `docs/superpowers/`; all smokes + typecheck + e2e green; final
+whole-branch review passed after one fix wave). The LAST gate is yours: put a
+real `ANTHROPIC_API_KEY` in `worker/.dev.vars` (edit the file directly — don't
+paste the key into chat), then say the word and Claude runs
+`npm run worker` + `npx tsx scripts/agent-mind-livefire.mts` (~10 paid calls,
+pennies) and pastes all five agents' tick + reflection outputs for you to
+judge against the register anchors (spec § Voice). Also checked in the same
+run: Tier-1 `tokensIn` ≤ ~600 per agent (final review estimates Loki may land
+~730-830 — trim plan ready if so).
+**Note for later** (final-review RIDE item): `scripts/*.mts` aren't covered by
+`npm run typecheck` — pre-existing gap, worth its own slice someday.
+
 ### ✅ DONE — repo is PUBLIC (2026-07-11)
 **Status**: complete. MIT licence landed (`LICENSE` at repo root +
 `"license": "MIT"` in both package.json manifests), full-history
