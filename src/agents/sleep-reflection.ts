@@ -102,6 +102,7 @@ export async function triggerSleepReflection(): Promise<void> {
       const def = defsById.get(runtime.id);
       if (!def) return;
       try {
+        // roomDims deliberately omitted — RuntimeScope carries no layout; the worker's 24×16 fallback covers the sweep.
         const result = await routeTier2(def, runtime, now, {
           transport: defaultAgentTransport,
           memory,

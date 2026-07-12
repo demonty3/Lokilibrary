@@ -369,6 +369,10 @@ export interface RouteOptions {
    *  tiers' prompts. Callers build it once per mount via
    *  buildLibraryContext (never per tick). */
   library?: string;
+  /** Agent-mind pass — live layout bounds threaded to the reflect
+   *  prompt's coordinate instruction. Callers that don't know their
+   *  layout (sleep sweep) omit it → worker fallback. */
+  roomDims?: { width: number; height: number };
 }
 
 export interface RouteResult {
@@ -612,6 +616,7 @@ export async function routeTier2(
     recentMemories: recent,
     persona: memory.persona(def.id) ?? PERSONA_FALLBACK.get(def.id) ?? null,
     ...(opts.library && { library: opts.library }),
+    ...(opts.roomDims && { roomDims: opts.roomDims }),
     ...(recentLore.length > 0 && {
       recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
     }),

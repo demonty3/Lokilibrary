@@ -555,6 +555,7 @@ export function mountCell(
         loreEnabled: useAppStore.getState().loreEnabled,
         loreQuote: useAppStore.getState().loreQuoteEnabled,
         library: buildLibraryContext(useAppStore.getState().library) ?? undefined,
+        roomDims: { width: layout.width, height: layout.height },
       });
     }
   }

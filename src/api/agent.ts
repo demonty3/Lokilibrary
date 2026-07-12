@@ -109,6 +109,10 @@ export interface ReflectInput {
   loreContext?: { themes: string[]; tone: string };
   /** Agent-mind pass — same capped library line as Tier-1. */
   library?: string;
+  /** Agent-mind pass — live room bounds for the plan-coordinate
+   *  instruction. Absent → the worker's 24×16 fallback (the pre-pass
+   *  hardcoded values). */
+  roomDims?: { width: number; height: number };
 }
 
 export interface ReflectResult {

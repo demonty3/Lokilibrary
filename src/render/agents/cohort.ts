@@ -350,6 +350,7 @@ export function mountCohort(opts: MountCohortOptions): () => void {
             loreEnabled: useAppStore.getState().loreEnabled,
             loreQuote: useAppStore.getState().loreQuoteEnabled,
             library: libraryLine,
+            roomDims: { width: opts.layout.width, height: opts.layout.height },
           });
         });
       }

@@ -152,4 +152,29 @@ await routeTier1(ghostDef, mkRuntime('ghost'), 'room', 2_000, {
 });
 check('null-writer persona falls back to persona module', (seenPersona ?? '').includes('ghost of every reading'));
 
+// --- roomDims threading (Task 5) ---
+let seenDims: { width: number; height: number } | undefined;
+const dimsTransport = {
+  call: async () => ({ ok: true as const, tick: { action: 'pause', intent: 'pause', model: 's', provider: 's', latencyMs: 1 } }),
+  reflect: async (input: { roomDims?: { width: number; height: number } }) => {
+    seenDims = input.roomDims;
+    return { ok: false as const, error: 'stub-stop' };
+  },
+};
+const { routeTier2 } = await import('../src/agents/router.ts');
+const lokiDef = COHORT.find((d) => d.id === 'loki')!;
+const rt = mkRuntime('loki');
+rt.reflectionCounter = 999;
+// give the null-writer path a memory so routeTier2 reaches the transport
+const memOnce = {
+  ...nullMemoryWriter,
+  recentMemories: () => [{ id: 'm1', text: 't', kind: 'observation' as const, created_at: 0, importance: 5 }],
+};
+await routeTier2(lokiDef, rt, 5_000, {
+  transport: dimsTransport,
+  memory: memOnce,
+  roomDims: { width: 31, height: 21 },
+});
+check('roomDims threaded into reflect input', seenDims?.width === 31 && seenDims?.height === 21);
+
 report();
