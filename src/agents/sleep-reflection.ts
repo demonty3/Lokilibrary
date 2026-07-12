@@ -28,6 +28,7 @@
 import { COHORT } from './cohort';
 import { defaultAgentTransport, nullMemoryWriter, routeTier2 } from './router';
 import { getCurrentMemoryWriter } from './memory/bootstrap';
+import { buildLibraryContext } from './library-context';
 import { listRuntimesIn } from '../state/agentRuntime';
 import { listCellPaneScopes } from '../state/cellPaneScopes';
 import { useAppStore } from '../state/store';
@@ -80,6 +81,7 @@ export async function triggerSleepReflection(): Promise<void> {
   const now = performance.now();
   // One read for the whole sweep so every agent shares one egress policy.
   const { loreEnabled, loreQuoteEnabled } = useAppStore.getState();
+  const libraryLine = buildLibraryContext(useAppStore.getState().library) ?? undefined;
   // Phase 7 / v2.x — sweep the UNION of every live cell pane's runtimes.
   // Each pane is a live world that accrued reflectionCounter overnight, so
   // every pane's agents get the once-per-sleep dispatch. With the default
@@ -105,6 +107,7 @@ export async function triggerSleepReflection(): Promise<void> {
           memory,
           loreEnabled,
           loreQuote: loreQuoteEnabled,
+          library: libraryLine,
           // Bypass the per-real-hour rate-limit (5A). The sleep
           // budget is the user's intentional choice to spend
           // here — relaxing on this one pass is the whole point

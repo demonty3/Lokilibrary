@@ -46,6 +46,7 @@ import {
   type MemoryWriter,
   type AgentTransport,
 } from '../../agents/router';
+import { buildLibraryContext } from '../../agents/library-context';
 import {
   clearRuntimesIn,
   initialRuntime,
@@ -236,6 +237,10 @@ export function mountCohort(opts: MountCohortOptions): () => void {
   const memoryWriter = opts.memoryWriter ?? nullMemoryWriter;
   const sceneLabel = opts.sceneLabel ?? 'a small library room';
 
+  // Agent-mind pass — one library line per mount (deterministic; the
+  // library only changes on auth/profile remount, which remounts us).
+  const libraryLine = buildLibraryContext(useAppStore.getState().library) ?? undefined;
+
   // Phase 7-D — cross-seam perception. maxFov = max def.fov across the cohort,
   // computed once at mount (perception.ts re-clips authoritatively per agent).
   // Default deps = no open seams → enricher returns the snapshot by reference,
@@ -335,6 +340,7 @@ export function mountCohort(opts: MountCohortOptions): () => void {
         void routeTier1(def, runtime, sceneLabel, now, {
           transport: opts.agentTransport,
           memory: memoryWriter,
+          library: libraryLine,
         }).then(() => {
           // After a Tier-1 dispatch the reflectionCounter may have
           // crossed threshold — let routeTier2 short-circuit if not.
@@ -343,6 +349,7 @@ export function mountCohort(opts: MountCohortOptions): () => void {
             memory: memoryWriter,
             loreEnabled: useAppStore.getState().loreEnabled,
             loreQuote: useAppStore.getState().loreQuoteEnabled,
+            library: libraryLine,
           });
         });
       }

@@ -44,6 +44,10 @@ export interface AgentTickContext {
   /** Optional list of verbs the LLM should avoid this turn. Passed
    *  through to the worker's reprompt preamble for clarity. */
   denyVerbs?: readonly string[];
+  /** Agent-mind pass — one capped line describing the actual library
+   *  (src/agents/library-context.ts). Rendered by the worker as a
+   *  "the library: …" context line. */
+  library?: string;
 }
 
 export interface AgentTick {
@@ -103,6 +107,8 @@ export interface ReflectInput {
    *  tags + tone only; never raw lore text. The worker folds these into a
    *  system line so the agent's voice/plan leans toward the canon. */
   loreContext?: { themes: string[]; tone: string };
+  /** Agent-mind pass — same capped library line as Tier-1. */
+  library?: string;
 }
 
 export interface ReflectResult {

@@ -94,6 +94,8 @@ export interface Tier1Context {
   /** Verbs the LLM should avoid this turn. Worker passes through to
    *  the reprompt preamble. */
   readonly denyVerbs?: readonly string[];
+  /** Agent-mind pass — capped library-context line (see RouteOptions). */
+  readonly library?: string;
 }
 
 /** Transport over the agent endpoints. Production wraps the HTTP
@@ -344,6 +346,10 @@ export interface RouteOptions {
    *  launch) per CLAUDE.md "Tier 2 fires only on reflection threshold
    *  or direct user action". */
   force?: boolean;
+  /** Agent-mind pass — capped library-context line, threaded into both
+   *  tiers' prompts. Callers build it once per mount via
+   *  buildLibraryContext (never per tick). */
+  library?: string;
 }
 
 export interface RouteResult {
@@ -419,6 +425,7 @@ export async function routeTier1(
   const context: Tier1Context = {
     recentMemories: memory.recentMemories(runtime.id, recentN),
     persona: memory.persona(runtime.id),
+    ...(opts.library && { library: opts.library }),
   };
 
   let result = await transport.call(agent, perception, context);
@@ -584,6 +591,7 @@ export async function routeTier2(
     agent: { id: def.id, name: def.name },
     recentMemories: recent,
     persona: memory.persona(def.id),
+    ...(opts.library && { library: opts.library }),
     ...(recentLore.length > 0 && {
       recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
     }),

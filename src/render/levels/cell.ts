@@ -17,6 +17,7 @@ import {
   routeTier2,
   type MemoryWriter,
 } from '../../agents/router';
+import { buildLibraryContext } from '../../agents/library-context';
 import { launchGame } from '../../agents/launch';
 import {
   createRuntimeScope,
@@ -553,6 +554,7 @@ export function mountCell(
         force: true,
         loreEnabled: useAppStore.getState().loreEnabled,
         loreQuote: useAppStore.getState().loreQuoteEnabled,
+        library: buildLibraryContext(useAppStore.getState().library) ?? undefined,
       });
     }
   }
