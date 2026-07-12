@@ -1,4 +1,4 @@
-import { BitmapText, Container, Sprite } from 'pixi.js';
+import { BitmapText, Container, Graphics, Sprite } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
 import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
@@ -371,7 +371,13 @@ export function mountCell(
   // Agent-mind pass — walking onto a mark reveals its note: the found-
   // writing surface. One caption at a time (first record wins a shared
   // tile); hidden the frame the player leaves the tile. In-canvas
-  // BitmapText, no DOM — the caption is part of the world.
+  // BitmapText, no DOM — the caption is part of the world. An opaque
+  // theme-bg backing rect sits UNDER the text (same key PixiApp paints
+  // the app background with) so the note reads over shelves/scatter
+  // instead of bleeding through them.
+  const markCaptionBacking = new Graphics();
+  markCaptionBacking.visible = false;
+  markLayer.addChild(markCaptionBacking);
   const markCaption = new BitmapText({
     text: '',
     style: {
@@ -386,7 +392,10 @@ export function mountCell(
   const updateMarkCaption = (): void => {
     const hit = markRecords.find((m) => m.tileX === pos.x && m.tileY === pos.y);
     if (!hit) {
-      if (markCaption.visible) markCaption.visible = false;
+      if (markCaption.visible) {
+        markCaption.visible = false;
+        markCaptionBacking.visible = false;
+      }
       captionTile = null;
       return;
     }
@@ -404,9 +413,22 @@ export function mountCell(
       const ty = Math.max(0, Math.min(hit.tileY - boxRows - 1, layout.height - boxRows));
       markCaption.x = tx * COZETTE_CELL_WIDTH;
       markCaption.y = ty * COZETTE_CELL_HEIGHT;
+      // Redraw the opaque backing to the new box's bounds + half-cell pad.
+      const padX = COZETTE_CELL_WIDTH / 2;
+      const padY = COZETTE_CELL_HEIGHT / 2;
+      markCaptionBacking.clear();
+      markCaptionBacking
+        .rect(
+          markCaption.x - padX,
+          markCaption.y - padY,
+          boxCols * COZETTE_CELL_WIDTH + padX * 2,
+          boxRows * COZETTE_CELL_HEIGHT + padY * 2,
+        )
+        .fill(hexToInt(theme.palette.bg));
       captionTile = key;
     }
     markCaption.visible = true;
+    markCaptionBacking.visible = true;
   };
   app.ticker.add(updateMarkCaption);
 
