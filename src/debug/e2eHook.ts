@@ -21,7 +21,9 @@ import { getCurrentRenderContext } from '../render/PixiApp';
 import { getPlayerPos, setPlayerPos } from '../state/playerPos';
 import { getPane } from '../state/paneRegistry';
 import { getLandMuralState, mountLandPreview, mountLandView } from '../render/levels/land';
-import { e2ePlaceMarkIn } from '../render/levels/cell';
+import { e2ePlaceMarkIn, setE2ECalendarMoves } from '../render/levels/cell';
+import { eventForDay, buildLibraryFacts } from '../procedural/calendar';
+import { profileSeed } from '../procedural/seed';
 
 export interface LokiE2EHook {
   /** The real Zustand store singleton (getState / setState / actions). */
@@ -64,6 +66,12 @@ export interface LokiE2EHook {
   /** Agent-mind pass — teleport a pane's player (DEV/E2E only; bypasses
    *  floor checks, harness use only). */
   setPlayerPos: typeof setPlayerPos;
+  /** Events calendar — pure selection preview for a given dayKey against
+   *  the LIVE library + seed (DEV/E2E only). */
+  calendarEventFor(day: string): unknown;
+  /** Events calendar — inject shelf moves for the overlay; takes effect
+   *  on the next cell mount (drive a remount via setTheme). */
+  setCalendarMoves(moves: Array<{ pair: [{ appid: number }, { appid: number }] }>): void;
 }
 
 /** Build-gated theme override read by App.tsx's mount effect. Only ever set via
@@ -153,6 +161,15 @@ export function installE2EHook(): void {
       return e2ePlaceMarkIn(x, y, agentId, text);
     },
     setPlayerPos,
+    calendarEventFor(day) {
+      const s = useAppStore.getState();
+      const profile = s.profile;
+      const seed = profile ? profileSeed(profile) : 0;
+      return eventForDay(day, seed, buildLibraryFacts(s.library));
+    },
+    setCalendarMoves(moves) {
+      setE2ECalendarMoves(moves);
+    },
   };
   (window as unknown as { __loki: LokiE2EHook }).__loki = hook;
 }

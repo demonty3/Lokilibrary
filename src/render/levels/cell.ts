@@ -28,6 +28,8 @@ import { registerCellPaneScope } from '../../state/cellPaneScopes';
 import { registerPane } from '../../state/paneRegistry';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
+import { callStageNow, registerStageNow, stageMissedDays } from '../../agents/events/stage';
+import { dayKey } from '../../procedural/calendar';
 import {
   mountBookshelfPrompt,
   mountLocalModelStatus,
@@ -64,6 +66,41 @@ const MARK_STYLES: Record<string, { glyph: string; palette: 'magenta' | 'blue' |
   visitor: { glyph: ',', palette: 'green' },
 };
 const DEFAULT_MARK_STYLE = { glyph: '·', palette: 'magenta' as const };
+
+/** Swap books so a move's pair sits at consecutive bookshelfSlots
+ *  indices: the second book moves to index(first)+1; the displaced book
+ *  takes the vacated slot. Skips defensively when either appid is not
+ *  currently shelved (library changed since staging) or first is the
+ *  last slot. */
+function applyShelfMove(
+  slotToBook: Map<string, BookGame>,
+  slots: readonly CellPoint[],
+  move: { pair: [{ appid: number }, { appid: number }] },
+): void {
+  const keyOf = (p: CellPoint): string => `${p.x},${p.y}`;
+  const indexOfAppid = (appid: number): number =>
+    slots.findIndex((s) => slotToBook.get(keyOf(s))?.appid === appid);
+  const i = indexOfAppid(move.pair[0].appid);
+  const j = indexOfAppid(move.pair[1].appid);
+  if (i < 0 || j < 0 || i + 1 >= slots.length || j === i + 1) return;
+  const destKey = keyOf(slots[i + 1]);
+  const srcKey = keyOf(slots[j]);
+  const displaced = slotToBook.get(destKey);
+  const moving = slotToBook.get(srcKey);
+  if (!moving) return;
+  slotToBook.set(destKey, moving);
+  if (displaced) slotToBook.set(srcKey, displaced);
+  else slotToBook.delete(srcKey);
+}
+
+/** DEV/E2E move injection (mirrors e2ePlaceMark). */
+let e2eCalendarMoves: Array<{ pair: [{ appid: number }, { appid: number }] }> = [];
+export function setE2ECalendarMoves(moves: typeof e2eCalendarMoves): void {
+  e2eCalendarMoves = moves;
+}
+function getE2ECalendarMoves(): typeof e2eCalendarMoves {
+  return e2eCalendarMoves;
+}
 
 /** Boxed caption for a found note, word-wrapped to `maxWidth` columns of
  *  interior text so the box fits inside rooms narrower than a single
@@ -266,27 +303,16 @@ export function mountCell(
     }
   }
 
-  // Spine overlay — first character of each game name on a bookshelf
-  // slot, in reading order. Tinted bright so it pops against the
-  // base bookshelf glyph. Slot → BookGame map drives the bookshelf
-  // launch prompt (slot index lines up across the spines + slots).
-  const spineColour = hexToInt(theme.palette.fgBright);
+  // Base slot → BookGame assignment, in bookshelfSlots reading order.
+  // The spine GLYPHS are painted later (after the events-calendar overlay
+  // moves below), so a moved book's letter actually reflects the swap —
+  // painting here, before the moves are applied, would bake the pre-move
+  // arrangement into the BitmapText objects and the shelf would never
+  // visibly reorder even though slotToBook itself is correct underneath.
   const usableBooks = books.slice(0, layout.bookshelfSlots.length);
   const slotToBook = new Map<string, BookGame>();
   for (let i = 0; i < usableBooks.length; i++) {
     const slot = layout.bookshelfSlots[i];
-    const ch = usableBooks[i].name.slice(0, 1).toUpperCase() || '?';
-    const spine = new BitmapText({
-      text: ch,
-      style: {
-        fontFamily: COZETTE_FONT_FAMILY,
-        fontSize: COZETTE_FONT_SIZE,
-        fill: spineColour,
-      },
-    });
-    spine.x = slot.x * COZETTE_CELL_WIDTH;
-    spine.y = slot.y * COZETTE_CELL_HEIGHT;
-    spineLayer.addChild(spine);
     slotToBook.set(`${slot.x},${slot.y}`, usableBooks[i]);
   }
 
@@ -369,6 +395,66 @@ export function mountCell(
     // + no exits ⇒ byte-identical no-seam path.
     crossWiring,
   });
+
+  // Events calendar (spec 2026-07-12): stage elapsed days FIRST (so a
+  // note staged today renders in this very mount's marks loop below),
+  // then apply active moves to the base assignment. slotForAppid
+  // resolves against the BASE map — a mark anchors to where the book
+  // lives before today's shuffle.
+  const slotOfAppid = new Map<number, CellPoint>();
+  for (const [key, book] of slotToBook) {
+    const [sx, sy] = key.split(',').map(Number);
+    slotOfAppid.set(book.appid, { x: sx, y: sy });
+  }
+  registerStageNow(() => {
+    stageMissedDays({
+      writer: memoryWriter,
+      games: useAppStore.getState().library,
+      profileSeed: seed,
+      slotForAppid: (appid) => slotOfAppid.get(appid) ?? null,
+      runtimes: listRuntimesIn(scope),
+      now: new Date(),
+    });
+  });
+  try {
+    callStageNow(); // boot path — idempotent per day via the ledger PK
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[cell] boot staging failed: ${(e as Error).message}`);
+  }
+
+  // Apply active moves: pairwise swaps on the ordered slot assignment.
+  // Adjacency = consecutive indices in bookshelfSlots order (spec § 3).
+  const e2eMoves = getE2ECalendarMoves(); // DEV/E2E only; [] in prod
+  const movesToApply = [
+    ...memoryWriter.activeShelfMoves(dayKey(new Date())),
+    ...e2eMoves,
+  ];
+  for (const move of movesToApply) {
+    applyShelfMove(slotToBook, layout.bookshelfSlots, move);
+  }
+
+  // Spine overlay — first character of each (possibly moved) game name on
+  // its bookshelf slot, in reading order. Tinted bright so it pops against
+  // the base bookshelf glyph. Painted from the FINAL slotToBook (after the
+  // moves above) so a shuffled book's spine actually shows in its new slot.
+  const spineColour = hexToInt(theme.palette.fgBright);
+  for (const slot of layout.bookshelfSlots) {
+    const book = slotToBook.get(`${slot.x},${slot.y}`);
+    if (!book) continue;
+    const ch = book.name.slice(0, 1).toUpperCase() || '?';
+    const spine = new BitmapText({
+      text: ch,
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: spineColour,
+      },
+    });
+    spine.x = slot.x * COZETTE_CELL_WIDTH;
+    spine.y = slot.y * COZETTE_CELL_HEIGHT;
+    spineLayer.addChild(spine);
+  }
 
   // Phase 2E marginalia: render any placed-mark glyphs from prior
   // Plans for this cell. These persist across restart because they
@@ -756,6 +842,7 @@ export function mountCell(
       app.ticker.remove(pulseLandmark);
       app.ticker.remove(updateMarkCaption);
       e2ePlaceMark = null;
+      registerStageNow(null);
       if (promptHandle) {
         promptHandle.destroy();
         promptHandle = null;

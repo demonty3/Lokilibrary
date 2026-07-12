@@ -28,6 +28,7 @@ import {
 } from './agents/sleep-reflection';
 import { mountMorningDispatch } from './render/overlays/morning-dispatch';
 import { LoreDropZone } from './render/LoreDropZone';
+import { callStageNow, consumeCalendarDispatch } from './agents/events/stage';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -126,7 +127,17 @@ export function App() {
       // mountMorningDispatch returns null when no lines to show (no
       // reflections actually landed during sleep).
       if (prevState === 'sleeping' && next !== 'sleeping') {
-        const lines = consumeSleepReflections();
+        try {
+          callStageNow(); // a day may have rolled over mid-sleep
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[app] wake staging failed: ${(e as Error).message}`);
+        }
+        const calendarLine = consumeCalendarDispatch();
+        const lines = [
+          ...(calendarLine ? [calendarLine] : []),
+          ...consumeSleepReflections(),
+        ];
         if (lines.length > 0) {
           // The overlay needs the PIXI Application + Theme; both live
           // inside PixiApp's mount closure. We use a module-local
@@ -186,9 +197,21 @@ export function App() {
       else teardown = fn;
     })();
 
+    // Events calendar — boot banner. Staging ran inside mountCell; if
+    // it landed events, surface the one-line dispatch. One-shot, only
+    // when a line is actually buffered.
+    const calendarBootTimer = setTimeout(() => {
+      const line = consumeCalendarDispatch();
+      const ctx = getCurrentRenderContext();
+      if (line && ctx) {
+        mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines: [line] });
+      }
+    }, 2500);
+
     return () => {
       cancelled = true;
       teardown?.();
+      clearTimeout(calendarBootTimer);
     };
   }, [loreVersion]);
 
