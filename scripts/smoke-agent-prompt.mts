@@ -82,4 +82,19 @@ check('reflect: no recent_lore block when absent', !reflDefault.user.includes('r
 check('house rules: restraint present', HOUSE_RULES.includes('understatement'));
 check('house rules: no exclamation marks', !HOUSE_RULES.includes('!'));
 
+// --- persona register lint (Task 2) ---
+const { LOKI_SYSTEM_PROMPT } = await import('../src/agents/persona/loki.ts');
+const { NPC_PERSONAS } = await import('../src/agents/persona/npc.ts');
+const allPersonas: Array<[string, string]> = [
+  ['loki', LOKI_SYSTEM_PROMPT],
+  ...NPC_PERSONAS.map((p): [string, string] => [p.agentId, p.systemPrompt]),
+];
+for (const [id, text] of allPersonas) {
+  check(`persona ${id}: no output-shape JSON (house rules own the format)`, !text.includes('{"action"'));
+  check(`persona ${id}: no [OUTPUT SHAPE] header`, !text.includes('[OUTPUT SHAPE]'));
+  check(`persona ${id}: no exclamation marks`, !text.includes('!'));
+  check(`persona ${id}: substantial character (> 400 chars)`, text.length > 400);
+}
+check('loki: knows the library context arrives', LOKI_SYSTEM_PROMPT.includes('the library:'));
+
 report();
