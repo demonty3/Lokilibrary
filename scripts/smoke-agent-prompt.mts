@@ -97,4 +97,59 @@ for (const [id, text] of allPersonas) {
 }
 check('loki: knows the library context arrives', LOKI_SYSTEM_PROMPT.includes('the library:'));
 
+// --- per-agent denylist enforcement + persona fallback (Task 4) ---
+const { routeTier1, nullMemoryWriter } = await import('../src/agents/router.ts');
+const { COHORT } = await import('../src/agents/cohort.ts');
+
+const ghostDef = COHORT.find((d) => d.id === 'ghost')!;
+check('ghost def carries its persona denylist', (ghostDef.denyVerbs ?? []).includes('whisper'));
+
+const mkRuntime = (id: string) => ({
+  id,
+  present: true,
+  x: 1,
+  y: 1,
+  perceptionQueue: [{ kind: 'player_proximity', at: { x: 1, y: 2 }, when: 0 }],
+  reflectionCounter: 0,
+  lastTier1At: 0,
+  lastReflectionAt: 0,
+  currentAction: { kind: 'idle' },
+  intent: null,
+  activePlan: null,
+  activePlanStepIndex: 0,
+}) as unknown as import('../src/state/agentRuntime.ts').AgentRuntimeState;
+
+// 'whisper' is in the Ghost's persona denylist but NOT the global five —
+// this dispatch must be rejected (drop after the one reprompt). Fails
+// against pre-pass router (global-only enforcement accepts it).
+let calls = 0;
+const whisperTransport = {
+  call: async () => {
+    calls++;
+    return { ok: true as const, tick: { action: 'whisper at the shelf', intent: 'whisper', model: 'stub', provider: 'stub', latencyMs: 1 } };
+  },
+  reflect: async () => ({ ok: false as const, error: 'unused' }),
+};
+const ghostRes = await routeTier1(ghostDef, mkRuntime('ghost'), 'room', 1_000, {
+  transport: whisperTransport,
+  memory: nullMemoryWriter,
+});
+check('ghost whisper rejected via per-agent denylist', ghostRes.dispatched === false && ghostRes.skipReason === 'rejected');
+check('ghost whisper got the one reprompt', calls === 2);
+
+// persona fallback: null-writer path still ships character to the model
+let seenPersona: string | undefined;
+const captureTransport = {
+  call: async (_a: unknown, _p: unknown, ctx: { persona?: { system_prompt: string } | null }) => {
+    seenPersona = ctx.persona?.system_prompt;
+    return { ok: true as const, tick: { action: 'drift to the cold shelf', intent: 'drift', model: 'stub', provider: 'stub', latencyMs: 1 } };
+  },
+  reflect: async () => ({ ok: false as const, error: 'unused' }),
+};
+await routeTier1(ghostDef, mkRuntime('ghost'), 'room', 2_000, {
+  transport: captureTransport,
+  memory: nullMemoryWriter,
+});
+check('null-writer persona falls back to persona module', (seenPersona ?? '').includes('ghost of every reading'));
+
 report();

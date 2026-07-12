@@ -25,6 +25,13 @@ import { mulberry32 } from '../procedural/prng';
 import { T_FLOOR } from '../procedural/tiles/library';
 import type { ThemePalette } from '../themes/types';
 import { pickLokiSpawn } from './loki';
+import { LOKI_DENY_VERBS } from './persona/loki';
+import {
+  ARCHIVIST_PERSONA,
+  CAT_PERSONA,
+  GHOST_PERSONA,
+  VISITOR_PERSONA,
+} from './persona/npc';
 
 export type PaletteKey = keyof ThemePalette;
 
@@ -79,6 +86,11 @@ export interface AgentDef {
    *  Slower agents (Cat) save CPU + look calmer; faster (Loki) feel
    *  more present. */
   tier0StepMs: number;
+  /** Agent-mind pass — persona-specific verbs the router must reject on
+   *  top of its global base list. Source of truth: the persona modules
+   *  (LOKI_DENY_VERBS / NpcPersona.denylist); the DB persona row stays a
+   *  prompt-only store. */
+  denyVerbs?: readonly string[];
 }
 
 export const COHORT: readonly AgentDef[] = [
@@ -92,6 +104,7 @@ export const COHORT: readonly AgentDef[] = [
     schedule: [],
     tier1ThrottleMs: 30_000,
     tier0StepMs: 400,
+    denyVerbs: LOKI_DENY_VERBS,
   },
   {
     id: 'archivist',
@@ -105,6 +118,7 @@ export const COHORT: readonly AgentDef[] = [
     ],
     tier1ThrottleMs: 60_000,
     tier0StepMs: 600,
+    denyVerbs: ARCHIVIST_PERSONA.denylist,
   },
   {
     id: 'cat',
@@ -116,6 +130,7 @@ export const COHORT: readonly AgentDef[] = [
     schedule: [{ kind: 'bias_idle_near_glyph', glyph: '☼', bias: 0.6 }],
     tier1ThrottleMs: 120_000,
     tier0StepMs: 900,
+    denyVerbs: CAT_PERSONA.denylist,
   },
   {
     id: 'visitor',
@@ -130,6 +145,7 @@ export const COHORT: readonly AgentDef[] = [
     ],
     tier1ThrottleMs: 0,
     tier0StepMs: 600,
+    denyVerbs: VISITOR_PERSONA.denylist,
   },
   {
     id: 'ghost',
@@ -147,6 +163,7 @@ export const COHORT: readonly AgentDef[] = [
     ],
     tier1ThrottleMs: 0,
     tier0StepMs: 1200,
+    denyVerbs: GHOST_PERSONA.denylist,
   },
 ];
 

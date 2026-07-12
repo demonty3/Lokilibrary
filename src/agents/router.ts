@@ -35,6 +35,8 @@ import {
 } from '../api/agent';
 import { defaultLoreGatherer, type LoreGatherer } from './lore-context';
 import { buildLoreProfile } from './lore-profile';
+import { LOKI_AGENT_ID, LOKI_NAME, LOKI_SYSTEM_PROMPT } from './persona/loki';
+import { NPC_PERSONAS } from './persona/npc';
 
 /** Recent-memory tuple the router sends with each Tier-1 call.
  *  `id` is required so Tier-2 reflections can populate
@@ -277,6 +279,23 @@ export const REFLECTION_MIN_INTERVAL_MS = 60 * 60 * 1000;
  *  has its own narrower whitelist; this is the global fallback. */
 const DENY_VERBS: readonly string[] = ['speak', 'say', 'tell', 'ask', 'chat'];
 
+/** Agent-mind pass — effective deny set for one agent: global base ∪ the
+ *  persona's own list (AgentDef.denyVerbs, sourced from persona modules).
+ *  Pre-pass the per-agent lists were decorative; now they reject. */
+function denySetFor(def: AgentDef): readonly string[] {
+  return def.denyVerbs?.length ? [...new Set([...DENY_VERBS, ...def.denyVerbs])] : DENY_VERBS;
+}
+
+/** Agent-mind pass — persona fallback when the memory writer has no row
+ *  (null writer: web build + dev without SQLite). The model should never
+ *  see a characterless agent. */
+const PERSONA_FALLBACK: ReadonlyMap<string, PersonaSnippet> = new Map<string, PersonaSnippet>([
+  [LOKI_AGENT_ID, { name: LOKI_NAME, system_prompt: LOKI_SYSTEM_PROMPT }],
+  ...NPC_PERSONAS.map(
+    (p): [string, PersonaSnippet] => [p.agentId, { name: p.name, system_prompt: p.systemPrompt }],
+  ),
+]);
+
 /** Process-local rejection / reprompt counters — Phase 2F overlay
  *  surfaces these alongside cost telemetry. Reset on cell mount (cohort
  *  renderer teardown clears via `resetRouterStats()`). */
@@ -393,6 +412,7 @@ export async function routeTier1(
   const transport = opts.transport ?? defaultTier1Transport;
   const memory = opts.memory ?? nullMemoryWriter;
   const recentN = opts.recentMemoryCount ?? 5;
+  const denyVerbs = denySetFor(def);
 
   // Drain the queue + write observations for each salient event.
   // Each event's importance also accrues toward the Smallville
@@ -424,7 +444,7 @@ export async function routeTier1(
   };
   const context: Tier1Context = {
     recentMemories: memory.recentMemories(runtime.id, recentN),
-    persona: memory.persona(runtime.id),
+    persona: memory.persona(runtime.id) ?? PERSONA_FALLBACK.get(runtime.id) ?? null,
     ...(opts.library && { library: opts.library }),
   };
 
@@ -437,7 +457,7 @@ export async function routeTier1(
 
   // Whitelist enforcement: drop responses opening with deny-listed verbs.
   let verb = (result.tick.action.trim().split(/\s+/)[0] ?? '').toLowerCase();
-  if (DENY_VERBS.includes(verb)) {
+  if (denyVerbs.includes(verb)) {
     // Phase 2F: one-shot re-prompt before giving up. The worker
     // prepends a corrective preamble; if the model still produces a
     // banned verb we drop + bump the rejection counter.
@@ -445,7 +465,7 @@ export async function routeTier1(
     result = await transport.call(agent, perception, {
       ...context,
       reprompt: true,
-      denyVerbs: DENY_VERBS,
+      denyVerbs: denyVerbs,
     });
     if (!result.ok) {
       // eslint-disable-next-line no-console
@@ -456,7 +476,7 @@ export async function routeTier1(
       return { dispatched: false, skipReason: 'rejected' };
     }
     verb = (result.tick.action.trim().split(/\s+/)[0] ?? '').toLowerCase();
-    if (DENY_VERBS.includes(verb)) {
+    if (denyVerbs.includes(verb)) {
       // eslint-disable-next-line no-console
       console.warn(
         `[router] tier1 ${runtime.id} rejected after reprompt — verb "${verb}" still denied; ` +
@@ -590,7 +610,7 @@ export async function routeTier2(
   const outcome = await transport.reflect({
     agent: { id: def.id, name: def.name },
     recentMemories: recent,
-    persona: memory.persona(def.id),
+    persona: memory.persona(def.id) ?? PERSONA_FALLBACK.get(def.id) ?? null,
     ...(opts.library && { library: opts.library }),
     ...(recentLore.length > 0 && {
       recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
