@@ -37,6 +37,7 @@ import { defaultLoreGatherer, type LoreGatherer } from './lore-context';
 import { buildLoreProfile } from './lore-profile';
 import { LOKI_AGENT_ID, LOKI_NAME, LOKI_SYSTEM_PROMPT } from './persona/loki';
 import { NPC_PERSONAS } from './persona/npc';
+import type { DayEvent, ShelfMove } from '../procedural/calendar';
 
 /** Recent-memory tuple the router sends with each Tier-1 call.
  *  `id` is required so Tier-2 reflections can populate
@@ -167,6 +168,13 @@ export interface MemoryWriter {
     target?: string;
     text: string;
   }>;
+  /** Events calendar (spec 2026-07-12): persist one day's event.
+   *  INSERT OR IGNORE on the day PK — staging stays idempotent. */
+  recordWorldEvent(event: DayEvent): void;
+  /** Latest staged dayKey, or null on first run. */
+  lastStagedDay(): string | null;
+  /** Moves currently shaping the shelves (expiry + cap applied). */
+  activeShelfMoves(todayKey: string): ShelfMove[];
   /** Aggregate the last `windowMs` of agent_telemetry into a CostSummary.
    *  Used by the Phase 2F debug overlay (Ctrl+\`). Null writer returns
    *  an empty zero summary so the overlay can render "no data" without
@@ -221,6 +229,9 @@ export const nullMemoryWriter: MemoryWriter = {
   recordReflection: () => null,
   recordPlan: () => null,
   placedMarksForCell: () => [],
+  recordWorldEvent: () => {},
+  lastStagedDay: () => null,
+  activeShelfMoves: () => [],
   logTier1: () => undefined,
   logTier2: () => undefined,
   recentMemories: () => [],

@@ -32,6 +32,7 @@ import {
 } from './import';
 import { placedMarksForCell, recentForRouter, retrieveLore } from './retrieval';
 import { uuidv7 } from './uuid';
+import { activeMovesFrom } from '../../procedural/calendar';
 import { aggregateSince } from '../telemetry';
 import {
   LOKI_AGENT_ID,
@@ -127,6 +128,21 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
     },
     placedMarksForCell(cellId) {
       return placedMarksForCell(db, cellId);
+    },
+    recordWorldEvent(event) {
+      db.insertWorldEvent({
+        day: event.day,
+        kind: event.kind,
+        payload: JSON.stringify(event),
+        staged_at: Date.now(),
+      });
+    },
+    lastStagedDay() {
+      const rows = db.listWorldEvents();
+      return rows.length > 0 ? rows[rows.length - 1].day : null;
+    },
+    activeShelfMoves(todayKey) {
+      return activeMovesFrom(db.listWorldEvents(), todayKey);
     },
     recordLore({ text, source, embedding }) {
       const id = uuidv7();

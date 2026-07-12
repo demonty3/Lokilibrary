@@ -218,5 +218,13 @@ export function defaultImportance(payload: MemoryPayload): number {
   }
 }
 
+/** Events-calendar ledger row (spec 2026-07-12-events-calendar-design). */
+export interface WorldEventRow {
+  day: string;      // YYYY-MM-DD, PK — one event max per day
+  kind: string;     // 'note' | 'move'
+  payload: string;  // DayEvent JSON
+  staged_at: number;
+}
+
 /** Schema version. Bump when changing column shape; migration lives in db.ts. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;

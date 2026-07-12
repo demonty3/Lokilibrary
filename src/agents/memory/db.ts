@@ -25,6 +25,7 @@ import {
   SCHEMA_VERSION,
   type LoreRow,
   type MemoryRow,
+  type WorldEventRow,
 } from './schema';
 
 /** Public-facing wrapper. All methods are sync (better-sqlite3 is sync). */
@@ -71,6 +72,13 @@ export interface MemoryDb {
   ): Array<{ row: LoreRow; distance: number }>;
   /** Count lore chunks in a library. */
   loreCount(libraryId: string): number;
+
+  // ---- World-events ledger (events-calendar, 2026-07-12) ----
+  /** Insert one day's staged event. INSERT OR IGNORE on the `day` PK —
+   *  re-staging the same day is a no-op (idempotent). */
+  insertWorldEvent(row: WorldEventRow): void;
+  /** All ledger rows, day ASC. Small table (one row/day) — no paging. */
+  listWorldEvents(): WorldEventRow[];
 
   /** Upsert per-agent persona row. */
   upsertPersona(agentId: string, name: string, systemPrompt: string, metadataJson: string): void;
@@ -223,6 +231,15 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     `SELECT COUNT(*) AS n FROM lore WHERE library_id = ?`,
   );
 
+  // ---- World-events statements ----
+  const insertWorldEventStmt = db.prepare<WorldEventRow>(`
+    INSERT OR IGNORE INTO world_events (day, kind, payload, staged_at)
+    VALUES (@day, @kind, @payload, @staged_at)
+  `);
+  const listWorldEventsStmt = db.prepare(
+    `SELECT day, kind, payload, staged_at FROM world_events ORDER BY day ASC`,
+  );
+
   let insertVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
   let updateEmbeddingFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
   let insertLoreVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
@@ -331,6 +348,12 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     loreCount(libraryId) {
       const r = loreCountStmt.get(libraryId) as { n: number } | undefined;
       return r?.n ?? 0;
+    },
+    insertWorldEvent(row) {
+      insertWorldEventStmt.run(row);
+    },
+    listWorldEvents() {
+      return listWorldEventsStmt.all() as WorldEventRow[];
     },
     upsertPersona(agentId, name, systemPrompt, metadataJson) {
       upsertPersonaStmt.run({
@@ -466,6 +489,17 @@ function bootstrap(db: SqliteHandle, hasVec: boolean): void {
       system_prompt TEXT NOT NULL,
       metadata_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+
+    -- World-events ledger (events-calendar, spec 2026-07-12). One row
+    -- per calendar day the palace staged an event; day is the PK, which
+    -- makes staging idempotent (INSERT OR IGNORE). Global, not
+    -- library-scoped — the calendar is a property of the world, not the viewer.
+    CREATE TABLE IF NOT EXISTS world_events (
+      day       TEXT PRIMARY KEY,
+      kind      TEXT NOT NULL CHECK (kind IN ('note','move')),
+      payload   TEXT NOT NULL,
+      staged_at INTEGER NOT NULL
     );
 
     -- Lore (Phase 5C). Library-scoped uploaded canon, additive — its own
