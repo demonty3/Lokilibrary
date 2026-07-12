@@ -18,9 +18,10 @@
 
 import { useAppStore } from '../state/store';
 import { getCurrentRenderContext } from '../render/PixiApp';
-import { getPlayerPos } from '../state/playerPos';
+import { getPlayerPos, setPlayerPos } from '../state/playerPos';
 import { getPane } from '../state/paneRegistry';
 import { getLandMuralState, mountLandPreview, mountLandView } from '../render/levels/land';
+import { e2ePlaceMarkIn } from '../render/levels/cell';
 
 export interface LokiE2EHook {
   /** The real Zustand store singleton (getState / setState / actions). */
@@ -57,6 +58,12 @@ export interface LokiE2EHook {
    *  repaint a lore drop would trigger, without a SQLite-backed writer. Pass
    *  null to clear and fall back to the derived theme. DEV/E2E only. */
   setTheme(themeId: string | null): void;
+  /** Agent-mind pass — inject a trace mark into the live cell (DEV/E2E
+   *  only). Returns false when no cell is mounted. */
+  placeMark(x: number, y: number, agentId: string, text: string): boolean;
+  /** Agent-mind pass — teleport a pane's player (DEV/E2E only; bypasses
+   *  floor checks, harness use only). */
+  setPlayerPos: typeof setPlayerPos;
 }
 
 /** Build-gated theme override read by App.tsx's mount effect. Only ever set via
@@ -142,6 +149,10 @@ export function installE2EHook(): void {
     landMuralState() {
       return getLandMuralState();
     },
+    placeMark(x, y, agentId, text) {
+      return e2ePlaceMarkIn(x, y, agentId, text);
+    },
+    setPlayerPos,
   };
   (window as unknown as { __loki: LokiE2EHook }).__loki = hook;
 }

@@ -52,6 +52,69 @@ import {
   hexToInt,
 } from '../fonts';
 
+/** Agent-mind pass — per-agent trace vocabulary. The mark's glyph + tint
+ *  identify WHO left it before you read a word: Loki dog-ears, the
+ *  Archivist files, the cat topples, the ghost chills, the visitor drops.
+ *  Every glyph is enumerated in smoke-glyph-coverage RENDERER_LITERALS. */
+const MARK_STYLES: Record<string, { glyph: string; palette: 'magenta' | 'blue' | 'yellow' | 'cyan' | 'green' }> = {
+  loki: { glyph: '’', palette: 'magenta' },
+  archivist: { glyph: '≡', palette: 'blue' },
+  cat: { glyph: '⌐', palette: 'yellow' },
+  ghost: { glyph: '°', palette: 'cyan' },
+  visitor: { glyph: ',', palette: 'green' },
+};
+const DEFAULT_MARK_STYLE = { glyph: '·', palette: 'magenta' as const };
+
+/** Boxed caption for a found note, word-wrapped to `maxWidth` columns of
+ *  interior text so the box fits inside rooms narrower than a single
+ *  unwrapped line (rooms run ~24 tiles wide; authored notes run 40-90
+ *  chars — an unwrapped line would blow straight through the room wall
+ *  and off the screen). Monospace framing works because the whole
+ *  surface is one bitmap font. Capped at 90 chars total before wrapping. */
+function captionFor(text: string, maxWidth: number): string {
+  const capped = text.length > 90 ? `${text.slice(0, 89)}…` : text;
+  const width = Math.max(4, maxWidth);
+  const words = capped.split(' ');
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w;
+    if (candidate.length > width && line) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = candidate;
+    }
+  }
+  lines.push(line);
+  const boxWidth = Math.max(...lines.map((l) => l.length));
+  const bar = '─'.repeat(boxWidth + 2);
+  const body = lines.map((l) => `│ ${l.padEnd(boxWidth)} │`).join('\n');
+  return `┌${bar}┐\n${body}\n└${bar}┘`;
+}
+
+/** Agent-mind pass — Loki's launch-path notes. This path fires without
+ *  an LLM (the plan write is deterministic), so the note must already
+ *  be in-voice. Picked by appid so each game keeps its line. */
+const LAUNCH_MARK_NOTES: ReadonlyArray<(name: string) => string> = [
+  (n) => `${n.toLowerCase()} again. the shelf has a lean now.`,
+  (n) => `left a dog-ear where ${n.toLowerCase()} was pulled. habit.`,
+  (n) => `the ${n.toLowerCase()} spot stays warm longer than the others.`,
+  (n) => `marked the gap ${n.toLowerCase()} leaves. it is a specific gap.`,
+  (n) => `${n.toLowerCase()} goes out more than it comes back. noted.`,
+  (n) => `dusted around ${n.toLowerCase()}. not the rest. reasons.`,
+];
+
+/** Build-gated e2e mark injection (agent-mind pass). The last-mounted
+ *  cell registers its closure here; the harness drives single-pane, so
+ *  last-wins is correct. Cleared at teardown. */
+let e2ePlaceMark: ((x: number, y: number, agentId: string, text: string) => void) | null = null;
+export function e2ePlaceMarkIn(x: number, y: number, agentId: string, text: string): boolean {
+  if (!e2ePlaceMark) return false;
+  e2ePlaceMark(x, y, agentId, text);
+  return true;
+}
+
 /**
  * Cell-level renderer. Builds a PIXI Container containing one BitmapText
  * per tile cell (Cozette glyph), tinted by the tile's palette key.
@@ -288,19 +351,82 @@ export function mountCell(
   // Plans for this cell. These persist across restart because they
   // live in the SQLite memory store; the null writer just returns []
   // here so the web build is a no-op.
+  const markRecords: Array<{ tileX: number; tileY: number; text: string }> = [];
   for (const mark of memoryWriter.placedMarksForCell(cellId)) {
+    const style = MARK_STYLES[mark.agentId] ?? DEFAULT_MARK_STYLE;
     const markSprite = new BitmapText({
-      text: '·',
+      text: style.glyph,
       style: {
         fontFamily: COZETTE_FONT_FAMILY,
         fontSize: COZETTE_FONT_SIZE,
-        fill: hexToInt(theme.palette.magenta),
+        fill: hexToInt(theme.palette[style.palette]),
       },
     });
     markSprite.x = mark.location.x * COZETTE_CELL_WIDTH;
     markSprite.y = mark.location.y * COZETTE_CELL_HEIGHT;
     markLayer.addChild(markSprite);
+    markRecords.push({ tileX: mark.location.x, tileY: mark.location.y, text: mark.text });
   }
+
+  // Agent-mind pass — walking onto a mark reveals its note: the found-
+  // writing surface. One caption at a time (first record wins a shared
+  // tile); hidden the frame the player leaves the tile. In-canvas
+  // BitmapText, no DOM — the caption is part of the world.
+  const markCaption = new BitmapText({
+    text: '',
+    style: {
+      fontFamily: COZETTE_FONT_FAMILY,
+      fontSize: COZETTE_FONT_SIZE,
+      fill: hexToInt(theme.palette.fgBright),
+    },
+  });
+  markCaption.visible = false;
+  markLayer.addChild(markCaption);
+  let captionTile: string | null = null;
+  const updateMarkCaption = (): void => {
+    const hit = markRecords.find((m) => m.tileX === pos.x && m.tileY === pos.y);
+    if (!hit) {
+      if (markCaption.visible) markCaption.visible = false;
+      captionTile = null;
+      return;
+    }
+    const key = `${hit.tileX},${hit.tileY}`;
+    if (captionTile !== key) {
+      // Interior text width bounded by the room itself (minus border +
+      // padding columns) so the wrapped box never spills past the walls.
+      const maxWidth = Math.max(8, layout.width - 4);
+      markCaption.text = captionFor(hit.text, maxWidth);
+      const lines = markCaption.text.split('\n');
+      const boxCols = Math.max(...lines.map((l) => l.length));
+      const boxRows = lines.length;
+      // Above the mark, clamped on both axes so the box stays inside the room.
+      const tx = Math.max(0, Math.min(hit.tileX - Math.floor(boxCols / 2), layout.width - boxCols));
+      const ty = Math.max(0, Math.min(hit.tileY - boxRows - 1, layout.height - boxRows));
+      markCaption.x = tx * COZETTE_CELL_WIDTH;
+      markCaption.y = ty * COZETTE_CELL_HEIGHT;
+      captionTile = key;
+    }
+    markCaption.visible = true;
+  };
+  app.ticker.add(updateMarkCaption);
+
+  // Agent-mind pass — e2e debug mark injection. See `e2ePlaceMarkIn` above;
+  // this closure is what it dispatches to while this cell is mounted.
+  e2ePlaceMark = (x, y, agentId, text) => {
+    const style = MARK_STYLES[agentId] ?? DEFAULT_MARK_STYLE;
+    const s = new BitmapText({
+      text: style.glyph,
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette[style.palette]),
+      },
+    });
+    s.x = x * COZETTE_CELL_WIDTH;
+    s.y = y * COZETTE_CELL_HEIGHT;
+    markLayer.addChild(s);
+    markRecords.push({ tileX: x, tileY: y, text });
+  };
 
   // Player avatar — `@` rendered + repositioned each frame from this pane's
   // player position (`pos`). Reset to the layout's spawn point on mount
@@ -523,7 +649,7 @@ export function mountCell(
     // Persist Loki's marginalia immediately — independent of LLM round-trip.
     memoryWriter.recordPlan({
       agentId: 'loki',
-      text: `place a small mark near the ${book.name} shelf for next time`,
+      text: LAUNCH_MARK_NOTES[book.appid % LAUNCH_MARK_NOTES.length](book.name),
       steps: [
         {
           kind: 'place_mark',
@@ -582,6 +708,8 @@ export function mountCell(
       window.removeEventListener('keydown', onKeydown);
       app.ticker.remove(positionPlayer);
       app.ticker.remove(pulseLandmark);
+      app.ticker.remove(updateMarkCaption);
+      e2ePlaceMark = null;
       if (promptHandle) {
         promptHandle.destroy();
         promptHandle = null;

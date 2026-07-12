@@ -112,6 +112,10 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   // Phase 7-B — composable-panes seam glyphs (PixiApp.ts SEAM_GLYPHS +
   // drawSeamGlyphs). Drawn as box-drawing decoration where panes abut.
   ['│─┼├┤┬┴', 'PixiApp.ts SEAM_GLYPHS pane seams'],
+  // Agent-mind pass — per-agent trace glyphs (cell.ts MARK_STYLES).
+  ['’≡⌐°,·', 'cell.ts MARK_STYLES'],
+  // Agent-mind pass — walk-over caption frame + truncation (cell.ts captionFor).
+  ['┌─┐│└┘…', 'cell.ts captionFor'],
 ];
 for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
 
