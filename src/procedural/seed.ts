@@ -42,7 +42,7 @@ function playtimeBucket(hours: number): string {
  * FNV-1a 32-bit. Cheap, deterministic, no dependencies. Good enough for
  * seeding a PRNG; not for anything cryptographic.
  */
-function fnv1a32(s: string): number {
+export function fnv1a32(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
