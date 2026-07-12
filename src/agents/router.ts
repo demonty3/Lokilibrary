@@ -723,6 +723,8 @@ function importanceFor(kind: string): number {
   switch (kind) {
     case 'game_launched':
       return 8;
+    case 'world_event':
+      return 6;
     // Phase 4 slice 4A: lower than `game_launched` because we don't
     // know which game (or that it's a game at all — could be any
     // fullscreen app), but high enough to feed Tier-2 reflections
@@ -786,6 +788,27 @@ export function broadcastExternalFullscreen(
     if (!rt.present) continue;
     rt.perceptionQueue.push({
       kind: 'external_fullscreen',
+      at: { x: args.at.x, y: args.at.y },
+      when: args.when,
+    });
+  }
+}
+
+/**
+ * Events calendar — inject a `world_event` perception into every present
+ * agent's queue when staging lands an event. The cohort's existing tiers
+ * do the reacting (the Archivist logs Loki's mischief on its own); this
+ * is the calendar's ONLY contact with the AI layer — no new call types.
+ */
+export function broadcastWorldEvent(
+  runtimes: readonly AgentRuntimeState[],
+  args: { day: string; kind: string; at: { x: number; y: number }; when: number },
+): void {
+  for (const rt of runtimes) {
+    if (!rt.present) continue;
+    rt.perceptionQueue.push({
+      kind: 'world_event',
+      subject: `${args.kind}:${args.day}`,
       at: { x: args.at.x, y: args.at.y },
       when: args.when,
     });
