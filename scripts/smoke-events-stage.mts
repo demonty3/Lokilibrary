@@ -7,7 +7,8 @@
 import { makeChecker } from './lib/smoke.ts';
 import type { LibraryGame } from '../src/types.ts';
 
-const { stageMissedDays, consumeCalendarDispatch } = await import('../src/agents/events/stage.ts');
+const { stageMissedDays, consumeCalendarDispatch, registerCalendarStagedCallback } =
+  await import('../src/agents/events/stage.ts');
 const { nullMemoryWriter } = await import('../src/agents/router.ts');
 const { eventForDay, buildLibraryFacts, dayKey, addDays } = await import('../src/procedural/calendar.ts');
 
@@ -110,6 +111,39 @@ check('buffer drains', consumeCalendarDispatch() === null);
   check('unregister removes only its own', ran.join(',') === 'p2');
   u2();
   check('empty set → false', callStageNow() === false);
+}
+
+// staged-callback nudge: fires exactly when a staging call actually buffers
+// a line (Fix 3 — the boot-banner delivery mechanism).
+{
+  let calls = 0;
+  registerCalendarStagedCallback(() => { calls++; });
+  const far2 = fakeWriter(addDays(dayKey(NOW), -30));
+  stageMissedDays({ writer: far2.writer as any, games: GAMES, profileSeed: SEED,
+    slotForAppid: () => ({ x: 5, y: 5 }), runtimes: [{ id: 'ghost', present: true, perceptionQueue: [] }] as any, now: NOW });
+  check('staged-callback fires when a line is buffered', calls === 1, `calls=${calls}`);
+  consumeCalendarDispatch();
+  const same2 = fakeWriter(dayKey(NOW));
+  stageMissedDays({ writer: same2.writer as any, games: GAMES, profileSeed: SEED,
+    slotForAppid: () => ({ x: 5, y: 5 }), runtimes: [{ id: 'ghost', present: true, perceptionQueue: [] }] as any, now: NOW });
+  check('staged-callback does not fire on a quiet (0-staged) call', calls === 1, `calls=${calls}`);
+  registerCalendarStagedCallback(null);
+}
+
+// callStageNow isolation: one registered closure throws, the rest still run
+// (Fix 4 — a pane's staging failure must not skip the others).
+{
+  const { registerStageNow, callStageNow } = await import('../src/agents/events/stage.ts');
+  let spyRan = false;
+  const uThrow = registerStageNow(() => { throw new Error('boom'); });
+  const uSpy = registerStageNow(() => { spyRan = true; });
+  const ranWithoutThrow = (() => {
+    try { return callStageNow(); } catch { return 'threw'; }
+  })();
+  check('callStageNow does not propagate a closure throw', ranWithoutThrow === true);
+  check('callStageNow runs the remaining closures past a throw', spyRan === true);
+  uThrow();
+  uSpy();
 }
 
 report();

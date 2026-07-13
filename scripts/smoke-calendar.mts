@@ -60,7 +60,7 @@ for (let i = 0; i < 1000; i++) {
   if (e) {
     if (e.note.includes('!')) { lintOk = false; lintDetail = `! in ${e.templateId}`; break; }
     if (e.note.length > 90) { lintOk = false; lintDetail = `${e.note.length} chars in ${e.templateId}`; break; }
-    if (/\byou\b/i.test(e.note)) { lintOk = false; lintDetail = `addresses user in ${e.templateId}`; break; }
+    if (/\byou(r|rs)?\b/i.test(e.note)) { lintOk = false; lintDetail = `addresses user in ${e.templateId}`; break; }
   }
   d = addDays(d, 1);
 }

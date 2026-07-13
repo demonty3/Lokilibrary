@@ -820,6 +820,13 @@ function mountPaneLevel(
     // / persistent memory, all seed-keyed). A regionId that no longer resolves
     // (the library shrank) falls back to the whole-library cell.
     let { books, seed } = snap;
+    // Whole-arc review fix — events-calendar staging is a WORLD property
+    // (see cell.ts's `isWholeLibraryPane` doc): starts true and flips false
+    // ONLY when a regionId genuinely resolves to a wing below. A stale
+    // regionId (the library shrank since the pane was bound) still renders
+    // — and still stages — as the whole-library pane, which is correct: it
+    // IS rendering the whole library in that case.
+    let isWholeLibraryPane = true;
     if (regionId) {
       const region = regionTerminals(snap.clusterGames, snap.seed).find(
         (r) => r.regionId === regionId,
@@ -827,6 +834,7 @@ function mountPaneLevel(
       if (region) {
         seed = region.seed;
         books = region.games.map((g) => ({ appid: g.appid, name: g.name }));
+        isWholeLibraryPane = false;
       }
     }
     // Carve the walkable seam opening from the SHARED profile seed (snap.seed),
@@ -848,6 +856,7 @@ function mountPaneLevel(
       localModel,
       paneId,
       crossWiring,
+      isWholeLibraryPane,
     );
   }
   if (level === 'district') {

@@ -28,7 +28,11 @@ import {
 } from './agents/sleep-reflection';
 import { mountMorningDispatch } from './render/overlays/morning-dispatch';
 import { LoreDropZone } from './render/LoreDropZone';
-import { callStageNow, consumeCalendarDispatch } from './agents/events/stage';
+import {
+  callStageNow,
+  consumeCalendarDispatch,
+  registerCalendarStagedCallback,
+} from './agents/events/stage';
 
 /**
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
@@ -197,23 +201,40 @@ export function App() {
       else teardown = fn;
     })();
 
-    // Events calendar — boot banner. Staging ran inside mountCell; if
-    // it landed events, surface the one-line dispatch. One-shot, only
-    // when a line is actually buffered.
-    const calendarBootTimer = setTimeout(() => {
-      const line = consumeCalendarDispatch();
-      const ctx = getCurrentRenderContext();
-      if (line && ctx) {
-        mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines: [line] });
-      }
-    }, 2500);
-
     return () => {
       cancelled = true;
       teardown?.();
-      clearTimeout(calendarBootTimer);
     };
   }, [loreVersion]);
+
+  // Events calendar — boot banner, delivered via a staged-callback nudge
+  // rather than a fixed timer. Staging ran inside mountCell; the OLD fixed
+  // 2.5s timer above raced the profile-driven remount (PixiApp's Zustand
+  // subscriber, which fires once auth resolves and re-stages against the
+  // real library) — that remount's staging could land after the timer had
+  // already fired-and-found-nothing, silently dropping the "kept its
+  // calendar…" line. Instead, stage.ts calls back the instant a line is
+  // actually buffered; we then give the render context a beat (1.5s) to
+  // exist before draining it. Race semantics are deliberate: the wake
+  // handler above drains the SAME buffer synchronously and unconditionally
+  // on every sleep→wake transition, so when a stage is triggered by waking,
+  // the nudge's later consume reliably finds nothing already shown — no
+  // double banner.
+  useEffect(() => {
+    let nudgeTimer: ReturnType<typeof setTimeout> | null = null;
+    registerCalendarStagedCallback(() => {
+      nudgeTimer = setTimeout(() => {
+        nudgeTimer = null;
+        const line = consumeCalendarDispatch();
+        const ctx = getCurrentRenderContext();
+        if (line && ctx) mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines: [line] });
+      }, 1500);
+    });
+    return () => {
+      registerCalendarStagedCallback(null);
+      if (nudgeTimer !== null) clearTimeout(nudgeTimer);
+    };
+  }, []);
 
   // Profile-triggered namespace rebuild + cell remount is owned by
   // PixiApp's Zustand subscriber (slice 2G). It calls

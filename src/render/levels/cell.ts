@@ -24,7 +24,7 @@ import {
   listRuntimesIn,
   getRuntimeIn,
 } from '../../state/agentRuntime';
-import { registerCellPaneScope } from '../../state/cellPaneScopes';
+import { registerCellPaneScope, listCellPaneScopes } from '../../state/cellPaneScopes';
 import { registerPane } from '../../state/paneRegistry';
 import { COHORT } from '../../agents/cohort';
 import { cellIdFor } from '../../agents/memory/schema';
@@ -201,6 +201,14 @@ export function e2ePlaceMarkIn(x: number, y: number, agentId: string, text: stri
  * focused-pane guard inside the handler is the whole gate. With the default
  * single 'root' pane, focusedPaneId === paneId always ⇒ behaviour identical to
  * the pre-7-B path.
+ *
+ * Whole-arc review fix — `isWholeLibraryPane` gates the events-calendar
+ * staging closure (see the "Events calendar" block below). The calendar is a
+ * WORLD property, not a pane property: a wing/region pane's `seed` is that
+ * wing's own seed, not the profile-level world seed the ledger is keyed
+ * against, so it must never register staging. PixiApp's mountPaneLevel is
+ * the only caller and threads this from whether a regionId genuinely
+ * resolved to a wing this mount.
  */
 export function mountCell(
   app: Application,
@@ -215,6 +223,7 @@ export function mountCell(
   localModel: LocalModelResult = NO_LOCAL_MODEL,
   paneId = 'root',
   crossWiring?: CohortCrossWiring,
+  isWholeLibraryPane = true,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
   parent.addChild(container);
@@ -406,24 +415,51 @@ export function mountCell(
     const [sx, sy] = key.split(',').map(Number);
     slotOfAppid.set(book.appid, { x: sx, y: sy });
   }
-  const runStageNow = () => {
-    stageMissedDays({
-      writer: memoryWriter,
-      games: useAppStore.getState().library,
-      profileSeed: seed,
-      slotForAppid: (appid) => slotOfAppid.get(appid) ?? null,
-      runtimes: listRuntimesIn(scope),
-      now: new Date(),
-    });
-  };
-  const unregisterStageNow = registerStageNow(runStageNow);
-  try {
-    runStageNow(); // boot path — idempotent per day via the ledger PK (or
-    // the session guard); invoke directly so mounting a new pane doesn't
-    // also re-run OTHER live panes' closures via callStageNow().
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn(`[cell] boot staging failed: ${(e as Error).message}`);
+  // Whole-arc review fix — only whole-library panes stage (see the
+  // isWholeLibraryPane doc above `mountCell`). Because only whole-library
+  // panes ever reach this branch, `seed` here IS already the profile-level
+  // world seed the ledger's day-PK is keyed against — PixiApp's
+  // mountPaneLevel only overwrites `seed` with a wing's own seed on the
+  // branch where it also flips isWholeLibraryPane to false. Asserting that
+  // invariant here (rather than re-threading a separate "world seed" param)
+  // keeps the single-pane default byte-identical.
+  let unregisterStageNow: () => void = () => {};
+  if (isWholeLibraryPane) {
+    const runStageNow = () => {
+      // Facts must only ever reflect what's actually on the shelf — an
+      // event targeting an unshelved book would file a ledger row + bump
+      // the banner's "N things changed" count with nothing on the floor to
+      // show for it (violates "mischief must be legible"). Filter the
+      // store's full library down to shelved appids; the null/sample-
+      // library path (no store library, or none of it matches what's
+      // shelved) falls back to the books the mount actually shelved.
+      const storeLibrary = useAppStore.getState().library;
+      const shelvedFromStore = (storeLibrary ?? []).filter((g) => slotOfAppid.has(g.appid));
+      const shelvedGames = shelvedFromStore.length > 0
+        ? shelvedFromStore
+        : usableBooks.map((b) => ({ appid: b.appid, name: b.name, playtime_forever: 0 }));
+      stageMissedDays({
+        writer: memoryWriter,
+        games: shelvedGames,
+        profileSeed: seed,
+        slotForAppid: (appid) => slotOfAppid.get(appid) ?? null,
+        // World event — every live pane's cohort should perceive it, not
+        // just this pane's own (closes the recorded single-cohort-fanout
+        // gap). Same union-over-live-cell-panes pattern as App.tsx's
+        // broadcastExternalFullscreen call.
+        runtimes: listCellPaneScopes().flatMap((s) => listRuntimesIn(s)),
+        now: new Date(),
+      });
+    };
+    unregisterStageNow = registerStageNow(runStageNow);
+    try {
+      runStageNow(); // boot path — idempotent per day via the ledger PK (or
+      // the session guard); invoke directly so mounting a new pane doesn't
+      // also re-run OTHER live panes' closures via callStageNow().
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[cell] boot staging failed: ${(e as Error).message}`);
+    }
   }
 
   // Apply active moves: pairwise swaps on the ordered slot assignment.

@@ -52,6 +52,18 @@ export function consumeCalendarDispatch(): typeof calendarDispatch {
   return out;
 }
 
+/** Whole-arc review fix 3 — a boot banner nudge. App.tsx's fixed 2.5s timer
+ *  could race the profile-driven remount (the real-library staging often
+ *  lands AFTER that timer already fired, silently dropping the "kept its
+ *  calendar…" line). Instead, App.tsx registers a callback here once at
+ *  mount; `stageMissedDays` calls it the instant a line is actually
+ *  buffered, so the nudge only ever fires when there's something to show.
+ *  Single ref (not a Set) — App.tsx is the sole owner. */
+let onCalendarStaged: (() => void) | null = null;
+export function registerCalendarStagedCallback(cb: (() => void) | null): void {
+  onCalendarStaged = cb;
+}
+
 /** Session-level staging guard keyed by writer identity: the ledger is
  *  the real idempotence source (day PK), but the null writer has no
  *  ledger — without this, every cell remount in a web session re-walks
@@ -114,6 +126,7 @@ export function stageMissedDays(deps: StageDeps): StagedSummary {
       text: `kept its calendar. ${staged} thing${staged === 1 ? '' : 's'} changed while you were away.`,
       hadPlan: false,
     };
+    onCalendarStaged?.();
   }
   return { staged };
 }
@@ -137,6 +150,15 @@ export function registerStageNow(fn: () => void): () => void {
 }
 export function callStageNow(): boolean {
   if (stageNowFns.size === 0) return false;
-  for (const fn of stageNowFns) fn();
+  for (const fn of stageNowFns) {
+    // Whole-arc review fix 4 — isolate each pane's closure so one pane's
+    // staging failure doesn't skip the remaining panes' staging.
+    try {
+      fn();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[events] pane staging failed: ${(e as Error).message}`);
+    }
+  }
   return true;
 }
