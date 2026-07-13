@@ -11,17 +11,35 @@
  * memory writer). Embedding is best-effort — chunks persist for FTS5 even
  * when /api/embed 501s (web build / cloud provider).
  *
- * Terminal aesthetic, hardcoded palette to match <Hud> (the DOM layer
- * doesn't thread the PIXI theme).
+ * Final-review fix — threads the live PIXI theme like <Hud> does, via a
+ * nullable `theme` prop from App.tsx's `activeTheme` state. Before the
+ * palace mounts (or theme derivation hasn't landed yet) `theme` is null
+ * and every colour falls back to the original hardcoded Catppuccin hexes
+ * below; once a theme is live, colours derive from `theme.palette` so
+ * this dialog recolors with the rest of the world instead of floating a
+ * fixed palette over it.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import { useAppStore } from '../state/store';
 import { getCurrentMemoryWriter } from '../agents/memory/bootstrap';
 import { ingestLore, type IngestResult } from '../agents/lore-ingest';
+import type { Theme } from '../themes/types';
 
 const ACCEPT = ['.txt', '.md'];
 const MAX_BYTES = 1024 * 1024; // 1 MB — lore is text, not novels
+
+// Pre-theme fallback — the original hardcoded Catppuccin Mocha values,
+// kept as the pre-mount default (theme === null).
+const FALLBACK = {
+  ink: '#cdd6f4',
+  dim: '#585b70',
+  panelBg: 'rgba(30,30,46,0.97)',
+  panelBgDragging: 'rgba(166,227,161,0.08)',
+  green: '#a6e3a1',
+  yellow: '#f9e2af',
+  red: '#f38ba8',
+};
 
 type Status =
   | { kind: 'idle' }
@@ -34,7 +52,7 @@ function accepted(name: string): boolean {
   return ACCEPT.some((ext) => lower.endsWith(ext));
 }
 
-export function LoreDropZone() {
+export function LoreDropZone({ theme }: { theme: Theme | null }) {
   const open = useAppStore((s) => s.loreUploadOpen);
   const close = useAppStore((s) => s.setLoreUploadOpen);
   const loreEnabled = useAppStore((s) => s.loreEnabled);
@@ -103,6 +121,19 @@ export function LoreDropZone() {
 
   if (!open) return null;
 
+  // Theme derivation — same shape as <Hud> in App.tsx: null theme (pre-mount)
+  // falls back to the original hardcoded hexes; a live theme derives every
+  // colour from `theme.palette` so this dialog recolors with the rest of the
+  // world. `eb`/`14` are hex8 alpha suffixes (≈0.92 / ≈0.08), the same
+  // convention <Hud> uses for its translucent panel fill.
+  const ink = theme ? theme.palette.fg : FALLBACK.ink;
+  const dim = theme ? theme.palette.fgDim : FALLBACK.dim;
+  const green = theme ? theme.palette.green : FALLBACK.green;
+  const yellow = theme ? theme.palette.yellow : FALLBACK.yellow;
+  const red = theme ? theme.palette.red : FALLBACK.red;
+  const panelBg = theme ? `${theme.palette.bgAlt}eb` : FALLBACK.panelBg;
+  const panelBgDragging = theme ? `${theme.palette.green}14` : FALLBACK.panelBgDragging;
+
   return (
     <div
       onClick={() => close(false)}
@@ -115,7 +146,7 @@ export function LoreDropZone() {
         background: 'rgba(0,0,0,0.55)',
         zIndex: 1000,
         font: '13px/1.5 ui-monospace, monospace',
-        color: '#cdd6f4',
+        color: ink,
       }}
     >
       <div
@@ -129,14 +160,14 @@ export function LoreDropZone() {
         style={{
           width: 460,
           maxWidth: '80vw',
-          border: `1px dashed ${dragging ? '#a6e3a1' : '#585b70'}`,
-          background: dragging ? 'rgba(166,227,161,0.08)' : 'rgba(30,30,46,0.97)',
+          border: `1px dashed ${dragging ? green : dim}`,
+          background: dragging ? panelBgDragging : panelBg,
           padding: '20px 22px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ color: '#f9e2af' }}>── upload lore ──</span>
+          <span style={{ color: yellow }}>── upload lore ──</span>
           <span
             onClick={() => close(false)}
             style={{ cursor: 'pointer', opacity: 0.7 }}
@@ -156,9 +187,9 @@ export function LoreDropZone() {
           onClick={() => inputRef.current?.click()}
           style={{
             font: 'inherit',
-            color: '#cdd6f4',
+            color: ink,
             background: 'transparent',
-            border: '1px solid #585b70',
+            border: `1px solid ${dim}`,
             padding: '5px 12px',
             cursor: 'pointer',
           }}
@@ -177,11 +208,11 @@ export function LoreDropZone() {
         <div style={{ marginTop: 14, minHeight: 20, opacity: 0.9 }}>
           {status.kind === 'working' && <span>{status.label}</span>}
           {status.kind === 'error' && (
-            <span style={{ color: '#f38ba8' }}>⚠ {status.message}</span>
+            <span style={{ color: red }}>⚠ {status.message}</span>
           )}
           {status.kind === 'done' &&
             status.results.map((r, i) => (
-              <div key={i} style={{ color: '#a6e3a1' }}>
+              <div key={i} style={{ color: green }}>
                 ✓ {r.source}: {r.chunkCount} chunk{r.chunkCount === 1 ? '' : 's'}
                 {r.embeddedCount > 0
                   ? ` embedded`
@@ -196,7 +227,7 @@ export function LoreDropZone() {
             gap: 8,
             marginTop: 14,
             paddingTop: 12,
-            borderTop: '1px solid #585b70',
+            borderTop: `1px solid ${dim}`,
             cursor: 'pointer',
             alignItems: 'flex-start',
           }}
@@ -205,10 +236,10 @@ export function LoreDropZone() {
             type="checkbox"
             checked={loreEnabled}
             onChange={(e) => setLoreEnabled(e.target.checked)}
-            style={{ accentColor: '#a6e3a1', marginTop: 2 }}
+            style={{ accentColor: green, marginTop: 2 }}
           />
           <span style={{ opacity: 0.85 }}>
-            <strong style={{ color: '#a6e3a1' }}>Theme &amp; mood.</strong> Let your
+            <strong style={{ color: green }}>Theme &amp; mood.</strong> Let your
             lore steer the agents' voice. Sends only abstract theme tags (e.g.{' '}
             <code>nautical</code>, <code>gothic</code>) to the model — never your
             uploaded text. Off by default.
@@ -228,10 +259,10 @@ export function LoreDropZone() {
             type="checkbox"
             checked={loreQuoteEnabled}
             onChange={(e) => setLoreQuoteEnabled(e.target.checked)}
-            style={{ accentColor: '#f9e2af', marginTop: 2 }}
+            style={{ accentColor: yellow, marginTop: 2 }}
           />
           <span style={{ opacity: 0.85 }}>
-            <strong style={{ color: '#f9e2af' }}>Quote directly.</strong> Let agents
+            <strong style={{ color: yellow }}>Quote directly.</strong> Let agents
             reference specific names and places from your notes. Sends relevant{' '}
             <em>excerpts of your uploaded text</em> (and its filename) to the
             model. Off by default.

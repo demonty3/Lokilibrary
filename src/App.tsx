@@ -386,7 +386,7 @@ export function App() {
     <>
       <div ref={canvasHost} style={{ position: 'fixed', inset: 0 }} />
       {activeTheme && <Hud scale={scale} theme={activeTheme} />}
-      <LoreDropZone />
+      <LoreDropZone theme={activeTheme} />
     </>
   );
 }

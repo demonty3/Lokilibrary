@@ -246,9 +246,13 @@ export function mountCell(
   // Salience: walls/frame/apertures split out of baseLayer into their own
   // layer so the pane-focus indicator can dim the room's shell without
   // touching furniture (shelves/tables/floor stay in baseLayer, always
-  // full alpha). Added right after baseLayer so the z-order is unchanged
-  // (both sit under spineLayer/scatterLayer/etc, same as the old
-  // single-baseLayer wall+furniture paint).
+  // full alpha). Added right after baseLayer so the STACKING ORDER is
+  // unchanged (both sit under spineLayer/scatterLayer/etc, same as the old
+  // single-baseLayer wall+furniture paint). NOTE: pre-split, row-major add
+  // order let a multi-cell sprite overflow OVER the wall band above it;
+  // post-split, wallLayer draws over ALL of baseLayer — Phase 3D's sprite
+  // bake must re-solve overflow z-order (CURATED_SLOTS is empty today, so
+  // nothing renders differently yet).
   const wallLayer = new Container();
   const spineLayer = new Container();
   const scatterLayer = new Container();
@@ -716,21 +720,17 @@ export function mountCell(
   playerSprite.y = pos.y * COZETTE_CELL_HEIGHT;
   agentLayer.addChild(playerSprite);
 
-  // Salience: the cursor blink — the one idle animation the player
-  // deserves. 800ms on / 250ms off, deltaMS-driven so it freezes cleanly
-  // under the wallpaper throttle. Never fully invisible (off = fgDim).
-  let blinkAcc = 0;
-  let blinkOn = true;
+  // Salience: cursor blink via phase-modulo — a coarse-tick throttle
+  // (1Hz wallpaper mode: deltaMS≈1000) keeps the ~76/24 duty cycle
+  // instead of inverting to 50/50 the way a toggle-on-limit would, and
+  // the phase check runs fresh every tick so a resume never continues a
+  // stale dim stretch. Period 1050ms = 800 on + 250 off.
+  let blinkPhaseMs = 0;
+  const BLINK_PERIOD_MS = 1050;
   const BLINK_ON_MS = 800;
-  const BLINK_OFF_MS = 250;
   const blinkPlayer = (): void => {
-    blinkAcc += app.ticker.deltaMS;
-    const limit = blinkOn ? BLINK_ON_MS : BLINK_OFF_MS;
-    if (blinkAcc >= limit) {
-      blinkAcc = 0;
-      blinkOn = !blinkOn;
-      playerSprite.tint = blinkOn ? playerOn : playerOff;
-    }
+    blinkPhaseMs = (blinkPhaseMs + app.ticker.deltaMS) % BLINK_PERIOD_MS;
+    playerSprite.tint = blinkPhaseMs < BLINK_ON_MS ? playerOn : playerOff;
   };
   app.ticker.add(blinkPlayer);
 

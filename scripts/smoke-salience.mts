@@ -42,7 +42,7 @@ check('no tile uses a being key', tileViolations.length === 0, tileViolations.jo
 // builder (SCATTER_BIBLE itself is module-private; buildScatterTable
 // exposes the glyphs, mirroring scripts/smoke-glyph-coverage.mts).
 const scatterEntries = buildScatterTable().entries.map(([glyph, fgKey]) => ({ glyph, fgKey }));
-check('scatter bible located', scatterEntries.length > 0, 'adapt the import to the real export name');
+check('scatter bible located', scatterEntries.length > 0, 'buildScatterTable returned no entries');
 const scatterViolations = scatterEntries
   .filter((e) => beingKeys.has(e.fgKey as never))
   .map((e) => `${e.glyph}:${e.fgKey}`);
