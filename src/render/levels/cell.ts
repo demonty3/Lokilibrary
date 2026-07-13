@@ -1,7 +1,20 @@
 import { BitmapText, Container, Graphics, Sprite } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
-import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
+import {
+  T_BOOKSHELF,
+  T_CORNER_BL,
+  T_CORNER_BR,
+  T_CORNER_TL,
+  T_CORNER_TR,
+  T_DOOR,
+  T_FLOOR,
+  T_TEE,
+  T_WALL_H,
+  T_WALL_V,
+  T_WINDOW,
+  TILE_BY_ID,
+} from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { roleKey } from '../../themes/roles';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
@@ -230,6 +243,13 @@ export function mountCell(
   parent.addChild(container);
 
   const baseLayer = new Container();
+  // Salience: walls/frame/apertures split out of baseLayer into their own
+  // layer so the pane-focus indicator can dim the room's shell without
+  // touching furniture (shelves/tables/floor stay in baseLayer, always
+  // full alpha). Added right after baseLayer so the z-order is unchanged
+  // (both sit under spineLayer/scatterLayer/etc, same as the old
+  // single-baseLayer wall+furniture paint).
+  const wallLayer = new Container();
   const spineLayer = new Container();
   const scatterLayer = new Container();
   // Phase 6A: local-model landmark sits between scatter and agents in
@@ -244,6 +264,7 @@ export function mountCell(
   // the caption + its opaque backing live here, added after agentLayer.
   const captionLayer = new Container();
   container.addChild(baseLayer);
+  container.addChild(wallLayer);
   container.addChild(spineLayer);
   container.addChild(scatterLayer);
   container.addChild(landmarkLayer);
@@ -271,11 +292,20 @@ export function mountCell(
   // from cellPaneScopes (the sleep-sweep's paneId-less Set, untouched).
   const unregisterPane = registerPane(paneId, scope, layout);
 
+  // Salience: wall/frame/aperture tile ids — routed to wallLayer instead
+  // of baseLayer so the pane-focus indicator (wallLayer.alpha) dims only
+  // the room's shell.
+  const WALL_TILE_IDS = new Set([
+    T_WALL_H, T_WALL_V, T_CORNER_TL, T_CORNER_TR, T_CORNER_BL, T_CORNER_BR,
+    T_TEE, T_DOOR, T_WINDOW,
+  ]);
+
   // Base tile layer — one PIXI.Sprite per cell when a sprite is baked
   // for that tile id (Phase 3A; bookshelf only today), else one
   // BitmapText glyph (current Phase 1 path). Sprite + glyph go into
-  // the SAME baseLayer so Z-order vs spineLayer / scatterLayer / etc.
-  // stays unchanged.
+  // baseLayer for furniture/floor, wallLayer for walls/frame/apertures
+  // (salience pane-focus split) — Z-order vs spineLayer / scatterLayer /
+  // etc. stays unchanged since wallLayer sits immediately after baseLayer.
   for (let y = 0; y < layout.height; y++) {
     for (let x = 0; x < layout.width; x++) {
       const tileId = layout.tiles[y][x];
@@ -296,7 +326,7 @@ export function mountCell(
         sprite.height = display.height;
         sprite.x = x * COZETTE_CELL_WIDTH + (COZETTE_CELL_WIDTH - display.width) / 2;
         sprite.y = y * COZETTE_CELL_HEIGHT + COZETTE_CELL_HEIGHT - display.height;
-        baseLayer.addChild(sprite);
+        (WALL_TILE_IDS.has(tileId) ? wallLayer : baseLayer).addChild(sprite);
       } else {
         const glyph = new BitmapText({
           text: tile.glyph,
@@ -308,7 +338,7 @@ export function mountCell(
         });
         glyph.x = x * COZETTE_CELL_WIDTH;
         glyph.y = y * COZETTE_CELL_HEIGHT;
-        baseLayer.addChild(glyph);
+        (WALL_TILE_IDS.has(tileId) ? wallLayer : baseLayer).addChild(glyph);
       }
     }
   }
@@ -317,7 +347,8 @@ export function mountCell(
   // window's ╫ in blue) so side gaps read as doorways, not broken walls.
   // Derived from the tiles: any floor cell on column 0 / width-1 is a
   // carved opening; the wall cells immediately above/below the opening
-  // run get the cap.
+  // run get the cap. Caps go to wallLayer (not baseLayer) so they dim
+  // with the walls they cap under the pane-focus indicator.
   const seamCapColour = hexToInt(theme.palette[roleKey(theme, 'seam', 'blue')]);
   for (const col of [0, layout.width - 1]) {
     for (let y = 0; y < layout.height; y++) {
@@ -334,10 +365,20 @@ export function mountCell(
         });
         capSprite.x = col * COZETTE_CELL_WIDTH;
         capSprite.y = cy * COZETTE_CELL_HEIGHT;
-        baseLayer.addChild(capSprite);
+        wallLayer.addChild(capSprite);
       }
     }
   }
+
+  // Salience: focused pane reads bright, unfocused recedes — pure alpha,
+  // no new chrome. Single pane: always focused → alpha 1 → identical to
+  // today.
+  const applyFocusAlpha = (): void => {
+    const focused = useAppStore.getState().focusedPaneId === paneId;
+    wallLayer.alpha = focused ? 1.0 : 0.55;
+  };
+  applyFocusAlpha();
+  const unsubFocus = useAppStore.subscribe(applyFocusAlpha);
 
   // Base slot → BookGame assignment, in bookshelfSlots reading order.
   // The spine GLYPHS are painted later (after the events-calendar overlay
@@ -929,6 +970,7 @@ export function mountCell(
       app.ticker.remove(pulseLandmark);
       app.ticker.remove(updateMarkCaption);
       app.ticker.remove(blinkPlayer);
+      unsubFocus();
       e2ePlaceMark = null;
       unregisterStageNow();
       if (promptHandle) {
