@@ -154,7 +154,7 @@ check('♠ plant covered', covered(0x2660));
 check('∩ chair covered', covered(0x2229));
 check('≡ books covered', covered(0x2261));
 check('☼ lamp covered', covered(0x263c));
-check('□ table covered', covered(0x25a1));
+check('▤ table covered', covered(0x25a4));
 check('… ellipsis covered', covered(0x2026));
 check('↳ morning-dispatch plan arrow covered', covered(0x21b3));
 

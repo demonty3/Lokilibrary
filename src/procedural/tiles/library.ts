@@ -138,7 +138,7 @@ const TILES: readonly Tile[] = [
   {
     id: T_DOOR,
     glyph: '╪',
-    fgKey: 'orange',
+    fgKey: 'blue', // aperture dialect (door/window/seam caps share blue) — salience campaign
     frequency: 0,
     // Door sits in a wall_h on the bottom edge. Wall sides E/W, floor
     // inside (N), off-grid outside (S).
@@ -165,8 +165,8 @@ const TILES: readonly Tile[] = [
   },
   {
     id: T_TABLE,
-    glyph: '□',
-    fgKey: 'violet',
+    glyph: '▤', // ▤ (not □ — hollow squares read as tofu); quiet-decor tier
+    fgKey: 'fgDim',
     frequency: 3,
     allowed: {
       // Tables sit in open floor, not adjacent to bookshelves or other

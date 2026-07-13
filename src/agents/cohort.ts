@@ -110,7 +110,7 @@ export const COHORT: readonly AgentDef[] = [
     id: 'archivist',
     name: 'Archivist',
     glyph: 'A',
-    paletteKey: 'blue',
+    paletteKey: 'violet',
     fov: 5,
     spawn: { kind: 'near_door', offsetX: -2, offsetY: -1 },
     schedule: [
@@ -124,7 +124,7 @@ export const COHORT: readonly AgentDef[] = [
     id: 'cat',
     name: 'Cat',
     glyph: 'c',
-    paletteKey: 'yellow',
+    paletteKey: 'orange',
     fov: 4,
     spawn: { kind: 'random_floor', seedSalt: 0xca7 },
     schedule: [{ kind: 'bias_idle_near_glyph', glyph: '☼', bias: 0.6 }],

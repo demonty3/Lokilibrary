@@ -50,7 +50,7 @@ const SCATTER_BIBLE: readonly ScatterCandidate[] = [
   { glyph: '♠', fgKey: 'green',  baseWeight: 5, themes: ['pastoral', 'folklore', 'cozy'] },      // potted plant
   { glyph: '∩', fgKey: 'fgDim',  baseWeight: 4, themes: ['cozy', 'noir', 'mystery'] },           // chair
   { glyph: '≡', fgKey: 'yellow', baseWeight: 3, themes: ['arcane', 'mystery', 'high-fantasy'] }, // small stack of books
-  { glyph: '☼', fgKey: 'orange', baseWeight: 1, themes: ['nautical', 'heroic', 'sci-fi'] },      // standing lamp (rare)
+  { glyph: '☼', fgKey: 'yellow', baseWeight: 1, themes: ['nautical', 'heroic', 'sci-fi'] },      // standing lamp (rare)
 ];
 
 /** Each matching dominant theme multiplies a candidate's weight by this much.

@@ -17,7 +17,8 @@
 import { BitmapText, Container } from 'pixi.js';
 import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
-import type { Theme } from '../../themes/types';
+import type { Theme, ThemeRole } from '../../themes/types';
+import { roleKey } from '../../themes/roles';
 import { mulberry32, type Prng } from '../../procedural/prng';
 import {
   COHORT,
@@ -195,7 +196,11 @@ export function mountCohort(opts: MountCohortOptions): () => void {
         style: {
           fontFamily: COZETTE_FONT_FAMILY,
           fontSize: COZETTE_FONT_SIZE,
-          fill: hexToInt(opts.theme.palette[def.paletteKey]),
+          fill: hexToInt(
+            opts.theme.palette[
+              roleKey(opts.theme, `being.${def.id}` as ThemeRole, def.paletteKey)
+            ],
+          ),
         },
       });
       sprite.x = rt.x * COZETTE_CELL_WIDTH;
