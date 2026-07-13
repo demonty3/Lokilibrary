@@ -23,8 +23,8 @@ import {
  * REAL neighbour districts derived from the clustering layer. Each card
  * shows the district's representative game name, its game count, and an
  * activity glyph (▓ loved · ▒ engaged · ░ tried · · dusty). The centre card
- * is home (YOU) — identified by its fixed centre position; no overlay
- * marker is drawn there (see the note at its mount site for why).
+ * is home (YOU) — its whole card renders in fgBright (carved out of the
+ * shared panel so no cell is double-drawn; see the note at its mount site).
  *
  * Read-only beyond the `[` / `]` zoom transitions owned by App.tsx; this
  * view adds no ticker and no keydown listener. Layout is precomputed by pure
@@ -105,12 +105,21 @@ export function mountDistrict(
   const grid: string[][] = Array.from({ length: canvasH }, () =>
     Array.from({ length: canvasW }, () => ' '),
   );
+  let homeCard: string[] | null = null;
   for (let i = 0; i < 9; i++) {
     const col = i % 3;
     const row = Math.floor(i / 3);
     const ox = col * CARD_W;
     const oy = row * CARD_H;
     const card = renderDistrictCard(slots[i]);
+    if (i === 4 && slots[4]) {
+      // Home (YOU) card: carved OUT of the shared panel string — its cells
+      // stay spaces here — and stamped separately below in fgBright so the
+      // whole card reads brighter. Every glyph cell keeps exactly ONE text
+      // draw (the overstrike bug came from a second draw sharing cells).
+      homeCard = card;
+      continue;
+    }
     for (let r = 0; r < CARD_H; r++) {
       for (let c = 0; c < CARD_W; c++) {
         grid[oy + r][ox + c] = card[r][c];
@@ -132,13 +141,27 @@ export function mountDistrict(
   });
   container.addChild(panel);
 
-  // NOTE: a 'YOU' marker BitmapText used to be stamped over the home card
-  // here — "just inside the home card's top border" per the old comment.
-  // That cell is actually the card's NAME row (row 1 of renderDistrictCard:
-  // border/name/count/fill/border), so the second text draw overstruck the
-  // home card's name glyph-for-glyph ('YOU' over 'Civ…' rendered as garbled
-  // "C0Viliza…"). The home card is already positionally unambiguous (always
-  // the centre slot); no replacement marker is drawn.
+  // Home (YOU) indication without overstrike: the home card's cells are
+  // spaces in the shared panel above; this separate fgBright BitmapText is
+  // the ONLY draw for those cells, so the centre card reads one step
+  // brighter with zero glyph overlap. (A previous 'YOU' marker BitmapText
+  // stamped ON TOP of the panel's name row overstruck the home card's name
+  // glyph-for-glyph — 'YOU' over 'Civ…' rendered as garbled "C0Viliza…".)
+  // Positioned in the container's LOCAL glyph space: centre slot is at grid
+  // (CARD_W, CARD_H); +HEADER_ROWS for the panel's header + blank line.
+  if (homeCard) {
+    const homeText = new BitmapText({
+      text: homeCard.join('\n'),
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette.fgBright),
+      },
+    });
+    homeText.x = CARD_W * GLYPH_W;
+    homeText.y = (CARD_H + HEADER_ROWS) * GLYPH_H;
+    container.addChild(homeText);
+  }
 
   const fit = (r: PixelRect) => {
     const desired = Math.min(r.pw, r.ph) * 0.55;
@@ -159,6 +182,9 @@ export function mountDistrict(
 
 const CARD_W = 11;
 const CARD_H = 5;
+const HEADER_ROWS = 2; // header line + blank line before the card grid
+const GLYPH_W = 6; // Cozette cell width
+const GLYPH_H = 13; // Cozette cell height
 
 /** Render one district mini-card, or an empty terrain card when null. Pure:
  *  same input → same lines. */
