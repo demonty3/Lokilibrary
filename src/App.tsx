@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getThrottleState,
   getWallpaperMode,
@@ -14,6 +14,7 @@ import {
 } from './render/PixiApp';
 import { regionTerminals } from './procedural/regions';
 import { getById } from './themes';
+import type { Theme } from './themes/types';
 import { themeFromLore } from './agents/lore-theme';
 import { e2eThemeOverrideId } from './debug/e2eHook';
 import { SCALE_ORDER, type ScaleLevel } from './types';
@@ -38,7 +39,7 @@ import {
  * Phase 1D — the React shell. Mounts the PixiJS canvas, wires the
  * Steam-auth + wallpaper-mode loaders carried over from Phase 0, owns
  * the global scale-zoom keyboard listener (`[` zooms out, `]` zooms
- * in), and renders a small HUD with the current scale + steamId so
+ * in), and renders a small themed HUD with the current scale so
  * level transitions are visible without DevTools.
  *
  * The cell-level WASD/arrow handler lives in the cell renderer itself
@@ -56,10 +57,10 @@ export function App() {
   const setThrottleState = useAppStore((s) => s.setThrottleState);
   const setScale = useAppStore((s) => s.setScale);
   const scale = useAppStore((s) => s.scale);
-  const steamId = useAppStore((s) => s.steamId);
   const loreVersion = useAppStore((s) => s.loreVersion);
   const canvasHost = useRef<HTMLDivElement | null>(null);
   const tickFired = useRef(false);
+  const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
     void loadAuth();
@@ -194,6 +195,7 @@ export function App() {
       // repaint without a SQLite writer; null (always, in the Steam build) →
       // the real lore-derived theme.
       const themeId = e2eThemeOverrideId() ?? themeFromLore(writer);
+      setActiveTheme(getById(themeId));
       const fn = await mountPalace(canvasHost.current, getById(themeId), {
         memoryWriter: writer,
       });
@@ -383,14 +385,15 @@ export function App() {
   return (
     <>
       <div ref={canvasHost} style={{ position: 'fixed', inset: 0 }} />
-      <Hud scale={scale} steamId={steamId} />
+      {activeTheme && <Hud scale={scale} theme={activeTheme} />}
       <LoreDropZone />
     </>
   );
 }
 
-function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) {
+function Hud({ scale, theme }: { scale: ScaleLevel; theme: Theme }) {
   const label = scale.replace(/_/g, ' ');
+  const p = theme.palette;
   return (
     <div
       data-hud=""
@@ -399,18 +402,17 @@ function Hud({ scale, steamId }: { scale: ScaleLevel; steamId: string | null }) 
         top: 8,
         left: 12,
         font: '12px/1.4 ui-monospace, monospace',
-        color: '#cdd6f4',
-        background: 'rgba(0,0,0,0.45)',
+        color: p.fg,
+        background: `${p.bgAlt}eb`, // bgAlt at ~0.92 alpha (hex8)
+        border: `1px solid ${p.fgDim}`,
         padding: '4px 8px',
         pointerEvents: 'none',
-        textShadow: '0 1px 2px rgba(0,0,0,0.8)',
         userSelect: 'none',
       }}
     >
       <div>level: {label}</div>
-      <div>steamid: {steamId ?? '—'}</div>
-      <div style={{ opacity: 0.65 }}>
-        [ zoom out · ] zoom in · WASD walk · | split · \ study · Tab focus
+      <div style={{ color: p.fgDim }}>
+        [ zoom out · ] zoom in · wasd walk · e open shelf · | split · \ study · tab focus
       </div>
     </div>
   );
