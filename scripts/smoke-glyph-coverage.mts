@@ -114,8 +114,11 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   ['│─┼├┤┬┴', 'PixiApp.ts SEAM_GLYPHS pane seams'],
   // Agent-mind pass — per-agent trace glyphs (cell.ts MARK_STYLES).
   ['’≡⌐°,·', 'cell.ts MARK_STYLES'],
-  // Agent-mind pass — walk-over caption frame + truncation (cell.ts captionFor).
-  ['┌─┐│└┘…', 'cell.ts captionFor'],
+  // Salience — marginalia frame dialect: the walk-over caption's found-note
+  // frame is EXCLUSIVELY double-line (captionFor), distinct from the
+  // single-line card frames and the double-line stub/empty panel above.
+  ['╔═╗╚╝║', 'src/render/levels/cell.ts captionFor (marginalia frame)'],
+  ['…', 'cell.ts captionFor truncation (capped-text ellipsis)'],
 ];
 for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
 

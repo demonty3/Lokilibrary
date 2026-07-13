@@ -156,9 +156,9 @@ function captionFor(text: string, maxWidth: number): string {
   }
   lines.push(line);
   const boxWidth = Math.max(...lines.map((l) => l.length));
-  const bar = '─'.repeat(boxWidth + 2);
-  const body = lines.map((l) => `│ ${l.padEnd(boxWidth)} │`).join('\n');
-  return `┌${bar}┐\n${body}\n└${bar}┘`;
+  const bar = '═'.repeat(boxWidth + 2);
+  const body = lines.map((l) => `║ ${l.padEnd(boxWidth)} ║`).join('\n');
+  return `╔${bar}╗\n${body}\n╚${bar}╝`;
 }
 
 /** Agent-mind pass — Loki's launch-path notes. This path fires without
@@ -592,6 +592,15 @@ export function mountCell(
   // the app background with) so the note reads over shelves/scatter
   // instead of bleeding through them. Both live in captionLayer (added
   // after agentLayer) so the reveal draws above agent sprites, not under.
+  //
+  // Marginalia dialect (salience): the note's double-line frame (captionFor)
+  // gets a one-cell drop shadow — a Graphics UNDER the backing, offset one
+  // cell right + down — and an 'L·' corner tick in Loki's accent, so found
+  // notes read as paper pinned over the world rather than engine chrome.
+  // Draw order in captionLayer: shadow, backing, text, tick (added last).
+  const markCaptionShadow = new Graphics();
+  markCaptionShadow.visible = false;
+  captionLayer.addChild(markCaptionShadow); // added FIRST → renders under backing + text
   const markCaptionBacking = new Graphics();
   markCaptionBacking.visible = false;
   captionLayer.addChild(markCaptionBacking);
@@ -605,6 +614,16 @@ export function mountCell(
   });
   markCaption.visible = false;
   captionLayer.addChild(markCaption);
+  const markCaptionTick = new BitmapText({
+    text: 'L·',
+    style: {
+      fontFamily: COZETTE_FONT_FAMILY,
+      fontSize: COZETTE_FONT_SIZE,
+      fill: hexToInt(theme.palette[roleKey(theme, 'being.loki', 'magenta')]),
+    },
+  });
+  markCaptionTick.visible = false;
+  captionLayer.addChild(markCaptionTick); // added LAST → renders above backing/shadow/text
   let captionTile: string | null = null;
   const updateMarkCaption = (): void => {
     const hit = markRecords.find((m) => m.tileX === pos.x && m.tileY === pos.y);
@@ -612,6 +631,8 @@ export function mountCell(
       if (markCaption.visible) {
         markCaption.visible = false;
         markCaptionBacking.visible = false;
+        markCaptionShadow.visible = false;
+        markCaptionTick.visible = false;
       }
       captionTile = null;
       return;
@@ -633,19 +654,28 @@ export function mountCell(
       // Redraw the opaque backing to the new box's bounds + half-cell pad.
       const padX = COZETTE_CELL_WIDTH / 2;
       const padY = COZETTE_CELL_HEIGHT / 2;
+      const bx = markCaption.x - padX;
+      const by = markCaption.y - padY;
+      const bw = boxCols * COZETTE_CELL_WIDTH + padX * 2;
+      const bh = boxRows * COZETTE_CELL_HEIGHT + padY * 2;
       markCaptionBacking.clear();
-      markCaptionBacking
-        .rect(
-          markCaption.x - padX,
-          markCaption.y - padY,
-          boxCols * COZETTE_CELL_WIDTH + padX * 2,
-          boxRows * COZETTE_CELL_HEIGHT + padY * 2,
-        )
-        .fill(hexToInt(theme.palette.bg));
+      markCaptionBacking.rect(bx, by, bw, bh).fill(hexToInt(theme.palette.bg));
+      // Drop shadow: same rect, one cell right + down, translucent.
+      markCaptionShadow
+        .clear()
+        .rect(bx + COZETTE_CELL_WIDTH, by + COZETTE_CELL_HEIGHT, bw, bh)
+        .fill({ color: hexToInt(theme.palette.bg), alpha: 0.6 });
+      // Loki tick — bottom-right corner cell of the frame, derived from the
+      // caption's own bounds (two glyph-widths in from the right edge, on
+      // the bottom border row).
+      markCaptionTick.x = markCaption.x + (boxCols - 2) * COZETTE_CELL_WIDTH;
+      markCaptionTick.y = markCaption.y + (boxRows - 1) * COZETTE_CELL_HEIGHT;
       captionTile = key;
     }
     markCaption.visible = true;
     markCaptionBacking.visible = true;
+    markCaptionShadow.visible = true;
+    markCaptionTick.visible = true;
   };
   app.ticker.add(updateMarkCaption);
 
