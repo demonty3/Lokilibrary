@@ -23,7 +23,8 @@ import {
  * REAL neighbour districts derived from the clustering layer. Each card
  * shows the district's representative game name, its game count, and an
  * activity glyph (▓ loved · ▒ engaged · ░ tried · · dusty). The centre card
- * is the YOU card (bright tint + YOU marker).
+ * is home (YOU) — identified by its fixed centre position; no overlay
+ * marker is drawn there (see the note at its mount site for why).
  *
  * Read-only beyond the `[` / `]` zoom transitions owned by App.tsx; this
  * view adds no ticker and no keydown listener. Layout is precomputed by pure
@@ -104,8 +105,6 @@ export function mountDistrict(
   const grid: string[][] = Array.from({ length: canvasH }, () =>
     Array.from({ length: canvasW }, () => ' '),
   );
-  let homeOx = 0;
-  let homeOy = 0;
   for (let i = 0; i < 9; i++) {
     const col = i % 3;
     const row = Math.floor(i / 3);
@@ -116,10 +115,6 @@ export function mountDistrict(
       for (let c = 0; c < CARD_W; c++) {
         grid[oy + r][ox + c] = card[r][c];
       }
-    }
-    if (i === 4) {
-      homeOx = ox;
-      homeOy = oy;
     }
   }
 
@@ -137,15 +132,13 @@ export function mountDistrict(
   });
   container.addChild(panel);
 
-  const youHighlight = new BitmapText({
-    text: 'YOU',
-    style: {
-      fontFamily: COZETTE_FONT_FAMILY,
-      fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.fgBright),
-    },
-  });
-  if (home) container.addChild(youHighlight);
+  // NOTE: a 'YOU' marker BitmapText used to be stamped over the home card
+  // here — "just inside the home card's top border" per the old comment.
+  // That cell is actually the card's NAME row (row 1 of renderDistrictCard:
+  // border/name/count/fill/border), so the second text draw overstruck the
+  // home card's name glyph-for-glyph ('YOU' over 'Civ…' rendered as garbled
+  // "C0Viliza…"). The home card is already positionally unambiguous (always
+  // the centre slot); no replacement marker is drawn.
 
   const fit = (r: PixelRect) => {
     const desired = Math.min(r.pw, r.ph) * 0.55;
@@ -153,19 +146,6 @@ export function mountDistrict(
     container.scale.set(scale);
     container.x = Math.floor((r.pw - panel.width * scale) / 2);
     container.y = Math.floor((r.ph - panel.height * scale) / 2);
-    if (home) {
-      // YOU marker just inside the home card's top border. +HEADER_ROWS for
-      // the header + blank line preceding the card grid. The marker is a
-      // CHILD of `container`, so it lives in the container's LOCAL glyph
-      // space — the parent already applies `container.x/y` + `container.scale`.
-      // (Earlier code added `container.x` + multiplied by `scale` here too,
-      // which double-applied both the centering offset and the scale and
-      // flung the marker off-screen.)
-      const gx = (homeOx + 1) * GLYPH_W;
-      const gy = (homeOy + 1 + HEADER_ROWS) * GLYPH_H;
-      youHighlight.x = gx;
-      youHighlight.y = gy;
-    }
   };
   fit(rect);
 
@@ -179,9 +159,6 @@ export function mountDistrict(
 
 const CARD_W = 11;
 const CARD_H = 5;
-const HEADER_ROWS = 2;
-const GLYPH_W = 6;
-const GLYPH_H = 13;
 
 /** Render one district mini-card, or an empty terrain card when null. Pure:
  *  same input → same lines. */

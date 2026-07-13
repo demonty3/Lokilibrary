@@ -21,10 +21,12 @@ import {
  * Island-level renderer (Phase 7-A). One step up from district: shows the
  * neighbourhood-cards of ONE parent continent — each district in that
  * continent is a bordered card carrying its name, game count, and an
- * activity glyph. The card containing the "home" district (district 0, the
- * lowest-id district = the most-played game's bucket — there is no
- * persistent player-district state yet, so the seed-canonical first district
- * is "YOU") gets the bright YOU marker.
+ * activity glyph. The "home" district (district 0, the lowest-id district =
+ * the most-played game's bucket — there is no persistent player-district
+ * state yet, so the seed-canonical first district is "YOU") has no overlay
+ * marker in its card (see the note at the mount site — a prior 'YOU' overlay
+ * overstruck the card's name row); the header line names the active
+ * continent instead.
  *
  * Read-only: no ticker, no keydown listener — App.tsx owns the `[` / `]`
  * zoom transitions. The renderer paints precomputed pure-helper output
@@ -77,9 +79,10 @@ export function mountIsland(
   }
 
   // Districts of the active continent, in canonical (continent→island→
-  // district) order. The first district is "home" (YOU).
+  // district) order. The first district is "home" (YOU) — no overlay marker
+  // is drawn for it (see the note at its former mount site for why); the
+  // header line above names the active continent instead.
   const districts = activeContinent.islands.flatMap((i) => i.districts);
-  const homeId = districts.length > 0 ? districts[0].id : null;
 
   // Deterministic card placement. cols = ceil(sqrt(n)) keeps the card grid
   // square-ish; layoutClusterPositions jitters rows per seed.
@@ -103,8 +106,6 @@ export function mountIsland(
     Array.from({ length: canvasW }, () => ' '),
   );
 
-  let homeOriginX = 0;
-  let homeOriginY = 0;
   for (let k = 0; k < districts.length; k++) {
     const d = districts[k];
     const pos = positions[k];
@@ -115,10 +116,6 @@ export function mountIsland(
       for (let c = 0; c < CARD_W; c++) {
         grid[oy + r][ox + c] = card[r][c];
       }
-    }
-    if (d.id === homeId) {
-      homeOriginX = ox;
-      homeOriginY = oy;
     }
   }
 
@@ -137,41 +134,21 @@ export function mountIsland(
   });
   container.addChild(panel);
 
-  // YOU marker over the home card's header row. The panel prepends a header
-  // line + a blank line (2 rows) before the card grid begins.
-  const youHighlight = new BitmapText({
-    text: 'YOU',
-    style: {
-      fontFamily: COZETTE_FONT_FAMILY,
-      fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.fgBright),
-    },
-  });
-  if (homeId) container.addChild(youHighlight);
+  // NOTE: a 'YOU' marker BitmapText used to be stamped here at the home
+  // card's "header row" (+1 row inside its top border) per the old comment.
+  // That row is actually the card's NAME row (row 1 of renderIslandCard:
+  // border/name/count/fill/border), so the second text draw overstruck the
+  // home card's name glyph-for-glyph ('YOU' over 'Civ…' rendered as garbled
+  // "C0Viliza…" — pixel-confirmed). Districts don't currently carry a
+  // stable "is this the home card" position the way district.ts's fixed
+  // centre slot does, so no replacement marker is drawn; the header line
+  // above already names the active continent.
 
   const fit = makeFit(container, panel, 0.6);
-  const placeYou = () => {
-    if (!homeId) return;
-    // +2 grid rows for the header + blank line; +1 col / +1 row inside the
-    // card to sit just inside its top border. The marker is a CHILD of
-    // `container`, so it lives in the container's LOCAL glyph space — the
-    // parent already applies `container.x/y` + `container.scale`. (Earlier
-    // code added `container.x` + multiplied by `scale` here too, which
-    // double-applied both the centering offset and the scale and flung the
-    // marker off-screen.)
-    const gx = (homeOriginX + 1) * GLYPH_W;
-    const gy = (homeOriginY + 1 + HEADER_ROWS) * GLYPH_H;
-    youHighlight.x = gx;
-    youHighlight.y = gy;
-  };
-  const fitAll = (r: PixelRect) => {
-    fit(r);
-    placeYou();
-  };
-  fitAll(rect);
+  fit(rect);
 
   return {
-    refit: fitAll,
+    refit: fit,
     teardown: () => {
       container.destroy({ children: true });
     },
@@ -183,9 +160,6 @@ export function mountIsland(
 /** Card glyph dimensions. Wide enough for a truncated name + a count line. */
 const CARD_W = 11;
 const CARD_H = 5;
-const HEADER_ROWS = 2; // header line + blank line before the card grid
-const GLYPH_W = 6; // Cozette cell width
-const GLYPH_H = 13; // Cozette cell height
 
 /**
  * Render one neighbourhood card as a CARD_H × CARD_W grid of glyphs:

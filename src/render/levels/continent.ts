@@ -1,4 +1,4 @@
-import { BitmapText, Container } from 'pixi.js';
+import { BitmapText, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame, Continent } from '../../procedural/clusters';
 import type { PixelRect } from '../PixiApp';
@@ -15,6 +15,8 @@ import {
   LAYOUT_SALT,
 } from '../../procedural/clusters';
 import {
+  COZETTE_CELL_HEIGHT,
+  COZETTE_CELL_WIDTH,
   COZETTE_FONT_FAMILY,
   COZETTE_FONT_SIZE,
   hexToInt,
@@ -151,9 +153,17 @@ export function mountContinent(
   container.addChild(panel);
 
   // Land-mass labels as small bright/dim children positioned at the blob
-  // centroid. Home continent's label tints fgBright; others fgDim.
+  // centroid. Home continent's label tints fgBright; others fgDim. Each
+  // label sits on an opaque theme-bg backing rect (the cell.ts caption
+  // pattern) so it stays legible over the glyph field underneath — without
+  // it, the label text stamped directly over the blob's fill/sea glyphs
+  // (▓/▒/·) showed those glyphs bleeding through the label's negative space.
   const labelNodes: BitmapText[] = [];
+  const labelBackings: Graphics[] = [];
   for (const l of labels) {
+    const backing = new Graphics();
+    container.addChild(backing);
+    labelBackings.push(backing);
     const node = new BitmapText({
       text: l.text,
       style: {
@@ -162,7 +172,7 @@ export function mountContinent(
         fill: hexToInt(l.home ? theme.palette.fgBright : theme.palette.fgDim),
       },
     });
-    container.addChild(node);
+    container.addChild(node); // text draws after (above) its backing
     labelNodes.push(node);
   }
 
@@ -195,6 +205,11 @@ export function mountContinent(
       const gy = (l.cy + 1 + HEADER_ROWS) * GLYPH_H;
       labelNodes[i].x = gx;
       labelNodes[i].y = gy;
+      const labelWidthPx = len * COZETTE_CELL_WIDTH;
+      labelBackings[i]
+        .clear()
+        .rect(gx - 2, gy - 1, labelWidthPx + 4, COZETTE_CELL_HEIGHT + 2)
+        .fill({ color: hexToInt(theme.palette.bg) });
     }
   };
   const fitAll = (r: PixelRect) => {
