@@ -14,6 +14,17 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Events calendar SHIPPED 2026-07-13** (spec+plan `docs/superpowers/*/2026-07-12-events-calendar*`;
+commits `844fb94..bc79d95`). The world has a clock: pure seeded `eventForDay`
+(0.4/day, notes/moves) in `src/procedural/calendar.ts`, `world_events` ledger
+(day PK), staging via cell-registered closures (whole-library panes only,
+profile seed, union broadcast), shelf overlay (adjacent-index moves, 10-day
+expiry, max 3), rationale marks through the trace system, morning-dispatch
+banner (staged-callback delivery). Zero new AI calls. Null-writer/web: no
+events (library-empty walks skipped — protects the global ledger from anon
+boots). One of CONSOLIDATION.md's two missing v1.0 features; the enrichment
+budget remains.
+
 **Direction change 2026-07-11 — free, public open source.** No Steam
 distribution, no monetization; users bring their own API keys. The Steam
 release gate is RETIRED and ship-vs-expand resolves to: consolidate to
