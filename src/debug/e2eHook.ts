@@ -67,7 +67,11 @@ export interface LokiE2EHook {
    *  floor checks, harness use only). */
   setPlayerPos: typeof setPlayerPos;
   /** Events calendar — pure selection preview for a given dayKey against
-   *  the LIVE library + seed (DEV/E2E only). */
+   *  the LIVE library + seed (DEV/E2E only). Built from the FULL store
+   *  library, whereas staging (cell.ts's runStageNow) now filters to the
+   *  shelved subset — for libraries larger than the shelf this preview
+   *  can diverge from what actually gets staged. Selection preview only;
+   *  not a staging simulator. */
   calendarEventFor(day: string): unknown;
   /** Events calendar — inject shelf moves for the overlay; takes effect
    *  on the next cell mount (drive a remount via setTheme). */

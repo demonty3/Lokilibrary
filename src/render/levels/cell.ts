@@ -430,14 +430,14 @@ export function mountCell(
       // event targeting an unshelved book would file a ledger row + bump
       // the banner's "N things changed" count with nothing on the floor to
       // show for it (violates "mischief must be legible"). Filter the
-      // store's full library down to shelved appids; the null/sample-
-      // library path (no store library, or none of it matches what's
-      // shelved) falls back to the books the mount actually shelved.
+      // store's full library down to shelved appids.
       const storeLibrary = useAppStore.getState().library;
-      const shelvedFromStore = (storeLibrary ?? []).filter((g) => slotOfAppid.has(g.appid));
-      const shelvedGames = shelvedFromStore.length > 0
-        ? shelvedFromStore
-        : usableBooks.map((b) => ({ appid: b.appid, name: b.name, playtime_forever: 0 }));
+      // Re-review Critical: no library yet (anon boot / web) → the
+      // calendar waits; the profile remount stages the day properly.
+      // Never stage from sample books — a real writer would burn the
+      // day's global ledger slot with an invisible event.
+      if (!storeLibrary || storeLibrary.length === 0) return;
+      const shelvedGames = storeLibrary.filter((g) => slotOfAppid.has(g.appid));
       stageMissedDays({
         writer: memoryWriter,
         games: shelvedGames,

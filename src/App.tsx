@@ -223,11 +223,18 @@ export function App() {
   useEffect(() => {
     let nudgeTimer: ReturnType<typeof setTimeout> | null = null;
     registerCalendarStagedCallback(() => {
+      // A second nudge while one's pending must not orphan the first timer.
+      if (nudgeTimer !== null) clearTimeout(nudgeTimer);
       nudgeTimer = setTimeout(() => {
         nudgeTimer = null;
-        const line = consumeCalendarDispatch();
+        // Check ctx BEFORE consuming: a null ctx here (mount torn down /
+        // not yet up) must leave the buffer intact so the next nudge or a
+        // sleep→wake drain can still deliver the line, instead of
+        // silently destroying it.
         const ctx = getCurrentRenderContext();
-        if (line && ctx) mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines: [line] });
+        if (!ctx) return;
+        const line = consumeCalendarDispatch();
+        if (line) mountMorningDispatch({ app: ctx.app, theme: ctx.theme, lines: [line] });
       }, 1500);
     });
     return () => {
