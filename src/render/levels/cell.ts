@@ -3,6 +3,7 @@ import type { Application, TickerCallback } from 'pixi.js';
 import type { CellLayout, CellPoint } from '../../procedural/cell';
 import { T_BOOKSHELF, T_FLOOR, TILE_BY_ID } from '../../procedural/tiles/library';
 import type { Theme, ThemePalette } from '../../themes/types';
+import { roleKey } from '../../themes/roles';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
@@ -312,6 +313,32 @@ export function mountCell(
     }
   }
 
+  // Salience: cap carved seam openings with the aperture dialect (the
+  // window's ╫ in blue) so side gaps read as doorways, not broken walls.
+  // Derived from the tiles: any floor cell on column 0 / width-1 is a
+  // carved opening; the wall cells immediately above/below the opening
+  // run get the cap.
+  const seamCapColour = hexToInt(theme.palette[roleKey(theme, 'seam', 'blue')]);
+  for (const col of [0, layout.width - 1]) {
+    for (let y = 0; y < layout.height; y++) {
+      const isOpen = layout.tiles[y][col] === T_FLOOR;
+      const above = y > 0 ? layout.tiles[y - 1][col] : -1;
+      const below = y < layout.height - 1 ? layout.tiles[y + 1][col] : -1;
+      const capAbove = isOpen && above !== T_FLOOR && above !== -1;
+      const capBelow = isOpen && below !== T_FLOOR && below !== -1;
+      for (const [cap, cy] of [[capAbove, y - 1], [capBelow, y + 1]] as Array<[boolean, number]>) {
+        if (!cap) continue;
+        const capSprite = new BitmapText({
+          text: '╫',
+          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: seamCapColour },
+        });
+        capSprite.x = col * COZETTE_CELL_WIDTH;
+        capSprite.y = cy * COZETTE_CELL_HEIGHT;
+        baseLayer.addChild(capSprite);
+      }
+    }
+  }
+
   // Base slot → BookGame assignment, in bookshelfSlots reading order.
   // The spine GLYPHS are painted later (after the events-calendar overlay
   // moves below), so a moved book's letter actually reflects the swap —
@@ -603,17 +630,38 @@ export function mountCell(
   // player position (`pos`). Reset to the layout's spawn point on mount
   // (last value belonged to the previous cell for this pane id).
   setPlayerPos(paneId, layout.spawnAt.x, layout.spawnAt.y);
+  const playerOn = hexToInt(theme.palette[roleKey(theme, 'player', 'fgBright')]);
+  const playerOff = hexToInt(theme.palette.fgDim);
   const playerSprite = new BitmapText({
     text: '@',
     style: {
       fontFamily: COZETTE_FONT_FAMILY,
       fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.fgBright),
+      fill: 0xffffff,
     },
   });
+  playerSprite.tint = playerOn;
   playerSprite.x = pos.x * COZETTE_CELL_WIDTH;
   playerSprite.y = pos.y * COZETTE_CELL_HEIGHT;
   agentLayer.addChild(playerSprite);
+
+  // Salience: the cursor blink — the one idle animation the player
+  // deserves. 800ms on / 250ms off, deltaMS-driven so it freezes cleanly
+  // under the wallpaper throttle. Never fully invisible (off = fgDim).
+  let blinkAcc = 0;
+  let blinkOn = true;
+  const BLINK_ON_MS = 800;
+  const BLINK_OFF_MS = 250;
+  const blinkPlayer = (): void => {
+    blinkAcc += app.ticker.deltaMS;
+    const limit = blinkOn ? BLINK_ON_MS : BLINK_OFF_MS;
+    if (blinkAcc >= limit) {
+      blinkAcc = 0;
+      blinkOn = !blinkOn;
+      playerSprite.tint = blinkOn ? playerOn : playerOff;
+    }
+  };
+  app.ticker.add(blinkPlayer);
 
   // Bookshelf prompt — spawned when the player walks adjacent to a
   // known-game shelf and despawned when they step away. Single handle
@@ -880,6 +928,7 @@ export function mountCell(
       app.ticker.remove(positionPlayer);
       app.ticker.remove(pulseLandmark);
       app.ticker.remove(updateMarkCaption);
+      app.ticker.remove(blinkPlayer);
       e2ePlaceMark = null;
       unregisterStageNow();
       if (promptHandle) {
