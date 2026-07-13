@@ -14,6 +14,23 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Salience campaign SHIPPED 2026-07-13** (spec+plan
+`docs/superpowers/*/2026-07-13-salience-campaign*`; commits
+`b293c96..8d9f88e`; source: the 8-lens visual programme in
+`docs/design-reviews/2026-07-13-visual-programme.md`). The glance
+hierarchy is fixed: semantic role layer (`src/themes/roles.ts` —
+roles→palette keys, reserved being accents smoke-enforced), beings
+re-tinted (cat orange, archivist violet), blue aperture dialect
+(door/window/seam-caps; the old orange door cross is dead), `@`
+phase-modulo cursor blink (76/24 duty at any tick rate incl. 1Hz
+throttle), themed HUD + LoreDropZone, wall-layer focus alpha in
+splits, double-line marginalia frames with L· tick, ladder label
+double-draw bug fixed (was the YOU marker; home card now restamped
+brighter). Follow-ups on record: MARK_STYLES re-key (design decision —
+ghost marks), ladder pane-awareness (ladder-identity arc). Programme
+arcs remaining: ambient life register, book-spine shelves, ladder
+identity, shade-ramp deployment, land polish.
+
 **Events calendar SHIPPED 2026-07-13** (spec+plan `docs/superpowers/*/2026-07-12-events-calendar*`;
 commits `844fb94..bc79d95`). The world has a clock: pure seeded `eventForDay`
 (0.4/day, notes/moves) in `src/procedural/calendar.ts`, `world_events` ledger
