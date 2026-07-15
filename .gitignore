@@ -22,3 +22,6 @@ staging/
 .idea/
 .vscode/
 Thumbs.db
+
+# local agent tooling (graphify knowledge-graph output, not a deliverable)
+graphify-out/
