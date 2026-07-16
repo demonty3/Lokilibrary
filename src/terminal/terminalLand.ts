@@ -64,6 +64,9 @@ const BOB_HZ = 1.6;
 const EXIT_S = 0.25;
 const ENTER_S = 0.25;
 const SPARK_S = 0.3;
+/** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
+const KNIT_S = 0.6;
+const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
 
 interface Being {
   id: string;
@@ -87,6 +90,8 @@ export interface TerminalLandState {
   wing: string;
   edges: { left: boolean; right: boolean };
   beings: Array<{ id: string; x: number; dir: number }>;
+  /** e2e ground truth for the join juice: live sweep count + total fired. */
+  knits: { live: number; fired: number };
 }
 
 declare global {
@@ -231,9 +236,11 @@ export async function mountTerminalLand(
     }
   };
 
-  /** Cache key of the current join seeds — recompose only when it changes. */
-  let joinKey = '';
+  /** Cache key of the current join seeds — recompose only when it changes.
+   *  Initialised to the no-join key so the boot applyJoins doesn't recompose. */
+  let joinKey = '|';
   const applyJoins = (joins: TerminalJoin[], wings: Record<string, string>): void => {
+    const prev = edges;
     edges = {
       left: joins.some((j) => j.right === terminalId),
       right: joins.some((j) => j.left === terminalId),
@@ -247,6 +254,8 @@ export async function mountTerminalLand(
     if (key !== joinKey) {
       joinKey = key;
       recompose(join.left === undefined && join.right === undefined ? null : join);
+      if (edges.left && !prev.left) startKnit('left');
+      if (edges.right && !prev.right) startKnit('right');
     }
     drawEdges();
   };
@@ -255,6 +264,9 @@ export async function mountTerminalLand(
   const beings = new Map<string, Being>();
   /** One-shot ✦ sparks at crossing thresholds: [text, bornAt]. */
   const sparks: Array<{ text: BitmapText; bornAt: number }> = [];
+  /** One-shot knit sweeps: a glow that runs inward from a newly-joined seam. */
+  const knits: Array<{ side: 'left' | 'right'; bornAt: number; text: BitmapText }> = [];
+  let knitsFired = 0;
   const rng = makeRng(fnv1a(`beings:${terminalId}`));
   let elapsedS = 0;
 
@@ -307,6 +319,22 @@ export async function mountTerminalLand(
     sparks.push({ text: spark, bornAt: elapsedS });
   };
 
+  /** The fuse beat: on a fresh join, a bright block runs inward from the seam
+   *  along the (now continuous) ground, fading as it goes. Both windows play
+   *  it ground-line-aligned, so it reads as one sweep crossing the seam. */
+  const startKnit = (side: 'left' | 'right'): void => {
+    const edgeCol = side === 'left' ? 0 : model.width - 1;
+    const text = new BitmapText({
+      text: '█',
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+    });
+    text.x = edgeCol * CW;
+    text.y = (model.surface[edgeCol] - 1) * CH;
+    world.addChild(text);
+    knits.push({ side, bornAt: elapsedS, text });
+    knitsFired += 1;
+  };
+
   // Spawn this terminal's natives (roster registers them; a refusal means
   // the id is already live elsewhere — e.g. a renderer reload — so skip).
   for (let i = 0; i < BEINGS_PER_TERMINAL; i++) {
@@ -345,6 +373,24 @@ export async function mountTerminalLand(
         s.text.destroy();
         sparks.splice(i, 1);
       } else s.text.alpha = 1 - p;
+    }
+
+    // Knit sweeps run inward from the seam along the (continuous) ground, fading.
+    for (let i = knits.length - 1; i >= 0; i--) {
+      const k = knits[i];
+      const p = (elapsedS - k.bornAt) / KNIT_S;
+      if (p >= 1) {
+        k.text.destroy();
+        knits.splice(i, 1);
+        continue;
+      }
+      const col =
+        k.side === 'left'
+          ? Math.min(model.width - 1, Math.round(p * KNIT_SPAN))
+          : Math.max(0, model.width - 1 - Math.round(p * KNIT_SPAN));
+      k.text.x = col * CW;
+      k.text.y = (model.surface[col] - 1) * CH;
+      k.text.alpha = 1 - p;
     }
 
     for (const b of beings.values()) {
@@ -417,6 +463,7 @@ export async function mountTerminalLand(
       wing,
       edges: { ...edges },
       beings: [...beings.values()].map((b) => ({ id: b.id, x: Math.round(b.x * 10) / 10, dir: b.dir })),
+      knits: { live: knits.length, fired: knitsFired },
     }),
     debugPlace: (id, x, dir) => {
       const b = beings.get(id);
