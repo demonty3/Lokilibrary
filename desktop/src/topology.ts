@@ -37,6 +37,15 @@ export const JOIN_EPS_PX = 2;
 /** Vertical overlap (fraction of the shorter window) required to snap —
  *  prevents snapping to a window far above/below. */
 export const MIN_OVERLAP_FRAC = 0.5;
+/** Vertical capture band for SNAPPING (not joining): a settle only snaps to
+ *  a neighbour whose top is within this many px. Doubles as the un-snap
+ *  escape distance — T0's overlap-only test recaptured any vertical drag-out
+ *  up to half a window height (260px), so a snapped terminal could never be
+ *  detached by dragging it away vertically. 48px holds the snap against
+ *  nudges (and the 36px boot ladder) while a deliberate drag escapes — and
+ *  stays escaped, because the test is position-based, not history-based.
+ *  computeJoins is untouched (JOIN_EPS_PX). */
+export const SNAP_Y_PX = 48;
 
 function verticalOverlap(a: TermBounds, b: TermBounds): number {
   const top = Math.max(a.y, b.y);
@@ -61,6 +70,7 @@ export function computeSnapTarget(
   let best: { x: number; y: number; gap: number } | null = null;
   for (const o of others) {
     if (o.id === moved.id || !overlapsEnough(moved, o)) continue;
+    if (Math.abs(moved.y - o.y) > SNAP_Y_PX) continue; // outside the capture band — un-snap escape
     // moved sits to the RIGHT of o: moved.left vs o.right
     const gapRight = Math.abs(moved.x - (o.x + o.width));
     if (gapRight <= SNAP_PX && (best === null || gapRight < best.gap)) {
