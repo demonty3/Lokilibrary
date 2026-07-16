@@ -95,11 +95,15 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
 };
 
 /** Build the stacked-by-role tinted container for a land model. Local glyph
- *  space (origin 0,0); the caller positions + scales it. */
+ *  space (origin 0,0); the caller positions + scales it. `layers` carries the
+ *  tinted BitmapText objects per drawn role (multi-text roles — shaded hall
+ *  steps — carry >1 entry) so the terminal renderer can animate a layer
+ *  (glow / sway / wear) without rebuilding the scene. */
 export function buildLandContainer(theme: Theme, model: LandModel): {
   container: Container;
   contentW: number;
   contentH: number;
+  layers: Partial<Record<LandRole, BitmapText[]>>;
 } {
   const container = new Container();
   const contentW = model.width * COZETTE_CELL_WIDTH;
@@ -124,11 +128,15 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     }
     return rows.join('\n');
   };
-  const addLayer = (text: string, fill: number) => {
+  const layers: Partial<Record<LandRole, BitmapText[]>> = {};
+  const addLayer = (r: LandRole, text: string, fill: number) => {
     if (!text.trim()) return;
-    container.addChild(
-      new BitmapText({ text, style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill } }),
-    );
+    const bt = new BitmapText({
+      text,
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill },
+    });
+    container.addChild(bt);
+    (layers[r] ??= []).push(bt);
   };
   for (const r of roles) {
     const shadeGrid = model.shade;
@@ -137,6 +145,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       // objects), tint scaled from the role's theme colour.
       for (let s = 0; s < GRADIENT_FACTORS.length; s++) {
         addLayer(
+          r,
           layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s),
           shadeOf(theme.palette[ROLE_KEY[r]], GRADIENT_FACTORS[s]),
         );
@@ -147,11 +156,11 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
         fade !== undefined
           ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
           : hexToInt(theme.palette[ROLE_KEY[r]]);
-      addLayer(layerFor((x, y) => model.role[y][x] === r), fill);
+      addLayer(r, layerFor((x, y) => model.role[y][x] === r), fill);
     }
   }
 
-  return { container, contentW, contentH };
+  return { container, contentW, contentH, layers };
 }
 
 export interface MountLandOptions {

@@ -89,6 +89,11 @@ const BOB_HZ = 1.6;
 const EXIT_S = 0.25;
 const ENTER_S = 0.25;
 const SPARK_S = 0.3;
+/** Tier-2 structure glow: alpha pulse (the 6A landmark-pulse envelope). */
+const GLOW_STRUCT_PERIOD_S = 2.8;
+const GLOW_STRUCT_RANGE: [number, number] = [0.72, 1];
+const GLOW_SUN_PERIOD_S = 4.2;
+const GLOW_SUN_RANGE: [number, number] = [0.62, 1];
 /** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
 const KNIT_S = 0.6;
 const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
@@ -136,6 +141,8 @@ declare global {
       /** e2e only — teleport a being (e.g. next to an open edge so a
        *  crossing happens on demand instead of after minutes of wander). */
       debugPlace(id: string, x: number, dir: 1 | -1): boolean;
+      /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
+      debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
     };
   }
 }
@@ -457,6 +464,17 @@ export async function mountTerminalLand(
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
 
+    // Tier-2 structure glow: monuments (and a hall, if one ever composes
+    // here) pulse gently; ☼ sun/lamps cycle slower. Cos-eased off elapsedS
+    // (deltaMS-accumulated), so it freezes cleanly under throttle.
+    const glow = (periodS: number, [lo, hi]: [number, number]): number =>
+      lo + (hi - lo) * (0.5 - 0.5 * Math.cos(((elapsedS % periodS) / periodS) * 2 * Math.PI));
+    const structAlpha = glow(GLOW_STRUCT_PERIOD_S, GLOW_STRUCT_RANGE);
+    for (const t of scene.layers.monument ?? []) t.alpha = structAlpha;
+    for (const t of scene.layers.hall ?? []) t.alpha = structAlpha;
+    const sunAlpha = glow(GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
+    for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
+
     // Crossing sparks fade out.
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i];
@@ -627,6 +645,11 @@ export async function mountTerminalLand(
       b.nextIntentAt = elapsedS + 30; // hold course long enough to cross
       return true;
     },
+    debugDepth: () => ({
+      monument: scene.layers.monument?.[0]?.alpha ?? null,
+      sun: scene.layers.sun?.[0]?.alpha ?? null,
+      foliageX: (scene.layers.foliage ?? []).map((t) => t.x),
+    }),
   };
 
   return () => {
