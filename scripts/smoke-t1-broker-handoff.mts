@@ -60,6 +60,8 @@ mockElectronModule({
     handle: (channel: string, fn: Handler) => handlers.set(channel, fn),
     on: (channel: string, fn: Handler) => listeners.set(channel, fn),
   },
+  // Wide fake work area so the boot spread keeps the historic 720px spacing.
+  screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 2560, height: 1440 } }) },
 });
 
 const { startTerminalsMode } = await import('../desktop/src/terminals.ts');

@@ -23,7 +23,7 @@
  * joins/crossings without a human dragging.
  */
 
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
 
@@ -56,6 +56,14 @@ function boundsOf(t: Terminal): TermBounds {
 
 function allBounds(): TermBounds[] {
   return [...terminals.values()].filter((t) => !t.win.isDestroyed()).map(boundsOf);
+}
+
+/** Keep a spawn x on the primary work area — macOS shuffles fully-offscreen
+ *  windows unpredictably (a 3×640 chain outgrows a 1440-wide desk), which
+ *  fights the broker. */
+function clampX(x: number): number {
+  const wa = screen.getPrimaryDisplay().workArea;
+  return Math.max(wa.x, Math.min(x, wa.x + wa.width - TERMINAL_W));
 }
 
 /** terminalId → wing, for renderers to derive a joined neighbour's seed. */
@@ -94,6 +102,14 @@ function settle(id: string): void {
 
 export function startTerminalsMode(count: number, rendererUrl: string): void {
   const n = Math.max(2, Math.min(count, WINGS.length));
+  // Boot spread: fully apart when the chain fits the display; a clamped,
+  // overlapping cascade when it doesn't (overlaps never join, so this only
+  // changes where windows START — the user/e2e drags them into place).
+  const wa = screen.getPrimaryDisplay().workArea;
+  const spacing = Math.min(
+    TERMINAL_W + 80,
+    Math.max(40, Math.floor((wa.width - TERMINAL_W - 120) / Math.max(1, n - 1))),
+  );
   // eslint-disable-next-line no-console
   console.log(`[terminals] T0 spike — spawning ${n} terminal windows`);
 
@@ -107,7 +123,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
       height: TERMINAL_H,
       // Apart + slightly y-offset so the demo IS the drag-together (snap
       // aligns y). Fixed size keeps ground rows comparable across windows.
-      x: 60 + i * (TERMINAL_W + 80),
+      x: clampX(60 + i * spacing),
       y: 160 + i * 36,
       resizable: false,
       backgroundColor: '#0a0a0a',
