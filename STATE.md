@@ -11,8 +11,17 @@ re-grep only when this is stale.**
 
 For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 `CLAUDE.md`. For the phase plan → `PLAN.md`. For the current
-to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
+blocked-on-Harry list → `TODO-USER.md`. This file is *the present
 tense* of those.
+
+**Platform direction 2026-07-17 — Mac-only.** Harry retired the
+Windows/PC target: macOS is the sole build + verification platform. The
+Windows verification column in TODO-USER.md is retired (most surfaces
+were re-verified on macOS in the 2026-06 consolidation; the residue is
+re-worded for macOS), CLAUDE.md's How-to-run + not-do rules and PLAN.md
+carry the banner, README's status note reflects it. Win32 code paths
+(Progman-reparent wallpaper, koffi throttle) stay in-tree as dormant
+OSS-contributor surface. (Doc-only change; no code moved.)
 
 **Ambient-salience bundle SHIPPED 2026-07-17** (spec+plan
 `docs/superpowers/*/2026-07-16-ambient-salience-bundle*`; commits

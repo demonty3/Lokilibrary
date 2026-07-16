@@ -26,10 +26,12 @@ about.
 **Free and open source (MIT). Bring your own API keys.** No accounts, no
 telemetry, no price tag.
 
-> **Status:** working, mid-consolidation. The core loop — generated palace,
-> living cohort, themes, multi-pane, wallpaper mode — runs today on macOS and
-> Windows; snapping terminals are verified on macOS (a Windows pass is
-> pending). Rough edges are tracked in [`TODO-USER.md`](TODO-USER.md); the
+> **Status:** working. The core loop — generated palace, living cohort,
+> themes, multi-pane, wallpaper mode, snapping terminals — is built and
+> verified on **macOS**, the project's primary platform. The Windows paths
+> (Progman-reparent wallpaper, Win32 throttle) shipped in earlier phases and
+> remain in the tree, but are community-supported and no longer actively
+> tested. Rough edges are tracked in [`TODO-USER.md`](TODO-USER.md); the
 > current state of every subsystem lives in [`STATE.md`](STATE.md).
 
 ## Quick start — no keys, ~2 minutes

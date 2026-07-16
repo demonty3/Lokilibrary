@@ -305,7 +305,7 @@ You need Steam installed and running for `steam://run/{appid}` to launch
 a game in the web build; the Electron wrapper goes through Steamworks
 SDK directly.
 
-**Desktop wrapper (third terminal — Windows-native Node, not WSL):**
+**Desktop wrapper (third terminal):**
 
 ```
 cd desktop
@@ -313,18 +313,22 @@ npm install
 npm run dev       # tsc + electron pointing at localhost:5183
 ```
 
-WSL Ubuntu can build and lint `desktop/` but **cannot run the Electron
-app**: WSL Linux can't reach Windows Steam (steamworks.js init fails on
-`steamclient.so`), and WSLg's GPU passthrough chokes Chromium. Frontend
-(Vite) + Worker (wrangler) can stay in WSL; the desktop terminal needs
-to be Windows-native PowerShell/cmd with Windows Node installed.
-One-time setup per `desktop/STEAMWORKS_SDK_LICENSE.txt` neighbours: drop
-the Steamworks SDK's `redistributable_bin/<platform>/` into
+**macOS is the only build + verification platform (2026-07-17
+direction).** The app boots Steam-less on macOS (`initSteam()` catches
+the missing client and keeps running with Steam-gated features off);
+the `.claude/skills/launch-desktop-app` skill encodes the verified
+launch + CDP-driving recipe. The Windows/WSL setup the earlier phases
+used is retired — the Win32 code paths (Progman-reparent wallpaper,
+koffi throttle) stay in the tree as dormant surface for OSS
+contributors, but we don't build, test, or gate on them.
+One-time Steamworks setup (only needed for the launch-a-game path —
+rendering + agents run without it), per
+`desktop/STEAMWORKS_SDK_LICENSE.txt` neighbours: drop the Steamworks
+SDK's `redistributable_bin/<platform>/` into
 `desktop/sdk/redistributable_bin/<platform>/`, create
-`desktop/steam_appid.txt` containing `480` (SpaceWar) for dev or your
-real appid post-partner-approval.
+`desktop/steam_appid.txt` containing `480` (SpaceWar).
 
-**Local LLM dev mode (optional, recommended for Tier 1 iteration):**
+**Local LLM dev mode (optional — needs a box that can host Ollama):**
 
 ```
 ollama pull qwen2.5:7b           # one-time
@@ -333,10 +337,10 @@ ollama serve                      # background daemon at http://localhost:11434
 npm run worker                    # now hits Ollama instead of Anthropic
 ```
 
-Phase 0 Tier 1 round-trip on CPU is ~27s; expected <1s once Ollama detects
-the GPU (Phase 2 follow-up — see RETROS/phase-0-spike.md § pending
-follow-ups). Anthropic Haiku 4.5 latency was ~1.7s in Phase 0 — fine for
-dev work in the meantime.
+Harry's Mac can't host local models — dev iteration on this box uses the
+Claude API (`LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in
+`worker/.dev.vars`; Haiku Tier-1 latency ~1.7s). The Ollama path remains
+a self-hoster / contributor opt-in, never the default.
 
 ## Open inputs needed from Harry
 
@@ -348,8 +352,7 @@ dev work in the meantime.
 - ElevenLabs API key (`ELEVENLABS_API_KEY`, optional, from v0.8+ for
   reveal narration)
 - ~~OSS licence choice~~ — DONE 2026-07-11: **MIT**; `LICENSE` file at
-  repo root. Remaining release-gating act: flip the repo public (after
-  a secrets pass over git history)
+  repo root; repo public since 2026-07-11 (secrets pass came back clean)
 - ~~Steamworks partner account~~ — RETIRED 2026-07-11 (no Steam
   distribution; dev appid 480 covers the SDK launch path)
 
@@ -408,11 +411,12 @@ dev work in the meantime.
   codec-licensing / buyer-confusion) still applies. What "free" does
   NOT relax: licence hygiene on fonts, audio, art, and Steam CDN usage
   — the repo is public.
-- **Don't run the Electron desktop wrapper from WSL.** Linux Electron-
-  in-WSL can't reach the Windows Steam client, so `steamworks.init()`
-  always fails on `steamclient.so`; WSLg's graphics passthrough also
-  chokes the renderer's GPU process. Use Windows-native Node for
-  `desktop/` (frontend + worker can stay in WSL).
+- **Don't target Windows/WSL for build or verification** (2026-07-17
+  direction: Mac-only). The Win32 wallpaper (Progman reparent) and
+  koffi throttle paths stay in-tree as dormant OSS surface for
+  contributors; don't extend them, don't gate any slice on a Windows
+  pass, and don't propose WSL / Windows-native-Node setups in docs or
+  TODOs.
 - **Don't make the agent a chatbot.** Per IDEAS.md "agent-as-marginalia":
   the agent expresses itself through what changes in the world — what
   gets placed, what notes appear, what paths wear deeper. No floating

@@ -27,6 +27,13 @@ Wherever this plan says "Steam release" / "Steam Direct" / "Workshop",
 see the Phase 6 retirement banner below; the engineering phases
 themselves are unaffected.
 
+**Platform change (2026-07-17).** macOS is the sole build + verification
+platform. Wherever this plan says "Windows-pending" / "Windows checklist"
+/ "pending Windows + Ollama", read it as macOS: the 2026-06 consolidation
+pass verified most of those surfaces on macOS via the e2e harness
+(STATE.md has the record), and anything still open verifies there too.
+The Win32 code paths remain in-tree as dormant OSS-contributor surface.
+
 ---
 
 ## How to work with this plan
