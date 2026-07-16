@@ -161,7 +161,9 @@ we'd like to see.
   one.
 - **`desktop/`** — Electron + steamworks.js + the wallpaper machinery.
 
-Long-form: [`SPEC.md`](SPEC.md) is the consolidated spec,
+Long-form: [`VISION.md`](VISION.md) is where this is going (a living world,
+sleep-mode dreaming, agent-proposed topology, agent-native futures),
+[`SPEC.md`](SPEC.md) the consolidated spec,
 [`docs/pivot/DESIGN.md`](docs/pivot/DESIGN.md) the design rationale,
 [`docs/INDEX.md`](docs/INDEX.md) the map of which document is authoritative
 for what.
