@@ -35,6 +35,7 @@ import {
   waitForCozette,
 } from '../render/fonts';
 import { buildLandContainer } from '../render/levels/land';
+import { createFootfall, crustLayerText } from './wear';
 import { composeLand, SAMPLE_LAND, type LandGame } from '../procedural/land';
 import {
   getTerminalTopology,
@@ -115,6 +116,8 @@ interface Being {
   /** Anti-ping-pong: a just-entered being may not exit until this. */
   crossCooldownUntil: number;
   bobPhase: number;
+  /** Last integer column counted toward footfall wear. */
+  lastCol: number;
   text: BitmapText;
   /** Mid-handoff: walking stops until the broker acks. */
   pending: boolean;
@@ -130,6 +133,8 @@ export interface TerminalLandState {
   beings: Array<{ id: string; x: number; dir: number; intent: string }>;
   /** e2e ground truth for the join juice: live sweep count + total fired. */
   knits: { live: number; fired: number };
+  /** Columns worn past the footfall threshold (session-scoped). */
+  worn: number[];
   /** The joined neighbours' near-edge beings, projected into THIS land's
    *  column space (x < 0 / x > width-1 — just outside the local land). */
   neighbours: {
@@ -147,6 +152,8 @@ declare global {
       debugPlace(id: string, x: number, dir: 1 | -1): boolean;
       /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
       debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
+      /** e2e only — force footfall on a column (n passes); true if worn. */
+      debugWear(col: number, passes: number): boolean;
     };
   }
 }
@@ -237,6 +244,15 @@ export async function mountTerminalLand(
   };
   layoutWorld();
 
+  // ── Worn paths (Tier 2): session-scoped footfall wear ──────────────────
+  // Column entries accumulate; past WEAR_THRESHOLD the crust packs down
+  // (▀ → ▔) — paths wear deeper where beings actually walk.
+  const footfall = createFootfall();
+  const refreshWear = (): void => {
+    const crust = scene.layers.crust?.[0];
+    if (crust) crust.text = crustLayerText(model, footfall.worn);
+  };
+
   const recompose = (join: { left?: number; right?: number } | null): void => {
     model = composeLand(seed, games, join ? { ...composeOpts, join } : composeOpts);
     world.removeChild(sceneContainer);
@@ -246,6 +262,7 @@ export async function mountTerminalLand(
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
     layoutWorld();
+    refreshWear(); // worn columns survive a join recompose
     structureCols = structureColumns(model.role);
   };
 
@@ -370,6 +387,7 @@ export async function mountTerminalLand(
       pausedUntil: 0,
       crossCooldownUntil: 0,
       bobPhase: (fnv1a(id) % 628) / 100,
+      lastCol: Math.round(x),
       text,
       pending: false,
       exitingSince: null,
@@ -591,6 +609,13 @@ export async function mountTerminalLand(
 
       b.text.x = Math.round(b.x * CW);
       b.text.y = surfaceLocalY(b.x) + Math.sin(elapsedS * BOB_HZ * 6.283 + b.bobPhase) * BOB_PX;
+
+      // Footfall: count column ENTRIES (not frames) toward path wear.
+      const col = Math.round(b.x);
+      if (col !== b.lastCol) {
+        b.lastCol = col;
+        if (footfall.step(col)) refreshWear();
+      }
     }
   };
   app.ticker.add(tick);
@@ -640,6 +665,7 @@ export async function mountTerminalLand(
         intent: b.intent.kind,
       })),
       knits: { live: knits.length, fired: knitsFired },
+      worn: [...footfall.worn].sort((a, b) => a - b),
       neighbours: {
         left: projectAcrossEdge('left', model.width, neighbourNear.left),
         right: projectAcrossEdge('right', model.width, neighbourNear.right),
@@ -661,6 +687,12 @@ export async function mountTerminalLand(
       sun: scene.layers.sun?.[0]?.alpha ?? null,
       foliageX: (scene.layers.foliage ?? []).map((t) => t.x),
     }),
+    debugWear: (col, passes) => {
+      let crossed = false;
+      for (let i = 0; i < passes; i++) if (footfall.step(col)) crossed = true;
+      if (crossed) refreshWear();
+      return footfall.worn.has(col);
+    },
   };
 
   return () => {
