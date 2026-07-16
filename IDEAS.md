@@ -539,9 +539,44 @@ user placed (T5's rule, kept at scale).
 4. Only then: the pager (materialise/dematerialise on attention) and the
    climate-driven working set.
 
-**Status.** Parked; the natural far end of the desk-as-world arc. Gated
-behind PRD T4/T5 and the virtual-terminal substrate. Referenced from
-`VISION.md` § The desk as world.
+### Sharpened — the meta-agent as DIRECTOR, the world as broadcast (added 2026-07-16, same day)
+
+Harry's second pass on the idea reframes it: *"the world opens up and more
+terminals get added as the agents explore it — not all loaded at once; a
+meta-agent opens terminals for the other agents for interesting events."*
+Two moves fall out:
+
+- **Windows are attention, not the world.** The world runs mostly unseen
+  (headless lands); the meta-agent manages which slice *materialises on the
+  desk*. A director cutting to the interesting camera — it solves the
+  100-land UX problem (the user can't know where the life is; the
+  meta-agent's job IS knowing where to look).
+- **Exploration births terminals.** The world graph is implied by the seed
+  (the `clusters.ts` district/island tree); agents wandering past the known
+  edge *discover* the next wing and its terminal materialises at the desk
+  edge. Determinism survives — discovery reveals, never invents. Discovery
+  events feed the culture system ("the archivist found the strategy
+  district").
+
+**Event broadcasts are the v0** and need no LLM in the loop: the events
+calendar already stages deterministic events, Smallville importance already
+scores "interesting," and `spawnNext()` is the API. Rule: an event stages in
+an unopened wing → the meta-agent opens a terminal onto it for the event's
+duration, dispatch line names why, window folds away after. Smallest demo:
+two open terminals + one headless wing; a festival fires there; a window
+opens itself; agents walk to it through the joins.
+
+**Rails, hardest here:** self-opening windows are the most invasive act
+this product can perform. Director mode is opt-in; every opened window is
+named in the dispatch and instantly dismissable; cadence hard-capped; the
+meta-agent stays Tier-0 rules over existing signals (LLM judgment only at
+existing reflection cadence). And it is NOT a character — it's Loki-as-
+climate given hands (see *The living world*), never a chat surface.
+
+**Status.** Parked; the natural far end of the desk-as-world arc. Event
+broadcasts (the sharpened v0) are buildable directly after PRD T4/T5 +
+headless-land simulation in the broker. Referenced from `VISION.md` § The
+desk as world.
 
 ---
 
