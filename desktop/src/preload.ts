@@ -108,10 +108,10 @@ export interface ElectronAPI {
   // Present on every window but only live in terminals mode
   // (LOKILIBRARY_TERMINALS=N); the palace renderer never calls these.
 
-  /** Current joins, for hydration on terminal mount. */
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
+  /** Current joins + terminalId→wing map, for hydration on terminal mount. */
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
   /** Topology changes from the main-process broker (snap/un-snap). */
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
    *  already live in another terminal; despawn the local copy. */
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
@@ -165,9 +165,9 @@ const api: ElectronAPI = {
     return () => ipcRenderer.off('wallpaper:peekChanged', handler);
   },
   terminalGetTopology: () =>
-    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[] }>,
+    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>,
   onTerminalTopology: (cb) => {
-    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[] }): void => cb(event);
+    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string> }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);
     return () => ipcRenderer.off('terminal:topology', handler);
   },

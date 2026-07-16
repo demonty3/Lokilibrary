@@ -58,6 +58,13 @@ function allBounds(): TermBounds[] {
   return [...terminals.values()].filter((t) => !t.win.isDestroyed()).map(boundsOf);
 }
 
+/** terminalId → wing, for renderers to derive a joined neighbour's seed. */
+function wingsMap(): Record<string, string> {
+  const m: Record<string, string> = {};
+  for (const t of terminals.values()) if (!t.win.isDestroyed()) m[t.id] = t.wing;
+  return m;
+}
+
 function broadcastTopology(): void {
   const next = computeJoins(allBounds());
   if (JSON.stringify(next) === JSON.stringify(joins)) return;
@@ -65,7 +72,7 @@ function broadcastTopology(): void {
   // eslint-disable-next-line no-console
   console.log(`[terminals] topology: ${joins.length ? joins.map((j) => `${j.left}+${j.right}`).join(' ') : '(none)'}`);
   for (const t of terminals.values()) {
-    if (!t.win.isDestroyed()) t.win.webContents.send('terminal:topology', { joins });
+    if (!t.win.isDestroyed()) t.win.webContents.send('terminal:topology', { joins, wings: wingsMap() });
   }
 }
 
@@ -138,7 +145,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
   // Hydration: a terminal renderer asks for the current joins on mount.
-  ipcMain.handle('terminal:getTopology', () => ({ joins }));
+  ipcMain.handle('terminal:getTopology', () => ({ joins, wings: wingsMap() }));
 
   // Roster registration at spawn. First writer wins — a duplicate spawn of
   // a live agent id is refused (the renderer despawns its copy).

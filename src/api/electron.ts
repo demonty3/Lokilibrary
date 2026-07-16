@@ -66,8 +66,8 @@ export interface ElectronAPI {
 
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
   terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
   onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
@@ -296,18 +296,18 @@ export function subscribePeek(
  * exits refused (the being turns around).
  */
 
-export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[] }> {
+export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }> {
   const api = getElectronAPI();
-  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [] };
+  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [], wings: {} };
   try {
     return await api.terminalGetTopology();
   } catch {
-    return { joins: [] };
+    return { joins: [], wings: {} };
   }
 }
 
 export function subscribeTerminalTopology(
-  cb: (event: { joins: TerminalJoin[] }) => void,
+  cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;
