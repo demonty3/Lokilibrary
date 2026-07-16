@@ -131,6 +131,10 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
+  // Tier-1 terminals: multiple renderer processes share this file (one
+  // memory.sqlite per userData). WAL handles concurrent readers; a busy
+  // writer should wait briefly, not throw SQLITE_BUSY into a tick.
+  db.pragma('busy_timeout = 3000');
 
   const hasVec = tryLoadVec(db, opts.suppressVecWarning ?? false);
   bootstrap(db, hasVec);

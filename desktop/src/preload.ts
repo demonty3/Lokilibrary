@@ -108,24 +108,63 @@ export interface ElectronAPI {
   // Present on every window but only live in terminals mode
   // (LOKILIBRARY_TERMINALS=N); the palace renderer never calls these.
 
-  /** Current joins, for hydration on terminal mount. */
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
+  /** Current joins + terminalId→wing map, for hydration on terminal mount. */
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
   /** Topology changes from the main-process broker (snap/un-snap). */
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
    *  already live in another terminal; despawn the local copy. */
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
-  /** A being walked off an open edge. True = the neighbour accepted it
-   *  (despawn locally); false = refused (keep it, turn it around). */
-  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
-  /** A being handed over by the broker arrives at `side`. */
-  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+  /** A being walked off an open edge, carrying its runtime state. True =
+   *  the neighbour accepted it (despawn locally); false = refused. */
+  terminalAgentExit(
+    agentId: string,
+    terminalId: string,
+    side: 'left' | 'right',
+    state: TerminalBeingState,
+  ): Promise<boolean>;
+  /** A being handed over by the broker arrives at `side`, with its
+   *  carried state and the source terminal/wing. */
+  onTerminalAgentEnter(
+    cb: (event: {
+      agentId: string;
+      side: 'left' | 'right';
+      state?: TerminalBeingState;
+      from?: { terminalId: string; wing: string };
+    }) => void,
+  ): () => void;
+  /** ≤1 Hz, change-gated near-edge report; the broker relays each joined
+   *  side to that neighbour. Fire-and-forget — perception is advisory. */
+  terminalReportNearEdge(
+    terminalId: string,
+    near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+  ): void;
+  /** The joined neighbour's near-edge beings, per side of THIS terminal. */
+  onTerminalNeighbourSummary(
+    cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+  ): () => void;
 }
 
 /** A live horizontal join between two terminals (broker-derived). */
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** Runtime state carried across a handoff so the being RESUMES in the
+ *  neighbour rather than respawning fresh. Broker-opaque: the main
+ *  process forwards it verbatim, renderers own the shape. */
+export interface TerminalBeingState {
+  speed: number;
+  dir: 1 | -1;
+  intent: string;
+  bobPhase: number;
+}
+
+/** A being near a shared edge (cross-edge perception relay). */
+export interface TerminalNearEdgeBeing {
+  id: string;
+  dist: number;
 }
 
 declare global {
@@ -165,23 +204,39 @@ const api: ElectronAPI = {
     return () => ipcRenderer.off('wallpaper:peekChanged', handler);
   },
   terminalGetTopology: () =>
-    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[] }>,
+    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>,
   onTerminalTopology: (cb) => {
-    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[] }): void => cb(event);
+    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string> }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);
     return () => ipcRenderer.off('terminal:topology', handler);
   },
   terminalAgentSpawn: (agentId, terminalId) =>
     ipcRenderer.invoke('terminal:agentSpawn', { agentId, terminalId }) as Promise<boolean>,
-  terminalAgentExit: (agentId, terminalId, side) =>
-    ipcRenderer.invoke('terminal:agentExit', { agentId, terminalId, side }) as Promise<boolean>,
+  terminalAgentExit: (agentId, terminalId, side, state) =>
+    ipcRenderer.invoke('terminal:agentExit', { agentId, terminalId, side, state }) as Promise<boolean>,
   onTerminalAgentEnter: (cb) => {
     const handler = (
       _e: IpcRendererEvent,
-      event: { agentId: string; side: 'left' | 'right' },
+      event: {
+        agentId: string;
+        side: 'left' | 'right';
+        state?: TerminalBeingState;
+        from?: { terminalId: string; wing: string };
+      },
     ): void => cb(event);
     ipcRenderer.on('terminal:agentEnter', handler);
     return () => ipcRenderer.off('terminal:agentEnter', handler);
+  },
+  terminalReportNearEdge: (terminalId, near) => {
+    ipcRenderer.send('terminal:nearEdge', { terminalId, near });
+  },
+  onTerminalNeighbourSummary: (cb) => {
+    const handler = (
+      _e: IpcRendererEvent,
+      event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] },
+    ): void => cb(event);
+    ipcRenderer.on('terminal:neighbourSummary', handler);
+    return () => ipcRenderer.off('terminal:neighbourSummary', handler);
   },
 };
 

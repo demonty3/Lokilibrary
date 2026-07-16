@@ -33,6 +33,18 @@ seam edge is a deferred follow-up). The on-screen items to certify now are W-2
 
 ## Active
 
+### 👁 Snapping-terminals human beats — tray click + glyph-strip drag (2026-07-16)
+**Status**: Tier 3 landed (desk persistence + tray; STATE.md top entry). The
+spawn path, wing accounting, and persistence are harness-verified; two beats
+need a human hand: (1) click the tray "New terminal (dN)" item — label should
+disable at 6 terminals and re-enable with the freed wing after closing a
+window; (2) the join-moment leftovers — drag a terminal by its in-world
+`┤ wing ├` glyph strip with a real mouse, and eyeball the 0.6s knit sweep on
+a fresh join.
+**Unblocks**: closing the snapping-terminals verification column; nothing
+code-side is waiting.
+**Where**: `cd desktop && LOKILIBRARY_TERMINALS=2 LOKILIBRARY_RENDERER_URL=http://localhost:5183 ./node_modules/.bin/electron .` (vite serving 5183).
+
 ### 🔔 Agent-mind taste gate — needs your ANTHROPIC_API_KEY (2026-07-12)
 **Status**: the agent-mind pass is CODE-COMPLETE (9 commits, `314967c..8b6cd3d`;
 spec + plan in `docs/superpowers/`; all smokes + typecheck + e2e green; final

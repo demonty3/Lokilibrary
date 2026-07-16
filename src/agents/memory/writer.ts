@@ -224,6 +224,12 @@ function describeEvent(ev: PerceptionEvent): string {
       return `${ev.subject ?? 'another agent'} was nearby at (${ev.at.x},${ev.at.y})`;
     case 'bookshelf_in_reach':
       return `a bookshelf was within reach at (${ev.at.x},${ev.at.y})`;
+    case 'terminal_crossing': {
+      const [from, to] = (ev.subject ?? '').split('→');
+      return `crossed from the ${from || '?'} terminal into ${to || '?'}`;
+    }
+    case 'terminal_arrival':
+      return `arrived in the ${ev.subject ?? '?'} land`;
     default:
       return `${ev.kind}${ev.subject ? `:${ev.subject}` : ''} at (${ev.at.x},${ev.at.y})`;
   }
@@ -256,6 +262,14 @@ function sourceFromEventKind(
       return 'game_launched';
     case 'cell_mount':
       return 'cell_mount';
+    case 'terminal_crossing':
+    case 'terminal_arrival':
+      // Terminal-society events ride the existing source vocabulary:
+      // ObservationSource is a frozen schema contract (schema.ts — a new
+      // token = SCHEMA_VERSION bump + migration), and the agent's own
+      // movement is honestly 'self_perception'. The kind survives in the
+      // row text + subject, so the stream stays queryable.
+      return 'self_perception';
     default:
       return 'self_perception';
   }

@@ -37,6 +37,32 @@ function shadeOf(hex: string, f: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
+/** Linear per-channel mix from `hexA`'s ink toward `hexB` by t∈[0,1] — the
+ *  atmospheric-perspective primitive (t=0 pure ink, t=1 vanishes into hexB).
+ *  Both ends come from the ACTIVE theme, so setTheme hot-swap re-fades. */
+export function mixToward(hexA: string, hexB: string, t: number): number {
+  const a = hexToInt(hexA);
+  const b = hexToInt(hexB);
+  const ch = (shift: number): number => {
+    const ca = (a >> shift) & 0xff;
+    const cb = (b >> shift) & 0xff;
+    return Math.round(ca + (cb - ca) * t);
+  };
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/** Atmospheric perspective (Tier 2): how far each DISTANT role's ink is
+ *  pulled toward the sky (bg) colour — farther planes lose contrast.
+ *  Palette maths only (mixToward), no new palette entries, so the
+ *  one-theme-per-scene rule stays structural. Exported for the smoke. */
+export const FAR_FADE: Partial<Record<LandRole, number>> = {
+  ridgeFar: 0.72,
+  ridge: 0.45,
+  cloud: 0.4,
+  star: 0.35,
+  skyDither: 0.55,
+};
+
 /** Role -> theme palette key. The whole point of the side-on look: layers
  *  separate by hue, not by glyph density. */
 const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
@@ -46,7 +72,9 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   hall: 'violet',
   sun: 'yellow',
   cloud: 'fgDim',
-  ridge: 'bgAlt',
+  ridge: 'fgDim',
+  ridgeFar: 'fgDim',
+  skyDither: 'fgDim',
   crust: 'green',
   topsoil: 'orange',
   stone: 'fgDim',
@@ -67,11 +95,15 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
 };
 
 /** Build the stacked-by-role tinted container for a land model. Local glyph
- *  space (origin 0,0); the caller positions + scales it. */
+ *  space (origin 0,0); the caller positions + scales it. `layers` carries the
+ *  tinted BitmapText objects per drawn role (multi-text roles — shaded hall
+ *  steps — carry >1 entry) so the terminal renderer can animate a layer
+ *  (glow / sway / wear) without rebuilding the scene. */
 export function buildLandContainer(theme: Theme, model: LandModel): {
   container: Container;
   contentW: number;
   contentH: number;
+  layers: Partial<Record<LandRole, BitmapText[]>>;
 } {
   const container = new Container();
   const contentW = model.width * COZETTE_CELL_WIDTH;
@@ -96,11 +128,15 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     }
     return rows.join('\n');
   };
-  const addLayer = (text: string, fill: number) => {
+  const layers: Partial<Record<LandRole, BitmapText[]>> = {};
+  const addLayer = (r: LandRole, text: string, fill: number) => {
     if (!text.trim()) return;
-    container.addChild(
-      new BitmapText({ text, style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill } }),
-    );
+    const bt = new BitmapText({
+      text,
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill },
+    });
+    container.addChild(bt);
+    (layers[r] ??= []).push(bt);
   };
   for (const r of roles) {
     const shadeGrid = model.shade;
@@ -109,16 +145,29 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       // objects), tint scaled from the role's theme colour.
       for (let s = 0; s < GRADIENT_FACTORS.length; s++) {
         addLayer(
+          r,
           layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s),
           shadeOf(theme.palette[ROLE_KEY[r]], GRADIENT_FACTORS[s]),
         );
       }
     } else {
-      addLayer(layerFor((x, y) => model.role[y][x] === r), hexToInt(theme.palette[ROLE_KEY[r]]));
+      const fade = FAR_FADE[r];
+      const fill =
+        fade !== undefined
+          ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
+          : hexToInt(theme.palette[ROLE_KEY[r]]);
+      if (r === 'foliage') {
+        // Two parity planes so the terminal tick can counter-phase the sway
+        // (lock-step trees read mechanical).
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 0), fill);
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 1), fill);
+      } else {
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r), fill);
+      }
     }
   }
 
-  return { container, contentW, contentH };
+  return { container, contentW, contentH, layers };
 }
 
 export interface MountLandOptions {

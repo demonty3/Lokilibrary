@@ -14,6 +14,92 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Depth/atmosphere + chains/persistence/demo SHIPPED 2026-07-16** (plans
+`docs/superpowers/plans/2026-07-16-tier2-depth-atmosphere.md` +
+`…-tier3-chains-persistence-demo.md`; commits `ea15640..c75bfa2` (T2) +
+`58ea077..59e25f4` (T3) — Tiers 2+3 close the living-joined-world plan
+ladder). T2 — wings read DEEP and ALIVE with no camera scroll: far ridge
+plane + density-ramped sky dither (own salted PRNGs in land.ts, main rng
+byte-untouched — smoke-land-atmosphere 8, smoke-sky-dither 11), `mixToward`
+bg-fade palette math + per-role `layers` handles, monument/sun glow pulse,
+counter-phased foliage sway, worn paths (`src/terminal/wear.ts`,
+session-scoped ▀→▔ crust packing — smoke-worn-paths), knit glyph trail +
+seam ground glow. T3 — the arc graduates to a small product: `SNAP_Y_PX=48`
+vertical capture band (a snapped window dragged past 48px vertically ESCAPES
+instead of being yanked back — smoke-t0-topology 17), boot spread fits the
+work area for 3+ chains, `scripts/e2e/join-demo.sh` → committed
+`docs/demo/join-moment.gif` + 3 keyframe stills (the README artifact), desk
+persistence (`TerminalSlot[]` via config.ts — `readConfig` PARSES the field
+so its read-modify-write can't strip it, smoke-t3-desk 7; persisted on
+settle/close/spawn; `quitting` flag stops the app-quit close cascade saving
+a shrinking desk; `LOKILIBRARY_TERMINALS_RESET=1` keeps harness layouts
+reproducible), and a terminals-mode-only tray ("New terminal (dN)" onto the
+next unused wing; `terminal:debugSpawn` IPC + t0-drive `spawn` verb share
+the tray's exact spawn path). VERIFIED LIVE (macOS): t1+t2 snapped → quit →
+relaunch restores identical bounds ALREADY-JOINED (both edges open, knit
+fired); spawn fills d0–d5 in order, the 7th returns null, closing t3 frees
+d2 and a respawn mints FRESH id t7 onto it; the enlarged desk persists. The
+broker-driving smokes (t1-broker-handoff / t1-cross-edge) now mock
+app/Tray/Menu/nativeImage. PENDING HARRY: the tray human beat (click the
+item; label disables at 6 wings, re-enables on close) + the join-moment
+leftovers (real-mouse glyph-strip drag, knit-sweep eyeball). Next: the
+clone-and-run README + release pass (the free-OSS deliverable bar).
+
+**Living society SHIPPED 2026-07-16** (plan
+`docs/superpowers/plans/2026-07-16-tier1-living-society.md`; commits
+`9a9e320..b3b02e4`; Tier 1 of the living-joined-world run; PRD-T2 core,
+key-free). Land beings are a SOCIETY, not walkers: pure intent engine
+`src/terminal/beingIntents.ts` (utility-AI ladder — wander/rest/approach-a-
+structure/watch_edge; rest deliberately dominated at an OPEN edge;
+`resumeIntent` continues a handed-off intent; `structureColumns` from label
+runs — smoke-t1-being-intents, 21). Handoffs CARRY runtime state
+(`TerminalBeingState {speed,dir,intent,bobPhase}` — broker forwards opaquely
++ `from:{terminalId,wing}`; beings RESUME, not respawn; `CROSS_COOLDOWN_S=4`
+anti-ping-pong; smoke-t1-broker-handoff, 18, drives the REAL broker via
+mockElectronModule). Crossings + arrivals write the Smallville stream
+(`src/terminal/terminalMemory.ts` → `recordPerception` kinds
+`terminal_crossing`/`terminal_arrival`, mapped to the FROZEN
+`'self_perception'` source — no schema bump; prose via writer.ts
+describeEvent; `busy_timeout=3000` for multi-renderer WAL sharing;
+smoke-t1-society-memory, 15 — VERIFIED in the real desktop sqlite: "crossed
+from the d0 terminal into d1" rows both directions). Cross-edge perception:
+`src/terminal/crossEdge.ts` (`nearEdgeSummary` cap 4/side radius 10 +
+`projectAcrossEdge` just-outside-the-land; ≤1 Hz change-gated
+`terminal:nearEdge` report → broker relays side-flipped
+`terminal:neighbourSummary`; non-empty summary = DECISIVE watch_edge pull;
+smoke-t1-cross-edge, 15). VERIFIED LIVE (macOS): the roster fully swapped
+homes organically (all 3 t1-natives in t2 + vice versa), perception symmetric
+(t1 sees 2 across its right seam, t2 sees 3 across its left), and BOTH
+windows had a being in watch_edge pulled to the populated join — the PRD-T2
+acceptance verbatim; gallery `/tmp/loki-join/gallery/tier1-society.png`.
+`__terminal.state()` now exposes intent per being + `neighbours` per side.
+Full smoke sweep green. DEFERRED (per plan): real 5-agent cohort defs /
+migrateRuntime-over-IPC, Tier-1 LLM dispatch on arrival (no-LLM rail), new
+ObservationSource token, relaunch persistence.
+
+**Join moment SHIPPED 2026-07-16** (spec+plan
+`docs/superpowers/*/2026-07-16-join-moment*`; commits `3c8f639..9ba90b4`;
+Tier 0 of the living-joined-world run). Two snapped terminals now read as ONE
+continuous land: `landSeamBoundary(seedA,seedB)` (land.ts; symmetric
+canonical-order FNV fold, salt `0x5a11`) gives both windows the identical seam
+height+slope with no negotiation; `composeLand` gains
+`join?: {left?,right?}` (neighbour wing seed) and Hermite-ramps the edge's
+last 6 cols to it (structure-free buffer; no-join byte-identical —
+`smoke-land-seam.mts`, 6). Topology IPC carries `wings` (terminalId→wing);
+`terminalLand` recomposes the joined edge as a swappable scene child on join
+change. Terminal windows are FRAMELESS (`frame:false` alone — `titleBarStyle:
+'hidden'` re-adds macOS traffic lights; `hasShadow:false` +
+`roundedCorners:false` kill the false seam line) with an in-world `┤ wing ├`
+drag strip. A one-shot knit sweep (0.6s, ticker-driven) fires per newly-opened
+edge (`__terminal.state().knits` = e2e ground truth). VERIFIED ON SCREEN
+(macOS, occlusion-proof `scripts/e2e/join-shot.py` composite — new tooling,
+`screencapture -l` per window + PIL): ground line continuous across the seam,
+carets on the same row, a being at the threshold; hero shot
+`/tmp/loki-join/gallery/tier0-hero.png`. PENDING HARRY: real-mouse drag of the
+glyph strip (drag-region can't be driven via CDP); knit sweep eyeball (0.6s —
+ground truth proven, capture kept missing the window). Next tiers: living
+society (T2 runtime) → depth/atmosphere → chains/persistence → demo GIF.
+
 **Salience campaign SHIPPED 2026-07-13** (spec+plan
 `docs/superpowers/*/2026-07-13-salience-campaign*`; commits
 `b293c96..8d9f88e`; source: the 8-lens visual programme in

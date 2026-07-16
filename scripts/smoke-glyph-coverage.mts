@@ -30,6 +30,8 @@ import { buildScatterTable } from '../src/procedural/scatter.ts';
 import { TILE_BY_ID } from '../src/procedural/tiles/library.ts';
 import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
+import { SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
+import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
 
@@ -89,9 +91,17 @@ const activities: ClusterActivity[] = [
 ];
 for (const a of activities) add(activityGlyphFor(a), `clusters.ts activityGlyphFor(${a})`);
 
+// 4b. Tier-2 sky dither vocabulary (src/procedural/land.ts) — imported real source.
+for (const g of SKY_DITHER_GLYPHS) add(g, 'land.ts SKY_DITHER_GLYPHS');
+
+// 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
+add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');
+
 // 5. Renderer-literal glyphs — box/shade/punctuation emitted directly in the
 //    render layer (NOT exported from a data module). Provenance is the file.
 const RENDERER_LITERALS: Array<[string, string]> = [
+  // Tier-2 knit-sweep trail (terminalLand.ts startKnit/tick) — all covered.
+  ['█▓▒', 'terminalLand.ts knit-sweep trail'],
   // Card frames — district.ts / island.ts renderIslandCard/renderDistrictCard.
   ['┌─┐│└┘', 'district.ts + island.ts card frames'],
   // Double-line stub/empty panel — stub.ts + island.ts/continent.ts emptyPanel.
@@ -149,6 +159,7 @@ check(`every emitted glyph is in the font (${byCp.size} distinct)`, allCovered);
 check('▓ bookshelf/heavy-shade covered', covered(0x2593));
 check('▒ medium-shade covered', covered(0x2592));
 check('░ light-shade covered', covered(0x2591));
+check('▔ worn-path crust covered', covered(0x2594));
 check('⌂ cottage landmark covered', covered(0x2302));
 check('║ tower / double-vertical covered', covered(0x2551));
 check('╪ door covered', covered(0x256a));

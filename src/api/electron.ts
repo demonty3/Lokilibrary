@@ -66,17 +66,51 @@ export interface ElectronAPI {
 
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[] }>;
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[] }) => void): () => void;
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
-  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
-  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+  terminalAgentExit(
+    agentId: string,
+    terminalId: string,
+    side: 'left' | 'right',
+    state: TerminalBeingState,
+  ): Promise<boolean>;
+  onTerminalAgentEnter(
+    cb: (event: {
+      agentId: string;
+      side: 'left' | 'right';
+      state?: TerminalBeingState;
+      from?: { terminalId: string; wing: string };
+    }) => void,
+  ): () => void;
+  terminalReportNearEdge(
+    terminalId: string,
+    near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+  ): void;
+  onTerminalNeighbourSummary(
+    cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+  ): () => void;
 }
 
 /** T0 spike — a live horizontal join between two terminal windows. */
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** Tier-1 society — runtime state carried across a handoff (mirrors
+ *  desktop/src/preload.ts; broker-opaque). */
+export interface TerminalBeingState {
+  speed: number;
+  dir: 1 | -1;
+  intent: string;
+  bobPhase: number;
+}
+
+/** Tier-1 society — a being near a shared edge (mirrors preload). */
+export interface TerminalNearEdgeBeing {
+  id: string;
+  dist: number;
 }
 
 declare global {
@@ -296,18 +330,18 @@ export function subscribePeek(
  * exits refused (the being turns around).
  */
 
-export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[] }> {
+export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }> {
   const api = getElectronAPI();
-  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [] };
+  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [], wings: {} };
   try {
     return await api.terminalGetTopology();
   } catch {
-    return { joins: [] };
+    return { joins: [], wings: {} };
   }
 }
 
 export function subscribeTerminalTopology(
-  cb: (event: { joins: TerminalJoin[] }) => void,
+  cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;
@@ -328,21 +362,48 @@ export async function terminalAgentExit(
   agentId: string,
   terminalId: string,
   side: 'left' | 'right',
+  state: TerminalBeingState,
 ): Promise<boolean> {
   const api = getElectronAPI();
   if (!api || typeof api.terminalAgentExit !== 'function') return false;
   try {
-    return await api.terminalAgentExit(agentId, terminalId, side);
+    return await api.terminalAgentExit(agentId, terminalId, side, state);
   } catch {
     return false;
   }
 }
 
 export function subscribeTerminalAgentEnter(
-  cb: (event: { agentId: string; side: 'left' | 'right' }) => void,
+  cb: (event: {
+    agentId: string;
+    side: 'left' | 'right';
+    state?: TerminalBeingState;
+    from?: { terminalId: string; wing: string };
+  }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalAgentEnter !== 'function') return () => undefined;
   return api.onTerminalAgentEnter(cb);
+}
+
+export function terminalReportNearEdge(
+  terminalId: string,
+  near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+): void {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalReportNearEdge !== 'function') return;
+  try {
+    api.terminalReportNearEdge(terminalId, near);
+  } catch {
+    /* advisory — never throws into the tick */
+  }
+}
+
+export function subscribeTerminalNeighbourSummary(
+  cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api || typeof api.onTerminalNeighbourSummary !== 'function') return () => undefined;
+  return api.onTerminalNeighbourSummary(cb);
 }
 

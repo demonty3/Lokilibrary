@@ -18,6 +18,12 @@
  *     J3  aligned x but misaligned y (> eps) → not joined
  *     J4  chain A–B–C → two joins, deterministic order
  *     J5  openSides/neighbourOf agree with the join set
+ *
+ *   UN-SNAP CAPTURE BAND (SNAP_Y_PX — T1 hysteresis slice)
+ *     H1  nudged within the band → recaptured (magnetic hold)
+ *     H2  vertical drag-out past the band, x aligned → free (THE fix)
+ *     H3  the 36px boot ladder still snaps together
+ *     H4  band boundary inclusive at exactly SNAP_Y_PX
  */
 
 import { makeChecker } from './lib/smoke.ts';
@@ -28,6 +34,7 @@ import {
   openSides,
   JOIN_EPS_PX,
   SNAP_PX,
+  SNAP_Y_PX,
   type TermBounds,
 } from '../desktop/src/topology.ts';
 
@@ -70,6 +77,26 @@ const t = (id: string, x: number, y: number): TermBounds => ({ id, x, y, width: 
     'T6 deterministic',
     JSON.stringify(computeSnapTarget(t2, [t1])) === JSON.stringify(computeSnapTarget(t2, [t1])),
   );
+}
+
+// ── Un-snap vertical capture band ──────────────────────────────────────────
+{
+  const t1 = t('t1', 100, 200);
+  // H1: nudged within the band → recaptured (the snap still "holds").
+  const hold = computeSnapTarget(t('t2', 100 + W + 6, 200 + SNAP_Y_PX - 8), [t1]);
+  check('H1 nudge within band recaptures', hold !== null && hold.x === 100 + W && hold.y === 200);
+  // H2: dragged out vertically past the band with x still aligned → free.
+  //     THE regression this locks: overlap-only capture recaptured any
+  //     |dy| ≤ height/2, so a snapped window could never detach vertically.
+  check(
+    'H2 vertical drag-out escapes',
+    computeSnapTarget(t('t2', 100 + W, 200 + SNAP_Y_PX + 1), [t1]) === null,
+  );
+  // H3: the boot ladder (36px y offsets) must stay snappable.
+  const boot = computeSnapTarget(t('t2', 100 + W + 20, 236), [t1]);
+  check('H3 boot ladder offset (36px) snaps', boot !== null && boot.y === 200);
+  // H4: boundary inclusive.
+  check('H4 dy == SNAP_Y_PX still snaps', computeSnapTarget(t('t2', 100 + W, 200 + SNAP_Y_PX), [t1]) !== null);
 }
 
 // ── Joins ──────────────────────────────────────────────────────────────────

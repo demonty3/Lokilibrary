@@ -7,6 +7,9 @@
  *     Persisting the *id* rather than (x, y) bounds means a monitor swap
  *     reassigns the wallpaper to the primary instead of crashing into a
  *     no-longer-existent display. Undefined ↔ "use primary display."
+ *   - `terminals` (id/wing/bounds array) — snapping-terminals desk
+ *     persistence. Written by desktop/src/terminals.ts on settle/close/
+ *     spawn; restored on the next LOKILIBRARY_TERMINALS launch.
  *
  * On disk: <userData>/config.json — `%APPDATA%\lokilibrary-desktop\config.json`
  * on Windows, `~/Library/Application Support/lokilibrary-desktop/` on Mac.
@@ -23,9 +26,33 @@ import * as path from 'node:path';
 
 export type Mode = 'window' | 'wallpaper';
 
+/** One persisted terminal window of the snapping-terminals desk. */
+export interface TerminalSlot {
+  id: string;
+  wing: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Config {
   mode: Mode;
   displayId?: number;
+  terminals?: TerminalSlot[];
+}
+
+function isTerminalSlot(v: unknown): v is TerminalSlot {
+  if (typeof v !== 'object' || v === null) return false;
+  const s = v as Record<string, unknown>;
+  return (
+    typeof s.id === 'string' &&
+    typeof s.wing === 'string' &&
+    typeof s.x === 'number' &&
+    typeof s.y === 'number' &&
+    typeof s.width === 'number' &&
+    typeof s.height === 'number'
+  );
 }
 
 const DEFAULT_CONFIG: Config = { mode: 'window' };
@@ -38,9 +65,13 @@ function readConfig(): Config {
   try {
     const raw = fs.readFileSync(configPath(), 'utf8');
     const cfg = JSON.parse(raw) as Partial<Config>;
+    // readConfig reconstructs from known fields, so an unparsed field would
+    // be ERASED by the next read-modify-write — this parse is load-bearing.
+    const terminals = Array.isArray(cfg.terminals) ? cfg.terminals.filter(isTerminalSlot) : [];
     return {
       mode: cfg.mode === 'wallpaper' ? 'wallpaper' : 'window',
       displayId: typeof cfg.displayId === 'number' ? cfg.displayId : undefined,
+      ...(terminals.length > 0 ? { terminals } : {}),
     };
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -73,5 +104,16 @@ export function setDisplayId(displayId: number | undefined): void {
   const cfg = readConfig();
   if (displayId === undefined) delete cfg.displayId;
   else cfg.displayId = displayId;
+  writeConfig(cfg);
+}
+
+export function getTerminals(): TerminalSlot[] | undefined {
+  return readConfig().terminals;
+}
+
+export function setTerminals(slots: TerminalSlot[] | undefined): void {
+  const cfg = readConfig();
+  if (!slots || slots.length === 0) delete cfg.terminals;
+  else cfg.terminals = slots;
   writeConfig(cfg);
 }
