@@ -9,7 +9,9 @@
  */
 import { makeChecker } from './lib/smoke.ts';
 import { composeLand, SAMPLE_LAND } from '../src/procedural/land.ts';
-import { FAR_FADE, mixToward } from '../src/render/levels/land.ts';
+import { FAR_FADE, GROUND_DEMOTE, landRoleFill, mixToward } from '../src/render/levels/land.ts';
+import { getById } from '../src/themes/index.ts';
+import { hexToInt } from '../src/render/fonts.ts';
 
 const { check, report } = makeChecker('smoke land-atmosphere');
 
@@ -49,6 +51,26 @@ check('mixToward midpoint channel math', mid === 0x808080, `got 0x${mid.toString
 check(
   'FAR_FADE orders the planes',
   (FAR_FADE.ridgeFar ?? 0) > (FAR_FADE.ridge ?? 0) && (FAR_FADE.ridge ?? 0) > 0,
+);
+
+// 6 · ground demotion (ambient-salience bundle) — crust/foliage keep their
+//     green HUE but scale down; quiet roles verbatim; FAR_FADE untouched.
+const theme = getById('solarized-dark');
+const expectScaled = (hex: string, f: number): number => {
+  const n = hexToInt(hex);
+  return (
+    (Math.round(((n >> 16) & 0xff) * f) << 16) |
+    (Math.round(((n >> 8) & 0xff) * f) << 8) |
+    Math.round((n & 0xff) * f)
+  );
+};
+check('GROUND_DEMOTE covers crust+foliage at 0.6', GROUND_DEMOTE.crust === 0.6 && GROUND_DEMOTE.foliage === 0.6);
+check('crust fill = green scaled by GROUND_DEMOTE', landRoleFill(theme, 'crust') === expectScaled(theme.palette.green, 0.6));
+check('foliage fill matches crust demotion', landRoleFill(theme, 'foliage') === expectScaled(theme.palette.green, 0.6));
+check('stone fill untouched (fgDim verbatim)', landRoleFill(theme, 'stone') === hexToInt(theme.palette.fgDim));
+check(
+  'ridge still fades toward bg (FAR_FADE path unchanged)',
+  landRoleFill(theme, 'ridge') === mixToward(theme.palette.fgDim, theme.palette.bg, FAR_FADE.ridge!),
 );
 
 report();

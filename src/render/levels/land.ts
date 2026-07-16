@@ -63,6 +63,15 @@ export const FAR_FADE: Partial<Record<LandRole, number>> = {
   skyDither: 0.55,
 };
 
+/** Ground demotion (ambient-salience bundle): crust + foliage keep their
+ *  green HUE but drop ~two ramp steps so the lawn stops out-shouting the
+ *  beings — the land-register half of the attention contract (the beings'
+ *  accent half lands in terminalLand.ts). Exported for the smoke. */
+export const GROUND_DEMOTE: Partial<Record<LandRole, number>> = {
+  crust: 0.6,
+  foliage: 0.6,
+};
+
 /** Role -> theme palette key. The whole point of the side-on look: layers
  *  separate by hue, not by glyph density. */
 const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
@@ -93,6 +102,18 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   shaft: 'orange',
   edge: 'fgDim',
 };
+
+/** Single fill-resolution point for a NON-shaded land role: far planes fade
+ *  toward bg (FAR_FADE), ground roles demote by channel scale
+ *  (GROUND_DEMOTE), everything else is its palette key verbatim. Pure —
+ *  exported for the smoke. */
+export function landRoleFill(theme: Theme, r: LandRole): number {
+  const fade = FAR_FADE[r];
+  if (fade !== undefined) return mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade);
+  const demote = GROUND_DEMOTE[r];
+  if (demote !== undefined) return shadeOf(theme.palette[ROLE_KEY[r]], demote);
+  return hexToInt(theme.palette[ROLE_KEY[r]]);
+}
 
 /** Build the stacked-by-role tinted container for a land model. Local glyph
  *  space (origin 0,0); the caller positions + scales it. `layers` carries the
@@ -151,11 +172,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
         );
       }
     } else {
-      const fade = FAR_FADE[r];
-      const fill =
-        fade !== undefined
-          ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
-          : hexToInt(theme.palette[ROLE_KEY[r]]);
+      const fill = landRoleFill(theme, r);
       if (r === 'foliage') {
         // Two parity planes so the terminal tick can counter-phase the sway
         // (lock-step trees read mechanical).
