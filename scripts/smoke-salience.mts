@@ -66,4 +66,26 @@ check(
   LAND_BEING_ROLES.every((r) => beingKeys.has(roleKey(theme, r, 'fgBright') as never)),
 );
 
+// book-spine strokes (ambient-salience bundle): deterministic, gold-
+// guaranteed when stocked, all-dim when empty, never a reserved key
+const { shelfStrokeTints, SHELF_STROKE_OFFSETS_PX } = await import('../src/procedural/tiles/library.ts');
+let strokeDeterministic = true;
+let strokeGold = true;
+let strokeDim = true;
+let strokeReserved = false;
+for (let i = 0; i < 500; i++) {
+  const h = (Math.imul(i, 0x9e3779b1) ^ 0x5eed) >>> 0;
+  const stocked = shelfStrokeTints(h, true);
+  const empty = shelfStrokeTints(h, false);
+  if (JSON.stringify(stocked) !== JSON.stringify(shelfStrokeTints(h, true))) strokeDeterministic = false;
+  if (!stocked.includes('yellow')) strokeGold = false;
+  if (stocked.some((k) => beingKeys.has(k as never))) strokeReserved = true;
+  if (JSON.stringify(empty) !== JSON.stringify(['yellow', 'fgDim', 'fgDim'])) strokeDim = false;
+}
+check('shelf strokes deterministic', strokeDeterministic);
+check('stocked shelves always carry a gold stroke', strokeGold);
+check('bookless shelves = gold case + dim books', strokeDim);
+check('no stroke uses a reserved being key', !strokeReserved);
+check('three sub-cell stroke offsets', SHELF_STROKE_OFFSETS_PX.length === 3);
+
 report();

@@ -14,7 +14,10 @@ import {
   T_WALL_V,
   T_WINDOW,
   TILE_BY_ID,
+  SHELF_STROKE_OFFSETS_PX,
+  shelfStrokeTints,
 } from '../../procedural/tiles/library';
+import { fnv1a32 } from '../../procedural/seed';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { roleKey } from '../../themes/roles';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
@@ -310,6 +313,11 @@ export function mountCell(
   // baseLayer for furniture/floor, wallLayer for walls/frame/apertures
   // (salience pane-focus split) — Z-order vs spineLayer / scatterLayer /
   // etc. stays unchanged since wallLayer sits immediately after baseLayer.
+  // Ambient-salience bundle (#10): shelf cells are composed as sub-cell
+  // spine strokes AFTER the events-calendar moves land (the stroke read
+  // needs the FINAL stocked/empty state) — the tile loop collects them
+  // and draws nothing.
+  const shelfCells: CellPoint[] = [];
   for (let y = 0; y < layout.height; y++) {
     for (let x = 0; x < layout.width; x++) {
       const tileId = layout.tiles[y][x];
@@ -331,6 +339,8 @@ export function mountCell(
         sprite.x = x * COZETTE_CELL_WIDTH + (COZETTE_CELL_WIDTH - display.width) / 2;
         sprite.y = y * COZETTE_CELL_HEIGHT + COZETTE_CELL_HEIGHT - display.height;
         (WALL_TILE_IDS.has(tileId) ? wallLayer : baseLayer).addChild(sprite);
+      } else if (tileId === T_BOOKSHELF) {
+        shelfCells.push({ x, y });
       } else {
         const glyph = new BitmapText({
           text: tile.glyph,
@@ -543,6 +553,29 @@ export function mountCell(
   ];
   for (const move of movesToApply) {
     applyShelfMove(slotToBook, layout.bookshelfSlots, move);
+  }
+
+  // Ambient-salience bundle (#10): three '│' strokes per shelf cell at
+  // ±1px height variance — books, not slabs. Deterministic per
+  // (seed, cell) via fnv1a32; strokes join baseLayer (the ▓ slab's old
+  // home, same Z under the spine initials).
+  for (const cell of shelfCells) {
+    const stocked = slotToBook.has(`${cell.x},${cell.y}`);
+    const h = fnv1a32(`shelf:${seed}:${cell.x},${cell.y}`);
+    const tints = shelfStrokeTints(h, stocked);
+    for (let i = 0; i < 3; i++) {
+      const stroke = new BitmapText({
+        text: '│',
+        style: {
+          fontFamily: COZETTE_FONT_FAMILY,
+          fontSize: COZETTE_FONT_SIZE,
+          fill: hexToInt(theme.palette[tints[i]]),
+        },
+      });
+      stroke.x = cell.x * COZETTE_CELL_WIDTH + SHELF_STROKE_OFFSETS_PX[i];
+      stroke.y = cell.y * COZETTE_CELL_HEIGHT - ((h >>> (10 + i * 2)) % 2);
+      baseLayer.addChild(stroke);
+    }
   }
 
   // Spine overlay — first character of each (possibly moved) game name on
