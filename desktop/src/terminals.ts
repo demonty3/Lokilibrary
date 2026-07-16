@@ -23,7 +23,7 @@
  * joins/crossings without a human dragging.
  */
 
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import * as path from 'path';
 import { getTerminals, setTerminals } from './config';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
@@ -80,6 +80,13 @@ function persistTerminals(): void {
         return { id: t.id, wing: t.wing, x: b.x, y: b.y, width: b.width, height: b.height };
       }),
   );
+}
+
+/** Same asset + sizing as main.ts's createTray — desktop/assets/tray-icon.png,
+ *  resolved relative to desktop/dist. */
+function trayIcon(): Electron.NativeImage {
+  const icon = nativeImage.createFromPath(path.resolve(__dirname, '..', 'assets', 'tray-icon.png'));
+  return icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 });
 }
 
 /** terminalId → wing, for renderers to derive a joined neighbour's seed. */
@@ -157,6 +164,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
       for (const [agent, where] of roster) if (where === id) roster.delete(agent);
       broadcastTopology();
       if (!quitting) persistTerminals();
+      rebuildTray(); // a close frees a wing — the menu label must refresh
     });
 
     terminals.set(id, { id, wing, win });
@@ -203,6 +211,50 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   for (const s of slots) spawnTerminal(s.id, s.wing, s.x, s.y);
   broadcastTopology(); // a restored desk can boot already-joined
   persistTerminals();
+
+  // ── Tray: "New terminal" onto the next unused wing ──────────────────────
+  // Terminals mode never reaches main.ts's createTray() (the early return),
+  // so this is the mode's only tray. Plain action items — main.ts's
+  // checkbox/radio auto-fire hazard doesn't apply here.
+  let tray: Tray | null = null;
+  let nextIndex =
+    1 + [...terminals.keys()].reduce((m, id) => Math.max(m, Number(/^t(\d+)$/.exec(id)?.[1] ?? '0')), 0);
+
+  function nextWing(): string | undefined {
+    const used = new Set([...terminals.values()].map((t) => t.wing));
+    return WINGS.find((w) => !used.has(w));
+  }
+
+  function spawnNext(): string | null {
+    const wing = nextWing();
+    if (!wing) return null;
+    const id = `t${nextIndex++}`;
+    const i = terminals.size;
+    spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80)), 160 + i * 36);
+    persistTerminals();
+    rebuildTray();
+    return id;
+  }
+
+  function rebuildTray(): void {
+    if (!tray) return;
+    const wing = nextWing();
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        {
+          label: wing ? `New terminal (${wing})` : 'New terminal — all wings open',
+          enabled: wing !== undefined,
+          click: () => void spawnNext(),
+        },
+        { type: 'separator' },
+        { label: 'Quit', click: () => app.quit() },
+      ]),
+    );
+  }
+
+  tray = new Tray(trayIcon());
+  tray.setToolTip('lokilibrary — terminals');
+  rebuildTray();
 
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
@@ -292,4 +344,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     settle(payload.terminalId);
     return true;
   });
+
+  // Tray parity for the harness: the exact spawn path the tray item drives.
+  ipcMain.handle('terminal:debugSpawn', () => spawnNext());
 }

@@ -10,6 +10,7 @@
 //   node t0-drive.mjs move <tid> <x> <y>          → debugMove a window (broker then snaps + re-joins)
 //   node t0-drive.mjs place <tid> <being> <x> <d> → teleport a being (e.g. next to an open edge)
 //   node t0-drive.mjs waitcross <being> [sec]     → poll roster until the being changes terminal
+//   node t0-drive.mjs spawn                       → tray-parity spawn onto the next unused wing
 //   node t0-drive.mjs shot <out.png>              → screencapture of the union of all terminal bounds
 //
 // Launch first:  cd desktop && npx tsc && LOKILIBRARY_TERMINALS=2 \
@@ -103,6 +104,10 @@ async function main() {
     if (!t) throw new Error(`no window for terminal ${a1}`);
     const { send, close } = await attach(t);
     try { console.log(JSON.stringify(await evalIn(send, a2))); } finally { close(); }
+  } else if (verb === 'spawn') {
+    const id = await evalAny(`(async()=>{const {ipcRenderer}=require('electron');return await ipcRenderer.invoke('terminal:debugSpawn');})()`);
+    await sleep(800); // window boot
+    console.log(JSON.stringify({ spawned: id, bounds: (await brokerState()).bounds }));
   } else if (verb === 'shot') {
     const out = a1 || '/tmp/loki-t0.png';
     const { bounds } = await brokerState();
@@ -113,7 +118,7 @@ async function main() {
     execFileSync('screencapture', ['-x', `-R${x},${y},${w},${h}`, out], { stdio: 'pipe' });
     console.log(`wrote ${out} (${w}x${h} @ ${x},${y})`);
   } else {
-    console.error('usage: t0-drive.mjs state | move <tid> <x> <y> | place <tid> <being> <x> <dir> | waitcross <being> [sec] | eval <tid> <js> | shot <out.png>');
+    console.error('usage: t0-drive.mjs state | move <tid> <x> <y> | place <tid> <being> <x> <dir> | waitcross <being> [sec] | eval <tid> <js> | spawn | shot <out.png>');
     process.exitCode = 2;
   }
 }

@@ -121,6 +121,13 @@ mockElectronModule({
     getPath: () => tmpDir,
     on: () => {},
   },
+  // Tray (T3): terminals mode builds its own tray at boot.
+  Menu: { buildFromTemplate: () => ({}) },
+  nativeImage: { createFromPath: () => ({ isEmpty: () => true }), createEmpty: () => ({}) },
+  Tray: class {
+    setToolTip(): void {}
+    setContextMenu(): void {}
+  },
 });
 const { startTerminalsMode } = await import('../desktop/src/terminals.ts');
 startTerminalsMode(2, 'http://localhost:5183');
