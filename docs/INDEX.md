@@ -15,6 +15,7 @@ question. **When in doubt, check this index, not your memory.**
 | **Long-form spec (architecture, surfaces, schemas)** | `SPEC.md` | `SPEC.md` |
 | **Live data shapes (what's there RIGHT NOW)** | `STATE.md` | `STATE.md` |
 | **Parked ideas, future directions** | `IDEAS.md` | `IDEAS.md` |
+| **The assembled long view (map of the above)** | `VISION.md` | `VISION.md` |
 | **Per-phase retros (per-slice from 4A onward)** | `RETROS/phase-*.md` | `RETROS/` |
 | **User-blocked items (only the user can do these)** | `TODO-USER.md` | `TODO-USER.md` |
 | **Pivot design + feasibility background** | `DESIGN.md` + `FEASIBILITY.md` | `docs/pivot/` |
