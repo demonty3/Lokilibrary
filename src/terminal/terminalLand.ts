@@ -44,6 +44,12 @@ import {
   terminalAgentSpawn,
   type TerminalJoin,
 } from '../api/electron';
+import {
+  pickIntent,
+  structureColumns,
+  type BeingIntent,
+  type IntentContext,
+} from './beingIntents';
 
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
@@ -53,10 +59,16 @@ const SURFACE_BAND = 4;
 const BEINGS_PER_TERMINAL = 3;
 const BEING_GLYPHS = ['L', 'A', 'M', 'C', 'V'];
 const BEING_SPEED_CELLS_PER_S: [number, number] = [1.2, 2.6];
-/** Mean seconds between wander direction flips. */
-const FLIP_MEAN_S = 4;
-/** Hesitation beat at each flip (min + seeded extra, seconds). */
+/** Intent re-pick window (min + seeded extra, seconds). */
+const INTENT_S: [number, number] = [6, 6];
+/** Hesitation beat at each re-pick (min + seeded extra, seconds). */
 const HESITATE_S: [number, number] = [0.3, 0.5];
+/** approach: linger radius (cells) around the structure column. */
+const APPROACH_NEAR = 0.4;
+/** watch_edge: within this many cells of the open edge, drift slowly. */
+const WATCH_NEAR = 3;
+/** Speed multiplier while drifting at a watched edge. */
+const WATCH_DRIFT = 0.4;
 /** Idle bob: local px amplitude + speed. */
 const BOB_PX = 1.5;
 const BOB_HZ = 1.6;
@@ -74,8 +86,12 @@ interface Being {
   x: number; // cells, float
   dir: 1 | -1;
   speed: number; // cells/sec
-  nextFlipAt: number; // elapsed-seconds timestamp
-  pausedUntil: number; // hesitation beat after a flip
+  /** Current Tier-0 intent (beingIntents.ts) + the BT re-pick clock. */
+  intent: BeingIntent;
+  nextIntentAt: number; // elapsed-seconds timestamp
+  pausedUntil: number; // hesitation beat after a re-pick
+  /** Anti-ping-pong: a just-entered being may not exit until this. */
+  crossCooldownUntil: number;
   bobPhase: number;
   text: BitmapText;
   /** Mid-handoff: walking stops until the broker acks. */
@@ -89,7 +105,7 @@ export interface TerminalLandState {
   terminalId: string;
   wing: string;
   edges: { left: boolean; right: boolean };
-  beings: Array<{ id: string; x: number; dir: number }>;
+  beings: Array<{ id: string; x: number; dir: number; intent: string }>;
   /** e2e ground truth for the join juice: live sweep count + total fired. */
   knits: { live: number; fired: number };
 }
@@ -191,7 +207,21 @@ export async function mountTerminalLand(
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
     layoutWorld();
+    structureCols = structureColumns(model.role);
   };
+
+  // Approach targets: the labelled structure columns of the CURRENT model.
+  let structureCols = structureColumns(model.role);
+
+  /** Live context for a BT pick. neighbourNear stays 0 until cross-edge
+   *  perception (Tier-1 Task 5) feeds the joined neighbour's summary. */
+  const intentCtx = (x: number): IntentContext => ({
+    width: model.width,
+    x,
+    structureCols,
+    edges,
+    neighbourNear: { left: 0, right: 0 },
+  });
 
   // ── Edges: closed = wall; open = a bright threshold doorway ────────────
   let edges = { left: false, right: false };
@@ -288,8 +318,10 @@ export async function mountTerminalLand(
       x,
       dir,
       speed: BEING_SPEED_CELLS_PER_S[0] + rng() * (BEING_SPEED_CELLS_PER_S[1] - BEING_SPEED_CELLS_PER_S[0]),
-      nextFlipAt: elapsedS + rng() * FLIP_MEAN_S * 2,
+      intent: pickIntent(rng, intentCtx(x)),
+      nextIntentAt: elapsedS + INTENT_S[0] + rng() * INTENT_S[1],
       pausedUntil: 0,
+      crossCooldownUntil: 0,
       bobPhase: (fnv1a(id) % 628) / 100,
       text,
       pending: false,
@@ -416,26 +448,54 @@ export async function mountTerminalLand(
       }
 
       if (!b.pending) {
-        if (elapsedS >= b.nextFlipAt) {
-          // A beat of hesitation before committing to the new direction.
-          b.dir = rng() < 0.5 ? 1 : -1;
+        // BT re-pick on cadence (or forced when an intent invalidates).
+        if (elapsedS >= b.nextIntentAt) {
+          b.intent = pickIntent(rng, intentCtx(b.x));
           b.pausedUntil = elapsedS + HESITATE_S[0] + rng() * HESITATE_S[1];
-          b.nextFlipAt = elapsedS + rng() * FLIP_MEAN_S * 2;
+          b.nextIntentAt = elapsedS + INTENT_S[0] + rng() * INTENT_S[1];
         }
-        if (elapsedS >= b.pausedUntil) b.x += b.dir * b.speed * dt;
+
+        // Intent → this frame's signed velocity (cells/sec).
+        let vel = 0;
+        const it = b.intent;
+        if (it.kind === 'wander') {
+          b.dir = it.dir;
+          vel = b.dir * b.speed;
+        } else if (it.kind === 'approach') {
+          if (Math.abs(b.x - it.targetX) > APPROACH_NEAR) {
+            b.dir = b.x < it.targetX ? 1 : -1;
+            vel = b.dir * b.speed;
+          } // else linger at the structure: stand, keep bobbing
+        } else if (it.kind === 'watch_edge') {
+          if (!edges[it.side]) {
+            b.nextIntentAt = elapsedS; // edge closed under us — re-pick next frame
+          } else {
+            const edgeX = it.side === 'left' ? 0 : model.width - 1;
+            b.dir = it.side === 'left' ? -1 : 1;
+            const near = Math.abs(b.x - edgeX) <= WATCH_NEAR;
+            vel = b.dir * b.speed * (near ? WATCH_DRIFT : 1);
+          }
+        } // rest: vel stays 0
+
+        if (elapsedS >= b.pausedUntil) b.x += vel * dt;
+
         if (b.x <= 0) {
-          if (edges.left) {
+          if (edges.left && elapsedS >= b.crossCooldownUntil) {
             tryExit(b, 'left');
           } else {
             b.x = 0;
             b.dir = 1;
+            if (b.intent.kind === 'wander') b.intent = { kind: 'wander', dir: 1 };
+            else b.nextIntentAt = elapsedS; // bounced — re-pick
           }
         } else if (b.x >= model.width - 1) {
-          if (edges.right) {
+          if (edges.right && elapsedS >= b.crossCooldownUntil) {
             tryExit(b, 'right');
           } else {
             b.x = model.width - 1;
             b.dir = -1;
+            if (b.intent.kind === 'wander') b.intent = { kind: 'wander', dir: -1 };
+            else b.nextIntentAt = elapsedS;
           }
         }
       }
@@ -462,7 +522,12 @@ export async function mountTerminalLand(
       terminalId,
       wing,
       edges: { ...edges },
-      beings: [...beings.values()].map((b) => ({ id: b.id, x: Math.round(b.x * 10) / 10, dir: b.dir })),
+      beings: [...beings.values()].map((b) => ({
+        id: b.id,
+        x: Math.round(b.x * 10) / 10,
+        dir: b.dir,
+        intent: b.intent.kind,
+      })),
       knits: { live: knits.length, fired: knitsFired },
     }),
     debugPlace: (id, x, dir) => {
@@ -470,8 +535,10 @@ export async function mountTerminalLand(
       if (!b || b.pending) return false;
       b.x = Math.min(model.width - 1, Math.max(0, x));
       b.dir = dir;
+      b.intent = { kind: 'wander', dir };
       b.pausedUntil = 0;
-      b.nextFlipAt = elapsedS + 30; // hold course long enough to cross
+      b.crossCooldownUntil = 0;
+      b.nextIntentAt = elapsedS + 30; // hold course long enough to cross
       return true;
     },
   };
