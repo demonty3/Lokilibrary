@@ -111,6 +111,11 @@ into a relationship:
 - **Per-terminal identity.** Each window its own palette and vocabulary
   (one palette per *scene* survives — the seam is the boundary), so a join
   reads as a portal between genuinely different places.
+- **The hundred-terminal desk.** The far end: the topology grows to
+  dozens-to-hundreds of lands, most simulated headlessly, and which ones
+  materialise as windows is managed — by the climate, or by a one-keystroke
+  command. Windows become a viewport cache over a larger living world
+  (`IDEAS.md` § The hundred-terminal desk).
 
 ## Beyond Steam (Year 2)
 
