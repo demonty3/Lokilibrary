@@ -3,7 +3,10 @@
 > A memory palace for your Steam library — a terminal-aesthetic pixel world
 > where a small society of AI beings lives among your games.
 
-![The palace — cell view, Solarized](docs/media/palace-solarized.png)
+![Two terminal windows drift together, snap into one continuous land, and a being walks across the seam](docs/demo/join-moment.gif)
+
+*Two OS windows drift together, snap, the ground knits — and a being walks
+out of one window into the other. Each window is a wing of your library.*
 
 Your library becomes an inhabitable place: a procedurally generated hall of
 glyph-built shelves, where every book is a game you own and a cohort of
@@ -25,7 +28,8 @@ telemetry, no price tag.
 
 > **Status:** working, mid-consolidation. The core loop — generated palace,
 > living cohort, themes, multi-pane, wallpaper mode — runs today on macOS and
-> Windows. Rough edges are tracked in [`TODO-USER.md`](TODO-USER.md); the
+> Windows; snapping terminals are verified on macOS (a Windows pass is
+> pending). Rough edges are tracked in [`TODO-USER.md`](TODO-USER.md); the
 > current state of every subsystem lives in [`STATE.md`](STATE.md).
 
 ## Quick start — no keys, ~2 minutes
@@ -41,6 +45,8 @@ That's a full palace with a sample library: the room generates
 deterministically (wave-function collapse over a seeded PRNG), and the agent
 cohort wanders on its LLM-free behaviour tier. No keys needed to see it
 alive.
+
+![The palace — cell view, Solarized](docs/media/palace-solarized.png)
 
 ## The full palace — your library, thinking agents, ~10 minutes
 
@@ -84,6 +90,37 @@ npm run dev        # expects npm run dev + npm run worker running
 
 One-time Steamworks SDK setup (and the Windows/WSL gotchas):
 [`desktop/README.md`](desktop/README.md).
+
+## Snapping terminals — worlds that join
+
+The demo at the top of this page. `LOKILIBRARY_TERMINALS=N` boots N
+frameless terminal windows instead of the palace — each one holds a wing of
+your library as a side-on living land, with its own beings. The windows are
+real OS windows, and the magic is in how they compose:
+
+- **Drag two windows side by side** and they snap edge-to-edge. The walls
+  open, the ground lines up into one continuous terrain (both windows derive
+  the same seam from a shared seed — no negotiation), and a knit sweep runs
+  the seam to stitch it shut.
+- **Beings cross between your windows.** They notice the neighbouring land,
+  drift toward a populated join, and walk out of one window into the other —
+  carrying their speed, direction, and intent with them. Crossings are
+  written into their memory stream.
+- **Chains work**: three or more windows join A–B–C, with the middle window
+  ramping both edges. Drag a window away and the joins close cleanly.
+- **The desk persists.** Quit and relaunch — your windows come back where
+  you left them, already joined. The tray's *New terminal* opens the next
+  unused wing (up to six).
+
+```sh
+npm run dev                          # terminal 1 — the renderer
+cd desktop && LOKILIBRARY_TERMINALS=2 npm run dev   # terminal 2
+# (PowerShell: $env:LOKILIBRARY_TERMINALS=2; npm run dev)
+```
+
+Then drag the windows together by their `┤ wing ├` glyph strip.
+`scripts/e2e/join-demo.sh` reproduces the animated capture above
+end-to-end (macOS).
 
 ## Controls
 
