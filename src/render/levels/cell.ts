@@ -363,6 +363,11 @@ export function mountCell(
   // carved opening; the wall cells immediately above/below the opening
   // run get the cap. Caps go to wallLayer (not baseLayer) so they dim
   // with the walls they cap under the pane-focus indicator.
+  // Ambient-salience bundle (#9): handles for the idle registers.
+  const seamCapSprites: BitmapText[] = [];
+  const SWAY_PERIOD_MS = 1600;
+  const swaySprites: Array<{ sprite: BitmapText; baseX: number; phaseMs: number }> = [];
+
   const seamCapColour = hexToInt(theme.palette[roleKey(theme, 'seam', 'blue')]);
   for (const col of [0, layout.width - 1]) {
     for (let y = 0; y < layout.height; y++) {
@@ -380,6 +385,7 @@ export function mountCell(
         capSprite.x = col * COZETTE_CELL_WIDTH;
         capSprite.y = cy * COZETTE_CELL_HEIGHT;
         wallLayer.addChild(capSprite);
+        seamCapSprites.push(capSprite);
       }
     }
   }
@@ -431,6 +437,11 @@ export function mountCell(
     sprite.x = item.x * COZETTE_CELL_WIDTH;
     sprite.y = item.y * COZETTE_CELL_HEIGHT;
     scatterLayer.addChild(sprite);
+    // Foliage sways (#9): ♠ gets a 2-frame sub-pixel nudge; per-instance
+    // phase from position hash so the room never moves in lockstep.
+    if (item.glyph === '♠') {
+      swaySprites.push({ sprite, baseX: sprite.x, phaseMs: fnv1a32(`sway:${item.x},${item.y}`) % SWAY_PERIOD_MS });
+    }
     // Index by glyph so behavior.ts can find e.g. all '☼' lamp cells
     // for Cat's `bias_idle_near_glyph` schedule rule.
     const list = scatterAnchors.get(item.glyph);
@@ -869,6 +880,24 @@ export function mountCell(
   };
   app.ticker.add(pulseLandmark);
 
+  // Ambient-salience bundle (#9): the cell's idle registers. One ticker,
+  // deltaMS-driven (freezes under paused/sleeping, no wall clock — the
+  // pulseLandmark contract): seam caps breathe, foliage sways, and the
+  // walk-wear trail (bundle Task 5) stamps + decays.
+  let ambientMs = 0;
+  const BREATHE_PERIOD_MS = 4000;
+  const ambientTick: TickerCallback<unknown> = () => {
+    ambientMs += app.ticker.deltaMS;
+    const bt = (ambientMs % BREATHE_PERIOD_MS) / BREATHE_PERIOD_MS;
+    const breatheAlpha = 0.7 + 0.3 * (0.5 - 0.5 * Math.cos(bt * 2 * Math.PI));
+    for (const cap of seamCapSprites) cap.alpha = breatheAlpha;
+    for (const sw of swaySprites) {
+      const local = (ambientMs + sw.phaseMs) % SWAY_PERIOD_MS;
+      sw.sprite.x = sw.baseX + (local < SWAY_PERIOD_MS / 2 ? -0.5 : 0.5);
+    }
+  };
+  app.ticker.add(ambientTick);
+
   // Keyboard movement — debounced per-key so holding doesn't teleport.
   // Wallpaper-mode gates: the wallpaper layer should not consume input.
   const MOVE_DEBOUNCE_MS = 100;
@@ -1031,6 +1060,7 @@ export function mountCell(
       window.removeEventListener('keydown', onKeydown);
       app.ticker.remove(positionPlayer);
       app.ticker.remove(pulseLandmark);
+      app.ticker.remove(ambientTick);
       app.ticker.remove(updateMarkCaption);
       app.ticker.remove(blinkPlayer);
       unsubFocus();
