@@ -133,6 +133,16 @@ export interface ElectronAPI {
       from?: { terminalId: string; wing: string };
     }) => void,
   ): () => void;
+  /** ≤1 Hz, change-gated near-edge report; the broker relays each joined
+   *  side to that neighbour. Fire-and-forget — perception is advisory. */
+  terminalReportNearEdge(
+    terminalId: string,
+    near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+  ): void;
+  /** The joined neighbour's near-edge beings, per side of THIS terminal. */
+  onTerminalNeighbourSummary(
+    cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+  ): () => void;
 }
 
 /** A live horizontal join between two terminals (broker-derived). */
@@ -149,6 +159,12 @@ export interface TerminalBeingState {
   dir: 1 | -1;
   intent: string;
   bobPhase: number;
+}
+
+/** A being near a shared edge (cross-edge perception relay). */
+export interface TerminalNearEdgeBeing {
+  id: string;
+  dist: number;
 }
 
 declare global {
@@ -210,6 +226,17 @@ const api: ElectronAPI = {
     ): void => cb(event);
     ipcRenderer.on('terminal:agentEnter', handler);
     return () => ipcRenderer.off('terminal:agentEnter', handler);
+  },
+  terminalReportNearEdge: (terminalId, near) => {
+    ipcRenderer.send('terminal:nearEdge', { terminalId, near });
+  },
+  onTerminalNeighbourSummary: (cb) => {
+    const handler = (
+      _e: IpcRendererEvent,
+      event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] },
+    ): void => cb(event);
+    ipcRenderer.on('terminal:neighbourSummary', handler);
+    return () => ipcRenderer.off('terminal:neighbourSummary', handler);
   },
 };
 

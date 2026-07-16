@@ -83,6 +83,13 @@ export interface ElectronAPI {
       from?: { terminalId: string; wing: string };
     }) => void,
   ): () => void;
+  terminalReportNearEdge(
+    terminalId: string,
+    near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+  ): void;
+  onTerminalNeighbourSummary(
+    cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+  ): () => void;
 }
 
 /** T0 spike — a live horizontal join between two terminal windows. */
@@ -98,6 +105,12 @@ export interface TerminalBeingState {
   dir: 1 | -1;
   intent: string;
   bobPhase: number;
+}
+
+/** Tier-1 society — a being near a shared edge (mirrors preload). */
+export interface TerminalNearEdgeBeing {
+  id: string;
+  dist: number;
 }
 
 declare global {
@@ -371,5 +384,26 @@ export function subscribeTerminalAgentEnter(
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalAgentEnter !== 'function') return () => undefined;
   return api.onTerminalAgentEnter(cb);
+}
+
+export function terminalReportNearEdge(
+  terminalId: string,
+  near: { left: TerminalNearEdgeBeing[]; right: TerminalNearEdgeBeing[] },
+): void {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalReportNearEdge !== 'function') return;
+  try {
+    api.terminalReportNearEdge(terminalId, near);
+  } catch {
+    /* advisory — never throws into the tick */
+  }
+}
+
+export function subscribeTerminalNeighbourSummary(
+  cb: (event: { side: 'left' | 'right'; beings: TerminalNearEdgeBeing[] }) => void,
+): () => void {
+  const api = getElectronAPI();
+  if (!api || typeof api.onTerminalNeighbourSummary !== 'function') return () => undefined;
+  return api.onTerminalNeighbourSummary(cb);
 }
 

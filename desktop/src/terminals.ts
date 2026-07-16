@@ -191,6 +191,32 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     },
   );
 
+  // Cross-edge perception: renderers report near-edge beings on a slow
+  // cadence (≤1 Hz, change-gated renderer-side); relay each side that faces
+  // a live join to that neighbour with the side flipped to ITS view of the
+  // shared edge. Fire-and-forget (ipcMain.on, not handle) — advisory only.
+  ipcMain.on(
+    'terminal:nearEdge',
+    (
+      _e,
+      payload: {
+        terminalId: string;
+        near: { left: unknown[]; right: unknown[] };
+      },
+    ) => {
+      for (const side of ['left', 'right'] as const) {
+        const dest = neighbourOf(payload.terminalId, side, joins);
+        if (!dest) continue;
+        const destTerm = terminals.get(dest);
+        if (!destTerm || destTerm.win.isDestroyed()) continue;
+        destTerm.win.webContents.send('terminal:neighbourSummary', {
+          side: side === 'left' ? 'right' : 'left',
+          beings: payload.near[side],
+        });
+      }
+    },
+  );
+
   // --- Debug IPC (e2e harness drives windows + reads ground truth) --------
 
   ipcMain.handle('terminal:debugState', () => ({

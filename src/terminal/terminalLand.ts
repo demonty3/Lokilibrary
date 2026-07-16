@@ -39,11 +39,14 @@ import { composeLand, SAMPLE_LAND, type LandGame } from '../procedural/land';
 import {
   getTerminalTopology,
   subscribeTerminalAgentEnter,
+  subscribeTerminalNeighbourSummary,
   subscribeTerminalTopology,
   terminalAgentExit,
   terminalAgentSpawn,
+  terminalReportNearEdge,
   type TerminalJoin,
 } from '../api/electron';
+import { nearEdgeSummary, projectAcrossEdge, type NearEdgeBeing } from './crossEdge';
 import {
   pickIntent,
   resumeIntent,
@@ -77,6 +80,8 @@ const WATCH_DRIFT = 0.4;
 /** Anti-ping-pong: seconds after entering before a being may exit again
  *  (the 7D.2 cooldown idea, ported to the land handoff). */
 const CROSS_COOLDOWN_S = 4;
+/** Near-edge report cadence (seconds; also change-gated). */
+const NEAR_EDGE_REPORT_S = 1;
 /** Idle bob: local px amplitude + speed. */
 const BOB_PX = 1.5;
 const BOB_HZ = 1.6;
@@ -116,6 +121,12 @@ export interface TerminalLandState {
   beings: Array<{ id: string; x: number; dir: number; intent: string }>;
   /** e2e ground truth for the join juice: live sweep count + total fired. */
   knits: { live: number; fired: number };
+  /** The joined neighbours' near-edge beings, projected into THIS land's
+   *  column space (x < 0 / x > width-1 — just outside the local land). */
+  neighbours: {
+    left: Array<{ id: string; x: number }>;
+    right: Array<{ id: string; x: number }>;
+  };
 }
 
 declare global {
@@ -230,14 +241,20 @@ export async function mountTerminalLand(
   // Approach targets: the labelled structure columns of the CURRENT model.
   let structureCols = structureColumns(model.role);
 
-  /** Live context for a BT pick. neighbourNear stays 0 until cross-edge
-   *  perception (Tier-1 Task 5) feeds the joined neighbour's summary. */
+  // The joined neighbours' near-edge beings, per side (cross-edge
+  // perception). Cleared when an edge closes; fed by the broker relay.
+  const neighbourNear: { left: NearEdgeBeing[]; right: NearEdgeBeing[] } = { left: [], right: [] };
+  let lastNearReport = '';
+  let nearReportAt = 0;
+
+  /** Live context for a BT pick. neighbourNear counts pull watch_edge
+   *  decisively (society gravity — beings lean toward populated joins). */
   const intentCtx = (x: number): IntentContext => ({
     width: model.width,
     x,
     structureCols,
     edges,
-    neighbourNear: { left: 0, right: 0 },
+    neighbourNear: { left: neighbourNear.left.length, right: neighbourNear.right.length },
   });
 
   // ── Edges: closed = wall; open = a bright threshold doorway ────────────
@@ -292,6 +309,8 @@ export async function mountTerminalLand(
       left: joins.some((j) => j.right === terminalId),
       right: joins.some((j) => j.left === terminalId),
     };
+    if (!edges.left) neighbourNear.left = [];
+    if (!edges.right) neighbourNear.right = [];
     const leftNb = joins.find((j) => j.right === terminalId)?.left;
     const rightNb = joins.find((j) => j.left === terminalId)?.right;
     const join: { left?: number; right?: number } = {};
@@ -419,6 +438,21 @@ export async function mountTerminalLand(
   const tick = (): void => {
     const dt = app.ticker.deltaMS / 1000;
     elapsedS += dt;
+
+    // Near-edge report — ≤1 Hz AND change-gated, so IPC stays bounded.
+    if (elapsedS >= nearReportAt) {
+      nearReportAt = elapsedS + NEAR_EDGE_REPORT_S;
+      const near = nearEdgeSummary(
+        [...beings.values()].filter((b) => !b.pending).map((b) => ({ id: b.id, x: b.x })),
+        model.width,
+        edges,
+      );
+      const key = JSON.stringify(near);
+      if (key !== lastNearReport) {
+        lastNearReport = key;
+        terminalReportNearEdge(terminalId, near);
+      }
+    }
 
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
@@ -559,6 +593,9 @@ export async function mountTerminalLand(
       whenMs: Date.now(),
     });
   });
+  const unsubNeighbour = subscribeTerminalNeighbourSummary(({ side, beings: bs }) => {
+    neighbourNear[side] = bs;
+  });
   void getTerminalTopology().then(({ joins, wings }) => applyJoins(joins, wings));
   drawEdges();
 
@@ -574,6 +611,10 @@ export async function mountTerminalLand(
         intent: b.intent.kind,
       })),
       knits: { live: knits.length, fired: knitsFired },
+      neighbours: {
+        left: projectAcrossEdge('left', model.width, neighbourNear.left),
+        right: projectAcrossEdge('right', model.width, neighbourNear.right),
+      },
     }),
     debugPlace: (id, x, dir) => {
       const b = beings.get(id);
@@ -591,6 +632,7 @@ export async function mountTerminalLand(
   return () => {
     unsubTopology();
     unsubEnter();
+    unsubNeighbour();
     app.ticker.remove(tick);
     delete window.__terminal;
     app.destroy(true, { children: true });
