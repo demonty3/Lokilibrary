@@ -112,7 +112,9 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
       resizable: false,
       backgroundColor: '#0a0a0a',
       show: false,
-      frame: true, // frameless + glyph title bar is T1
+      frame: false, // frameless: the ground continues across the join, no title bar gap
+      hasShadow: false, // a neighbour's shadow would draw a false seam line
+      roundedCorners: false, // square corners so abutting edges meet pixel-flush
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: false,
