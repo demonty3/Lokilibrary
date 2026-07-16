@@ -14,7 +14,10 @@ import {
   T_WALL_V,
   T_WINDOW,
   TILE_BY_ID,
+  SHELF_STROKE_OFFSETS_PX,
+  shelfStrokeTints,
 } from '../../procedural/tiles/library';
+import { fnv1a32 } from '../../procedural/seed';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { roleKey } from '../../themes/roles';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
@@ -243,6 +246,9 @@ export function mountCell(
   parent.addChild(container);
 
   const baseLayer = new Container();
+  // Walk wear (#9): brightened floor glyphs where someone recently stood.
+  // Above the floor text, below walls/spines/marks.
+  const wearLayer = new Container();
   // Salience: walls/frame/apertures split out of baseLayer into their own
   // layer so the pane-focus indicator can dim the room's shell without
   // touching furniture (shelves/tables/floor stay in baseLayer, always
@@ -268,6 +274,7 @@ export function mountCell(
   // the caption + its opaque backing live here, added after agentLayer.
   const captionLayer = new Container();
   container.addChild(baseLayer);
+  container.addChild(wearLayer);
   container.addChild(wallLayer);
   container.addChild(spineLayer);
   container.addChild(scatterLayer);
@@ -310,6 +317,11 @@ export function mountCell(
   // baseLayer for furniture/floor, wallLayer for walls/frame/apertures
   // (salience pane-focus split) — Z-order vs spineLayer / scatterLayer /
   // etc. stays unchanged since wallLayer sits immediately after baseLayer.
+  // Ambient-salience bundle (#10): shelf cells are composed as sub-cell
+  // spine strokes AFTER the events-calendar moves land (the stroke read
+  // needs the FINAL stocked/empty state) — the tile loop collects them
+  // and draws nothing.
+  const shelfCells: CellPoint[] = [];
   for (let y = 0; y < layout.height; y++) {
     for (let x = 0; x < layout.width; x++) {
       const tileId = layout.tiles[y][x];
@@ -331,6 +343,8 @@ export function mountCell(
         sprite.x = x * COZETTE_CELL_WIDTH + (COZETTE_CELL_WIDTH - display.width) / 2;
         sprite.y = y * COZETTE_CELL_HEIGHT + COZETTE_CELL_HEIGHT - display.height;
         (WALL_TILE_IDS.has(tileId) ? wallLayer : baseLayer).addChild(sprite);
+      } else if (tileId === T_BOOKSHELF) {
+        shelfCells.push({ x, y });
       } else {
         const glyph = new BitmapText({
           text: tile.glyph,
@@ -353,6 +367,11 @@ export function mountCell(
   // carved opening; the wall cells immediately above/below the opening
   // run get the cap. Caps go to wallLayer (not baseLayer) so they dim
   // with the walls they cap under the pane-focus indicator.
+  // Ambient-salience bundle (#9): handles for the idle registers.
+  const seamCapSprites: BitmapText[] = [];
+  const SWAY_PERIOD_MS = 1600;
+  const swaySprites: Array<{ sprite: BitmapText; baseX: number; phaseMs: number }> = [];
+
   const seamCapColour = hexToInt(theme.palette[roleKey(theme, 'seam', 'blue')]);
   for (const col of [0, layout.width - 1]) {
     for (let y = 0; y < layout.height; y++) {
@@ -370,6 +389,7 @@ export function mountCell(
         capSprite.x = col * COZETTE_CELL_WIDTH;
         capSprite.y = cy * COZETTE_CELL_HEIGHT;
         wallLayer.addChild(capSprite);
+        seamCapSprites.push(capSprite);
       }
     }
   }
@@ -421,6 +441,11 @@ export function mountCell(
     sprite.x = item.x * COZETTE_CELL_WIDTH;
     sprite.y = item.y * COZETTE_CELL_HEIGHT;
     scatterLayer.addChild(sprite);
+    // Foliage sways (#9): ♠ gets a 2-frame sub-pixel nudge; per-instance
+    // phase from position hash so the room never moves in lockstep.
+    if (item.glyph === '♠') {
+      swaySprites.push({ sprite, baseX: sprite.x, phaseMs: fnv1a32(`sway:${item.x},${item.y}`) % SWAY_PERIOD_MS });
+    }
     // Index by glyph so behavior.ts can find e.g. all '☼' lamp cells
     // for Cat's `bias_idle_near_glyph` schedule rule.
     const list = scatterAnchors.get(item.glyph);
@@ -543,6 +568,29 @@ export function mountCell(
   ];
   for (const move of movesToApply) {
     applyShelfMove(slotToBook, layout.bookshelfSlots, move);
+  }
+
+  // Ambient-salience bundle (#10): three '│' strokes per shelf cell at
+  // ±1px height variance — books, not slabs. Deterministic per
+  // (seed, cell) via fnv1a32; strokes join baseLayer (the ▓ slab's old
+  // home, same Z under the spine initials).
+  for (const cell of shelfCells) {
+    const stocked = slotToBook.has(`${cell.x},${cell.y}`);
+    const h = fnv1a32(`shelf:${seed}:${cell.x},${cell.y}`);
+    const tints = shelfStrokeTints(h, stocked);
+    for (let i = 0; i < 3; i++) {
+      const stroke = new BitmapText({
+        text: '│',
+        style: {
+          fontFamily: COZETTE_FONT_FAMILY,
+          fontSize: COZETTE_FONT_SIZE,
+          fill: hexToInt(theme.palette[tints[i]]),
+        },
+      });
+      stroke.x = cell.x * COZETTE_CELL_WIDTH + SHELF_STROKE_OFFSETS_PX[i];
+      stroke.y = cell.y * COZETTE_CELL_HEIGHT - ((h >>> (10 + i * 2)) % 2);
+      baseLayer.addChild(stroke);
+    }
   }
 
   // Spine overlay — first character of each (possibly moved) game name on
@@ -836,6 +884,78 @@ export function mountCell(
   };
   app.ticker.add(pulseLandmark);
 
+  // Ambient-salience bundle (#9): the cell's idle registers. One ticker,
+  // deltaMS-driven (freezes under paused/sleeping, no wall clock — the
+  // pulseLandmark contract): seam caps breathe, foliage sways, and the
+  // walk-wear trail (bundle Task 5) stamps + decays.
+  let ambientMs = 0;
+
+  // Walk wear (#9): Map of "x,y" → live mark. Stamped every ambient tick
+  // from the player + each present agent runtime; decays over
+  // WEAR_FADE_MS; capped (oldest evicted) so churn stays bounded.
+  const WEAR_FADE_MS = 8000;
+  const WEAR_CAP = 64;
+  const wearMarks = new Map<string, { sprite: BitmapText; stampedAtMs: number }>();
+  const wearGlyph = TILE_BY_ID.get(T_FLOOR)?.glyph ?? '·';
+  const wearFill = hexToInt(theme.palette.fg); // one step up from the floor's fgDim
+  const stampWear = (x: number, y: number): void => {
+    if (x < 0 || y < 0 || y >= layout.height || x >= layout.width) return;
+    if (layout.tiles[y][x] !== T_FLOOR) return;
+    const key = `${x},${y}`;
+    const existing = wearMarks.get(key);
+    if (existing) {
+      existing.stampedAtMs = ambientMs;
+      return;
+    }
+    if (wearMarks.size >= WEAR_CAP) {
+      let oldestKey: string | null = null;
+      let oldestAt = Infinity;
+      for (const [k, v] of wearMarks) {
+        if (v.stampedAtMs < oldestAt) {
+          oldestAt = v.stampedAtMs;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) {
+        wearMarks.get(oldestKey)!.sprite.destroy();
+        wearMarks.delete(oldestKey);
+      }
+    }
+    const sprite = new BitmapText({
+      text: wearGlyph,
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: wearFill },
+    });
+    sprite.x = x * COZETTE_CELL_WIDTH;
+    sprite.y = y * COZETTE_CELL_HEIGHT;
+    wearLayer.addChild(sprite);
+    wearMarks.set(key, { sprite, stampedAtMs: ambientMs });
+  };
+
+  const BREATHE_PERIOD_MS = 4000;
+  const ambientTick: TickerCallback<unknown> = () => {
+    ambientMs += app.ticker.deltaMS;
+    const bt = (ambientMs % BREATHE_PERIOD_MS) / BREATHE_PERIOD_MS;
+    const breatheAlpha = 0.7 + 0.3 * (0.5 - 0.5 * Math.cos(bt * 2 * Math.PI));
+    for (const cap of seamCapSprites) cap.alpha = breatheAlpha;
+    for (const sw of swaySprites) {
+      const local = (ambientMs + sw.phaseMs) % SWAY_PERIOD_MS;
+      sw.sprite.x = sw.baseX + (local < SWAY_PERIOD_MS / 2 ? -0.5 : 0.5);
+    }
+    // Walk wear (#9): stamp whoever is standing, fade the trail.
+    stampWear(pos.x, pos.y);
+    for (const rt of listRuntimesIn(scope)) if (rt.present) stampWear(rt.x, rt.y);
+    for (const [key, mark] of wearMarks) {
+      const age = ambientMs - mark.stampedAtMs;
+      if (age >= WEAR_FADE_MS) {
+        mark.sprite.destroy();
+        wearMarks.delete(key);
+        continue;
+      }
+      mark.sprite.alpha = 0.9 * (1 - age / WEAR_FADE_MS);
+    }
+  };
+  app.ticker.add(ambientTick);
+
   // Keyboard movement — debounced per-key so holding doesn't teleport.
   // Wallpaper-mode gates: the wallpaper layer should not consume input.
   const MOVE_DEBOUNCE_MS = 100;
@@ -998,6 +1118,8 @@ export function mountCell(
       window.removeEventListener('keydown', onKeydown);
       app.ticker.remove(positionPlayer);
       app.ticker.remove(pulseLandmark);
+      app.ticker.remove(ambientTick);
+      wearMarks.clear(); // sprites die with container.destroy(children:true)
       app.ticker.remove(updateMarkCaption);
       app.ticker.remove(blinkPlayer);
       unsubFocus();

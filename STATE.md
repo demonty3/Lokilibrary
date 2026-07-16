@@ -14,6 +14,35 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Ambient-salience bundle SHIPPED 2026-07-17** (spec+plan
+`docs/superpowers/*/2026-07-16-ambient-salience-bundle*`; commits
+`d107cf0..fe4bb99` on `claude/ambient-salience`; programme items #9 + #10 +
+the land-register salience fix from the 2026-07-16 design chat). Three
+surfaces, one contract: LAND — `GROUND_DEMOTE` (crust/foliage scaled 0.6
+via the new pure `landRoleFill()`, land.ts; smoke-land-atmosphere 13) so
+grass reads as ground, and land beings tint through `roleKey()` with
+`beingAccentRole(id)` (pure, beingIntents.ts — FNV pick over the four
+being roles; smoke-salience) so the creatures are the most distinct marks.
+CELL SHELVES — `T_BOOKSHELF` no longer draws the flat ▓: three sub-cell
+`│` strokes per cell (renderer pass AFTER the events-calendar moves;
+tints via pure `shelfStrokeTints(hash, stocked)` in the tile bible).
+GOLD-CASE TUNE (deviation from the spec's all-dim empties, recorded here):
+stroke 0 is ALWAYS shelf-gold — the CASE is gold, the books vary — because
+the 8-game sample library stocks ~8/40 cells and all-dim empties turned
+the room cold on screen; bookless = gold case + dim books + no initial.
+CELL AMBIENT — one `ambientTick` (deltaMS, freezes under throttle): seam
+caps breathe (alpha 0.7↔1.0, 4s sine), `♠` sways ±0.5px (1.6s, FNV
+per-instance phase), and walk wear (`wearLayer`: floor glyph one step up
+under player+agents, 8s decay, 64-cap oldest-evicted, pane-volatile).
+VERIFIED ON SCREEN: land before/after vs `docs/demo/join-2-joined.png`
+(muted ground, accented beings, both windows agree); cell shelves read as
+book rows with initials brightest (`/tmp/loki-bundle/cell-after.png`);
+two captures 2s apart are NO LONGER byte-identical (the 8s pixel-frozen
+finding reversed); wear gradient pixel-sampled fading behind a paced walk
+(384→351→318→315 baseline). smoke-salience 21, smoke-land-atmosphere 13,
+full sweep + both typecheck legs green. Programme arcs remaining: ladder
+identity, shade-ramp floor demotion (#12), murals, land polish.
+
 **v1.0.0 RELEASED 2026-07-16** — the free-OSS deliverable bar is MET:
 README leads with the join-moment GIF + a snapping-terminals section (the
 documented `LOKILIBRARY_TERMINALS=2 npm run dev` path verified live before

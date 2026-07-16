@@ -1,4 +1,5 @@
 import type { Tile, TileBible } from './types';
+import type { PaletteKey } from '../../themes/types';
 
 /**
  * Library-room tile bible. Phase 1's only district type — a single
@@ -204,3 +205,29 @@ export const LIBRARY_BIBLE: TileBible = {
 export const TILE_BY_ID: ReadonlyMap<number, Tile> = new Map(
   TILES.map((t) => [t.id, t]),
 );
+
+// ── Book-spine strokes (ambient-salience bundle, programme #10) ─────────
+// Shelf cells render as three sub-cell '│' strokes instead of one flat ▓
+// — books, not slabs. Pure data here (the bible owns shelf display);
+// src/render/levels/cell.ts draws it, smoke-salience locks it.
+
+/** Sub-cell x-offsets (px at glyph scale 1) for the three strokes. The
+ *  '│' glyph's bar sits ~centre of its 6px advance; these offsets fan the
+ *  three bars across the cell. */
+export const SHELF_STROKE_OFFSETS_PX = [-2, 0, 2] as const;
+
+/** Stroke tints for one shelf cell. Stroke 0 is ALWAYS shelf-gold — the
+ *  CASE is gold, the books vary — so the room keeps its warm identity even
+ *  when most shelves are bookless (the 8-game sample library stocks ~8 of
+ *  ~40 cells; all-dim empties turned the whole room cold on screen).
+ *  Stocked shelves pick strokes 1–2 from the quiet ramp by hash; bookless
+ *  shelves read dimmer (both companions fgDim, no initial on top). Never
+ *  a reserved being key. */
+export function shelfStrokeTints(
+  hash: number,
+  stocked: boolean,
+): [PaletteKey, PaletteKey, PaletteKey] {
+  if (!stocked) return ['yellow', 'fgDim', 'fgDim'];
+  const ramp: readonly PaletteKey[] = ['yellow', 'fg', 'fgDim'];
+  return ['yellow', ramp[(hash >>> 4) % 3], ramp[(hash >>> 8) % 3]];
+}

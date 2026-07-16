@@ -24,6 +24,7 @@
  */
 
 import type { LandRole } from '../procedural/land';
+import type { ThemeRole } from '../themes/types';
 
 export type BeingIntent =
   | { kind: 'wander'; dir: 1 | -1 }
@@ -147,4 +148,32 @@ export function structureColumns(role: ReadonlyArray<ReadonlyArray<LandRole>>): 
     if (out.length === 0 || c - out[out.length - 1] > 3) out.push(c);
   }
   return out;
+}
+
+// ── Being accents (ambient-salience bundle) ─────────────────────────────
+// Land beings draw from the SAME reserved accent pool as the cell cohort
+// (roles.ts BEING_ROLE_KEYS via the four being roles), picked
+// deterministically by id hash — the brightest marks on a land are its
+// creatures. Pure; terminalLand.ts + smoke-salience share it.
+
+export const LAND_BEING_ROLES = [
+  'being.loki',
+  'being.archivist',
+  'being.cat',
+  'being.visitor',
+] as const satisfies readonly ThemeRole[];
+
+/** FNV-1a over the id — local copy so this module stays dependency-light
+ *  (terminalLand.ts keeps its own identical hash for seeds/phases). */
+function accentHash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+export function beingAccentRole(id: string): (typeof LAND_BEING_ROLES)[number] {
+  return LAND_BEING_ROLES[accentHash(id) % LAND_BEING_ROLES.length];
 }

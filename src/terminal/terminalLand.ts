@@ -49,12 +49,14 @@ import {
 } from '../api/electron';
 import { nearEdgeSummary, projectAcrossEdge, type NearEdgeBeing } from './crossEdge';
 import {
+  beingAccentRole,
   pickIntent,
   resumeIntent,
   structureColumns,
   type BeingIntent,
   type IntentContext,
 } from './beingIntents';
+import { roleKey } from '../themes/roles';
 import { nullMemoryWriter } from '../agents/router';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
 import { cellIdFor, libraryIdFor } from '../agents/memory/schema';
@@ -382,7 +384,13 @@ export async function mountTerminalLand(
   const addBeing = (id: string, glyph: string, x: number, dir: 1 | -1, entering = false): Being => {
     const text = new BitmapText({
       text: glyph,
-      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        // Reserved accent per being (ambient-salience bundle) — same pool
+        // as the cell cohort, deterministic by id.
+        fill: hexToInt(theme.palette[roleKey(theme, beingAccentRole(id), 'fgBright')]),
+      },
     });
     if (entering) text.alpha = 0;
     world.addChild(text); // world space → rides WORLD_SCALE for free
