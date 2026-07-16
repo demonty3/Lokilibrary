@@ -50,6 +50,7 @@ export type LandRole =
   | 'sun'
   | 'cloud'
   | 'ridge'
+  | 'ridgeFar'
   | 'crust'
   | 'topsoil'
   | 'stone'
@@ -128,6 +129,12 @@ export const SAMPLE_LAND: LandGame[] = [
 const LAND_SEAM_SALT = 0x5a11;
 /** Columns over which a joined edge ramps to the shared seam height. */
 const SEAM_BLEND_COLS = 6;
+
+/** PRNG namespace for the far ridge plane — distinct from every other
+ *  src/procedural salt (cell 0xce11 · scatter 0x5ca7 · loki 0x10ce ·
+ *  landmark 0x1a4d · clusters 0xc1a5/0xc0a5 · cell-seam 0x5ea3 ·
+ *  land-seam 0x5a11). */
+const RIDGE_FAR_SALT = 0xfa42;
 
 /** Cubic Hermite on t∈[0,1]: endpoint values p0,p1 and tangents m0,m1
  *  (already scaled to the [0,1] parameter interval). */
@@ -229,16 +236,29 @@ export function composeLand(
   put(rng.range(6, cols - 24), 2, '~ ~~~~ ~', 'cloud');
   put(rng.range(6, cols - 18), 4, '~~ ~~~', 'cloud');
 
+  // --- Far ridge plane (Tier 2 atmospheric perspective): a THIRD plane, one
+  // faint ▁ hilltop line well above the near ridge, tinted nearest the sky
+  // by the renderer's FAR_FADE. Its own salted PRNG so the main `rng`
+  // sequence (silhouette, structures, caverns, seam ramp) is byte-untouched.
+  const farRng = mulberry32((seed ^ RIDGE_FAR_SALT) >>> 0);
+  const farPhase = farRng.rangeFloat(0, 6.283);
+  for (let x = 0; x < cols; x++) {
+    const fy = groundLine - 4 - Math.round(0.9 * Math.sin(x * 0.05 + farPhase) + 0.8);
+    if (role[fy]?.[x] === 'sky') set(x, fy, '▁', 'ridgeFar');
+  }
+
   // --- Parallax ridge: a distant hill silhouette behind the structures -----
   // A second, gentler height field a couple rows above the true ground line,
   // drawn dim — gives the sky depth + kills the dead-air letterbox feel.
   // A THIN silhouette (hilltop line + one row of body) so sky shows above it
-  // and it never smears into the surface band behind the structures.
+  // and it never smears into the surface band behind the structures. The
+  // NEARER plane wins where it meets the far ridge.
   const ridgePhase = rng.rangeFloat(0, 6.283);
+  const behindRidge = (r: LandRole | undefined): boolean => r === 'sky' || r === 'ridgeFar';
   for (let x = 0; x < cols; x++) {
     const ry = groundLine - 2 - Math.round(1.1 * Math.sin(x * 0.07 + ridgePhase) + 0.6);
-    if (role[ry]?.[x] === 'sky') set(x, ry, '▁', 'ridge');
-    if (role[ry + 1]?.[x] === 'sky') set(x, ry + 1, '░', 'ridge');
+    if (behindRidge(role[ry]?.[x])) set(x, ry, '▁', 'ridge');
+    if (behindRidge(role[ry + 1]?.[x])) set(x, ry + 1, '░', 'ridge');
   }
 
   // --- Terrain: clear bands + big carved caverns (calm, legible) -----------

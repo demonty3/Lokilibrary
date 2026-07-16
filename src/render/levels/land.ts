@@ -37,6 +37,31 @@ function shadeOf(hex: string, f: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
+/** Linear per-channel mix from `hexA`'s ink toward `hexB` by t∈[0,1] — the
+ *  atmospheric-perspective primitive (t=0 pure ink, t=1 vanishes into hexB).
+ *  Both ends come from the ACTIVE theme, so setTheme hot-swap re-fades. */
+export function mixToward(hexA: string, hexB: string, t: number): number {
+  const a = hexToInt(hexA);
+  const b = hexToInt(hexB);
+  const ch = (shift: number): number => {
+    const ca = (a >> shift) & 0xff;
+    const cb = (b >> shift) & 0xff;
+    return Math.round(ca + (cb - ca) * t);
+  };
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/** Atmospheric perspective (Tier 2): how far each DISTANT role's ink is
+ *  pulled toward the sky (bg) colour — farther planes lose contrast.
+ *  Palette maths only (mixToward), no new palette entries, so the
+ *  one-theme-per-scene rule stays structural. Exported for the smoke. */
+export const FAR_FADE: Partial<Record<LandRole, number>> = {
+  ridgeFar: 0.72,
+  ridge: 0.45,
+  cloud: 0.4,
+  star: 0.35,
+};
+
 /** Role -> theme palette key. The whole point of the side-on look: layers
  *  separate by hue, not by glyph density. */
 const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
@@ -46,7 +71,8 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   hall: 'violet',
   sun: 'yellow',
   cloud: 'fgDim',
-  ridge: 'bgAlt',
+  ridge: 'fgDim',
+  ridgeFar: 'fgDim',
   crust: 'green',
   topsoil: 'orange',
   stone: 'fgDim',
@@ -114,7 +140,12 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
         );
       }
     } else {
-      addLayer(layerFor((x, y) => model.role[y][x] === r), hexToInt(theme.palette[ROLE_KEY[r]]));
+      const fade = FAR_FADE[r];
+      const fill =
+        fade !== undefined
+          ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
+          : hexToInt(theme.palette[ROLE_KEY[r]]);
+      addLayer(layerFor((x, y) => model.role[y][x] === r), fill);
     }
   }
 
