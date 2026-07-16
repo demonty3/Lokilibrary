@@ -10,6 +10,9 @@
  *   - terminal:nearEdge relays each JOINED side to that neighbour with the
  *     side flipped; un-joined sides are dropped
  */
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { makeChecker, mockElectronModule } from './lib/smoke.ts';
 import {
   NEAR_EDGE_CELLS,
@@ -19,6 +22,8 @@ import {
 } from '../src/terminal/crossEdge.ts';
 
 const { check, report } = makeChecker('smoke t1-cross-edge');
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lokilib-crossedge-'));
 
 // --- nearEdgeSummary -----------------------------------------------------------
 const beings = [
@@ -109,6 +114,13 @@ mockElectronModule({
   },
   // Wide fake work area so the boot spread keeps the historic 720px spacing.
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 2560, height: 1440 } }) },
+  // Desk persistence (T3): the broker reads/writes config (app.getPath) and
+  // arms a before-quit hook (app.on). Fresh tmpdir → no saved desk → the
+  // default spawn path this smoke assumes.
+  app: {
+    getPath: () => tmpDir,
+    on: () => {},
+  },
 });
 const { startTerminalsMode } = await import('../desktop/src/terminals.ts');
 startTerminalsMode(2, 'http://localhost:5183');

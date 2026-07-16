@@ -8,9 +8,14 @@
  *     (deep-equal round-trip), flips the entry side, names the source wing
  *   - exit refused off a closed edge / for a non-owned agent
  */
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { makeChecker, mockElectronModule } from './lib/smoke.ts';
 
 const { check, report } = makeChecker('smoke t1-broker-handoff');
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lokilib-broker-'));
 
 type Handler = (e: unknown, payload?: unknown) => unknown;
 const handlers = new Map<string, Handler>();
@@ -62,6 +67,13 @@ mockElectronModule({
   },
   // Wide fake work area so the boot spread keeps the historic 720px spacing.
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 2560, height: 1440 } }) },
+  // Desk persistence (T3): the broker reads/writes config (app.getPath) and
+  // arms a before-quit hook (app.on). Fresh tmpdir → no saved desk → the
+  // default spawn path this smoke locks.
+  app: {
+    getPath: () => tmpDir,
+    on: () => {},
+  },
 });
 
 const { startTerminalsMode } = await import('../desktop/src/terminals.ts');
