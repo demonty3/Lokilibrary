@@ -14,6 +14,15 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**v1.0.0 RELEASED 2026-07-16** — the free-OSS deliverable bar is MET:
+README leads with the join-moment GIF + a snapping-terminals section (the
+documented `LOKILIBRARY_TERMINALS=2 npm run dev` path verified live before
+publishing), package.json → 1.0.0, tag `v1.0.0` + GitHub release with the
+demo GIF/stills as assets
+(github.com/demonty3/Lokilibrary/releases/tag/v1.0.0). Remaining beyond the
+bar: the TODO-USER human beats, a Windows pass for terminals mode, and the
+CONSOLIDATION.md enrichment-budget feature (core vision, not release-gated).
+
 **Depth/atmosphere + chains/persistence/demo SHIPPED 2026-07-16** (plans
 `docs/superpowers/plans/2026-07-16-tier2-depth-atmosphere.md` +
 `…-tier3-chains-persistence-demo.md`; commits `ea15640..c75bfa2` (T2) +
