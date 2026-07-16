@@ -30,6 +30,7 @@ import { buildScatterTable } from '../src/procedural/scatter.ts';
 import { TILE_BY_ID } from '../src/procedural/tiles/library.ts';
 import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
+import { SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
 
@@ -88,6 +89,9 @@ const activities: ClusterActivity[] = [
   'none',
 ];
 for (const a of activities) add(activityGlyphFor(a), `clusters.ts activityGlyphFor(${a})`);
+
+// 4b. Tier-2 sky dither vocabulary (src/procedural/land.ts) — imported real source.
+for (const g of SKY_DITHER_GLYPHS) add(g, 'land.ts SKY_DITHER_GLYPHS');
 
 // 5. Renderer-literal glyphs — box/shade/punctuation emitted directly in the
 //    render layer (NOT exported from a data module). Provenance is the file.

@@ -60,6 +60,7 @@ export const FAR_FADE: Partial<Record<LandRole, number>> = {
   ridge: 0.45,
   cloud: 0.4,
   star: 0.35,
+  skyDither: 0.55,
 };
 
 /** Role -> theme palette key. The whole point of the side-on look: layers
@@ -73,6 +74,7 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   cloud: 'fgDim',
   ridge: 'fgDim',
   ridgeFar: 'fgDim',
+  skyDither: 'fgDim',
   crust: 'green',
   topsoil: 'orange',
   stone: 'fgDim',

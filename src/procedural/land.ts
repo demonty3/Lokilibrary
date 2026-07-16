@@ -46,6 +46,7 @@ export type LandRole =
   | 'sky'
   | 'star'
   | 'starBright'
+  | 'skyDither'
   | 'hall'
   | 'sun'
   | 'cloud'
@@ -135,6 +136,27 @@ const SEAM_BLEND_COLS = 6;
  *  landmark 0x1a4d · clusters 0xc1a5/0xc0a5 · cell-seam 0x5ea3 ·
  *  land-seam 0x5a11). */
 const RIDGE_FAR_SALT = 0xfa42;
+
+/** PRNG namespace for the sky dither field (reserved-salt list as above,
+ *  plus 0xfa42). */
+const SKY_DITHER_SALT = 0xd174;
+
+/** Dither vocabulary, light → heavy (all long-covered by the Cozette atlas;
+ *  enumerated in scripts/smoke-glyph-coverage.mts). */
+export const SKY_DITHER_GLYPHS = ['.', '·', '░'] as const;
+
+/** Scatter probability for a sky row: 0 at the zenith, ramping quadratically
+ *  to ~0.22 at the horizon row. PURE — the smokeable band function. */
+export function skyDitherDensity(row: number, skyH: number): number {
+  if (skyH <= 1 || row <= 0 || row >= skyH) return 0;
+  const t = row / (skyH - 1);
+  return 0.22 * t * t;
+}
+
+/** Glyph for sky-depth t∈[0,1] (0 zenith → 1 horizon): light → heavy. */
+export function skyDitherGlyph(t: number): string {
+  return t < 0.45 ? SKY_DITHER_GLYPHS[0] : t < 0.8 ? SKY_DITHER_GLYPHS[1] : SKY_DITHER_GLYPHS[2];
+}
 
 /** Cubic Hermite on t∈[0,1]: endpoint values p0,p1 and tangents m0,m1
  *  (already scaled to the [0,1] parameter interval). */
@@ -259,6 +281,21 @@ export function composeLand(
     const ry = groundLine - 2 - Math.round(1.1 * Math.sin(x * 0.07 + ridgePhase) + 0.6);
     if (behindRidge(role[ry]?.[x])) set(x, ry, '▁', 'ridge');
     if (behindRidge(role[ry + 1]?.[x])) set(x, ry + 1, '░', 'ridge');
+  }
+
+  // --- Dithered sky gradient (Tier 2): density-ramped ░·. scatter so the sky
+  // reads as a gradient toward the horizon. Own salted PRNG (main rng
+  // untouched); fills only cells still empty sky, so scatter stars, sun,
+  // clouds and both ridge planes always sit in front. Structures drawn later
+  // overwrite it, which is correct — they're nearer than the sky.
+  const ditherRng = mulberry32((seed ^ SKY_DITHER_SALT) >>> 0);
+  for (let y = 0; y < SKY_H; y++) {
+    const d = skyDitherDensity(y, SKY_H);
+    if (d <= 0) continue;
+    const tRow = SKY_H > 1 ? y / (SKY_H - 1) : 1;
+    for (let x = 0; x < cols; x++) {
+      if (ditherRng.next() < d && role[y][x] === 'sky') set(x, y, skyDitherGlyph(tRow), 'skyDither');
+    }
   }
 
   // --- Terrain: clear bands + big carved caverns (calm, legible) -----------
