@@ -475,6 +475,76 @@ touched anyway.
 
 ---
 
+## The hundred-terminal desk: a fleet managed by a meta-agent
+
+*Captured 2026-07-16 (Harry, mid-conversation, right after v1.0 shipped the
+snapping-terminals arc).*
+
+Harry's frame, verbatim in spirit: *"I see this scaling up to 100 terminals
+which are managed by a meta-agent — or they can open what they need on
+command."* The desk stops being a handful of windows and becomes a **fleet**:
+the world's topology grows to dozens-to-hundreds of lands, and which of them
+are *materialised as OS windows* at any moment is managed — by the society,
+by a meta-agent, or by a one-keystroke user command ("open the wing where
+the cat is").
+
+### What already exists (the seeds)
+
+- The programmatic spawn path IS the tray path: `spawnNext()` /
+  `terminal:debugSpawn` (T3 tier, 2026-07-16) — a meta-agent would be *a new
+  caller of the same API*, exactly the pattern the Composable-Panes Depth-3
+  entry established for pane topology ("no new substrate, just a new
+  caller").
+- Desk persistence (`TerminalSlot[]`) already separates *the desk's state*
+  from *live windows* — the config is a tiny prototype of "topology that
+  exists while windows don't."
+- PRD T5 (unbuilt) is the trust-shaped v0: the society proposes ONE
+  topology change per night, morning-dispatch surfaced, one-tap apply.
+
+### The hard physics (why 100 real windows is the wrong build)
+
+Each terminal is a full Chromium renderer process (tens of MB + a GL
+context). A hundred live windows is infeasible and — worse — illegible.
+The resolution is **virtual terminals**: the broker holds N lands as pure
+simulation state (cheap — beings + wear + memory writes, no renderer), and
+only the working set materialises as windows. An LOD ladder, mirroring the
+wallpaper throttle: **live window → throttled window → headless simulation
+→ cold state**. Windows become a *viewport cache* over a larger living
+topology; the meta-agent pages lands in and out of view.
+
+### The meta-agent is Loki given hands
+
+Per the Living-world entry, Loki is the climate. A fleet-manager
+"meta-agent" shouldn't be a new chatbot commander (CLAUDE.md's no-chatbot
+rail binds) — it's the climate acquiring topology authority: what surfaces
+on your desk is the world's *mood expressed as architecture*, plus explicit
+user commands as the override. "On command" stays diegetic: a keystroke or
+palette action ("open d7"), never a conversation.
+
+### Guardrails (bind harder at fleet scale)
+
+A desk that reshuffles constantly kills ambience and trust. The Sleep-mode
+rails apply with interest: changes on the sleep cadence, named in the
+morning dispatch, reversible, lock-list honoured. The user's own windows
+are sacred — agents propose and open; they never move or close what the
+user placed (T5's rule, kept at scale).
+
+### Smallest steps toward it
+
+1. Lift the 6-wing cap (`WINGS` in `desktop/src/terminals.ts`) — regions
+   are already enumerable beyond d5.
+2. Headless land simulation in the broker (a land ticking without a
+   window) — the virtual-terminal substrate.
+3. T4/T5 as specced (topology in reflections; one nightly proposal).
+4. Only then: the pager (materialise/dematerialise on attention) and the
+   climate-driven working set.
+
+**Status.** Parked; the natural far end of the desk-as-world arc. Gated
+behind PRD T4/T5 and the virtual-terminal substrate. Referenced from
+`VISION.md` § The desk as world.
+
+---
+
 ## Per-terminal identity — each pane a distinct world (parked 2026-06)
 
 *Captured 2026-06-04 (Harry's idea, mid side-on realignment).*
