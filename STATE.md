@@ -14,6 +14,37 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Depth/atmosphere + chains/persistence/demo SHIPPED 2026-07-16** (plans
+`docs/superpowers/plans/2026-07-16-tier2-depth-atmosphere.md` +
+`…-tier3-chains-persistence-demo.md`; commits `ea15640..c75bfa2` (T2) +
+`58ea077..59e25f4` (T3) — Tiers 2+3 close the living-joined-world plan
+ladder). T2 — wings read DEEP and ALIVE with no camera scroll: far ridge
+plane + density-ramped sky dither (own salted PRNGs in land.ts, main rng
+byte-untouched — smoke-land-atmosphere 8, smoke-sky-dither 11), `mixToward`
+bg-fade palette math + per-role `layers` handles, monument/sun glow pulse,
+counter-phased foliage sway, worn paths (`src/terminal/wear.ts`,
+session-scoped ▀→▔ crust packing — smoke-worn-paths), knit glyph trail +
+seam ground glow. T3 — the arc graduates to a small product: `SNAP_Y_PX=48`
+vertical capture band (a snapped window dragged past 48px vertically ESCAPES
+instead of being yanked back — smoke-t0-topology 17), boot spread fits the
+work area for 3+ chains, `scripts/e2e/join-demo.sh` → committed
+`docs/demo/join-moment.gif` + 3 keyframe stills (the README artifact), desk
+persistence (`TerminalSlot[]` via config.ts — `readConfig` PARSES the field
+so its read-modify-write can't strip it, smoke-t3-desk 7; persisted on
+settle/close/spawn; `quitting` flag stops the app-quit close cascade saving
+a shrinking desk; `LOKILIBRARY_TERMINALS_RESET=1` keeps harness layouts
+reproducible), and a terminals-mode-only tray ("New terminal (dN)" onto the
+next unused wing; `terminal:debugSpawn` IPC + t0-drive `spawn` verb share
+the tray's exact spawn path). VERIFIED LIVE (macOS): t1+t2 snapped → quit →
+relaunch restores identical bounds ALREADY-JOINED (both edges open, knit
+fired); spawn fills d0–d5 in order, the 7th returns null, closing t3 frees
+d2 and a respawn mints FRESH id t7 onto it; the enlarged desk persists. The
+broker-driving smokes (t1-broker-handoff / t1-cross-edge) now mock
+app/Tray/Menu/nativeImage. PENDING HARRY: the tray human beat (click the
+item; label disables at 6 wings, re-enables on close) + the join-moment
+leftovers (real-mouse glyph-strip drag, knit-sweep eyeball). Next: the
+clone-and-run README + release pass (the free-OSS deliverable bar).
+
 **Living society SHIPPED 2026-07-16** (plan
 `docs/superpowers/plans/2026-07-16-tier1-living-society.md`; commits
 `9a9e320..b3b02e4`; Tier 1 of the living-joined-world run; PRD-T2 core,
