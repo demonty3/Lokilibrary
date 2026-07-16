@@ -115,17 +115,40 @@ export interface ElectronAPI {
   /** Register a freshly spawned being with the roster. False = the id is
    *  already live in another terminal; despawn the local copy. */
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
-  /** A being walked off an open edge. True = the neighbour accepted it
-   *  (despawn locally); false = refused (keep it, turn it around). */
-  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
-  /** A being handed over by the broker arrives at `side`. */
-  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+  /** A being walked off an open edge, carrying its runtime state. True =
+   *  the neighbour accepted it (despawn locally); false = refused. */
+  terminalAgentExit(
+    agentId: string,
+    terminalId: string,
+    side: 'left' | 'right',
+    state: TerminalBeingState,
+  ): Promise<boolean>;
+  /** A being handed over by the broker arrives at `side`, with its
+   *  carried state and the source terminal/wing. */
+  onTerminalAgentEnter(
+    cb: (event: {
+      agentId: string;
+      side: 'left' | 'right';
+      state?: TerminalBeingState;
+      from?: { terminalId: string; wing: string };
+    }) => void,
+  ): () => void;
 }
 
 /** A live horizontal join between two terminals (broker-derived). */
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** Runtime state carried across a handoff so the being RESUMES in the
+ *  neighbour rather than respawning fresh. Broker-opaque: the main
+ *  process forwards it verbatim, renderers own the shape. */
+export interface TerminalBeingState {
+  speed: number;
+  dir: 1 | -1;
+  intent: string;
+  bobPhase: number;
 }
 
 declare global {
@@ -173,12 +196,17 @@ const api: ElectronAPI = {
   },
   terminalAgentSpawn: (agentId, terminalId) =>
     ipcRenderer.invoke('terminal:agentSpawn', { agentId, terminalId }) as Promise<boolean>,
-  terminalAgentExit: (agentId, terminalId, side) =>
-    ipcRenderer.invoke('terminal:agentExit', { agentId, terminalId, side }) as Promise<boolean>,
+  terminalAgentExit: (agentId, terminalId, side, state) =>
+    ipcRenderer.invoke('terminal:agentExit', { agentId, terminalId, side, state }) as Promise<boolean>,
   onTerminalAgentEnter: (cb) => {
     const handler = (
       _e: IpcRendererEvent,
-      event: { agentId: string; side: 'left' | 'right' },
+      event: {
+        agentId: string;
+        side: 'left' | 'right';
+        state?: TerminalBeingState;
+        from?: { terminalId: string; wing: string };
+      },
     ): void => cb(event);
     ipcRenderer.on('terminal:agentEnter', handler);
     return () => ipcRenderer.off('terminal:agentEnter', handler);

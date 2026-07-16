@@ -69,14 +69,35 @@ export interface ElectronAPI {
   terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
-  terminalAgentExit(agentId: string, terminalId: string, side: 'left' | 'right'): Promise<boolean>;
-  onTerminalAgentEnter(cb: (event: { agentId: string; side: 'left' | 'right' }) => void): () => void;
+  terminalAgentExit(
+    agentId: string,
+    terminalId: string,
+    side: 'left' | 'right',
+    state: TerminalBeingState,
+  ): Promise<boolean>;
+  onTerminalAgentEnter(
+    cb: (event: {
+      agentId: string;
+      side: 'left' | 'right';
+      state?: TerminalBeingState;
+      from?: { terminalId: string; wing: string };
+    }) => void,
+  ): () => void;
 }
 
 /** T0 spike — a live horizontal join between two terminal windows. */
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** Tier-1 society — runtime state carried across a handoff (mirrors
+ *  desktop/src/preload.ts; broker-opaque). */
+export interface TerminalBeingState {
+  speed: number;
+  dir: 1 | -1;
+  intent: string;
+  bobPhase: number;
 }
 
 declare global {
@@ -328,18 +349,24 @@ export async function terminalAgentExit(
   agentId: string,
   terminalId: string,
   side: 'left' | 'right',
+  state: TerminalBeingState,
 ): Promise<boolean> {
   const api = getElectronAPI();
   if (!api || typeof api.terminalAgentExit !== 'function') return false;
   try {
-    return await api.terminalAgentExit(agentId, terminalId, side);
+    return await api.terminalAgentExit(agentId, terminalId, side, state);
   } catch {
     return false;
   }
 }
 
 export function subscribeTerminalAgentEnter(
-  cb: (event: { agentId: string; side: 'left' | 'right' }) => void,
+  cb: (event: {
+    agentId: string;
+    side: 'left' | 'right';
+    state?: TerminalBeingState;
+    from?: { terminalId: string; wing: string };
+  }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalAgentEnter !== 'function') return () => undefined;

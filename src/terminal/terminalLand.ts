@@ -46,6 +46,7 @@ import {
 } from '../api/electron';
 import {
   pickIntent,
+  resumeIntent,
   structureColumns,
   type BeingIntent,
   type IntentContext,
@@ -69,6 +70,9 @@ const APPROACH_NEAR = 0.4;
 const WATCH_NEAR = 3;
 /** Speed multiplier while drifting at a watched edge. */
 const WATCH_DRIFT = 0.4;
+/** Anti-ping-pong: seconds after entering before a being may exit again
+ *  (the 7D.2 cooldown idea, ported to the land handoff). */
+const CROSS_COOLDOWN_S = 4;
 /** Idle bob: local px amplitude + speed. */
 const BOB_PX = 1.5;
 const BOB_HZ = 1.6;
@@ -379,7 +383,8 @@ export async function mountTerminalLand(
 
   const tryExit = (b: Being, side: 'left' | 'right'): void => {
     b.pending = true;
-    void terminalAgentExit(b.id, terminalId, side).then((accepted) => {
+    const carried = { speed: b.speed, dir: b.dir, intent: b.intent.kind, bobPhase: b.bobPhase };
+    void terminalAgentExit(b.id, terminalId, side, carried).then((accepted) => {
       if (accepted) {
         b.exitingSince = elapsedS; // ease out past the edge, then destroy
         spawnSpark(side);
@@ -508,11 +513,22 @@ export async function mountTerminalLand(
 
   // ── Broker wiring ────────────────────────────────────────────────────────
   const unsubTopology = subscribeTerminalTopology(({ joins, wings }) => applyJoins(joins, wings));
-  const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side }) => {
+  const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state }) => {
     if (beings.has(agentId)) return; // duplicate guard
     const glyph = agentId.match(/-([A-Z])\d+$/)?.[1] ?? 'V';
     spawnSpark(side);
-    addBeing(agentId, glyph, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
+    const b = addBeing(agentId, glyph, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
+    b.crossCooldownUntil = elapsedS + CROSS_COOLDOWN_S; // anti-ping-pong
+    if (state) {
+      // RESUME, don't respawn: gait + phase carry over; the intent
+      // continues in this land's terms (chain-aware watch_edge, nearest
+      // structure for approach). Missing state (stale preload) degrades
+      // to the fresh-spawn defaults addBeing already chose.
+      b.speed = state.speed;
+      b.dir = state.dir;
+      b.bobPhase = state.bobPhase;
+      b.intent = resumeIntent(state.intent, side, intentCtx(b.x));
+    }
   });
   void getTerminalTopology().then(({ joins, wings }) => applyJoins(joins, wings));
   drawEdges();

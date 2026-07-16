@@ -158,19 +158,32 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   });
 
   // A being walked off an open edge. Validate the join + ownership, move it
-  // in the roster, and hand it to the neighbour. Ack=false → renderer keeps
-  // the being (turn it around) rather than losing it.
+  // in the roster, and hand it to the neighbour WITH its runtime state
+  // (forwarded opaquely — renderers own the shape) and the source wing (the
+  // arrival side's memory write names it). Ack=false → renderer keeps the
+  // being (turn it around) rather than losing it.
   ipcMain.handle(
     'terminal:agentExit',
-    (_e, payload: { agentId: string; terminalId: string; side: 'left' | 'right' }) => {
+    (
+      _e,
+      payload: {
+        agentId: string;
+        terminalId: string;
+        side: 'left' | 'right';
+        state?: unknown;
+      },
+    ) => {
       const dest = neighbourOf(payload.terminalId, payload.side, joins);
       if (!dest || roster.get(payload.agentId) !== payload.terminalId) return false;
       const destTerm = terminals.get(dest);
       if (!destTerm || destTerm.win.isDestroyed()) return false;
+      const src = terminals.get(payload.terminalId);
       roster.set(payload.agentId, dest);
       destTerm.win.webContents.send('terminal:agentEnter', {
         agentId: payload.agentId,
         side: payload.side === 'left' ? 'right' : 'left', // enters the opposite edge
+        state: payload.state,
+        from: { terminalId: payload.terminalId, wing: src?.wing ?? '' },
       });
       // eslint-disable-next-line no-console
       console.log(`[terminals] ${payload.agentId}: ${payload.terminalId} → ${dest}`);
