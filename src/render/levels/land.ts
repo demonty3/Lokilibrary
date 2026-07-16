@@ -156,7 +156,14 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
         fade !== undefined
           ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
           : hexToInt(theme.palette[ROLE_KEY[r]]);
-      addLayer(r, layerFor((x, y) => model.role[y][x] === r), fill);
+      if (r === 'foliage') {
+        // Two parity planes so the terminal tick can counter-phase the sway
+        // (lock-step trees read mechanical).
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 0), fill);
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 1), fill);
+      } else {
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r), fill);
+      }
     }
   }
 

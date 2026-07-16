@@ -94,6 +94,10 @@ const GLOW_STRUCT_PERIOD_S = 2.8;
 const GLOW_STRUCT_RANGE: [number, number] = [0.72, 1];
 const GLOW_SUN_PERIOD_S = 4.2;
 const GLOW_SUN_RANGE: [number, number] = [0.62, 1];
+/** Tier-2 foliage sway: sub-cell x oscillation (local px; × WORLD_SCALE on
+ *  screen), the parity planes counter-phased. Stays well under CW = 6. */
+const SWAY_PX = 1.2;
+const SWAY_HZ = 0.35;
 /** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
 const KNIT_S = 0.6;
 const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
@@ -474,6 +478,13 @@ export async function mountTerminalLand(
     for (const t of scene.layers.hall ?? []) t.alpha = structAlpha;
     const sunAlpha = glow(GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
     for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
+
+    // Tier-2 foliage sway: sub-cell x offsets, parity planes counter-phased
+    // (glyphs move BETWEEN cells — never snap-to-cell).
+    const sway = Math.sin(elapsedS * SWAY_HZ * 2 * Math.PI) * SWAY_PX;
+    (scene.layers.foliage ?? []).forEach((t, i) => {
+      t.x = i % 2 === 0 ? sway : -sway;
+    });
 
     // Crossing sparks fade out.
     for (let i = sparks.length - 1; i >= 0; i--) {
