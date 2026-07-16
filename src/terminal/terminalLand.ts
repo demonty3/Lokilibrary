@@ -102,6 +102,9 @@ const SWAY_HZ = 0.35;
 /** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
 const KNIT_S = 0.6;
 const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
+/** Tier-2 polish: the sweep carries a trail; the seam ground brightens. */
+const KNIT_TRAIL = ['█', '▓', '▒'] as const; // head → tail
+const KNIT_GLOW_S = 0.9; // ground-brightening outlives the sweep a beat
 
 interface Being {
   id: string;
@@ -359,7 +362,14 @@ export async function mountTerminalLand(
   /** One-shot ✦ sparks at crossing thresholds: [text, bornAt]. */
   const sparks: Array<{ text: BitmapText; bornAt: number }> = [];
   /** One-shot knit sweeps: a glow that runs inward from a newly-joined seam. */
-  const knits: Array<{ side: 'left' | 'right'; bornAt: number; text: BitmapText }> = [];
+  const knits: Array<{
+    side: 'left' | 'right';
+    bornAt: number;
+    /** Sweep head + trail glyphs (KNIT_TRAIL order), repositioned per tick. */
+    trail: BitmapText[];
+    /** One brightened crust glyph per seam column, fading in place. */
+    glow: BitmapText[];
+  }> = [];
   let knitsFired = 0;
   const rng = makeRng(fnv1a(`beings:${terminalId}`));
   let elapsedS = 0;
@@ -420,15 +430,28 @@ export async function mountTerminalLand(
    *  along the (now continuous) ground, fading as it goes. Both windows play
    *  it ground-line-aligned, so it reads as one sweep crossing the seam. */
   const startKnit = (side: 'left' | 'right'): void => {
-    const edgeCol = side === 'left' ? 0 : model.width - 1;
-    const text = new BitmapText({
-      text: '█',
-      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+    const mk = (glyph: string): BitmapText =>
+      new BitmapText({
+        text: glyph,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+      });
+    const trail = KNIT_TRAIL.map((g) => {
+      const t = mk(g);
+      t.alpha = 0; // positioned on the first tick
+      world.addChild(t);
+      return t;
     });
-    text.x = edgeCol * CW;
-    text.y = (model.surface[edgeCol] - 1) * CH;
-    world.addChild(text);
-    knits.push({ side, bornAt: elapsedS, text });
+    const glow: BitmapText[] = [];
+    for (let i = 0; i < KNIT_SPAN; i++) {
+      const col = side === 'left' ? i : model.width - 1 - i;
+      const g = mk(model.char[model.surface[col]][col]); // the crust glyph, brightened
+      g.x = col * CW;
+      g.y = model.surface[col] * CH;
+      g.alpha = 0.75;
+      world.addChild(g);
+      glow.push(g);
+    }
+    knits.push({ side, bornAt: elapsedS, trail, glow });
     knitsFired += 1;
   };
 
@@ -514,22 +537,36 @@ export async function mountTerminalLand(
       } else s.text.alpha = 1 - p;
     }
 
-    // Knit sweeps run inward from the seam along the (continuous) ground, fading.
+    // Knit sweeps: a bright head + 2-glyph trail runs inward from the seam
+    // along the (continuous) ground while the seam ground itself brightens,
+    // then everything fades (the glow outlives the sweep by KNIT_GLOW_S − KNIT_S).
     for (let i = knits.length - 1; i >= 0; i--) {
       const k = knits[i];
       const p = (elapsedS - k.bornAt) / KNIT_S;
-      if (p >= 1) {
-        k.text.destroy();
+      const q = (elapsedS - k.bornAt) / KNIT_GLOW_S;
+      if (p >= 1 && k.trail.length > 0) {
+        for (const t of k.trail) t.destroy();
+        k.trail.length = 0;
+      }
+      if (k.trail.length > 0) {
+        const dirIn = k.side === 'left' ? 1 : -1;
+        const headCol =
+          k.side === 'left'
+            ? Math.min(model.width - 1, Math.round(p * KNIT_SPAN))
+            : Math.max(0, model.width - 1 - Math.round(p * KNIT_SPAN));
+        k.trail.forEach((t, j) => {
+          const col = Math.min(model.width - 1, Math.max(0, headCol - dirIn * j));
+          t.x = col * CW;
+          t.y = (model.surface[col] - 1) * CH;
+          t.alpha = Math.max(0, (1 - p) * (1 - j * 0.3));
+        });
+      }
+      if (q >= 1) {
+        for (const g of k.glow) g.destroy();
         knits.splice(i, 1);
         continue;
       }
-      const col =
-        k.side === 'left'
-          ? Math.min(model.width - 1, Math.round(p * KNIT_SPAN))
-          : Math.max(0, model.width - 1 - Math.round(p * KNIT_SPAN));
-      k.text.x = col * CW;
-      k.text.y = (model.surface[col] - 1) * CH;
-      k.text.alpha = 1 - p;
+      for (const g of k.glow) g.alpha = 0.75 * (1 - q);
     }
 
     for (const b of beings.values()) {

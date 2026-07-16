@@ -100,6 +100,8 @@ add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');
 // 5. Renderer-literal glyphs — box/shade/punctuation emitted directly in the
 //    render layer (NOT exported from a data module). Provenance is the file.
 const RENDERER_LITERALS: Array<[string, string]> = [
+  // Tier-2 knit-sweep trail (terminalLand.ts startKnit/tick) — all covered.
+  ['█▓▒', 'terminalLand.ts knit-sweep trail'],
   // Card frames — district.ts / island.ts renderIslandCard/renderDistrictCard.
   ['┌─┐│└┘', 'district.ts + island.ts card frames'],
   // Double-line stub/empty panel — stub.ts + island.ts/continent.ts emptyPanel.
