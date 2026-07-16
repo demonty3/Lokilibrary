@@ -14,6 +14,38 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Living society SHIPPED 2026-07-16** (plan
+`docs/superpowers/plans/2026-07-16-tier1-living-society.md`; commits
+`9a9e320..b3b02e4`; Tier 1 of the living-joined-world run; PRD-T2 core,
+key-free). Land beings are a SOCIETY, not walkers: pure intent engine
+`src/terminal/beingIntents.ts` (utility-AI ladder — wander/rest/approach-a-
+structure/watch_edge; rest deliberately dominated at an OPEN edge;
+`resumeIntent` continues a handed-off intent; `structureColumns` from label
+runs — smoke-t1-being-intents, 21). Handoffs CARRY runtime state
+(`TerminalBeingState {speed,dir,intent,bobPhase}` — broker forwards opaquely
++ `from:{terminalId,wing}`; beings RESUME, not respawn; `CROSS_COOLDOWN_S=4`
+anti-ping-pong; smoke-t1-broker-handoff, 18, drives the REAL broker via
+mockElectronModule). Crossings + arrivals write the Smallville stream
+(`src/terminal/terminalMemory.ts` → `recordPerception` kinds
+`terminal_crossing`/`terminal_arrival`, mapped to the FROZEN
+`'self_perception'` source — no schema bump; prose via writer.ts
+describeEvent; `busy_timeout=3000` for multi-renderer WAL sharing;
+smoke-t1-society-memory, 15 — VERIFIED in the real desktop sqlite: "crossed
+from the d0 terminal into d1" rows both directions). Cross-edge perception:
+`src/terminal/crossEdge.ts` (`nearEdgeSummary` cap 4/side radius 10 +
+`projectAcrossEdge` just-outside-the-land; ≤1 Hz change-gated
+`terminal:nearEdge` report → broker relays side-flipped
+`terminal:neighbourSummary`; non-empty summary = DECISIVE watch_edge pull;
+smoke-t1-cross-edge, 15). VERIFIED LIVE (macOS): the roster fully swapped
+homes organically (all 3 t1-natives in t2 + vice versa), perception symmetric
+(t1 sees 2 across its right seam, t2 sees 3 across its left), and BOTH
+windows had a being in watch_edge pulled to the populated join — the PRD-T2
+acceptance verbatim; gallery `/tmp/loki-join/gallery/tier1-society.png`.
+`__terminal.state()` now exposes intent per being + `neighbours` per side.
+Full smoke sweep green. DEFERRED (per plan): real 5-agent cohort defs /
+migrateRuntime-over-IPC, Tier-1 LLM dispatch on arrival (no-LLM rail), new
+ObservationSource token, relaunch persistence.
+
 **Join moment SHIPPED 2026-07-16** (spec+plan
 `docs/superpowers/*/2026-07-16-join-moment*`; commits `3c8f639..9ba90b4`;
 Tier 0 of the living-joined-world run). Two snapped terminals now read as ONE
