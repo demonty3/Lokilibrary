@@ -19,6 +19,7 @@
  */
 
 import { mulberry32 } from './prng';
+import { fnv1a32 } from './seed';
 
 // ── V0 spike knobs (PRD: Terminal Terraria visual direction) ──────────────
 // The tuning dials Harry iterates between screenshot rounds.
@@ -98,6 +99,12 @@ export interface ComposeLandOptions {
    *  bearing HALL — a glyph luminance field with a vertical gradient and a
    *  poster rect for the ANSI capsule. Default false (walkLand untouched). */
   readonly hall?: boolean;
+  /** When terminal wings are JOINED, ramp the named edge(s)'s last
+   *  SEAM_BLEND_COLS columns to a boundary height shared with the neighbour
+   *  (its wing seed). Absent / {} = today's independent silhouette (single
+   *  window / outer edges / web preview). Both edges may be set (a middle
+   *  terminal in a chain); the two ramp regions never overlap. */
+  readonly join?: { readonly left?: number; readonly right?: number };
 }
 
 const BEINGS = ['L', 'A', 'M', 'C', 'V'];
@@ -114,6 +121,36 @@ export const SAMPLE_LAND: LandGame[] = [
   { name: 'civ', state: 'dusty' },
   { name: 'celeste', state: 'abandoned' },
 ];
+
+/** PRNG namespace for the shared land-seam boundary — distinct from every
+ *  other src/procedural salt (cell 0xce11 · scatter 0x5ca7 · loki 0x10ce ·
+ *  landmark 0x1a4d · clusters 0xc1a5/0xc0a5 · cell-seam 0x5ea3). */
+const LAND_SEAM_SALT = 0x5a11;
+/** Columns over which a joined edge ramps to the shared seam height. */
+const SEAM_BLEND_COLS = 6;
+
+/** Cubic Hermite on t∈[0,1]: endpoint values p0,p1 and tangents m0,m1
+ *  (already scaled to the [0,1] parameter interval). */
+function hermite(t: number, p0: number, m0: number, p1: number, m1: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1;
+}
+
+/** The shared ground boundary two joined wings agree on. PURE + SYMMETRIC —
+ *  landSeamBoundary(a,b) === landSeamBoundary(b,a) (canonical seed order), so
+ *  each window computes the identical seam height + slope independently at
+ *  snap, with no negotiation. Returned in RELIEF units (offset above the
+ *  ground line, same ±2.4 scale as the surface sine field). */
+export function landSeamBoundary(seedA: number, seedB: number): { height: number; slope: number } {
+  const lo = Math.min(seedA >>> 0, seedB >>> 0);
+  const hi = Math.max(seedA >>> 0, seedB >>> 0);
+  const rng = mulberry32((fnv1a32(`${lo}:${hi}`) ^ LAND_SEAM_SALT) >>> 0);
+  return {
+    height: rng.rangeFloat(-1.8, 1.8), // within the surface-relief band
+    slope: rng.rangeFloat(-0.5, 0.5), // gentle tangent (relief units / column)
+  };
+}
 
 export function composeLand(
   seed: number,
@@ -149,9 +186,34 @@ export function composeLand(
 
   // Rolling horizon — deterministic height field (a touch more relief).
   const phase = rng.rangeFloat(0, 6.283);
-  const surfaceY = (x: number) =>
-    groundLine - Math.round(1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2));
+  const baseRelief = (x: number): number =>
+    1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2);
+  const baseSlope = (x: number): number =>
+    0.144 * Math.cos(x * 0.09 + phase) + 0.168 * Math.cos(x * 0.21 + phase * 2);
+
+  // Joined edges ramp to a boundary shared with the neighbour so the two
+  // silhouettes meet at the same height + slope (Terrain-Diffusion's shared-
+  // coordinate idea, folded from both wing seeds — see landSeamBoundary).
+  const K = SEAM_BLEND_COLS;
+  const rightJoin = opts.join?.right !== undefined ? landSeamBoundary(seed, opts.join.right) : null;
+  const leftJoin = opts.join?.left !== undefined ? landSeamBoundary(seed, opts.join.left) : null;
+  const reliefAt = (x: number): number => {
+    if (rightJoin && x > cols - 1 - K) {
+      const t = (x - (cols - 1 - K)) / K; // 0 at ramp start → 1 at the seam col
+      return hermite(t, baseRelief(cols - 1 - K), baseSlope(cols - 1 - K) * K, rightJoin.height, rightJoin.slope * K);
+    }
+    if (leftJoin && x < K) {
+      const t = x / K; // 0 at the seam col → 1 at ramp end
+      return hermite(t, leftJoin.height, leftJoin.slope * K, baseRelief(K), baseSlope(K) * K);
+    }
+    return baseRelief(x);
+  };
+  const surfaceY = (x: number) => groundLine - Math.round(reliefAt(x));
   const surfaceRows: number[] = Array.from({ length: cols }, (_, x) => surfaceY(x));
+
+  /** Suppress structures/labels in the blend columns so only ground + fill move. */
+  const inJoinBuffer = (x: number): boolean =>
+    (rightJoin !== null && x >= cols - 1 - K) || (leftJoin !== null && x <= K);
 
   // --- Sky: seeded scatter (PRD V0 — no dead cells), two cloud bands, a sun.
   // Two luminance tiers: dim punctuation everywhere, the odd bright ✦/*.
@@ -260,6 +322,7 @@ export function composeLand(
       return;
     }
     if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall
+    if (inJoinBuffer(x)) return; // structure-free seam buffer
     if (p.state === 'mastered') {
       for (let h = 1; h <= 6; h++) put(x - 1, gy - h, h === 6 ? ' ║ ' : '▐█▌', 'monument');
       set(x, gy - 7, '☼', 'sun');
@@ -309,6 +372,7 @@ export function composeLand(
   for (let t = 0; t < 4; t++) {
     const x = rng.range(4, cols - 4);
     if (hallSpan && x >= hallSpan[0] && x <= hallSpan[1]) continue; // not inside the hall
+    if (inJoinBuffer(x)) continue; // no trees in the seam buffer
     const gy = surfaceY(x);
     set(x, gy - 1, '♣', 'foliage');
     set(x, gy - 2, '♣', 'foliage');
