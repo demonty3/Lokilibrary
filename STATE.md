@@ -14,6 +14,29 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 to-fix-on-Windows list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Join moment SHIPPED 2026-07-16** (spec+plan
+`docs/superpowers/*/2026-07-16-join-moment*`; commits `3c8f639..9ba90b4`;
+Tier 0 of the living-joined-world run). Two snapped terminals now read as ONE
+continuous land: `landSeamBoundary(seedA,seedB)` (land.ts; symmetric
+canonical-order FNV fold, salt `0x5a11`) gives both windows the identical seam
+height+slope with no negotiation; `composeLand` gains
+`join?: {left?,right?}` (neighbour wing seed) and Hermite-ramps the edge's
+last 6 cols to it (structure-free buffer; no-join byte-identical —
+`smoke-land-seam.mts`, 6). Topology IPC carries `wings` (terminalId→wing);
+`terminalLand` recomposes the joined edge as a swappable scene child on join
+change. Terminal windows are FRAMELESS (`frame:false` alone — `titleBarStyle:
+'hidden'` re-adds macOS traffic lights; `hasShadow:false` +
+`roundedCorners:false` kill the false seam line) with an in-world `┤ wing ├`
+drag strip. A one-shot knit sweep (0.6s, ticker-driven) fires per newly-opened
+edge (`__terminal.state().knits` = e2e ground truth). VERIFIED ON SCREEN
+(macOS, occlusion-proof `scripts/e2e/join-shot.py` composite — new tooling,
+`screencapture -l` per window + PIL): ground line continuous across the seam,
+carets on the same row, a being at the threshold; hero shot
+`/tmp/loki-join/gallery/tier0-hero.png`. PENDING HARRY: real-mouse drag of the
+glyph strip (drag-region can't be driven via CDP); knit sweep eyeball (0.6s —
+ground truth proven, capture kept missing the window). Next tiers: living
+society (T2 runtime) → depth/atmosphere → chains/persistence → demo GIF.
+
 **Salience campaign SHIPPED 2026-07-13** (spec+plan
 `docs/superpowers/*/2026-07-13-salience-campaign*`; commits
 `b293c96..8d9f88e`; source: the 8-lens visual programme in
