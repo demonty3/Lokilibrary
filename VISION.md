@@ -112,10 +112,12 @@ into a relationship:
   (one palette per *scene* survives — the seam is the boundary), so a join
   reads as a portal between genuinely different places.
 - **The hundred-terminal desk.** The far end: the topology grows to
-  dozens-to-hundreds of lands, most simulated headlessly, and which ones
-  materialise as windows is managed — by the climate, or by a one-keystroke
-  command. Windows become a viewport cache over a larger living world
-  (`IDEAS.md` § The hundred-terminal desk).
+  dozens-to-hundreds of lands, most simulated headlessly; the world *opens
+  up as agents explore it*, and a meta-agent — Loki given hands — directs
+  which lands materialise as windows, opening terminals onto interesting
+  events (a festival fires in an unseen wing → a window slides in, the
+  event plays, the dispatch names why). Windows stop being the world and
+  become attention (`IDEAS.md` § The hundred-terminal desk).
 
 ## Beyond Steam (Year 2)
 
