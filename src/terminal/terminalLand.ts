@@ -155,20 +155,38 @@ export async function mountTerminalLand(
     { length: 5 },
     (_, i) => SAMPLE_LAND[(rot + i) % SAMPLE_LAND.length],
   );
-  const model = composeLand(seed, games, {
-    width: cols,
-    skyH,
-    surfaceBand: SURFACE_BAND,
-    underH: UNDER_H,
-    withPlayer: false,
-  });
-  const { container: world, contentH } = buildLandContainer(theme, model);
+  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false };
+  let model = composeLand(seed, games, composeOpts);
+
+  // Persistent transform container; the land SCENE is a swappable child so a
+  // join can recompose the terrain without disturbing beings / edges / sparks.
+  const world = new Container();
   world.scale.set(WORLD_SCALE);
+  app.stage.addChild(world);
+
+  let scene = buildLandContainer(theme, model);
+  let sceneContainer = scene.container;
+  let contentH = scene.contentH;
+  world.addChildAt(sceneContainer, 0);
+
   // Bottom anchor: dead space (if any) lives behind the sky, never below
   // the bedrock — the land sits on the window sill.
-  world.x = Math.floor((app.screen.width - model.width * CW * WORLD_SCALE) / 2);
-  world.y = app.screen.height - contentH * WORLD_SCALE;
-  app.stage.addChild(world);
+  const layoutWorld = (): void => {
+    world.x = Math.floor((app.screen.width - model.width * CW * WORLD_SCALE) / 2);
+    world.y = app.screen.height - contentH * WORLD_SCALE;
+  };
+  layoutWorld();
+
+  const recompose = (join: { left?: number; right?: number } | null): void => {
+    model = composeLand(seed, games, join ? { ...composeOpts, join } : composeOpts);
+    world.removeChild(sceneContainer);
+    sceneContainer.destroy({ children: true });
+    scene = buildLandContainer(theme, model);
+    sceneContainer = scene.container;
+    contentH = scene.contentH;
+    world.addChildAt(sceneContainer, 0);
+    layoutWorld();
+  };
 
   // ── Edges: closed = wall; open = a bright threshold doorway ────────────
   let edges = { left: false, right: false };
@@ -213,11 +231,23 @@ export async function mountTerminalLand(
     }
   };
 
-  const applyJoins = (joins: TerminalJoin[]): void => {
+  /** Cache key of the current join seeds — recompose only when it changes. */
+  let joinKey = '';
+  const applyJoins = (joins: TerminalJoin[], wings: Record<string, string>): void => {
     edges = {
       left: joins.some((j) => j.right === terminalId),
       right: joins.some((j) => j.left === terminalId),
     };
+    const leftNb = joins.find((j) => j.right === terminalId)?.left;
+    const rightNb = joins.find((j) => j.left === terminalId)?.right;
+    const join: { left?: number; right?: number } = {};
+    if (leftNb && wings[leftNb]) join.left = fnv1a(`terminal:${wings[leftNb]}`);
+    if (rightNb && wings[rightNb]) join.right = fnv1a(`terminal:${wings[rightNb]}`);
+    const key = `${join.left ?? ''}|${join.right ?? ''}`;
+    if (key !== joinKey) {
+      joinKey = key;
+      recompose(join.left === undefined && join.right === undefined ? null : join);
+    }
     drawEdges();
   };
 
@@ -371,14 +401,14 @@ export async function mountTerminalLand(
   app.ticker.add(tick);
 
   // ── Broker wiring ────────────────────────────────────────────────────────
-  const unsubTopology = subscribeTerminalTopology(({ joins }) => applyJoins(joins));
+  const unsubTopology = subscribeTerminalTopology(({ joins, wings }) => applyJoins(joins, wings));
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side }) => {
     if (beings.has(agentId)) return; // duplicate guard
     const glyph = agentId.match(/-([A-Z])\d+$/)?.[1] ?? 'V';
     spawnSpark(side);
     addBeing(agentId, glyph, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
   });
-  void getTerminalTopology().then(({ joins }) => applyJoins(joins));
+  void getTerminalTopology().then(({ joins, wings }) => applyJoins(joins, wings));
   drawEdges();
 
   window.__terminal = {
