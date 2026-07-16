@@ -51,6 +51,10 @@ import {
   type BeingIntent,
   type IntentContext,
 } from './beingIntents';
+import { nullMemoryWriter } from '../agents/router';
+import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
+import { cellIdFor, libraryIdFor } from '../agents/memory/schema';
+import { recordArrival, recordCrossing } from './terminalMemory';
 
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
@@ -172,6 +176,15 @@ export async function mountTerminalLand(
   const rows = Math.max(20, Math.floor(app.screen.height / (CH * WORLD_SCALE)));
   const skyH = rows - SURFACE_BAND - 1 - UNDER_H;
   const seed = fnv1a(`terminal:${wing}`);
+  // Memory stream (Tier-1 society): the desktop terminal gets the DB-backed
+  // writer namespaced per wing; the web preview degrades to the null writer.
+  // Each terminal window is its own renderer process → its own bootstrap.
+  let memory = getCurrentMemoryWriter() ?? nullMemoryWriter;
+  void bootstrapMemory({
+    namespace: { cellId: cellIdFor(seed), libraryId: libraryIdFor(null) },
+  }).then((r) => {
+    memory = r.writer;
+  });
   // Each wing owns a DISTINCT slice of the library — same games in the same
   // order across terminals made t1/t2 read as copies, not as two wings.
   // Deterministic rotation by wing hash; real profile wings replace this in T2.
@@ -377,7 +390,15 @@ export async function mountTerminalLand(
     const glyph = BEING_GLYPHS[(fnv1a(terminalId) + i) % BEING_GLYPHS.length];
     const id = `${terminalId}-${glyph}${i}`;
     void terminalAgentSpawn(id, terminalId).then((ok) => {
-      if (ok) addBeing(id, glyph, 6 + ((i * 37) % (model.width - 12)), i % 2 === 0 ? 1 : -1);
+      if (!ok) return;
+      const b = addBeing(id, glyph, 6 + ((i * 37) % (model.width - 12)), i % 2 === 0 ? 1 : -1);
+      recordArrival(memory, {
+        agentId: id,
+        wing,
+        col: Math.round(b.x),
+        row: model.surface[Math.round(b.x)] ?? 0,
+        whenMs: Date.now(),
+      });
     });
   }
 
@@ -513,7 +534,7 @@ export async function mountTerminalLand(
 
   // ── Broker wiring ────────────────────────────────────────────────────────
   const unsubTopology = subscribeTerminalTopology(({ joins, wings }) => applyJoins(joins, wings));
-  const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state }) => {
+  const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
     const glyph = agentId.match(/-([A-Z])\d+$/)?.[1] ?? 'V';
     spawnSpark(side);
@@ -529,6 +550,14 @@ export async function mountTerminalLand(
       b.bobPhase = state.bobPhase;
       b.intent = resumeIntent(state.intent, side, intentCtx(b.x));
     }
+    recordCrossing(memory, {
+      agentId,
+      fromWing: from?.wing || '?',
+      toWing: wing,
+      col: Math.round(b.x),
+      row: model.surface[Math.round(b.x)] ?? 0,
+      whenMs: Date.now(),
+    });
   });
   void getTerminalTopology().then(({ joins, wings }) => applyJoins(joins, wings));
   drawEdges();
