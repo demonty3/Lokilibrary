@@ -24,8 +24,12 @@ import { mountDistrict } from './levels/district';
 import { mountIsland } from './levels/island';
 import { mountContinent } from './levels/continent';
 import { mountStubLevel } from './levels/stub';
-import { clusterLibrary, type ClusterGame } from '../procedural/clusters';
+import { clusterLibrary, homeDistrictId, type ClusterGame } from '../procedural/clusters';
 import { regionTerminals } from '../procedural/regions';
+import { listCellPaneWings } from '../state/cellPaneScopes';
+import { presenceByDistrict } from './levels/ladderPresence';
+import type { LadderIdentity } from './levels/ladderCompose';
+import { COHORT, filterByTheme } from '../agents/cohort';
 import { mountTelemetryOverlay } from './overlays/telemetry';
 import { BitmapText } from 'pixi.js';
 import {
@@ -860,17 +864,24 @@ function mountPaneLevel(
       isWholeLibraryPane ? null : regionId ?? null,
     );
   }
-  if (level === 'district') {
+  if (level === 'district' || level === 'island' || level === 'continent') {
+    // Ladder identity (spec 2026-07-17): home follows the pane's bound wing
+    // (raw regionId — composition resolves stale ids to the canonical home),
+    // and beings appear as letters where they live. Presence snapshots the
+    // live cell-pane registry; with NO cell pane live (the default
+    // single-pane flow zoomed out) the theme-filtered cohort falls back to
+    // the home wing so the map never goes lifeless.
     const { clusterGames, seed } = snapshotLibraryState();
-    return mountDistrict(parent, rect, theme, clusterGames, seed);
-  }
-  if (level === 'island') {
-    const { clusterGames, seed } = snapshotLibraryState();
-    return mountIsland(parent, rect, theme, clusterGames, seed);
-  }
-  if (level === 'continent') {
-    const { clusterGames, seed } = snapshotLibraryState();
-    return mountContinent(parent, rect, theme, clusterGames, seed);
+    const tree = clusterLibrary(clusterGames, seed);
+    const homeId = homeDistrictId(tree, regionId);
+    const fallbackIds = filterByTheme(COHORT, theme.id).map((d) => d.id);
+    const identity: LadderIdentity = {
+      homeWingId: regionId,
+      presence: presenceByDistrict(homeId, listCellPaneWings(), fallbackIds),
+    };
+    if (level === 'district') return mountDistrict(parent, rect, theme, clusterGames, seed, identity);
+    if (level === 'island') return mountIsland(parent, rect, theme, clusterGames, seed, identity);
+    return mountContinent(parent, rect, theme, clusterGames, seed, identity);
   }
   // planet + solar_system stay stubs (planet = speculative rotating world;
   // solar_system implies multi-source ingestion — Year-3 per CONSOLIDATION).
