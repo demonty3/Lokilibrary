@@ -13,48 +13,17 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-17** (platform direction change: **Mac-only** —
-the Windows/WSL target is retired, so every "verify on Windows" item
-below was either already re-verified on macOS during the 2026-06
-consolidation pass (now in Done) or re-worded for macOS. The Win32 code
-paths stay in-tree as dormant OSS-contributor surface; we don't build,
-test, or gate on them.)
+Last updated: **2026-07-17** (evening: Harry ran the snapping-terminals
+human beats + the lore-ingest leg — both PASSED, moved to Done. Earlier
+same day: platform direction change: **Mac-only** — the Windows/WSL
+target is retired, so every "verify on Windows" item below was either
+already re-verified on macOS during the 2026-06 consolidation pass (now
+in Done) or re-worded for macOS. The Win32 code paths stay in-tree as
+dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ---
 
 ## Active
-
-### 👁 Snapping-terminals human beats — tray click + glyph-strip drag (2026-07-16)
-**Status**: Tier 3 landed (desk persistence + tray; STATE.md top entry). The
-spawn path, wing accounting, and persistence are harness-verified; three beats
-need a human hand: (1) click the tray "New terminal (dN)" item — label should
-disable at 6 terminals and re-enable with the freed wing after closing a
-window; (2) drag a terminal by its in-world `┤ wing ├` glyph strip with a real
-mouse; (3) eyeball the 0.6s knit sweep on a fresh join.
-**Unblocks**: closing the snapping-terminals verification column; nothing
-code-side is waiting.
-**Where**: `cd desktop && LOKILIBRARY_TERMINALS=2 LOKILIBRARY_RENDERER_URL=http://localhost:5183 ./node_modules/.bin/electron .` (vite serving 5183).
-Add `LOKILIBRARY_TERMINALS_RESET=1` for a fresh unsnapped desk (best for the
-knit-sweep test — a persisted desk restores already-joined).
-
-### ⏳ Lore ingest — the one desktop leg still unseen (was S1 of the 5D.4 check)
-**Status**: everything around it is proven — the lore→theme derivation is
-headless-confirmed (`npx tsx scripts/lore-preview.mts lore-samples/*.md`:
-`pastoral.md → gruvbox-dark`, `nautical.md → tokyo-night`), the on-screen PIXI
-repaint is proven via the e2e harness, and the desktop SQLite writer is proven
-live (the T1 society work verified real rows in the desktop DB). The ONE
-untested join is the ingest path itself: a real file drop persisting through
-`ingestLore → recordLore` so `themeFromLore` reads a non-empty corpus.
-**What**: launch the desktop app (window mode), press **Ctrl+U**, drop
-`lore-samples/nautical.md`. After the chunk-count status, the whole world
-should tear down and remount in **tokyo-night**. Also confirm the two egress
-checkboxes ("Theme & mood", "Quote directly") default UNCHECKED — the recolor
-must happen with both OFF. If the palette never changes, check the console for
-`[memory/bootstrap] db ready` (a null-writer fallback silently no-ops ingest).
-NOTE: on this Mac there's no Ollama, so embeddings 501 and chunks persist
-FTS-only — that's the designed degradation, not a failure; the recolor is
-embedding-free.
-**Unblocks**: signs off 5D.4 end-to-end; lore is then shipped-and-seen.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
@@ -104,6 +73,16 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **Snapping-terminals human beats — VERIFIED by Harry 2026-07-17**:
+  real-mouse glyph-strip drag + snap works, the 0.6s knit sweep was SEEN
+  on a fresh join, tray "New terminal (dN)" spawns and the label disables
+  at 6 terminals. (Re-enable-on-close not explicitly exercised — the
+  wing-accounting path is harness-verified, low risk.) Closes the
+  snapping-terminals verification column.
+- ✅ **Lore ingest — VERIFIED by Harry 2026-07-17**: Ctrl+U → dropped
+  `lore-samples/nautical.md` in the desktop app → world remounted in
+  tokyo-night. 5D.4 is now signed off end-to-end; lore is
+  shipped-and-seen. (Egress checkbox defaults remain smoke-covered.)
 - ✅ **Windows verification column — RETIRED 2026-07-17** (Mac-only
   direction). Everything it gated was re-verified on macOS during the
   2026-06 consolidation + later arcs, or re-worded above:

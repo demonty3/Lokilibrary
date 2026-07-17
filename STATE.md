@@ -164,10 +164,10 @@ relaunch restores identical bounds ALREADY-JOINED (both edges open, knit
 fired); spawn fills d0–d5 in order, the 7th returns null, closing t3 frees
 d2 and a respawn mints FRESH id t7 onto it; the enlarged desk persists. The
 broker-driving smokes (t1-broker-handoff / t1-cross-edge) now mock
-app/Tray/Menu/nativeImage. PENDING HARRY: the tray human beat (click the
-item; label disables at 6 wings, re-enables on close) + the join-moment
-leftovers (real-mouse glyph-strip drag, knit-sweep eyeball). Next: the
-clone-and-run README + release pass (the free-OSS deliverable bar).
+app/Tray/Menu/nativeImage. Human beats PASSED (Harry, 2026-07-17): tray
+spawn + label disables at 6, real-mouse glyph-strip drag + snap, knit
+sweep seen on a fresh join. Next: the clone-and-run README + release
+pass (the free-OSS deliverable bar).
 
 **Living society SHIPPED 2026-07-16** (plan
 `docs/superpowers/plans/2026-07-16-tier1-living-society.md`; commits
@@ -219,9 +219,10 @@ edge (`__terminal.state().knits` = e2e ground truth). VERIFIED ON SCREEN
 (macOS, occlusion-proof `scripts/e2e/join-shot.py` composite — new tooling,
 `screencapture -l` per window + PIL): ground line continuous across the seam,
 carets on the same row, a being at the threshold; hero shot
-`/tmp/loki-join/gallery/tier0-hero.png`. PENDING HARRY: real-mouse drag of the
-glyph strip (drag-region can't be driven via CDP); knit sweep eyeball (0.6s —
-ground truth proven, capture kept missing the window). Next tiers: living
+`/tmp/loki-join/gallery/tier0-hero.png`. Both human leftovers PASSED (Harry,
+2026-07-17): real-mouse glyph-strip drag + snap, knit sweep seen live on a
+fresh join (0.6s). The lore-ingest desktop leg also passed the same evening
+(Ctrl+U → nautical.md → tokyo-night remount) — 5D.4 signed off. Next tiers: living
 society (T2 runtime) → depth/atmosphere → chains/persistence → demo GIF.
 
 **Salience campaign SHIPPED 2026-07-13** (spec+plan
