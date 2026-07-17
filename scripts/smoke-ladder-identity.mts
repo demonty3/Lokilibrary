@@ -22,6 +22,10 @@ import { makeChecker } from './lib/smoke.ts';
 import {
   createCanvas, stamp, stampLines, layerStrings, fitGrid,
 } from '../src/render/levels/tintPanel.ts';
+import {
+  clusterLibrary, findContinentOf, homeDistrictId,
+} from '../src/procedural/clusters.ts';
+import { SAMPLE_LIBRARY } from '../src/data/sampleLibrary.ts';
 
 const { check, report } = makeChecker('smoke ladder-identity');
 
@@ -76,6 +80,25 @@ const { check, report } = makeChecker('smoke ladder-identity');
   // Full-rect identity: panel == rect → scale 1, origin 0.
   const id = fitGrid(200, 100, { pw: 200, ph: 100 });
   check('T3 exact fit identity', id.scale === 1 && id.x === 0 && id.y === 0);
+}
+
+// T4 — home resolution: bound wing wins; stale/absent falls back to canonical d0.
+{
+  const games = SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name }));
+  const tree = clusterLibrary(games, 0xa11ce11);
+  const all = tree.continents.flatMap((c) => c.islands.flatMap((i) => i.districts.map((d) => d.id)));
+  const first = all[0];
+  const other = all.find((id) => id !== first)!;
+  check('T4 canonical fallback', homeDistrictId(tree) === first);
+  check('T4 bound wing wins', homeDistrictId(tree, other) === other);
+  check('T4 stale wing falls back', homeDistrictId(tree, 'd999') === first);
+  check(
+    'T4 findContinentOf finds',
+    findContinentOf(tree, other)!.islands.some((i) => i.districts.some((d) => d.id === other)),
+  );
+  check('T4 findContinentOf null on stale', findContinentOf(tree, 'd999') === null);
+  const empty = clusterLibrary([], 1);
+  check('T4 empty tree → null home', homeDistrictId(empty) === null);
 }
 
 report();
