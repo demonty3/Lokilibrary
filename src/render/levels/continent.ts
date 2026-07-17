@@ -2,11 +2,7 @@ import { BitmapText, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame } from '../../procedural/clusters';
 import type { PixelRect } from '../PixiApp';
-import {
-  composeContinentPanel,
-  HEADER_ROWS,
-  type LadderIdentity,
-} from './ladderCompose';
+import { composeContinentPanel, type LadderIdentity } from './ladderCompose';
 import { fitGrid, ladderLayerTint, layerStrings } from './tintPanel';
 import {
   COZETTE_CELL_HEIGHT,
@@ -64,7 +60,7 @@ export function mountContinent(
   // first, text after (above).
   for (const l of labels) {
     const gx = l.startCol * COZETTE_CELL_WIDTH;
-    const gy = (l.row + HEADER_ROWS) * COZETTE_CELL_HEIGHT;
+    const gy = l.row * COZETTE_CELL_HEIGHT;
     const backing = new Graphics()
       .rect(gx - 2, gy - 1, l.text.length * COZETTE_CELL_WIDTH + 4, COZETTE_CELL_HEIGHT + 2)
       .fill({ color: hexToInt(theme.palette.bg) });

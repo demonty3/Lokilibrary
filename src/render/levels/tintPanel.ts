@@ -114,7 +114,7 @@ export function fitGrid(
  *  ramps the warm accent; beings their reserved role accents; home the
  *  player role. */
 export function ladderLayerTint(theme: Theme, layer: string): PaletteKey {
-  if (layer === 'frame') return 'yellow';
+  if (layer === 'frame' || layer === 'land') return 'yellow';
   if (layer === 'ramp') return 'orange';
   if (layer === 'dim') return 'fgDim';
   if (layer === 'home') return roleKey(theme, 'player', 'fgBright');

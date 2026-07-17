@@ -37,7 +37,6 @@ import { COHORT } from '../../agents/cohort';
 /** Card + map geometry — unchanged from the pre-identity renderers. */
 export const CARD_W = 11;
 export const CARD_H = 5;
-export const HEADER_ROWS = 2; // header line + blank line before the grid
 export const CELL_BLOCK = 14; // continent block (radius-6 blob + label budget)
 
 const LEGEND_CARDS = '[ zooms out · ] zooms in   ▓ loved · ▒ engaged · ░ tried · · dusty';
@@ -72,7 +71,28 @@ export interface ContinentLabelSpec {
   home: boolean;
 }
 
-// ---------- shared card stamping ----------
+// ---------- shared frame + card stamping ----------
+
+/** Panel frame, layout v2 (post-eyeball fix): the map GRID comes first,
+ *  horizontally centred; the info + legend lines sit at the BOTTOM. The
+ *  original top header collided with the HUD overlay once panels started
+ *  filling the pane (fitGrid), and the left-anchored grid read lopsided
+ *  inside the wider info/legend canvas. Returns the grid's x offset so
+ *  callers stamp content centred. */
+function frameCanvas(
+  gridW: number,
+  gridH: number,
+  info: string,
+  legend: string,
+): { canvas: TintCanvas; cols: number; rows: number; gridX: number } {
+  const cols = Math.max(gridW, info.length, legend.length);
+  const rows = gridH + 3; // grid, blank, info, legend
+  const canvas = createCanvas(cols, rows, 'dim');
+  const gridX = Math.floor((cols - gridW) / 2);
+  stamp(canvas, Math.floor((cols - info.length) / 2), gridH + 1, info, 'name');
+  stamp(canvas, Math.floor((cols - legend.length) / 2), gridH + 2, legend, 'dim');
+  return { canvas, cols, rows, gridX };
+}
 
 interface CardSlot {
   label: string;
@@ -159,17 +179,13 @@ export function composeDistrictPanel(
   const gridW = 3 * CARD_W;
   const gridH = 3 * CARD_H;
   const wingSeg = bound ? `wing ${homeId} · ` : '';
-  const header =
+  const info =
     `district · ${wingSeg}${districts.length} neighbourhood${districts.length === 1 ? '' : 's'} · ${tree.gameCount} games`;
-  const cols = Math.max(gridW, header.length, LEGEND_CARDS.length);
-  const rows = HEADER_ROWS + gridH + 2;
-  const canvas = createCanvas(cols, rows, 'dim');
-  stamp(canvas, 0, 0, header, 'name');
-  stamp(canvas, 0, rows - 1, LEGEND_CARDS, 'dim');
+  const { canvas, cols, rows, gridX } = frameCanvas(gridW, gridH, info, LEGEND_CARDS);
 
   for (let i = 0; i < 9; i++) {
-    const ox = (i % 3) * CARD_W;
-    const oy = HEADER_ROWS + Math.floor(i / 3) * CARD_H;
+    const ox = gridX + (i % 3) * CARD_W;
+    const oy = Math.floor(i / 3) * CARD_H;
     const d = slots[i];
     if (!d) {
       stampEmptyCard(canvas, ox, oy);
@@ -233,18 +249,14 @@ export function composeIslandPanel(
   const gridW = gridCols * CARD_W;
   const gridH = (maxRow + 1) * CARD_H;
 
-  const header =
+  const info =
     `island · ${continent.id} · ${districts.length} neighbourhood${districts.length === 1 ? '' : 's'}`;
-  const cols = Math.max(gridW, header.length, LEGEND_CARDS.length);
-  const rows = HEADER_ROWS + gridH + 2;
-  const canvas = createCanvas(cols, rows, 'dim');
-  stamp(canvas, 0, 0, header, 'name');
-  stamp(canvas, 0, rows - 1, LEGEND_CARDS, 'dim');
+  const { canvas, cols, rows, gridX } = frameCanvas(gridW, gridH, info, LEGEND_CARDS);
 
   for (let k = 0; k < districts.length; k++) {
     const d = districts[k];
     const pos = positions[k];
-    stampCard(canvas, pos.x * CARD_W, HEADER_ROWS + pos.y * CARD_H, {
+    stampCard(canvas, gridX + pos.x * CARD_W, pos.y * CARD_H, {
       label: districtLabel(d),
       count: d.games.length,
       glyph: activityGlyphFor(d.activity),
@@ -306,18 +318,14 @@ export function composeContinentPanel(
   const canvasW = gridCols * CELL_BLOCK;
   const canvasH = (maxRow + 1) * CELL_BLOCK;
 
-  const header =
+  const info =
     `continent · ${continents.length} land-mass${continents.length === 1 ? '' : 'es'} · ${tree.gameCount} games`;
-  const cols = Math.max(canvasW, header.length, LEGEND_SEA.length);
-  const rows = HEADER_ROWS + canvasH + 2;
-  const canvas = createCanvas(cols, rows, 'dim');
-  stamp(canvas, 0, 0, header, 'name');
-  stamp(canvas, 0, rows - 1, LEGEND_SEA, 'dim');
+  const { canvas, cols, rows, gridX } = frameCanvas(canvasW, canvasH, info, LEGEND_SEA);
 
   // Sea: the dot field under everything (dim). Land: the blob cells in the
-  // ramp layer — the GLYPH still encodes aggregate activity, the layer
-  // carries the gold-land tint.
-  for (let y = 0; y < canvasH; y++) stamp(canvas, 0, HEADER_ROWS + y, '·'.repeat(canvasW), 'dim');
+  // 'land' layer (shelf-gold — the built/owned dialect); the GLYPH still
+  // encodes aggregate activity.
+  for (let y = 0; y < canvasH; y++) stamp(canvas, gridX, y, '·'.repeat(canvasW), 'dim');
 
   const labels: ContinentLabelSpec[] = [];
   for (let k = 0; k < continents.length; k++) {
@@ -328,7 +336,7 @@ export function composeContinentPanel(
     const area = continentGameCount(c);
     const fillGlyph = activityGlyphFor(aggregateActivity(c.islands.flatMap((i) => i.districts)));
     for (const cell of blobCells(cx, cy, area, canvasW, canvasH, seed, LAYOUT_SALT)) {
-      stamp(canvas, cell.x, HEADER_ROWS + cell.y, fillGlyph, 'ramp');
+      stamp(canvas, gridX + cell.x, cell.y, fillGlyph, 'land');
     }
     const home = c.id === homeContinentId;
     const text = truncateLabel(
@@ -337,7 +345,13 @@ export function composeContinentPanel(
     );
     labels.push({
       text,
-      startCol: clampInt(cx - Math.floor(text.length / 2), 0, Math.max(0, canvasW - text.length)),
+      // Canvas-absolute: centred on the blob's centroid column (inside the
+      // gridX-offset map), clamped into the canvas width.
+      startCol: clampInt(
+        gridX + cx - Math.floor(text.length / 2),
+        0,
+        Math.max(0, cols - text.length),
+      ),
       row: cy + 1,
       home,
     });
