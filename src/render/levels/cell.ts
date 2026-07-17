@@ -20,6 +20,7 @@ import {
 import { fnv1a32 } from '../../procedural/seed';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { roleKey } from '../../themes/roles';
+import type { PaletteKey, ThemeRole } from '../../themes/types';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
@@ -74,15 +75,23 @@ import {
 /** Agent-mind pass — per-agent trace vocabulary. The mark's glyph + tint
  *  identify WHO left it before you read a word: Loki dog-ears, the
  *  Archivist files, the cat topples, the ghost chills, the visitor drops.
- *  Every glyph is enumerated in smoke-glyph-coverage RENDERER_LITERALS. */
-const MARK_STYLES: Record<string, { glyph: string; palette: 'magenta' | 'blue' | 'yellow' | 'cyan' | 'green' }> = {
-  loki: { glyph: '’', palette: 'magenta' },
-  archivist: { glyph: '≡', palette: 'blue' },
-  cat: { glyph: '⌐', palette: 'yellow' },
-  ghost: { glyph: '°', palette: 'cyan' },
-  visitor: { glyph: ',', palette: 'green' },
+ *  Every glyph is enumerated in smoke-glyph-coverage RENDERER_LITERALS.
+ *  Ladder identity pass (2026-07-17): tints resolve through the role
+ *  layer so a mark wears its AUTHOR's accent; the ghost's marks take the
+ *  dedicated 'mark.ghost' role (default fg — the dim-but-distinct step;
+ *  being.ghost's fgDim would vanish into the floor). */
+const MARK_STYLES: Record<string, { glyph: string; role: ThemeRole; fallback: PaletteKey }> = {
+  loki: { glyph: '’', role: 'being.loki', fallback: 'magenta' },
+  archivist: { glyph: '≡', role: 'being.archivist', fallback: 'violet' },
+  cat: { glyph: '⌐', role: 'being.cat', fallback: 'orange' },
+  ghost: { glyph: '°', role: 'mark.ghost', fallback: 'fg' },
+  visitor: { glyph: ',', role: 'being.visitor', fallback: 'cyan' },
 };
-const DEFAULT_MARK_STYLE = { glyph: '·', palette: 'magenta' as const };
+const DEFAULT_MARK_STYLE = {
+  glyph: '·',
+  role: 'being.loki' as ThemeRole,
+  fallback: 'magenta' as PaletteKey,
+};
 
 /** Swap books so a move's pair sits at consecutive bookshelfSlots
  *  indices: the second book moves to index(first)+1; the displaced book
@@ -628,7 +637,7 @@ export function mountCell(
       style: {
         fontFamily: COZETTE_FONT_FAMILY,
         fontSize: COZETTE_FONT_SIZE,
-        fill: hexToInt(theme.palette[style.palette]),
+        fill: hexToInt(theme.palette[roleKey(theme, style.role, style.fallback)]),
       },
     });
     markSprite.x = mark.location.x * COZETTE_CELL_WIDTH;
@@ -741,7 +750,7 @@ export function mountCell(
       style: {
         fontFamily: COZETTE_FONT_FAMILY,
         fontSize: COZETTE_FONT_SIZE,
-        fill: hexToInt(theme.palette[style.palette]),
+        fill: hexToInt(theme.palette[roleKey(theme, style.role, style.fallback)]),
       },
     });
     s.x = x * COZETTE_CELL_WIDTH;

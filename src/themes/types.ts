@@ -38,6 +38,7 @@ export type ThemeRole =
   | 'being.cat'
   | 'being.visitor'
   | 'being.ghost'
+  | 'mark.ghost'
   | 'seam'
   | 'decor.quiet';
 

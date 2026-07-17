@@ -30,6 +30,7 @@ import { presenceByDistrict } from '../src/render/levels/ladderPresence.ts';
 import {
   composeDistrictPanel, composeIslandPanel, composeContinentPanel, AGENT_LETTERS,
 } from '../src/render/levels/ladderCompose.ts';
+import { BEING_ROLE_KEYS, ROLE_DEFAULTS } from '../src/themes/roles.ts';
 
 const { check, report } = makeChecker('smoke ladder-identity');
 
@@ -184,5 +185,15 @@ check(
   'T8 letters from defs',
   AGENT_LETTERS.get('loki') === 'L' && AGENT_LETTERS.get('cat') === 'c' && AGENT_LETTERS.get('ghost') === 'G',
 );
+
+// T9 — mark re-key: ghost is the dim-but-distinct step; being keys derived.
+{
+  check('T9 mark.ghost default fg', ROLE_DEFAULTS['mark.ghost'] === 'fg');
+  check('T9 being.ghost stays fgDim', ROLE_DEFAULTS['being.ghost'] === 'fgDim');
+  check(
+    'T9 BEING_ROLE_KEYS derived value unchanged',
+    JSON.stringify(BEING_ROLE_KEYS) === JSON.stringify(['magenta', 'violet', 'orange', 'cyan']),
+  );
+}
 
 report();
