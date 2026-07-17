@@ -14,6 +14,16 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 blocked-on-Harry list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Direction 2026-07-17 — terminals-first.** Harry deprioritized the
+top-down palace view: effort goes to the snappable-terminals version
+(docs/PRD-snapping-terminals.md). The palace stays working (v1.0.0
+surface, smokes green) but gets no new investment; palace-facing
+visual-programme items (#12 shade ramp, phosphor, density) are parked,
+land-facing ones (murals #16, land polish #19) stay live. Next slices
+draw from the PRD's remaining column: T2-completion runtime (real
+cohort + LLM rails in terminal lands), T3 chrome remainder, T4
+topology→reflection, T5 orchestration, terminals-as-wallpaper.
+
 **Ladder identity SHIPPED 2026-07-17** (spec+plan
 `docs/superpowers/*/2026-07-17-ladder-identity*`; programme #13 + the
 salience follow-up register's MARK_STYLES re-key + ladder pane-awareness).
