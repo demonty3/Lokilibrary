@@ -20,14 +20,19 @@
  */
 
 import type { RuntimeScope } from './agentRuntime';
+import { listRuntimesIn } from './agentRuntime';
 
-const cellPaneScopes = new Set<RuntimeScope>();
+const cellPaneScopes = new Map<RuntimeScope, string | null>();
 
-/** Register a live cell pane's scope. Returns an unregister fn the cell
- *  renderer calls in its teardown closure (idempotent — a double-call is a
- *  no-op once removed). */
-export function registerCellPaneScope(scope: RuntimeScope): () => void {
-  cellPaneScopes.add(scope);
+/** Register a live cell pane's scope (wingId = the pane's bound region
+ *  district, null for the whole-library pane — ladder identity pass).
+ *  Returns an unregister fn the cell renderer calls in its teardown
+ *  closure (idempotent — a double-call is a no-op once removed). */
+export function registerCellPaneScope(
+  scope: RuntimeScope,
+  wingId: string | null = null,
+): () => void {
+  cellPaneScopes.set(scope, wingId);
   return () => {
     cellPaneScopes.delete(scope);
   };
@@ -37,5 +42,14 @@ export function registerCellPaneScope(scope: RuntimeScope): () => void {
  *  any cell mounts — sweeps over it no-op, same as the pre-pane-scoping
  *  `listRuntimes()` returning [] pre-mount. */
 export function listCellPaneScopes(): RuntimeScope[] {
-  return Array.from(cellPaneScopes);
+  return Array.from(cellPaneScopes.keys());
+}
+
+/** Ladder identity — presence snapshot: each live cell pane's wing + the
+ *  agent ids currently in its scope. */
+export function listCellPaneWings(): Array<{ wingId: string | null; agentIds: string[] }> {
+  return Array.from(cellPaneScopes.entries()).map(([scope, wingId]) => ({
+    wingId,
+    agentIds: listRuntimesIn(scope).map((r) => r.id),
+  }));
 }

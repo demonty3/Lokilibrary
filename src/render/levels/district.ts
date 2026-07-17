@@ -2,47 +2,33 @@ import { BitmapText, Container } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import type { ClusterGame } from '../../procedural/clusters';
 import type { PixelRect } from '../PixiApp';
+import { composeDistrictPanel, type LadderIdentity } from './ladderCompose';
+import { fitGrid, ladderLayerTint, layerStrings } from './tintPanel';
 import {
-  activityGlyphFor,
-  clusterLibrary,
-  districtLabel,
-  flattenDistricts,
-  truncateLabel,
-} from '../../procedural/clusters';
-import {
+  COZETTE_CELL_HEIGHT,
+  COZETTE_CELL_WIDTH,
   COZETTE_FONT_FAMILY,
   COZETTE_FONT_SIZE,
   hexToInt,
 } from '../fonts';
 
 /**
- * District-level renderer (Phase 7-A — upgraded from the static 3×3
- * placeholder). Renders the player's HOME district (the canonical first
- * district, d0 — the most-played game's bucket; there is no persistent
- * player-district state yet) as the centre card surrounded by up to eight
- * REAL neighbour districts derived from the clustering layer. Each card
- * shows the district's representative game name, its game count, and an
- * activity glyph (▓ loved · ▒ engaged · ░ tried · · dusty). The centre card
- * is home (YOU) — its whole card renders in fgBright (carved out of the
- * shared panel so no cell is double-drawn; see the note at its mount site).
+ * District-level renderer — since the ladder identity pass (spec
+ * 2026-07-17) a THIN PIXI shell over the pure composition in
+ * `ladderCompose.ts:composeDistrictPanel`. The panel arrives as disjoint
+ * tint layers (gold frames, warm ramp, being letters, a composed YOU on
+ * the home card); this file only turns each layer into one BitmapText
+ * (`ladderLayerTint` maps layer → palette key) and applies the cell
+ * room's composition rule (`fitGrid` — integer scale, centred, fills the
+ * pane). Home follows the pane's bound wing via `identity.homeWingId`.
  *
- * Read-only beyond the `[` / `]` zoom transitions owned by App.tsx; this
- * view adds no ticker and no keydown listener. Layout is precomputed by pure
- * helpers (clusterLibrary) and painted once at mount + on resize, so it
- * renders correctly under the `paused`/`sleeping` throttle.
- *
- * Glyph vocabulary + palette shared with cell/island/continent (box-drawing
- * frames `fg`, shade-ramp activity glyphs, the floor dot for empty cells) —
- * one recoloured alphabet across rungs, ONE palette per scene.
+ * Read-only beyond the `[` / `]` zoom transitions owned by App.tsx; no
+ * ticker, no keydown — paints once at mount + on refit, so it renders
+ * correctly under the `paused`/`sleeping` throttle.
  *
  * Teardown: destroy the per-level Container. NEVER app.destroy() — the
- * Application is owned by mountPalace.
- *
- * Phase 7-B — pane-scoped: adds its Container to the supplied `parent` (a
- * per-pane root, NOT app.stage) and fits within `rect` (pixel rect in the
- * parent's LOCAL space) instead of the full screen. PixiApp drives resize via
- * the returned `refit`. Single full-grid pane ⇒ rect === full screen ⇒
- * identical to the pre-7-B path.
+ * Application is owned by mountPalace. Pane-scoped (Phase 7-B): parents
+ * to the supplied per-pane root and fits within `rect`.
  */
 export function mountDistrict(
   parent: Container,
@@ -50,125 +36,30 @@ export function mountDistrict(
   theme: Theme,
   games: readonly ClusterGame[],
   seed: number,
+  identity?: LadderIdentity,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
   parent.addChild(container);
 
-  const tree = clusterLibrary(games, seed);
-  const districts = flattenDistricts(tree);
-
-  // Home district = the canonical first (d0). Its eight neighbours are the
-  // next districts in canonical order, wrapping around so the 3×3 is always
-  // full when there are >1 districts. With a single district, the neighbour
-  // slots read as empty (the floor dot) — conceptually "nothing built there
-  // yet" but data-driven, not a hard-coded stub.
-  const home = districts.length > 0 ? districts[0] : null;
-  const neighbours = districts.slice(1); // everything but home
-
-  // Build the 3×3 of mini-cards. Centre (index 4) is home; the other slots
-  // are filled from `neighbours` in canonical order, then padded with empty
-  // cards. Empty cards render as the floor-dot terrain.
-  const slots: Array<{ label: string; count: number; glyph: string; home: boolean } | null> =
-    [];
-  let ni = 0;
-  for (let i = 0; i < 9; i++) {
-    if (i === 4) {
-      slots.push(
-        home
-          ? {
-              label: districtLabel(home),
-              count: home.games.length,
-              glyph: activityGlyphFor(home.activity),
-              home: true,
-            }
-          : null,
-      );
-      continue;
-    }
-    if (ni < neighbours.length) {
-      const d = neighbours[ni++];
-      slots.push({
-        label: districtLabel(d),
-        count: d.games.length,
-        glyph: activityGlyphFor(d.activity),
-        home: false,
-      });
-    } else {
-      slots.push(null);
-    }
-  }
-
-  // Compose the 3×3 grid into one character grid → one BitmapText panel.
-  // Each card is CARD_W × CARD_H glyphs.
-  const canvasW = 3 * CARD_W;
-  const canvasH = 3 * CARD_H;
-  const grid: string[][] = Array.from({ length: canvasH }, () =>
-    Array.from({ length: canvasW }, () => ' '),
-  );
-  let homeCard: string[] | null = null;
-  for (let i = 0; i < 9; i++) {
-    const col = i % 3;
-    const row = Math.floor(i / 3);
-    const ox = col * CARD_W;
-    const oy = row * CARD_H;
-    const card = renderDistrictCard(slots[i]);
-    if (i === 4 && slots[4]) {
-      // Home (YOU) card: carved OUT of the shared panel string — its cells
-      // stay spaces here — and stamped separately below in fgBright so the
-      // whole card reads brighter. Every glyph cell keeps exactly ONE text
-      // draw (the overstrike bug came from a second draw sharing cells).
-      homeCard = card;
-      continue;
-    }
-    for (let r = 0; r < CARD_H; r++) {
-      for (let c = 0; c < CARD_W; c++) {
-        grid[oy + r][ox + c] = card[r][c];
-      }
-    }
-  }
-
-  const text = grid.map((r) => r.join('')).join('\n');
-  const header = `district · ${districts.length} neighbourhood${districts.length === 1 ? '' : 's'} · ${tree.gameCount} games`;
-  const footer = '[ zooms out · ] zooms in   ▓ loved · ▒ engaged · ░ tried · · dusty';
-
-  const panel = new BitmapText({
-    text: `${header}\n\n${text}\n\n${footer}`,
-    style: {
-      fontFamily: COZETTE_FONT_FAMILY,
-      fontSize: COZETTE_FONT_SIZE,
-      fill: hexToInt(theme.palette.fg),
-    },
-  });
-  container.addChild(panel);
-
-  // Home (YOU) indication without overstrike: the home card's cells are
-  // spaces in the shared panel above; this separate fgBright BitmapText is
-  // the ONLY draw for those cells, so the centre card reads one step
-  // brighter with zero glyph overlap. (A previous 'YOU' marker BitmapText
-  // stamped ON TOP of the panel's name row overstruck the home card's name
-  // glyph-for-glyph — 'YOU' over 'Civ…' rendered as garbled "C0Viliza…".)
-  // Positioned in the container's LOCAL glyph space: centre slot is at grid
-  // (CARD_W, CARD_H); +HEADER_ROWS for the panel's header + blank line.
-  if (homeCard) {
-    const homeText = new BitmapText({
-      text: homeCard.join('\n'),
-      style: {
-        fontFamily: COZETTE_FONT_FAMILY,
-        fontSize: COZETTE_FONT_SIZE,
-        fill: hexToInt(theme.palette.fgBright),
-      },
-    });
-    homeText.x = CARD_W * GLYPH_W;
-    homeText.y = (CARD_H + HEADER_ROWS) * GLYPH_H;
-    container.addChild(homeText);
+  const { canvas, cols, rows } = composeDistrictPanel(games, seed, identity);
+  for (const [layer, text] of layerStrings(canvas)) {
+    container.addChild(
+      new BitmapText({
+        text,
+        style: {
+          fontFamily: COZETTE_FONT_FAMILY,
+          fontSize: COZETTE_FONT_SIZE,
+          fill: hexToInt(theme.palette[ladderLayerTint(theme, layer)]),
+        },
+      }),
+    );
   }
 
   const fit = (r: PixelRect) => {
-    const desired = Math.min(r.pw, r.ph) * 0.55;
-    const scale = Math.max(1, Math.floor(desired / Math.max(1, panel.height)));
-    container.scale.set(scale);
-    container.x = Math.floor((r.pw - panel.width * scale) / 2);
-    container.y = Math.floor((r.ph - panel.height * scale) / 2);
+    const f = fitGrid(cols * COZETTE_CELL_WIDTH, rows * COZETTE_CELL_HEIGHT, r);
+    container.scale.set(f.scale);
+    container.x = f.x;
+    container.y = f.y;
   };
   fit(rect);
 
@@ -178,57 +69,4 @@ export function mountDistrict(
       container.destroy({ children: true });
     },
   };
-}
-
-const CARD_W = 11;
-const CARD_H = 5;
-const HEADER_ROWS = 2; // header line + blank line before the card grid
-const GLYPH_W = 6; // Cozette cell width
-const GLYPH_H = 13; // Cozette cell height
-
-/** Render one district mini-card, or an empty terrain card when null. Pure:
- *  same input → same lines. */
-function renderDistrictCard(
-  slot: { label: string; count: number; glyph: string; home: boolean } | null,
-): string[] {
-  const inner = CARD_W - 2;
-  if (!slot) {
-    // Empty neighbour: a dotted terrain card (no border) so the eye reads
-    // "nothing here yet" without a hard "not built" stub.
-    const dotRow = ' '.repeat(inner);
-    const dots = '·'.repeat(inner);
-    return [
-      `·${dots}·`.slice(0, CARD_W),
-      `·${dotRow}·`.slice(0, CARD_W),
-      `·${dotRow}·`.slice(0, CARD_W),
-      `·${dotRow}·`.slice(0, CARD_W),
-      `·${dots}·`.slice(0, CARD_W),
-    ];
-  }
-  const top = '┌' + '─'.repeat(inner) + '┐';
-  const bottom = '└' + '─'.repeat(inner) + '┘';
-  const name = pad(truncateLabel(slot.label, inner), inner);
-  const countText = `${slot.count} game${slot.count === 1 ? '' : 's'}`;
-  const countLine = center(truncateLabel(countText, inner), inner);
-  const fillLen = Math.max(1, Math.min(inner, slot.count));
-  const fill = pad(slot.glyph.repeat(fillLen), inner, '·');
-  return [
-    top,
-    '│' + name + '│',
-    '│' + countLine + '│',
-    '│' + fill + '│',
-    bottom,
-  ];
-}
-
-function pad(s: string, width: number, fillChar = ' '): string {
-  if (s.length >= width) return s.slice(0, width);
-  return s + fillChar.repeat(width - s.length);
-}
-
-function center(s: string, width: number): string {
-  if (s.length >= width) return s.slice(0, width);
-  const left = Math.floor((width - s.length) / 2);
-  const right = width - s.length - left;
-  return ' '.repeat(left) + s + ' '.repeat(right);
 }

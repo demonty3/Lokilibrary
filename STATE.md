@@ -14,6 +14,39 @@ For "what's authoritative" → `docs/INDEX.md`. For day-to-day rules →
 blocked-on-Harry list → `TODO-USER.md`. This file is *the present
 tense* of those.
 
+**Ladder identity SHIPPED 2026-07-17** (spec+plan
+`docs/superpowers/*/2026-07-17-ladder-identity*`; programme #13 + the
+salience follow-up register's MARK_STYLES re-key + ladder pane-awareness).
+The rungs speak the world's dialect. Architecture: pure tint-layer
+composition — `tintPanel.ts` `TintCanvas` (every glyph cell OWNED by
+exactly one named layer; one BitmapText per layer; the ladder overstrike
+bug is impossible by construction) + `ladderCompose.ts` (headless, pixi-free
+per-rung composition — smoke-pinned); district/island/continent renderers
+are now thin PIXI shells (`ladderLayerTint` maps layer→palette key,
+`fitGrid` = the cell room's fill rule, so maps inhabit the pane). Identity:
+gold card frames + gold continent land (shelf-gold dialect), orange
+engagement ramp, YOU COMPOSED into the home card's top border
+(`┌─ YOU ───┐`) / a `YOU · ` label prefix at continent, being letters
+(`AgentDef.glyph`, role-accented) on the cards where agents live
+(`presenceByDistrict` ← `registerCellPaneScope(scope, wingId)` +
+`listCellPaneWings()`; NO live cell pane → theme-filtered cohort renders on
+home, so the default zoom-out is never lifeless), and home FOLLOWS THE
+PANE'S WING (raw `regionId` → `homeDistrictId`, island shows the continent
+CONTAINING home via `findContinentOf`, header names the wing). Layout v2
+from the eyeball round: grid first + centred, info+legend at the BOTTOM
+(the old top header collided with the HUD once panels filled the pane).
+MARK_STYLES re-keyed through `roleKey` — a mark wears its AUTHOR's accent;
+ghost marks take the new `'mark.ghost'` role, default `fg` (Harry's
+dim-but-distinct call, 2026-07-17); `BEING_ROLE_KEYS` now DERIVES from
+`ROLE_DEFAULTS` (value unchanged). VERIFIED ON SCREEN (headless e2e,
+single-pane per protocol): `/tmp/loki-ladder/{district,island,continent}-
+solarized.png`, `district-wing-d1.png` (YOU + letters follow d1, header
+"wing d1"), `district-3270.png` (amber phosphor hierarchy holds),
+`marks.png` (ghost `°` legible fg, cat `⌐` orange).
+`smoke-ladder-identity` 44; full smoke sweep + both typecheck legs green.
+Programme arcs remaining: shade-ramp deployment (#12), murals, phosphor,
+density pass, land polish.
+
 **Platform direction 2026-07-17 — Mac-only.** Harry retired the
 Windows/PC target: macOS is the sole build + verification platform. The
 Windows verification column in TODO-USER.md is retired (most surfaces

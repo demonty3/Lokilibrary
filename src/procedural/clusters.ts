@@ -303,6 +303,27 @@ export function flattenDistricts(tree: ClusterTree): District[] {
   return out;
 }
 
+/** Continent containing `districtId`, or null (stale id — the library
+ *  shrank since a pane was bound). Ladder identity pass. */
+export function findContinentOf(tree: ClusterTree, districtId: string): Continent | null {
+  for (const c of tree.continents) {
+    for (const i of c.islands) {
+      if (i.districts.some((d) => d.id === districtId)) return c;
+    }
+  }
+  return null;
+}
+
+/** The home district for a pane: its bound wing when it still resolves,
+ *  else the canonical first district (the pre-pane-awareness behaviour),
+ *  else null on an empty library. Ladder identity pass. */
+export function homeDistrictId(tree: ClusterTree, homeWingId?: string): string | null {
+  const all = flattenDistricts(tree);
+  if (all.length === 0) return null;
+  if (homeWingId && all.some((d) => d.id === homeWingId)) return homeWingId;
+  return all[0].id;
+}
+
 /** All islands in the tree, in continent→island order. Pure. */
 export function flattenIslands(tree: ClusterTree): Island[] {
   const out: Island[] = [];
