@@ -249,6 +249,8 @@ function sourceFromEventKind(
   | 'bookshelf_e'
   | 'game_launched'
   | 'cell_mount'
+  | 'terminal_crossing'
+  | 'terminal_arrival'
   | 'self_perception' {
   switch (kind) {
     case 'player_proximity':
@@ -263,13 +265,9 @@ function sourceFromEventKind(
     case 'cell_mount':
       return 'cell_mount';
     case 'terminal_crossing':
+      return 'terminal_crossing';
     case 'terminal_arrival':
-      // Terminal-society events ride the existing source vocabulary:
-      // ObservationSource is a frozen schema contract (schema.ts — a new
-      // token = SCHEMA_VERSION bump + migration), and the agent's own
-      // movement is honestly 'self_perception'. The kind survives in the
-      // row text + subject, so the stream stays queryable.
-      return 'self_perception';
+      return 'terminal_arrival';
     default:
       return 'self_perception';
   }

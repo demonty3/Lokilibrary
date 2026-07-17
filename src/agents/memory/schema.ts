@@ -53,7 +53,9 @@ export type ObservationSource =
   | 'bookshelf_e'
   | 'game_launched'
   | 'external_fullscreen'
-  | 'cell_mount';
+  | 'cell_mount'
+  | 'terminal_crossing'
+  | 'terminal_arrival';
 
 export interface ObservationPayload {
   readonly text: string;
@@ -201,9 +203,13 @@ export function defaultImportance(payload: MemoryPayload): number {
           return 6;
         case 'bookshelf_e':
           return 5;
+        case 'terminal_crossing':
+          return 5;
         case 'player_proximity':
           return 4;
         case 'cell_mount':
+          return 3;
+        case 'terminal_arrival':
           return 3;
         case 'self_perception':
           return 2;
@@ -226,5 +232,8 @@ export interface WorldEventRow {
   staged_at: number;
 }
 
-/** Schema version. Bump when changing column shape; migration lives in db.ts. */
-export const SCHEMA_VERSION = 2;
+/** Schema version. Bump when changing column shape; migration lives in db.ts.
+ *  v3 (2026-07-17): +terminal_crossing/+terminal_arrival ObservationSource
+ *  tokens — additive only (`source` is unconstrained TEXT; old rows untouched;
+ *  the version table accumulates one row per version). */
+export const SCHEMA_VERSION = 3;
