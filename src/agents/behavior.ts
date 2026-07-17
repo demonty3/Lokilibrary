@@ -620,7 +620,7 @@ function parseIntentTarget(intent: string): CellPoint | null {
 export function tickPresence(
   def: AgentDef,
   runtime: AgentRuntimeState,
-  ctx: BehaviorContext,
+  ctx: Pick<BehaviorContext, 'prngs'>,
   mountedAt: number,
   nowMs: number,
 ): void {
