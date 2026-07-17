@@ -6,7 +6,9 @@
  *   - the null writer no-ops gracefully (web build path)
  *   - a throwing writer is swallowed (multi-process sqlite contention)
  *   - REAL DB round-trip: writer.ts renders the crossing as prose, kind
- *     'observation', riding the frozen ObservationSource vocabulary
+ *     'observation', riding the schema-v3 ObservationSource vocabulary
+ *     (crossings/arrivals carry their own first-class source tokens,
+ *     `terminal_crossing` / `terminal_arrival`, not a frozen enum)
  */
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';

@@ -14,6 +14,8 @@ import {
 } from '../src/terminal/society';
 import { initialRuntime } from '../src/state/agentRuntime';
 import { COHORT } from '../src/agents/cohort';
+import { tickPresence } from '../src/agents/behavior';
+import { mulberry32 } from '../src/procedural/prng';
 
 const { check, report } = makeChecker('smoke t2-society');
 
@@ -53,5 +55,46 @@ check('scene names the width', label.includes('96'));
 check('scene names structure columns', label.includes('34') && label.includes('60'));
 check('scene tells the model y is 0', label.includes('y') && label.includes('0'));
 check('structure-free land still labels', sceneLabelFor('d0', 80, []).includes('d0'));
+
+// Presence-on-land — drives the REAL tickPresence (src/agents/behavior.ts)
+// with the land's ctx shape ({ prngs }), pinning the spec's presence-on-land
+// coverage: Visitor's intermittent cycle flips both ways, and a no-schedule
+// being (Loki) never vanishes, regardless of how far the sweep runs.
+const visitorDef = COHORT.find((d) => d.id === 'visitor');
+const lokiDef = COHORT.find((d) => d.id === 'loki');
+if (!visitorDef || !lokiDef) throw new Error('cohort missing visitor/loki defs');
+
+const presencePrngs = new Map([
+  ['visitor', mulberry32(1)],
+  ['loki', mulberry32(2)],
+]);
+const presenceCtx = { prngs: presencePrngs };
+const mountedAt = 0;
+
+// Visitor's rule: intermittent_presence { visitMs: 90_000, absenceMs: 810_000 }
+// — a 900_000ms (15min) cycle, present for the first 90s. Sweep spans a full
+// cycle plus a bit, straddling both edges (89_999/90_000, 899_999/900_000).
+const visitorMind = initialRuntime({ id: 'visitor', x: 0, y: 0 });
+check('visitor starts present (initialRuntime default)', visitorMind.present === true);
+const sweep = [0, 45_000, 89_999, 90_000, 400_000, 899_999, 900_000, 950_000];
+let sawAbsent = false;
+let sawPresentAfterAbsent = false;
+for (const now of sweep) {
+  tickPresence(visitorDef, visitorMind, presenceCtx, mountedAt, now);
+  if (!visitorMind.present) sawAbsent = true;
+  else if (sawAbsent) sawPresentAfterAbsent = true;
+}
+check('visitor cycle flips absent within the visit/absence window', sawAbsent);
+check('visitor cycle flips back present on the next cycle', sawPresentAfterAbsent);
+
+// Loki's schedule is empty — tickPresence's rule loop never runs, so
+// `present` must stay true across the same sweep: the land's "no-schedule
+// beings never vanish" invariant, pinned at the tickPresence layer.
+const lokiMind = initialRuntime({ id: 'loki', x: 0, y: 0 });
+check('loki starts present (initialRuntime default)', lokiMind.present === true);
+for (const now of sweep) {
+  tickPresence(lokiDef, lokiMind, presenceCtx, mountedAt, now);
+}
+check('loki (empty schedule) stays present across the whole sweep', lokiMind.present === true);
 
 report();

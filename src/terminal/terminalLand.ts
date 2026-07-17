@@ -690,11 +690,13 @@ export async function mountTerminalLand(
             ).then((res) => {
               if (!res.tick) return;
               const li = landIntentFromTick(res.tick.intent, { width: model.width });
-              if (li && beings.has(b.id)) {
+              if (li && beings.get(b.id) === b) {
                 b.intent = li;
                 b.nextIntentAt =
                   elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * b.persona.intentWindowMult;
               }
+            }).catch(() => {
+              // Memory contract: contention costs a lost observation, never a broken tick.
             });
           }
         }

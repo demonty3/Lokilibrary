@@ -365,7 +365,8 @@ a self-hoster / contributor opt-in, never the default.
   (2026-07-17) adds ONE runtime AI call: Tier-1 on terminal-land
   arrival — trigger: a seam-crossing arrival queues a perception event,
   drained on the walker's re-pick cadence through the UNCHANGED
-  routeTier1 (per-agent tier1ThrottleMs 30–120 s). Cost: bounded by the
+  routeTier1 (per-agent tier1ThrottleMs 30–120 s; Visitor/Ghost 0 —
+  bounded by arrival-gating + crossing physics). Cost: bounded by the
   crossing rate — a few Haiku calls/hour on an active desk, zero idle,
   zero key-free. Caching: none (each call is a fresh perception).
   Fallback: the pure land intent engine; transport failure stamps the
