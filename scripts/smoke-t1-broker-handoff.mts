@@ -136,4 +136,50 @@ check('exit refused for a non-owned agent',
   exit(null, { agentId: 'b1', terminalId: 't1', side: 'right', state: carried }) === false);
 check('refusals leave the roster untouched', state().roster.b1 === 't2');
 
+// ── T2 society: homes + persistence ─────────────────────────────────────
+// Boot (2 terminals, wings d0/d1) must round-robin all five cohort ids.
+{
+  const homeState = handlers.get('terminal:debugState')!(null) as {
+    society: Record<string, string>;
+  };
+  check('society exists in debugState', !!homeState.society);
+  const homes = homeState.society;
+  check('all five assigned', ['loki', 'archivist', 'cat', 'visitor', 'ghost'].every((id) => id in homes));
+  check('round-robin over open wings',
+    homes.loki === 'd0' && homes.archivist === 'd1' && homes.cat === 'd0'
+    && homes.visitor === 'd1' && homes.ghost === 'd0',
+    JSON.stringify(homes));
+  const society = handlers.get('terminal:getSociety')!(null) as Record<string, string>;
+  check('getSociety matches debugState', JSON.stringify(society) === JSON.stringify(homes));
+}
+
+// A successful crossing RE-HOMES the agent and persists.
+{
+  // Precondition from the existing handoff section: t1 and t2 are joined.
+  await handlers.get('terminal:agentSpawn')!(null, { agentId: 'loki', terminalId: 't1' });
+  const ok = await handlers.get('terminal:agentExit')!(null, {
+    agentId: 'loki', terminalId: 't1', side: 'right',
+    state: { speed: 2, dir: 1, intent: 'wander', bobPhase: 0, mind: { lastTier1At: 5, reflectionCounter: 1, perceptionQueue: [] } },
+  });
+  check('exit accepted', ok === true);
+  const homeState = handlers.get('terminal:debugState')!(null) as { society: Record<string, string> };
+  check('loki re-homed to the destination wing', homeState.society.loki === 'd1', homeState.society.loki);
+  const cfg = JSON.parse(fs.readFileSync(path.join(tmpDir, 'config.json'), 'utf8')) as {
+    society?: Record<string, string>;
+  };
+  check('re-home persisted to config', cfg.society?.loki === 'd1');
+  check('persisted society keeps the others', cfg.society?.cat === 'd0');
+}
+
+// Opaque mind forwarding: the enter payload's state.mind round-trips deep-equal.
+{
+  const enterPayload = w2.webContents.sent.filter((m) => m.channel === 'terminal:agentEnter').pop()?.payload as
+    | { agentId: string; state?: { mind?: unknown } }
+    | undefined;
+  check('mind forwarding checked on loki\'s handoff', enterPayload?.agentId === 'loki');
+  check('mind forwarded opaquely',
+    JSON.stringify(enterPayload?.state?.mind) ===
+      JSON.stringify({ lastTier1At: 5, reflectionCounter: 1, perceptionQueue: [] }));
+}
+
 report();

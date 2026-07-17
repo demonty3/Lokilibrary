@@ -68,6 +68,7 @@ export interface ElectronAPI {
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
   terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
+  getTerminalSociety(): Promise<Record<string, string>>;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
   terminalAgentExit(
     agentId: string,
@@ -105,6 +106,12 @@ export interface TerminalBeingState {
   dir: 1 | -1;
   intent: string;
   bobPhase: number;
+  /** T2 society — the mind half of a handoff (mirrors desktop/src/preload.ts). */
+  mind?: {
+    lastTier1At: number;
+    reflectionCounter: number;
+    perceptionQueue: Array<{ kind: string; subject?: string; at: { x: number; y: number }; when: number }>;
+  };
 }
 
 /** Tier-1 society — a being near a shared edge (mirrors preload). */
@@ -346,6 +353,18 @@ export function subscribeTerminalTopology(
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;
   return api.onTerminalTopology(cb);
+}
+
+/** T2 society — agentId → home wing, or null when no broker is attached
+ *  (web preview): the caller treats null as "the lone land hosts everyone". */
+export async function getTerminalSociety(): Promise<Record<string, string> | null> {
+  const api = getElectronAPI();
+  if (!api || typeof api.getTerminalSociety !== 'function') return null;
+  try {
+    return await api.getTerminalSociety();
+  } catch {
+    return null;
+  }
 }
 
 export async function terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean> {

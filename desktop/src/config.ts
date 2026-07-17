@@ -40,6 +40,9 @@ export interface Config {
   mode: Mode;
   displayId?: number;
   terminals?: TerminalSlot[];
+  /** T2 society — agentId → home wing. Written by terminals.ts on every
+   *  roster change; wings (not terminalIds) are the stable identity. */
+  society?: Record<string, string>;
 }
 
 function isTerminalSlot(v: unknown): v is TerminalSlot {
@@ -55,6 +58,11 @@ function isTerminalSlot(v: unknown): v is TerminalSlot {
   );
 }
 
+function isSocietyRecord(v: unknown): v is Record<string, string> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  return Object.values(v).every((w) => typeof w === 'string');
+}
+
 const DEFAULT_CONFIG: Config = { mode: 'window' };
 
 function configPath(): string {
@@ -68,10 +76,12 @@ function readConfig(): Config {
     // readConfig reconstructs from known fields, so an unparsed field would
     // be ERASED by the next read-modify-write — this parse is load-bearing.
     const terminals = Array.isArray(cfg.terminals) ? cfg.terminals.filter(isTerminalSlot) : [];
+    const society = isSocietyRecord(cfg.society) ? cfg.society : undefined;
     return {
       mode: cfg.mode === 'wallpaper' ? 'wallpaper' : 'window',
       displayId: typeof cfg.displayId === 'number' ? cfg.displayId : undefined,
       ...(terminals.length > 0 ? { terminals } : {}),
+      ...(society ? { society } : {}),
     };
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -115,5 +125,16 @@ export function setTerminals(slots: TerminalSlot[] | undefined): void {
   const cfg = readConfig();
   if (!slots || slots.length === 0) delete cfg.terminals;
   else cfg.terminals = slots;
+  writeConfig(cfg);
+}
+
+export function getSociety(): Record<string, string> | undefined {
+  return readConfig().society;
+}
+
+export function setSociety(society: Record<string, string> | undefined): void {
+  const cfg = readConfig();
+  if (!society || Object.keys(society).length === 0) delete cfg.society;
+  else cfg.society = society;
   writeConfig(cfg);
 }
