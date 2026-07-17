@@ -111,4 +111,83 @@ const frozen = Object.freeze(baseCtx());
 pickIntent(makeRng(1), frozen);
 check('pickIntent leaves ctx untouched (frozen ctx, no throw)', true);
 
+// ── T2 society: personas + bias ─────────────────────────────────────────
+import {
+  LAND_PERSONAS,
+  DEFAULT_LAND_PERSONA,
+  landIntentFromTick,
+} from '../src/terminal/beingIntents';
+
+// S-bias-1: the decisive-pull invariant — a POPULATED-edge watch_edge pull
+// must dominate every other candidate's sup for EVERY persona:
+// 0.75 + bias.watch_edge ≥ max(0.7 + wander, 0.75 + approach, 0.5 + rest)
+for (const [id, p] of Object.entries(LAND_PERSONAS)) {
+  const bwe = 0.75 + (p.bias.watch_edge ?? 0);
+  const others = Math.max(
+    0.7 + (p.bias.wander ?? 0),
+    0.75 + (p.bias.approach ?? 0),
+    0.5 + (p.bias.rest ?? 0),
+  );
+  check(`persona ${id}: populated-edge pull still dominates`, bwe >= others,
+    `${bwe} < ${others}`);
+  check(`persona ${id}: speed range sane`, p.speed[0] > 0 && p.speed[1] > p.speed[0]);
+  check(`persona ${id}: intent window mult sane`, p.intentWindowMult > 0);
+}
+check('all five cohort ids have a persona',
+  ['loki', 'archivist', 'cat', 'visitor', 'ghost'].every((id) => id in LAND_PERSONAS));
+
+// S-bias-2: no-bias call = byte-identical to the pre-bias engine (the
+// default param adds +0 to every candidate). Same seeded stream both ways.
+{
+  const mk = (seed: number) => {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  const ctx = {
+    width: 80, x: 40, structureCols: [20, 60],
+    edges: { left: true, right: false }, neighbourNear: { left: 0, right: 0 },
+  };
+  const a = mk(7), b = mk(7);
+  let identical = true;
+  for (let i = 0; i < 50; i++) {
+    if (JSON.stringify(pickIntent(a, ctx)) !== JSON.stringify(pickIntent(b, ctx, {}))) identical = false;
+  }
+  check('empty bias is byte-identical to no bias', identical);
+
+  // S-bias-3: biases measurably steer — cat rests more than loki over the
+  // SAME stream; loki watches the open edge more than cat.
+  const count = (bias: Record<string, number>, kind: string): number => {
+    const r = mk(99);
+    let n = 0;
+    for (let i = 0; i < 300; i++) if (pickIntent(r, ctx, bias).kind === kind) n++;
+    return n;
+  };
+  const catRest = count(LAND_PERSONAS.cat.bias, 'rest');
+  const lokiRest = count(LAND_PERSONAS.loki.bias, 'rest');
+  check('cat rests more than loki', catRest > lokiRest, `${catRest} vs ${lokiRest}`);
+  const lokiWatch = count(LAND_PERSONAS.loki.bias, 'watch_edge');
+  const catWatch = count(LAND_PERSONAS.cat.bias, 'watch_edge');
+  check('loki watches the edge more than cat', lokiWatch > catWatch, `${lokiWatch} vs ${catWatch}`);
+}
+
+// S-parse: landIntentFromTick — the ONLY LLM→walker steering channel.
+check('parse approach', JSON.stringify(landIntentFromTick('approach 34,0', { width: 80 }))
+  === JSON.stringify({ kind: 'approach', targetX: 34 }));
+check('parse clamps high', (landIntentFromTick('approach 999,0', { width: 80 }) as { targetX: number }).targetX === 79);
+check('parse clamps negative', (landIntentFromTick('approach -5,2', { width: 80 }) as { targetX: number }).targetX === 0);
+check('parse trims', landIntentFromTick('  approach 10,0  ', { width: 80 }) !== null);
+check('flavor is null', landIntentFromTick('inspect shelf:hades', { width: 80 }) === null);
+check('empty is null', landIntentFromTick('', { width: 80 }) === null);
+check('prose is null', landIntentFromTick('walk toward the monument', { width: 80 }) === null);
+check('default persona is native-compatible',
+  DEFAULT_LAND_PERSONA.speed[0] === 1.2 && DEFAULT_LAND_PERSONA.speed[1] === 2.6
+  && DEFAULT_LAND_PERSONA.intentWindowMult === 1
+  && Object.keys(DEFAULT_LAND_PERSONA.bias).length === 0);
+
 report();
