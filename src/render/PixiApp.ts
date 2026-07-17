@@ -857,6 +857,7 @@ function mountPaneLevel(
       paneId,
       crossWiring,
       isWholeLibraryPane,
+      isWholeLibraryPane ? null : regionId ?? null,
     );
   }
   if (level === 'district') {

@@ -241,6 +241,7 @@ export function mountCell(
   paneId = 'root',
   crossWiring?: CohortCrossWiring,
   isWholeLibraryPane = true,
+  regionWingId: string | null = null,
 ): { teardown: () => void; refit: (rect: PixelRect) => void } {
   const container = new Container();
   parent.addChild(container);
@@ -297,7 +298,7 @@ export function mountCell(
   // teardown unregisters + clears all three pane-local stores.
   const pos = getPlayerPos(paneId);
   const scope = createRuntimeScope();
-  const unregisterScope = registerCellPaneScope(scope);
+  const unregisterScope = registerCellPaneScope(scope, regionWingId);
   // Phase 7-D — paneId-keyed registry so a NEIGHBOUR pane's cross-seam
   // perception can reach this pane's scope + interior layout by id. Separate
   // from cellPaneScopes (the sleep-sweep's paneId-less Set, untouched).

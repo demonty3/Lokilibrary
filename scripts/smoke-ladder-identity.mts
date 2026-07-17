@@ -26,6 +26,7 @@ import {
   clusterLibrary, findContinentOf, homeDistrictId,
 } from '../src/procedural/clusters.ts';
 import { SAMPLE_LIBRARY } from '../src/data/sampleLibrary.ts';
+import { presenceByDistrict } from '../src/render/levels/ladderPresence.ts';
 
 const { check, report } = makeChecker('smoke ladder-identity');
 
@@ -99,6 +100,26 @@ const { check, report } = makeChecker('smoke ladder-identity');
   check('T4 findContinentOf null on stale', findContinentOf(tree, 'd999') === null);
   const empty = clusterLibrary([], 1);
   check('T4 empty tree → null home', homeDistrictId(empty) === null);
+}
+
+// T5 — presence: live scopes map by wing (null wing = home); empty → cohort fallback on home.
+{
+  const live = [
+    { wingId: null, agentIds: ['loki', 'cat'] },
+    { wingId: 'd2', agentIds: ['visitor'] },
+  ];
+  const p = presenceByDistrict('d0', live, ['loki', 'archivist']);
+  check('T5 null wing → home', (p.get('d0') ?? []).join(',') === 'loki,cat');
+  check('T5 bound wing kept', (p.get('d2') ?? []).join(',') === 'visitor');
+  const fb = presenceByDistrict('d0', [], ['loki', 'archivist']);
+  check('T5 no live scopes → fallback on home', (fb.get('d0') ?? []).join(',') === 'loki,archivist');
+  check('T5 null home → empty', presenceByDistrict(null, [], ['loki']).size === 0);
+  const merged = presenceByDistrict(
+    'd0',
+    [{ wingId: null, agentIds: ['loki'] }, { wingId: 'd0', agentIds: ['cat'] }],
+    [],
+  );
+  check('T5 same-district scopes merge', (merged.get('d0') ?? []).join(',') === 'loki,cat');
 }
 
 report();
