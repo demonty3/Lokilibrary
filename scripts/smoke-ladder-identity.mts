@@ -27,6 +27,9 @@ import {
 } from '../src/procedural/clusters.ts';
 import { SAMPLE_LIBRARY } from '../src/data/sampleLibrary.ts';
 import { presenceByDistrict } from '../src/render/levels/ladderPresence.ts';
+import {
+  composeDistrictPanel, composeIslandPanel, composeContinentPanel, AGENT_LETTERS,
+} from '../src/render/levels/ladderCompose.ts';
 
 const { check, report } = makeChecker('smoke ladder-identity');
 
@@ -121,5 +124,65 @@ const { check, report } = makeChecker('smoke ladder-identity');
   );
   check('T5 same-district scopes merge', (merged.get('d0') ?? []).join(',') === 'loki,cat');
 }
+
+// T6 — district composition: YOU in home border, gold frames, letters in being layers.
+{
+  const games = SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name }));
+  const tree = clusterLibrary(games, 0xa11ce11);
+  const all = tree.continents.flatMap((c) => c.islands.flatMap((i) => i.districts.map((d) => d.id)));
+  const wing = all[all.length - 1];
+  const presence = new Map<string, readonly string[]>([[wing, ['loki', 'cat']]]);
+  const { canvas } = composeDistrictPanel(games, 0xa11ce11, { homeWingId: wing, presence });
+  const layers = layerStrings(canvas);
+  check('T6 home layer carries YOU', (layers.get('home') ?? '').includes('YOU'));
+  check('T6 frame layer has borders', (layers.get('frame') ?? '').includes('┌'));
+  check('T6 header names the wing', (layers.get('name') ?? '').includes(`wing ${wing}`));
+  check('T6 loki letter in its being layer', (layers.get('being.loki') ?? '').includes('L'));
+  check('T6 cat letter in its being layer', (layers.get('being.cat') ?? '').includes('c'));
+  check('T6 ramp layer present', (layers.get('ramp') ?? '').length > 0);
+  // Determinism: same inputs → byte-identical layer map.
+  const again = layerStrings(
+    composeDistrictPanel(games, 0xa11ce11, { homeWingId: wing, presence }).canvas,
+  );
+  check('T6 deterministic', JSON.stringify([...layers]) === JSON.stringify([...again]));
+  // No identity → canonical home + YOU, no letters, no wing header segment.
+  const bare = layerStrings(composeDistrictPanel(games, 0xa11ce11).canvas);
+  check('T6 bare compose has home YOU', (bare.get('home') ?? '').includes('YOU'));
+  check('T6 bare compose no being layers', ![...bare.keys()].some((k) => k.startsWith('being.')));
+  check('T6 bare compose no wing segment', !(bare.get('name') ?? '').includes('wing '));
+  // Every row in every layer is canvas-width (BitmapText alignment).
+  check(
+    'T6 uniform rows',
+    [...layers.values()].every((t) => t.split('\n').every((r) => r.length === canvas.cols)),
+  );
+}
+
+// T7 — island + continent: home follows the wing across rungs.
+{
+  const games = SAMPLE_LIBRARY.map((g) => ({ appid: g.appid, name: g.name }));
+  const tree = clusterLibrary(games, 0xa11ce11);
+  const all = tree.continents.flatMap((c) => c.islands.flatMap((i) => i.districts.map((d) => d.id)));
+  const wing = all[all.length - 1];
+  const island = layerStrings(composeIslandPanel(games, 0xa11ce11, { homeWingId: wing }).canvas);
+  check('T7 island home layer has YOU', (island.get('home') ?? '').includes('YOU'));
+  const { labels } = composeContinentPanel(games, 0xa11ce11, { homeWingId: wing });
+  check('T7 exactly one home continent label', labels.filter((l) => l.home).length === 1);
+  check('T7 home label carries YOU', labels.find((l) => l.home)!.text.includes('YOU'));
+  check('T7 labels stay inside CELL_BLOCK budget', labels.every((l) => l.text.length <= 14));
+  // Empty library: composes the dim empty panel, no labels, no crash.
+  const emptyIsland = composeIslandPanel([], 1);
+  check(
+    'T7 empty island → dim empty panel',
+    (layerStrings(emptyIsland.canvas).get('dim') ?? '').includes('no library loaded yet.'),
+  );
+  const emptyContinent = composeContinentPanel([], 1);
+  check('T7 empty continent → no labels', emptyContinent.labels.length === 0);
+}
+
+// T8 — AGENT_LETTERS mirrors COHORT glyphs.
+check(
+  'T8 letters from defs',
+  AGENT_LETTERS.get('loki') === 'L' && AGENT_LETTERS.get('cat') === 'c' && AGENT_LETTERS.get('ghost') === 'G',
+);
 
 report();
