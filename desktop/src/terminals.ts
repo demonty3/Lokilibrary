@@ -25,7 +25,7 @@
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import * as path from 'path';
-import { getTerminals, setTerminals } from './config';
+import { getSociety, getTerminals, setSociety, setTerminals } from './config';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
 
 // Sized so two terminals tile side-by-side on a 1440-wide display with
@@ -46,6 +46,32 @@ interface Terminal {
 const terminals = new Map<string, Terminal>();
 /** agentId → terminalId. The single-roaming-roster authority. */
 const roster = new Map<string, string>();
+
+/** Cohort ids in COHORT order — literal mirror of src/agents/cohort.ts
+ *  (desktop compiles separately; same convention as preload's
+ *  TerminalBeingState mirror). */
+const SOCIETY_IDS = ['loki', 'archivist', 'cat', 'visitor', 'ghost'];
+
+/** agentId → home wing. Assigned at boot (saved society or round-robin
+ *  over the desk's open wings), updated on every accepted crossing,
+ *  persisted to config. Wings are the stable identity — terminal ids mint
+ *  fresh every session. */
+const homes = new Map<string, string>();
+
+function assignHomes(saved: Record<string, string> | undefined, wings: readonly string[]): void {
+  homes.clear();
+  let rr = 0;
+  for (const id of SOCIETY_IDS) {
+    const w = saved?.[id];
+    if (w && wings.includes(w)) homes.set(id, w);
+    else homes.set(id, wings[rr++ % wings.length]);
+  }
+}
+
+function persistSociety(): void {
+  setSociety(Object.fromEntries(homes));
+}
+
 let joins: Join[] = [];
 /** Guard: programmatic setBounds re-fires 'move'; don't re-broker those. */
 let snapping = false;
@@ -209,6 +235,11 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   // eslint-disable-next-line no-console
   console.log(`[terminals] ${restored ? 'restoring desk' : 'spawning defaults'} — ${slots.length} terminal windows`);
   for (const s of slots) spawnTerminal(s.id, s.wing, s.x, s.y);
+  assignHomes(
+    process.env.LOKILIBRARY_TERMINALS_RESET ? undefined : getSociety(),
+    slots.map((s) => s.wing),
+  );
+  persistSociety();
   broadcastTopology(); // a restored desk can boot already-joined
   persistTerminals();
 
@@ -261,6 +292,9 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   // Hydration: a terminal renderer asks for the current joins on mount.
   ipcMain.handle('terminal:getTopology', () => ({ joins, wings: wingsMap() }));
 
+  // Society hydration: which cohort member lives on which wing.
+  ipcMain.handle('terminal:getSociety', () => Object.fromEntries(homes));
+
   // Roster registration at spawn. First writer wins — a duplicate spawn of
   // a live agent id is refused (the renderer despawns its copy).
   ipcMain.handle('terminal:agentSpawn', (_e, payload: { agentId: string; terminalId: string }) => {
@@ -291,6 +325,11 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
       if (!destTerm || destTerm.win.isDestroyed()) return false;
       const src = terminals.get(payload.terminalId);
       roster.set(payload.agentId, dest);
+      // Society members re-home on a crossing (unknown/native ids don't).
+      if (homes.has(payload.agentId)) {
+        homes.set(payload.agentId, destTerm.wing);
+        persistSociety();
+      }
       destTerm.win.webContents.send('terminal:agentEnter', {
         agentId: payload.agentId,
         side: payload.side === 'left' ? 'right' : 'left', // enters the opposite edge
@@ -335,6 +374,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     bounds: allBounds(),
     joins,
     roster: Object.fromEntries(roster),
+    society: Object.fromEntries(homes),
   }));
 
   ipcMain.handle('terminal:debugMove', (_e, payload: { terminalId: string; x: number; y: number }) => {

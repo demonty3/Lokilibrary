@@ -10,10 +10,13 @@
  * smoke drives it headlessly and the renderer's makeRng stream keeps the
  * runtime deterministic-enough per terminal (the T0 walker contract).
  *
- * Scoring ladder — base + jitter [0, 0.3):
+ * Scoring ladder — base + per-persona bias offset + jitter [0, 0.3):
  *   watch_edge  0.5  (+0.25 DECISIVE pull when the neighbour summary
  *               shows beings near the far side: pulled min 0.75 ≥ every
- *               other candidate's sup, so society gravity always wins)
+ *               other candidate's sup, so society gravity always wins;
+ *               per-persona biases are additive offsets that preserve
+ *               this invariant — 0.75 + bias.watch_edge ≥ max(0.7 +
+ *               bias.wander, 0.75 + bias.approach, 0.5 + bias.rest))
  *   approach    0.45 (labelled structure columns only)  → sup 0.75
  *   wander      0.4  (baseline, always available)       → sup 0.7
  *   rest        0.2  (always available)                 → sup 0.5
@@ -49,23 +52,58 @@ export interface IntentContext {
   readonly neighbourNear: { readonly left: number; readonly right: number };
 }
 
+/** Additive score offsets per intent kind. Invariant (smoke-enforced):
+ *  a POPULATED-edge watch_edge pull must still dominate every other
+ *  candidate's sup — 0.75 + watch_edge ≥ max(0.7 + wander,
+ *  0.75 + approach, 0.5 + rest) — so society gravity always wins. */
+export type IntentBias = Partial<Record<BeingIntentKind, number>>;
+
+export interface LandPersona {
+  bias: IntentBias;
+  /** Walk speed range, cells/sec [min, max). */
+  speed: [number, number];
+  /** Multiplier on the intent re-pick window — slow thinkers re-pick less. */
+  intentWindowMult: number;
+}
+
+/** The cohort's land personalities (T2 society migration). Keyed by
+ *  AgentDef.id; unknown ids fall back to DEFAULT_LAND_PERSONA (the
+ *  T0 native tuning, kept for the defensive unknown-id path). */
+export const LAND_PERSONAS: Record<string, LandPersona> = {
+  loki: { bias: { wander: 0.05, watch_edge: 0.1 }, speed: [2.0, 2.8], intentWindowMult: 0.8 },
+  archivist: { bias: { approach: 0.12, watch_edge: 0.12 }, speed: [1.4, 2.0], intentWindowMult: 1 },
+  cat: { bias: { rest: 0.25, approach: 0.05, watch_edge: 0.05 }, speed: [0.8, 1.4], intentWindowMult: 1.3 },
+  visitor: { bias: { wander: 0.05 }, speed: [1.6, 2.4], intentWindowMult: 1 },
+  ghost: { bias: { rest: 0.2 }, speed: [0.6, 1.0], intentWindowMult: 1.5 },
+};
+
+export const DEFAULT_LAND_PERSONA: LandPersona = {
+  bias: {},
+  speed: [1.2, 2.6],
+  intentWindowMult: 1,
+};
+
 interface Scored {
   score: number;
   intent: BeingIntent;
 }
 
 /** One BT pick. Pure: same rand draws + ctx → same intent. */
-export function pickIntent(rand: () => number, ctx: IntentContext): BeingIntent {
+export function pickIntent(
+  rand: () => number,
+  ctx: IntentContext,
+  bias: IntentBias = {},
+): BeingIntent {
   const candidates: Scored[] = [];
   candidates.push({
-    score: 0.4 + rand() * 0.3,
+    score: 0.4 + (bias.wander ?? 0) + rand() * 0.3,
     intent: { kind: 'wander', dir: rand() < 0.5 ? 1 : -1 },
   });
-  candidates.push({ score: 0.2 + rand() * 0.3, intent: { kind: 'rest' } });
+  candidates.push({ score: 0.2 + (bias.rest ?? 0) + rand() * 0.3, intent: { kind: 'rest' } });
   if (ctx.structureCols.length > 0) {
     const idx = Math.min(ctx.structureCols.length - 1, Math.floor(rand() * ctx.structureCols.length));
     candidates.push({
-      score: 0.45 + rand() * 0.3,
+      score: 0.45 + (bias.approach ?? 0) + rand() * 0.3,
       intent: { kind: 'approach', targetX: ctx.structureCols[idx] },
     });
   }
@@ -73,7 +111,7 @@ export function pickIntent(rand: () => number, ctx: IntentContext): BeingIntent 
     if (!ctx.edges[side]) continue;
     const pull = ctx.neighbourNear[side] > 0 ? 0.25 : 0;
     candidates.push({
-      score: 0.5 + pull + rand() * 0.3,
+      score: 0.5 + pull + (bias.watch_edge ?? 0) + rand() * 0.3,
       intent: { kind: 'watch_edge', side },
     });
   }
@@ -176,4 +214,20 @@ function accentHash(s: string): number {
 
 export function beingAccentRole(id: string): (typeof LAND_BEING_ROLES)[number] {
   return LAND_BEING_ROLES[accentHash(id) % LAND_BEING_ROLES.length];
+}
+
+/**
+ * The ONLY channel by which a Tier-1 LLM tick steers the walker: the
+ * cell's `approach x,y` intent format (behavior.ts:parseIntentTarget's
+ * grammar), mapped to a 1-D land approach. Anything else is flavor —
+ * the caller keeps its engine-picked intent. Total: never throws.
+ */
+export function landIntentFromTick(
+  intent: string,
+  ctx: { width: number },
+): BeingIntent | null {
+  const m = /^approach\s+(-?\d+)\s*,\s*(-?\d+)$/.exec(intent.trim());
+  if (!m) return null;
+  const targetX = Math.min(ctx.width - 1, Math.max(0, Number(m[1])));
+  return { kind: 'approach', targetX };
 }

@@ -165,6 +165,15 @@ CDP `Page.captureScreenshot` works headless): no desktop contention, no
 permissions. Reserve THIS skill's capture path for desktop-only surfaces
 (wallpaper mode, tray, the real SQLite writer).
 
+**Mac at the login screen = resolve the window id via `.optionAll`
+(2026-07-17).** With the machine sitting at the loginwindow, region capture
+fails (`could not create image from rect`) and `winid.swift`'s on-screen-only
+listing can miss the app's windows, so `drive.mjs shot` errors too. The
+backing stores are still live: list windows with CGWindowList
+`.optionAll` filtered by the Electron main pid, then `screencapture -l<id>`
+per window — frames come back real (verify against a simultaneous
+`state` read, not by eye alone).
+
 ## Teardown
 
 ```bash

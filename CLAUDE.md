@@ -361,9 +361,18 @@ a self-hoster / contributor opt-in, never the default.
 - **Default to template-build-time generation; runtime generative API
   calls require explicit scoping.** Phase 0 has exactly one runtime AI
   call (Tier 1 agent tick). Phase 2 adds Tier 2 reflection. Phase 3
-  pixel-art is *template-build-time only*. New runtime AI calls require
-  an entry in this file documenting cost model, caching strategy, and
-  fallback before shipping.
+  pixel-art is *template-build-time only*. The T2 society migration
+  (2026-07-17) adds ONE runtime AI call: Tier-1 on terminal-land
+  arrival — trigger: a seam-crossing arrival queues a perception event,
+  drained on the walker's re-pick cadence through the UNCHANGED
+  routeTier1 (per-agent tier1ThrottleMs 30–120 s; Visitor/Ghost 0 —
+  bounded by arrival-gating + crossing physics). Cost: bounded by the
+  crossing rate — a few Haiku calls/hour on an active desk, zero idle,
+  zero key-free. Caching: none (each call is a fresh perception).
+  Fallback: the pure land intent engine; transport failure stamps the
+  throttle and the walker never blocks. Telemetry: existing logTier1
+  rows. New runtime AI calls require an entry in this file documenting
+  cost model, caching strategy, and fallback before shipping.
 - **Don't make local LLM the shipped default.** With BYO-key open source
   there is no "production", but the default config stays a frontier
   model: the Tier 1+2 quality ceiling on a 12GB-VRAM-class model is

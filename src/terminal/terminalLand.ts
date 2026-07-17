@@ -6,15 +6,23 @@
  * joined edges OPEN (a bright threshold doorway at the ground line); closed
  * edges are walls (beings turn around).
  *
- * Beings here are the spike's minimal walker runtime — live walkers riding
- * the surface height field with sub-cell motion (float x + idle bob +
- * hesitation beats — beings, not a process). At an open edge they hand
- * themselves to the broker (`terminal:agentExit`) and continue in the
+ * Beings here are the REAL cohort (T2 society migration): def-driven glyph/
+ * accent/speed (src/agents/cohort.ts), a land personality (beingIntents.ts
+ * LAND_PERSONAS) layered on the pure BT intent pick, and a REAL agent mind
+ * (an `initialRuntime`-built AgentRuntimeState) that routeTier1 dispatches
+ * on arrival (fire-and-forget; a parseable `approach x,y` intent steers the
+ * walker, anything else is flavor — key-free rail, no worker changes).
+ * Presence dynamics (Visitor's cycle, Ghost's rare apparitions) reuse the
+ * cell's `tickPresence` schedule rules on that same mind. Sub-cell motion
+ * (float x + idle bob + hesitation beats) still rides live per-terminal
+ * juice, not procedural layout. At an open edge a being hands itself AND
+ * its mind to the broker (`terminal:agentExit`) and continues in the
  * neighbour window: exit eases out past the edge, entry fades in off a ✦
- * spark. The roster lives in the MAIN process (single-roaming-roster, 7D.2
- * semantics across process boundaries). Wander/juice randomness is runtime
- * behaviour (like cell agents), not procedural layout — the LAND itself
- * stays seed-deterministic. All animation rides app.ticker.deltaMS
+ * spark, the mind reconstructs from the carried fields. Homes (which wing
+ * a cohort member lives on) live in the broker (single-roaming-roster,
+ * 7D.2 semantics across process boundaries); wander/juice randomness is
+ * runtime behaviour (like cell agents), not procedural layout — the LAND
+ * itself stays seed-deterministic. All animation rides app.ticker.deltaMS
  * (throttle-safe); all tints come from the active theme palette.
  *
  * UI/UX pass (game-design-review, 2026-06-11): 2× world scale, bottom
@@ -38,6 +46,7 @@ import { buildLandContainer } from '../render/levels/land';
 import { createFootfall, crustLayerText } from './wear';
 import { composeLand, SAMPLE_LAND, type LandGame } from '../procedural/land';
 import {
+  getTerminalSociety,
   getTerminalTopology,
   subscribeTerminalAgentEnter,
   subscribeTerminalNeighbourSummary,
@@ -50,14 +59,28 @@ import {
 import { nearEdgeSummary, projectAcrossEdge, type NearEdgeBeing } from './crossEdge';
 import {
   beingAccentRole,
+  DEFAULT_LAND_PERSONA,
+  LAND_PERSONAS,
+  landIntentFromTick,
   pickIntent,
   resumeIntent,
   structureColumns,
   type BeingIntent,
   type IntentContext,
+  type LandPersona,
 } from './beingIntents';
+import {
+  carriedFromMind,
+  reconstructMind,
+  residentsOf,
+  sceneLabelFor,
+} from './society';
 import { roleKey } from '../themes/roles';
-import { nullMemoryWriter } from '../agents/router';
+import { COHORT, filterByTheme, type AgentDef } from '../agents/cohort';
+import { tickPresence } from '../agents/behavior';
+import { nullMemoryWriter, routeTier1 } from '../agents/router';
+import type { AgentRuntimeState } from '../state/agentRuntime';
+import { mulberry32, type Prng } from '../procedural/prng';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
 import { cellIdFor, libraryIdFor } from '../agents/memory/schema';
 import { recordArrival, recordCrossing } from './terminalMemory';
@@ -67,9 +90,8 @@ import { recordArrival, recordCrossing } from './terminalMemory';
 const WORLD_SCALE = 2;
 const UNDER_H = 10;
 const SURFACE_BAND = 4;
-const BEINGS_PER_TERMINAL = 3;
-const BEING_GLYPHS = ['L', 'A', 'M', 'C', 'V'];
-const BEING_SPEED_CELLS_PER_S: [number, number] = [1.2, 2.6];
+/** Cohort defs keyed by id — resolved once, read by addBeing + the tick. */
+const COHORT_BY_ID = new Map(COHORT.map((d) => [d.id, d]));
 /** Intent re-pick window (min + seeded extra, seconds). */
 const INTENT_S: [number, number] = [6, 6];
 /** Hesitation beat at each re-pick (min + seeded extra, seconds). */
@@ -129,13 +151,18 @@ interface Being {
   /** Exit/enter juice state (progress driven by elapsedS). */
   exitingSince: number | null;
   enteringSince: number | null;
+  /** The REAL agent runtime (initialRuntime-built) — the mind. routeTier1
+   *  reads/mutates it directly; carried across seams via society.ts. */
+  mind: AgentRuntimeState;
+  /** Land personality (beingIntents.ts LAND_PERSONAS). Cached at spawn. */
+  persona: LandPersona;
 }
 
 export interface TerminalLandState {
   terminalId: string;
   wing: string;
   edges: { left: boolean; right: boolean };
-  beings: Array<{ id: string; x: number; dir: number; intent: string }>;
+  beings: Array<{ id: string; x: number; dir: number; intent: string; present: boolean }>;
   /** e2e ground truth for the join juice: live sweep count + total fired. */
   knits: { live: number; fired: number };
   /** Columns worn past the footfall threshold (session-scoped). */
@@ -381,27 +408,32 @@ export async function mountTerminalLand(
     return (model.surface[cx] - 1) * CH;
   };
 
-  const addBeing = (id: string, glyph: string, x: number, dir: 1 | -1, entering = false): Being => {
+  const addBeing = (id: string, x: number, dir: 1 | -1, entering = false): Being => {
+    const def = COHORT_BY_ID.get(id);
+    const persona = LAND_PERSONAS[id] ?? DEFAULT_LAND_PERSONA;
+    const surfaceRow = model.surface[Math.round(x)] ?? 0;
     const text = new BitmapText({
-      text: glyph,
+      text: def?.glyph ?? 'V',
       style: {
         fontFamily: COZETTE_FONT_FAMILY,
         fontSize: COZETTE_FONT_SIZE,
-        // Reserved accent per being (ambient-salience bundle) — same pool
-        // as the cell cohort, deterministic by id.
-        fill: hexToInt(theme.palette[roleKey(theme, beingAccentRole(id), 'fgBright')]),
+        // Cohort members wear their REAL accent (the cell/ladder identity);
+        // unknown ids keep the T0 hash-picked accent (defensive path).
+        fill: def
+          ? hexToInt(theme.palette[def.paletteKey])
+          : hexToInt(theme.palette[roleKey(theme, beingAccentRole(id), 'fgBright')]),
       },
     });
     if (entering) text.alpha = 0;
     world.addChild(text); // world space → rides WORLD_SCALE for free
     const being: Being = {
       id,
-      glyph,
+      glyph: def?.glyph ?? 'V',
       x,
       dir,
-      speed: BEING_SPEED_CELLS_PER_S[0] + rng() * (BEING_SPEED_CELLS_PER_S[1] - BEING_SPEED_CELLS_PER_S[0]),
-      intent: pickIntent(rng, intentCtx(x)),
-      nextIntentAt: elapsedS + INTENT_S[0] + rng() * INTENT_S[1],
+      speed: persona.speed[0] + rng() * (persona.speed[1] - persona.speed[0]),
+      intent: pickIntent(rng, intentCtx(x), persona.bias),
+      nextIntentAt: elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * persona.intentWindowMult,
       pausedUntil: 0,
       crossCooldownUntil: 0,
       bobPhase: (fnv1a(id) % 628) / 100,
@@ -410,6 +442,8 @@ export async function mountTerminalLand(
       pending: false,
       exitingSince: null,
       enteringSince: entering ? elapsedS : null,
+      mind: reconstructMind(id, Math.round(x), surfaceRow),
+      persona,
     };
     beings.set(id, being);
     return being;
@@ -463,27 +497,50 @@ export async function mountTerminalLand(
     knitsFired += 1;
   };
 
-  // Spawn this terminal's natives (roster registers them; a refusal means
-  // the id is already live elsewhere — e.g. a renderer reload — so skip).
-  for (let i = 0; i < BEINGS_PER_TERMINAL; i++) {
-    const glyph = BEING_GLYPHS[(fnv1a(terminalId) + i) % BEING_GLYPHS.length];
-    const id = `${terminalId}-${glyph}${i}`;
-    void terminalAgentSpawn(id, terminalId).then((ok) => {
-      if (!ok) return;
-      const b = addBeing(id, glyph, 6 + ((i * 37) % (model.width - 12)), i % 2 === 0 ? 1 : -1);
-      recordArrival(memory, {
-        agentId: id,
-        wing,
-        col: Math.round(b.x),
-        row: model.surface[Math.round(b.x)] ?? 0,
-        whenMs: Date.now(),
+  // Spawn this land's RESIDENTS — the cohort members whose home is this
+  // wing (broker-owned homes; null society = web preview, everyone lives
+  // here). filterByTheme keeps cell semantics: a theme-excluded agent
+  // (Ghost outside tokyo-night/catppuccin) never spawns; its home persists
+  // harmlessly. Roster refusal (renderer reload) → skip, as before.
+  const mountedAtMs = Date.now();
+  // tickPresence's ctx narrows to Pick<BehaviorContext, 'prngs'>, whose
+  // value type is procedural/prng.ts's Prng (not the land-local makeRng
+  // stream) — mulberry32 runs the identical mulberry32 step as makeRng, so
+  // the presence rolls stay the same seeded-runtime-behaviour class as the
+  // rest of this file, just typed to satisfy the shared BehaviorContext.
+  const presencePrngs = new Map<string, Prng>();
+  void getTerminalSociety().then((society) => {
+    const defs = filterByTheme(
+      residentsOf(society, wing)
+        .map((id) => COHORT_BY_ID.get(id))
+        .filter((d): d is AgentDef => d !== undefined),
+      theme.id,
+    );
+    defs.forEach((def, i) => {
+      presencePrngs.set(def.id, mulberry32(fnv1a(`presence:${def.id}:${terminalId}`)));
+      void terminalAgentSpawn(def.id, terminalId).then((ok) => {
+        if (!ok) return;
+        const b = addBeing(def.id, 6 + ((i * 37) % (model.width - 12)), i % 2 === 0 ? 1 : -1);
+        recordArrival(memory, {
+          agentId: def.id,
+          wing,
+          col: Math.round(b.x),
+          row: model.surface[Math.round(b.x)] ?? 0,
+          whenMs: Date.now(),
+        });
       });
     });
-  }
+  });
 
   const tryExit = (b: Being, side: 'left' | 'right'): void => {
     b.pending = true;
-    const carried = { speed: b.speed, dir: b.dir, intent: b.intent.kind, bobPhase: b.bobPhase };
+    const carried = {
+      speed: b.speed,
+      dir: b.dir,
+      intent: b.intent.kind,
+      bobPhase: b.bobPhase,
+      mind: carriedFromMind(b.mind),
+    };
     void terminalAgentExit(b.id, terminalId, side, carried).then((accepted) => {
       if (accepted) {
         b.exitingSince = elapsedS; // ease out past the edge, then destroy
@@ -503,7 +560,7 @@ export async function mountTerminalLand(
     if (elapsedS >= nearReportAt) {
       nearReportAt = elapsedS + NEAR_EDGE_REPORT_S;
       const near = nearEdgeSummary(
-        [...beings.values()].filter((b) => !b.pending).map((b) => ({ id: b.id, x: b.x })),
+        [...beings.values()].filter((b) => !b.pending && b.mind.present).map((b) => ({ id: b.id, x: b.x })),
         model.width,
         edges,
       );
@@ -599,12 +656,49 @@ export async function mountTerminalLand(
         } else b.text.alpha = p;
       }
 
+      // Presence dynamics (Visitor's cycle, Ghost's rare apparitions) —
+      // tickPresence reuses the CELL's schedule rules on the real mind.
+      // Absent: invisible, no walking, no crossings; the roster home holds.
+      const def = COHORT_BY_ID.get(b.id);
+      if (def && def.schedule.length > 0) {
+        tickPresence(def, b.mind, { prngs: presencePrngs }, mountedAtMs, Date.now());
+      }
+      b.text.visible = b.mind.present;
+      if (!b.mind.present) continue;
+
       if (!b.pending) {
         // BT re-pick on cadence (or forced when an intent invalidates).
         if (elapsedS >= b.nextIntentAt) {
-          b.intent = pickIntent(rng, intentCtx(b.x));
+          b.intent = pickIntent(rng, intentCtx(b.x), b.persona.bias);
           b.pausedUntil = elapsedS + HESITATE_S[0] + rng() * HESITATE_S[1];
-          b.nextIntentAt = elapsedS + INTENT_S[0] + rng() * INTENT_S[1];
+          b.nextIntentAt = elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * b.persona.intentWindowMult;
+
+          // Tier-1 pump (arrival-driven): only arrivals queue events, so an
+          // empty queue is the common free no-op. routeTier1 is UNCHANGED —
+          // real def, real throttle (a throttled event drains on a later
+          // re-pick), deny-verbs, telemetry, memory writes. Fire-and-forget:
+          // the walker never blocks; a parseable `approach x,y` intent
+          // steers, anything else is flavor (memory prose). Key-free rail:
+          // transport failure logs + stamps throttle inside routeTier1.
+          if (def && b.mind.perceptionQueue.length > 0) {
+            void routeTier1(
+              def,
+              b.mind,
+              sceneLabelFor(wing, model.width, structureCols),
+              Date.now(),
+              { memory },
+            ).then((res) => {
+              if (!res.tick) return;
+              const li = landIntentFromTick(res.tick.intent, { width: model.width });
+              if (li && beings.get(b.id) === b) {
+                b.intent = li;
+                b.nextIntentAt =
+                  elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * b.persona.intentWindowMult;
+              }
+            }).catch(() => {
+              // Memory contract: contention costs a lost observation, never a broken tick.
+            });
+          }
         }
 
         // Intent → this frame's signed velocity (cells/sec).
@@ -669,10 +763,13 @@ export async function mountTerminalLand(
   const unsubTopology = subscribeTerminalTopology(({ joins, wings }) => applyJoins(joins, wings));
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
-    const glyph = agentId.match(/-([A-Z])\d+$/)?.[1] ?? 'V';
     spawnSpark(side);
-    const b = addBeing(agentId, glyph, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
+    const b = addBeing(agentId, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
     b.crossCooldownUntil = elapsedS + CROSS_COOLDOWN_S; // anti-ping-pong
+    if (!presencePrngs.has(agentId)) {
+      presencePrngs.set(agentId, mulberry32(fnv1a(`presence:${agentId}:${terminalId}`)));
+    }
+    const surfaceRow = model.surface[Math.round(b.x)] ?? 0;
     if (state) {
       // RESUME, don't respawn: gait + phase carry over; the intent
       // continues in this land's terms (chain-aware watch_edge, nearest
@@ -682,13 +779,23 @@ export async function mountTerminalLand(
       b.dir = state.dir;
       b.bobPhase = state.bobPhase;
       b.intent = resumeIntent(state.intent, side, intentCtx(b.x));
+      if (state.mind) b.mind = reconstructMind(agentId, Math.round(b.x), surfaceRow, state.mind);
     }
+    // The arrival is a PERCEPTION now — queued on the mind, drained (and
+    // written to memory) by the next re-pick's routeTier1. recordArrival
+    // is boot-spawn-only as of T2.
+    b.mind.perceptionQueue.push({
+      kind: 'terminal_arrival',
+      subject: wing,
+      at: { x: Math.round(b.x), y: surfaceRow },
+      when: Date.now(),
+    });
     recordCrossing(memory, {
       agentId,
       fromWing: from?.wing || '?',
       toWing: wing,
       col: Math.round(b.x),
-      row: model.surface[Math.round(b.x)] ?? 0,
+      row: surfaceRow,
       whenMs: Date.now(),
     });
   });
@@ -708,6 +815,7 @@ export async function mountTerminalLand(
         x: Math.round(b.x * 10) / 10,
         dir: b.dir,
         intent: b.intent.kind,
+        present: b.mind.present,
       })),
       knits: { live: knits.length, fired: knitsFired },
       worn: [...footfall.worn].sort((a, b) => a - b),

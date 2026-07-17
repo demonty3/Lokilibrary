@@ -6,7 +6,9 @@
  *   - the null writer no-ops gracefully (web build path)
  *   - a throwing writer is swallowed (multi-process sqlite contention)
  *   - REAL DB round-trip: writer.ts renders the crossing as prose, kind
- *     'observation', riding the frozen ObservationSource vocabulary
+ *     'observation', riding the schema-v3 ObservationSource vocabulary
+ *     (crossings/arrivals carry their own first-class source tokens,
+ *     `terminal_crossing` / `terminal_arrival`, not a frozen enum)
  */
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
@@ -78,6 +80,53 @@ check('row lands in the stream', recent.length === 1);
 check('row kind is observation', recent[0]?.kind === 'observation');
 check('row text reads as prose', recent[0]?.text === 'crossed from the d0 terminal into d1');
 check('row importance persisted', recent[0]?.importance === CROSSING_IMPORTANCE);
+
+// ── T2 society: proper source tokens (SCHEMA_VERSION 3) ────────────────
+// A crossing row must carry its OWN source, not the v2 'self_perception' fold.
+{
+  const id = recordCrossing(writer, {
+    agentId: 'loki', fromWing: 'd0', toWing: 'd1', col: 3, row: 12, whenMs: 1700000000000,
+  });
+  check('crossing recorded', id !== null);
+  // Open a read-only connection to verify the raw payload (WAL allows concurrent access).
+  const Database = require('better-sqlite3');
+  const rawDb = new Database(path.join(tmp, 'memory.sqlite'), { readonly: true });
+  try {
+    const row = rawDb
+      .prepare(`SELECT payload_json FROM memories WHERE id = ?`)
+      .get(id) as { payload_json: string };
+    const payload = JSON.parse(row.payload_json) as { source: string };
+    check('crossing source token', payload.source === 'terminal_crossing',
+      payload.source);
+  } finally {
+    rawDb.close();
+  }
+}
+{
+  const id = recordArrival(writer, { agentId: 'loki', wing: 'd1', col: 0, row: 12, whenMs: 1700000000001 });
+  const Database = require('better-sqlite3');
+  const rawDb = new Database(path.join(tmp, 'memory.sqlite'), { readonly: true });
+  try {
+    const row = rawDb
+      .prepare(`SELECT payload_json FROM memories WHERE id = ?`)
+      .get(id) as { payload_json: string };
+    const payload = JSON.parse(row.payload_json) as { source: string };
+    check('arrival source token', payload.source === 'terminal_arrival', payload.source);
+  } finally {
+    rawDb.close();
+  }
+}
+{
+  const Database = require('better-sqlite3');
+  const rawDb = new Database(path.join(tmp, 'memory.sqlite'), { readonly: true });
+  try {
+    check('schema_version contains 3',
+      (rawDb.prepare(`SELECT COUNT(*) AS n FROM schema_version WHERE version = 3`).get() as { n: number }).n === 1);
+  } finally {
+    rawDb.close();
+  }
+}
+
 db.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 

@@ -3,10 +3,11 @@
  *
  * Crossings + arrivals become plain 'observation' rows in the Smallville
  * memory stream through the injected MemoryWriter — the DB-backed writer
- * in the desktop wrapper (bootstrapMemory), the null writer on web. NO
- * Tier-1/Tier-2 dispatch fires from terminals: record only. (PRD-T2's
- * "Tier-1 perception fires on arrival" is deliberately deferred — the
- * no-LLM rail for this arc.)
+ * in the desktop wrapper (bootstrapMemory), the null writer on web. As of
+ * the T2 society migration (schema v3), crossings/arrivals carry their own
+ * source tokens ('terminal_crossing' / 'terminal_arrival') and
+ * terminalLand.ts dispatches Tier-1 on arrival. This module still only
+ * records; the Tier-1 dispatch happens upstream.
  *
  * Every write is try/caught: terminal windows are separate renderer
  * processes sharing one memory.sqlite (WAL + busy_timeout), and write

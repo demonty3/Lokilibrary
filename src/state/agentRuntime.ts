@@ -80,8 +80,12 @@ export interface AgentRuntimeState {
   perceptionQueue: PerceptionEvent[];
   /** Smallville reflection-trigger accumulator; fires Tier 2 at 150. */
   reflectionCounter: number;
-  /** performance.now() of the last Tier-1 call — debounces back-to-back
-   *  calls from the same perception burst. */
+  /** Timestamp of the last Tier-1 call — debounces back-to-back calls
+   *  from the same perception burst. Time base is the caller's:
+   *  `performance.now()` on the cell surface, `Date.now()` (epoch ms) on
+   *  terminal lands, deliberately, because land minds cross process
+   *  boundaries in seam handoffs and `performance.now()` doesn't survive
+   *  that. The two bases must never be mixed for one agent. */
   lastTier1At: number;
   /** Phase 5 5A — performance.now() of the last Tier-2 reflection
    *  dispatch. Used by `routeTier2` to enforce the per-real-hour

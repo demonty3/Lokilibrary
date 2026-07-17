@@ -24,6 +24,40 @@ draw from the PRD's remaining column: T2-completion runtime (real
 cohort + LLM rails in terminal lands), T3 chrome remainder, T4
 topology→reflection, T5 orchestration, terminals-as-wallpaper.
 
+**T2 society migration SHIPPED 2026-07-17** (spec+plan
+`docs/superpowers/*/2026-07-17-t2-society-migration*`; commits
+`732c8d7..481dda6` on `claude/t2-society-migration`). The real cohort
+moved into the terminal lands: beings are `AgentDef`-driven (glyph +
+paletteKey accents — L magenta, A violet, c orange, V cyan, G dim —
+`filterByTheme` keeps cell parity, so Ghost never walks a phosphor
+desk), land personas bias `pickIntent` + presence runs through
+`tickPresence` (Visitor's 90s-per-15min visits, Archivist's morning
+window), minds are REAL `AgentRuntimeState` — a seam-crossing arrival
+queues a perception event drained on the walker's re-pick through the
+unchanged `routeTier1` (per-agent throttle 30–120s; the `approach-x,y`
+steering parse gives the LLM a spatial verb; CLAUDE.md runtime-AI
+ledger has the cost entry), crossings/arrivals are schema-v3
+first-class `ObservationSource` tokens (`terminal_crossing` /
+`terminal_arrival`), the mind rides the seam as `CarriedMind` over the
+broker IPC, and the broker OWNS society homes (round-robin assignment,
+re-home on crossing, `config.json` persistence + `getSociety` IPC).
+VERIFIED ON SCREEN (real Electron desk, 2-terminal RESET boot): roster
+holds cohort ids only (no `t1-…` native ids, no ghost on phosphor),
+society round-robins d0/d1, glyphs walk the lands wearing their real
+accents (`.superpowers/sdd/t2-society-*.png`); loki crossed the joined
+t1|t2 seam — roster `t2`, `society.loki` re-homed `d1`, `present:true`
+in the destination's `state()`; the desktop sqlite carries the v3 rows
+("crossed from the d0 terminal into d1", importance 5) and Tier-1
+fired on arrival at the per-agent cadence (loki ~30s / archivist ~60s
+/ cat ~120s `[router] tier1 … failed: 500` on the key-free rail — the
+pump dispatched, the walker kept walking); relaunch WITHOUT RESET
+restored the joined desk and spawned every being on its persisted home
+(loki's first arrival row: "arrived in the d1 land"). Smokes:
+t2-society 18, t2-broker-homes 3, t1-society-memory 19,
+t1-being-intents 48, t1-broker-handoff 28; full sweep + both typecheck
+legs green. DEFERRED: Tier-2 / topology reflection (T4 arc);
+marginalia on land; the launcher beat.
+
 **Ladder identity SHIPPED 2026-07-17** (spec+plan
 `docs/superpowers/*/2026-07-17-ladder-identity*`; programme #13 + the
 salience follow-up register's MARK_STYLES re-key + ladder pane-awareness).

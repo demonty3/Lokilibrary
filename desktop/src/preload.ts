@@ -110,6 +110,9 @@ export interface ElectronAPI {
 
   /** Current joins + terminalId→wing map, for hydration on terminal mount. */
   terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>;
+  /** T2 society — current agentId→home-wing map, for hydration on terminal
+   *  mount (mirrors src/api/electron.ts). */
+  getTerminalSociety(): Promise<Record<string, string>>;
   /** Topology changes from the main-process broker (snap/un-snap). */
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string> }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
@@ -159,6 +162,12 @@ export interface TerminalBeingState {
   dir: 1 | -1;
   intent: string;
   bobPhase: number;
+  /** T2 society — the mind half of a handoff (mirrors src/api/electron.ts). */
+  mind?: {
+    lastTier1At: number;
+    reflectionCounter: number;
+    perceptionQueue: Array<{ kind: string; subject?: string; at: { x: number; y: number }; when: number }>;
+  };
 }
 
 /** A being near a shared edge (cross-edge perception relay). */
@@ -205,6 +214,8 @@ const api: ElectronAPI = {
   },
   terminalGetTopology: () =>
     ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string> }>,
+  getTerminalSociety: () =>
+    ipcRenderer.invoke('terminal:getSociety') as Promise<Record<string, string>>,
   onTerminalTopology: (cb) => {
     const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string> }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);
