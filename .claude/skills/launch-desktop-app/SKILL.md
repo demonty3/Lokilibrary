@@ -152,6 +152,19 @@ on-screen window for `winid.swift` to find — run `drive.mjs window` first.
 If the app isn't the only Electron app running, set `LOKI_APP_OWNER` to
 disambiguate (the dev build's owner name is `Electron`).
 
+**Occluded/minimized window = STALE frames (2026-07-17).** Chromium stops
+compositing a fully-occluded or minimized window, so `screencapture -l`
+returns the last frame painted before it was hidden — state reads say
+"island" while the shot still shows "district" — and `winid.swift` can't
+see a minimized window at all (it lists on-screen windows only). If the
+user is actively using the machine (your window gets buried/minimized under
+you), `osascript -e 'tell application "Electron" to activate'` right before
+each shot un-wedges it — but the better move for PURE-VISUAL verification
+is the headless e2e harness (`scripts/e2e/run.sh` + its `drive.mjs shot`;
+CDP `Page.captureScreenshot` works headless): no desktop contention, no
+permissions. Reserve THIS skill's capture path for desktop-only surfaces
+(wallpaper mode, tray, the real SQLite writer).
+
 ## Teardown
 
 ```bash
