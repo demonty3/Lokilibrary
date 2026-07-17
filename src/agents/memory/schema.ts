@@ -203,13 +203,9 @@ export function defaultImportance(payload: MemoryPayload): number {
           return 6;
         case 'bookshelf_e':
           return 5;
-        case 'terminal_crossing':
-          return 5;
         case 'player_proximity':
           return 4;
         case 'cell_mount':
-          return 3;
-        case 'terminal_arrival':
           return 3;
         case 'self_perception':
           return 2;
