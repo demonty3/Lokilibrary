@@ -289,6 +289,24 @@ toward caution over speed; on trivial tasks, use judgment.
 - **Game launching:** Electron wrapper uses Steamworks SDK directly;
   web build uses `steam://run/{appid}`. (Web build is the share-viewer
   surface; the launcher path runs in the desktop app.)
+- **Retired work lives in `refs/archive/*`, not in branches.** The
+  2026-07-24 prune took the repo from 45 remote branches to `main` alone.
+  Every deleted branch was first mirrored to `refs/archive/<name>` and
+  pushed, so nothing was lost — but **a normal `git clone` does not fetch
+  that namespace**. It is invisible until you ask for it:
+
+  ```
+  git ls-remote origin 'refs/archive/*'                    # see what's there
+  git fetch origin 'refs/archive/*:refs/archive/*'         # pull them down
+  git branch <name> refs/archive/claude/<name>             # resurrect one
+  ```
+
+  Most of the 14 are branches whose content had already landed on `main`
+  by rebase or squash (git's merge check couldn't see it — they were
+  verified by content). The one that is *only* there is
+  `claude/reveal-flythrough` — the retired first-run cinematic; see
+  TODO-USER.md. When retiring future work, follow the same pattern:
+  archive-ref first, then delete.
 
 ## How to run
 

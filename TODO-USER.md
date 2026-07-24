@@ -95,8 +95,12 @@ session if convenient:
   agents). Cost sealed it — 195 commits behind, adds files `main` never
   had, and every touchpoint (`PixiApp.ts`, `store.ts`, `App.tsx`) was
   rewritten under the migration slices: a re-implementation, not a rebase.
-  **Restore** (nothing was lost — the commit is mirrored locally):
+  **Restore** (nothing was lost — mirrored to `refs/archive/*` on origin,
+  which a plain `git clone` does **not** fetch; see CLAUDE.md Conventions):
+  `git fetch origin 'refs/archive/*:refs/archive/*'` then
   `git branch reveal-flythrough refs/archive/claude/reveal-flythrough`.
+  A bundle of all 14 archived refs also lives on harryspc at
+  `C:\Users\demon\backups\lokilibrary-archive-refs.bundle`.
   `src/procedural/macro.ts` — pure seeded generators for the upper scale
   levels, no `Math.random` — is the piece worth reaching back for if a
   step-back-and-see-the-whole-thing view ever returns.
