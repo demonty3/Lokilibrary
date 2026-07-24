@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-17** (evening: Harry ran the snapping-terminals
+Last updated: **2026-07-24** (branch prune: 45 remote branches → 2. 27 were
+merged into `main`; 13 more had landed via rebase/squash so git's ancestry
+check couldn't see them — verified by content, not by merge status — and
+their commits are mirrored to local `refs/archive/` refs. PR #28 closed as
+superseded. `claude/reveal-flythrough` is the only unmerged work left and
+now has an Active item below.) Previously **2026-07-17** (evening: Harry ran the snapping-terminals
 human beats + the lore-ingest leg — both PASSED, moved to Done. Earlier
 same day: platform direction change: **Mac-only** — the Windows/WSL
 target is retired, so every "verify on Windows" item below was either
@@ -44,6 +49,32 @@ staging PNGs, pick the survivor, copy to
 `public/sprites/solarized-dark/bookshelf.png`.
 **Unblocks**: Phase 3 aesthetic gate ("do sprites add value over
 glyphs?"). Until verified, slice 3D (local SDXL) is parked.
+
+### ⏳ Decide `claude/reveal-flythrough` (PR #34) — rebase or retire
+**Status**: the last unmerged work in the repo, and the only work that
+exists *solely* on a branch. Sole survivor of the 2026-07-24 branch prune
+(45 remote branches → 2). One commit, `48cc0a1` (2026-06-02), 779 lines,
+no new dependencies: a first-run cinematic reveal — the cell builds itself
+from the player's top games, then the camera pulls back through all six
+scale levels (Powers-of-Ten style) and holds on a "your library as a solar
+system" poster. Skippable by key/click, honors `prefers-reduced-motion`,
+auto-plays once (localStorage-gated), `R` to replay, wallpaper mode never
+auto-plays. Interactive level renderers untouched.
+**Why it's stuck**: branched 195 commits behind current `main` and adds
+files `main` has never had (`src/procedural/macro.ts`,
+`src/render/reveal/{index,ease,covers}.ts`), while its touchpoints —
+`PixiApp.ts`, `state/store.ts`, `App.tsx` — have all moved under the
+migration slices. This is a rebase, not a fast-forward, and it only gets
+harder.
+**Unblocks**: nothing — which is precisely the risk. Nothing gates on it,
+so it rots quietly. Decide one of: (a) rebase onto `main` and merge #34,
+or (b) close #34 and delete the branch — but first mirror it to a local
+archive ref (`git update-ref refs/archive/claude/reveal-flythrough
+48cc0a1`), the way the 13 pruned branches were preserved, because deleting
+it on GitHub makes the commit unreachable everywhere else.
+**Not related** to the Mac-only direction change — that was
+`claude/mac-only-docs` (2026-07-17), long since merged. This branch is
+purely a visual/UX feature.
 
 ### 🔔 OPTIONAL — agent-mind frontier re-run (post-Aug-1)
 **Status**: the agent-mind taste gate RAN (local models on harryspc; voices
