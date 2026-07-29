@@ -6,6 +6,10 @@
  *   - composed dither uses only SKY_DITHER_GLYPHS, only in sky rows, never
  *     over scatter/sun/cloud/ridge, and thickens toward the horizon
  *   - deterministic (same seed → byte-identical model)
+ *
+ * The non-clobber clause is locked by role census, not by inspection: see
+ * section 4. Every other assertion here survives the dither losing its
+ * `role === 'sky'` guard, so those counts are the only thing holding it.
  */
 import { makeChecker } from './lib/smoke.ts';
 import {
@@ -15,6 +19,7 @@ import {
   skyDitherDensity,
   skyDitherGlyph,
 } from '../src/procedural/land.ts';
+import type { LandModel, LandRole } from '../src/procedural/land.ts';
 
 const { check, report } = makeChecker('smoke sky-dither');
 
@@ -55,7 +60,44 @@ const top = perRow.slice(0, Math.floor(SKY_H / 2)).reduce((a, b) => a + b, 0);
 const bottom = perRow.slice(Math.floor(SKY_H / 2), SKY_H).reduce((a, b) => a + b, 0);
 check('gradient: horizon half denser than zenith half', bottom > top * 2, `top=${top} bottom=${bottom}`);
 
-// 4 · deterministic
+// 4 · non-clobber: the dither NEVER lands on a cell the sky already owns.
+// composeLand's dither loop is guarded by `role[y][x] === 'sky'`; drop that
+// guard and sections 1-3 all still pass (the RNG draw precedes the guard, so
+// even the determinism check survives) while stars, clouds, the sun and the
+// far ridge quietly vanish under ░·. Exact counts, so a PARTIAL clobber fails
+// too — a `> 0` survival check would not catch losing 10 of 88 stars.
+const bandCensus = (model: LandModel): Partial<Record<LandRole, number>> => {
+  const n: Partial<Record<LandRole, number>> = {};
+  for (let y = 1; y < SKY_H; y++)
+    for (let x = 0; x < model.width; x++) {
+      const r = model.role[y][x];
+      n[r] = (n[r] ?? 0) + 1;
+    }
+  return n;
+};
+const GOLDEN: Partial<Record<LandRole, number>> = {
+  star: 88,
+  starBright: 6,
+  cloud: 14,
+  sun: 2,
+  ridgeFar: 43,
+  monument: 3,
+};
+const census = bandCensus(m);
+for (const [role, want] of Object.entries(GOLDEN) as Array<[LandRole, number]>)
+  check(`dither spares every ${role} cell`, (census[role] ?? 0) === want, `got=${census[role] ?? 0} want=${want}`);
+
+// Seed-independent: the guard holds for any world, not just this one. monument
+// is excluded — it is legitimately absent on some seeds (e.g. 0x1).
+const ALWAYS_PRESENT: readonly LandRole[] = ['star', 'starBright', 'cloud', 'sun', 'ridgeFar'];
+const wiped: string[] = [];
+for (const seed of [0x1, 0xbeef, 0xc0ffee, 0xdecaf, 0xfeed]) {
+  const c = bandCensus(composeLand(seed, SAMPLE_LAND, dims));
+  for (const role of ALWAYS_PRESENT) if ((c[role] ?? 0) === 0) wiped.push(`${seed.toString(16)}:${role}`);
+}
+check('protected sky roles survive on every sampled seed', wiped.length === 0, wiped.join(' '));
+
+// 5 · deterministic
 check('deterministic', JSON.stringify(composeLand(0xa11ce, SAMPLE_LAND, dims)) === JSON.stringify(m));
 
 report();
