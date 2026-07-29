@@ -44,6 +44,19 @@ export function createFootfall(threshold: number = WEAR_THRESHOLD): Footfall {
   };
 }
 
+/** The crust glyph at (x, y): the packed variant on a worn column, the
+ *  model's own otherwise. The ▀ → ▔ rule lives here alone, so everything
+ *  that draws ground — the crust layer, the knit glow — agrees about a worn
+ *  column instead of one of them showing pristine crust over packed. */
+export function crustGlyphAt(
+  model: LandModel,
+  worn: ReadonlySet<number>,
+  x: number,
+  y: number,
+): string {
+  return worn.has(x) ? WORN_CRUST_GLYPH : model.char[y][x];
+}
+
 /** The crust role's full-grid layer text (the renderer's layerFor shape:
  *  rows trimmed of trailing spaces, '\n'-joined) with worn columns swapped
  *  to the packed variant. Pure — drives BitmapText.text on wear + recompose. */
@@ -52,7 +65,7 @@ export function crustLayerText(model: LandModel, worn: ReadonlySet<number>): str
   for (let y = 0; y < model.height; y++) {
     let line = '';
     for (let x = 0; x < model.width; x++) {
-      line += model.role[y][x] === 'crust' ? (worn.has(x) ? WORN_CRUST_GLYPH : model.char[y][x]) : ' ';
+      line += model.role[y][x] === 'crust' ? crustGlyphAt(model, worn, x, y) : ' ';
     }
     rows.push(line.replace(/\s+$/u, ''));
   }

@@ -43,6 +43,7 @@ import {
   waitForCozette,
 } from '../render/fonts';
 import { buildLandContainer } from '../render/levels/land';
+import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText } from './wear';
 import { composeLand, SAMPLE_LAND, type LandGame } from '../procedural/land';
 import {
@@ -163,8 +164,10 @@ export interface TerminalLandState {
   wing: string;
   edges: { left: boolean; right: boolean };
   beings: Array<{ id: string; x: number; dir: number; intent: string; present: boolean }>;
-  /** e2e ground truth for the join juice: live sweep count + total fired. */
-  knits: { live: number; fired: number };
+  /** e2e ground truth for the join juice: live sweep count, total fired, and
+   *  live glow glyphs sitting off the current ground line. `glowStale` must
+   *  always read 0 — a mid-knit recompose used to strand them mid-air. */
+  knits: { live: number; fired: number; glowStale: number };
   /** Columns worn past the footfall threshold (session-scoped). */
   worn: number[];
   /** The joined neighbours' near-edge beings, projected into THIS land's
@@ -485,10 +488,10 @@ export async function mountTerminalLand(
     });
     const glow: BitmapText[] = [];
     for (let i = 0; i < KNIT_SPAN; i++) {
-      const col = side === 'left' ? i : model.width - 1 - i;
-      const g = mk(model.char[model.surface[col]][col]); // the crust glyph, brightened
-      g.x = col * CW;
-      g.y = model.surface[col] * CH;
+      const cell = knitGlowCell(model, footfall.worn, side, i); // the crust glyph, brightened
+      const g = mk(cell.glyph);
+      g.x = cell.col * CW;
+      g.y = cell.row * CH;
       g.alpha = 0.75;
       world.addChild(g);
       glow.push(g);
@@ -631,7 +634,17 @@ export async function mountTerminalLand(
         knits.splice(i, 1);
         continue;
       }
-      for (const g of k.glow) g.alpha = 0.75 * (1 - q);
+      // Re-anchored per tick from the LIVE model, exactly like the trail
+      // above: a mid-knit unjoin/rewire recomposes the seam ramp under these
+      // very columns, and a baked glyph would hang off the redrawn ground for
+      // the rest of the fade (and miss wear packing the crust down).
+      k.glow.forEach((g, i) => {
+        const cell = knitGlowCell(model, footfall.worn, k.side, i);
+        g.x = cell.col * CW;
+        g.y = cell.row * CH;
+        g.text = cell.glyph;
+        g.alpha = 0.75 * (1 - q);
+      });
     }
 
     for (const b of beings.values()) {
@@ -817,7 +830,17 @@ export async function mountTerminalLand(
         intent: b.intent.kind,
         present: b.mind.present,
       })),
-      knits: { live: knits.length, fired: knitsFired },
+      knits: {
+        live: knits.length,
+        fired: knitsFired,
+        glowStale: knits.reduce(
+          (n, k) =>
+            n +
+            k.glow.filter((g, i) => g.y !== knitGlowCell(model, footfall.worn, k.side, i).row * CH)
+              .length,
+          0,
+        ),
+      },
       worn: [...footfall.worn].sort((a, b) => a - b),
       neighbours: {
         left: projectAcrossEdge('left', model.width, neighbourNear.left),
