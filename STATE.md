@@ -40,8 +40,11 @@ run") not triggered; stays armed for future pack runs. **Run 2
 gates green with ZERO maintainer hand-fixes; one self-recovered failure
 (the smoke named a non-Cozette glyph, the weak agent fixed it from the
 error message — the gates work as recovery rails, not just filters).
-Pack verbatim on `refs/archive/cold-run/cozy-autumn`, awaiting eyeball.
-Tally 2/2; no model-floor caveat needed in README copy.
+Harry's eyeball passed same day: cozy-autumn is MERGED as the eighth
+shipped theme (unedited stranger output). Tally 2/2; no model-floor
+caveat needed in README copy. Next open thread: whether the blueprint
+gets top-level README billing (never claim the mechanism novel —
+Deephaven 2026-02; scope the claim to the smoke-gated version).
 
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
