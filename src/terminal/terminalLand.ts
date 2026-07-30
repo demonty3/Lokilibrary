@@ -307,8 +307,14 @@ export async function mountTerminalLand(
     alpha: number;
   }
   let siteLabelViews: SiteLabelView[] = [];
-  const hideBakedLabels = (): void => {
+  // The terminal path hides two baked layers: labels (the proximity overlay
+  // owns them) and the composer's STATIC being letters — the REAL cohort
+  // walks here, and frozen impostors read as clutter next to it (Harry's
+  // kill, 2026-07-30). Both stay in the model: labels are load-bearing for
+  // intents; being cells are inert decoration on non-terminal surfaces.
+  const hideBakedLayers = (): void => {
     for (const t of scene.layers.label ?? []) t.visible = false;
+    for (const t of scene.layers.being ?? []) t.visible = false;
   };
   const buildSiteLabels = (): void => {
     for (const v of siteLabelViews) v.text.destroy();
@@ -324,7 +330,7 @@ export async function mountTerminalLand(
       return { site, text, alpha: 0 };
     });
   };
-  hideBakedLabels();
+  hideBakedLayers();
   buildSiteLabels();
 
   const recompose = (join: { left?: number; right?: number } | null): void => {
@@ -337,7 +343,7 @@ export async function mountTerminalLand(
     world.addChildAt(sceneContainer, 0);
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
-    hideBakedLabels();
+    hideBakedLayers();
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
     structureCols = structureColumns(model.role);
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
