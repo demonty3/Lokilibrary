@@ -16,7 +16,9 @@
 import fs from 'node:fs';
 
 const PORT = process.env.LOKI_E2E_CDP || '9334';
-const URL = `http://localhost:${process.env.LOKI_E2E_PORT || '4173'}/`;
+// LOKI_E2E_PATH targets a non-root surface, e.g. '?terminal=t1&wing=d0' for
+// the terminal land (which exposes window.__terminal instead of __loki).
+const URL = `http://localhost:${process.env.LOKI_E2E_PORT || '4173'}/${process.env.LOKI_E2E_PATH || ''}`;
 const [verb, a1, a2] = process.argv.slice(2);
 
 async function connect() {
@@ -45,15 +47,19 @@ async function evalPage(send, expression, awaitPromise = true) {
 }
 
 async function ensureLoaded(send) {
-  const has = await evalPage(send, `!!(window.__loki && document.querySelector('canvas') && location.href.startsWith(${JSON.stringify(URL)}))`);
+  const hook = `(window.__loki || window.__terminal)`;
+  // Match the query exactly — a lingering terminal page must not satisfy a
+  // root-surface request (and vice versa).
+  const wantSearch = (process.env.LOKI_E2E_PATH || '').replace(/^[^?]*/, '');
+  const has = await evalPage(send, `!!(${hook} && document.querySelector('canvas') && location.search === ${JSON.stringify(wantSearch)} && location.href.startsWith(${JSON.stringify(`http://localhost:${process.env.LOKI_E2E_PORT || '4173'}/`)}))`);
   if (has) return;
   await send('Page.navigate', { url: URL });
   for (let i = 0; i < 40; i++) {
     await sleep(500);
-    const ready = await evalPage(send, `!!(window.__loki && document.querySelector('canvas'))`).catch(() => false);
+    const ready = await evalPage(send, `!!(${hook} && document.querySelector('canvas'))`).catch(() => false);
     if (ready) { await sleep(2000); return; } // let PixiApp boot + first render settle
   }
-  throw new Error('page never exposed window.__loki + canvas (is VITE_E2E build served?)');
+  throw new Error('page never exposed window.__loki/__terminal + canvas (is VITE_E2E build served?)');
 }
 
 // DOM code + shift for a key, so real CDP key events reach the app's handler.
@@ -95,7 +101,7 @@ async function main() {
       }
       console.log(`dispatched '${a1}' ×${n}`);
     } else if (verb === 'eval') {
-      console.log(JSON.stringify(await evalPage(send, `(()=>{const __loki=window.__loki; return (${a1});})()`)));
+      console.log(JSON.stringify(await evalPage(send, `(()=>{const __loki=window.__loki, __terminal=window.__terminal; return (${a1});})()`)));
     } else if (verb === 'shot') {
       const out = a1 || '/tmp/loki-e2e.png';
       const { data } = await send('Page.captureScreenshot', { format: 'png' });

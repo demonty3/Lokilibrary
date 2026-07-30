@@ -45,7 +45,8 @@ import {
 import { buildLandContainer } from '../render/levels/land';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText } from './wear';
-import { composeLand, SAMPLE_LAND, type LandGame } from '../procedural/land';
+import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
+import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
   getTerminalTopology,
@@ -89,7 +90,9 @@ import { recordArrival, recordCrossing } from './terminalMemory';
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
 const WORLD_SCALE = 2;
-const UNDER_H = 10;
+/** Raised horizon (2026-07-30): a tight 4-row underground; the reclaimed rows
+ *  go to the sky (skyH 5 → 11 at 640×520). Terrace Join's precondition. */
+const UNDER_H = 4;
 const SURFACE_BAND = 4;
 /** Cohort defs keyed by id — resolved once, read by addBeing + the tick. */
 const COHORT_BY_ID = new Map(COHORT.map((d) => [d.id, d]));
@@ -183,10 +186,13 @@ declare global {
     __terminal?: {
       state(): TerminalLandState;
       /** e2e only — teleport a being (e.g. next to an open edge so a
-       *  crossing happens on demand instead of after minutes of wander). */
-      debugPlace(id: string, x: number, dir: 1 | -1): boolean;
+       *  crossing happens on demand instead of after minutes of wander).
+       *  `hold` parks it (rest intent) so a reveal shot has time to land. */
+      debugPlace(id: string, x: number, dir: 1 | -1, hold?: boolean): boolean;
       /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
       debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
+      /** e2e only — the proximity-label sites + their live fade alphas. */
+      debugLabels(): Array<{ text: string; x: number; y: number; kind: string; alpha: number }>;
       /** e2e only — force footfall on a column (n passes); true if worn. */
       debugWear(col: number, passes: number): boolean;
     };
@@ -288,6 +294,39 @@ export async function mountTerminalLand(
     if (crust) crust.text = crustLayerText(model, footfall.worn);
   };
 
+  // ── Proximity labels (raised-horizon slice, 2026-07-30) ────────────────
+  // The baked label layer is hidden in the TERMINAL path only (web preview /
+  // V0 keep always-on labels); per-site overlay texts — knit-glow ownership
+  // pattern — fade in only while a being is near (siteLabels.ts maths). The
+  // model keeps its 'label' cells: structureColumns/approach intents and the
+  // Tier-1 scene prompt read them.
+  interface SiteLabelView {
+    site: LandSite;
+    text: BitmapText;
+    /** The un-eased fade position (siteLabels.stepLabelAlpha state). */
+    alpha: number;
+  }
+  let siteLabelViews: SiteLabelView[] = [];
+  const hideBakedLabels = (): void => {
+    for (const t of scene.layers.label ?? []) t.visible = false;
+  };
+  const buildSiteLabels = (): void => {
+    for (const v of siteLabelViews) v.text.destroy();
+    siteLabelViews = model.sites.map((site) => {
+      const text = new BitmapText({
+        text: site.text,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgDim) },
+      });
+      text.x = (site.x - Math.floor(site.text.length / 2)) * CW;
+      text.y = site.y * CH;
+      text.alpha = 0;
+      world.addChildAt(text, 1); // above the scene (index 0), below edges/beings
+      return { site, text, alpha: 0 };
+    });
+  };
+  hideBakedLabels();
+  buildSiteLabels();
+
   const recompose = (join: { left?: number; right?: number } | null): void => {
     model = composeLand(seed, games, join ? { ...composeOpts, join } : composeOpts);
     world.removeChild(sceneContainer);
@@ -298,6 +337,8 @@ export async function mountTerminalLand(
     world.addChildAt(sceneContainer, 0);
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
+    hideBakedLabels();
+    buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
     structureCols = structureColumns(model.role);
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
     // than on the next tick — the recompose is the event that invalidated
@@ -622,6 +663,17 @@ export async function mountTerminalLand(
       t.x = i % 2 === 0 ? sway : -sway;
     });
 
+    // Proximity labels: a site's name fades in only while a walker is near.
+    // dt-driven (frozen under throttle); exiting/pending/absent beings don't
+    // hold a label open.
+    const walkerXs = [...beings.values()]
+      .filter((b) => b.mind.present && b.exitingSince === null && !b.pending)
+      .map((b) => b.x);
+    for (const v of siteLabelViews) {
+      v.alpha = stepLabelAlpha(v.alpha, siteLabelTarget(v.site, walkerXs), dt);
+      v.text.alpha = easeLabelAlpha(v.alpha);
+    }
+
     // Crossing sparks fade out.
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i];
@@ -870,7 +922,7 @@ export async function mountTerminalLand(
         right: projectAcrossEdge('right', model.width, neighbourNear.right),
       },
     }),
-    debugPlace: (id, x, dir) => {
+    debugPlace: (id, x, dir, hold) => {
       const b = beings.get(id);
       if (!b || b.pending) return false;
       b.x = Math.min(model.width - 1, Math.max(0, x));
@@ -879,7 +931,8 @@ export async function mountTerminalLand(
       // "column ENTRIES", and debugWear-driven e2e reads these counts).
       b.lastCol = Math.round(b.x);
       b.dir = dir;
-      b.intent = { kind: 'wander', dir };
+      // hold: park (rest) so a proximity-reveal shot has time to land.
+      b.intent = hold ? { kind: 'rest' } : { kind: 'wander', dir };
       b.pausedUntil = 0;
       b.crossCooldownUntil = 0;
       b.nextIntentAt = elapsedS + 30; // hold course long enough to cross
@@ -890,6 +943,14 @@ export async function mountTerminalLand(
       sun: scene.layers.sun?.[0]?.alpha ?? null,
       foliageX: (scene.layers.foliage ?? []).map((t) => t.x),
     }),
+    debugLabels: () =>
+      siteLabelViews.map((v) => ({
+        text: v.site.text,
+        x: v.site.x,
+        y: v.site.y,
+        kind: v.site.kind,
+        alpha: Math.round(v.text.alpha * 1000) / 1000,
+      })),
     debugWear: (col, passes) => {
       let crossed = false;
       for (let i = 0; i < passes; i++) if (footfall.step(col)) crossed = true;

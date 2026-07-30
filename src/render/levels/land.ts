@@ -80,6 +80,7 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   starBright: 'fg',
   hall: 'violet',
   sun: 'yellow',
+  moon: 'fg', // NOT fgBright — the brightest register is the beings' reserved contract
   cloud: 'fgDim',
   ridge: 'fgDim',
   ridgeFar: 'fgDim',

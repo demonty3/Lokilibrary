@@ -25,7 +25,6 @@ import { fnv1a32 } from './seed';
 // The tuning dials Harry iterates between screenshot rounds.
 const HALL_GLYPH_RAMP = '.:-=+*#%░▒▓█'; // luminance-field vocabulary, sparse → dense
 const HALL_JITTER = 0.45; // noise mixed into the field (0 = clean bands)
-const SKY_SCATTER_DENSITY = 0.04; // PRD ~4% of sky cells
 const SKY_SCATTER_TIER2 = 0.1; // fraction of scatter in the bright tier
 const SKY_SCATTER_DIM = ['·', '.', "'", ','];
 const SKY_SCATTER_BRIGHT = ['✦', '*'];
@@ -49,6 +48,7 @@ export type LandRole =
   | 'skyDither'
   | 'hall'
   | 'sun'
+  | 'moon'
   | 'cloud'
   | 'ridge'
   | 'ridgeFar'
@@ -70,6 +70,18 @@ export type LandRole =
   | 'shaft'
   | 'edge';
 
+/** A labelled site: where a game's name is drawn, for renderers that manage
+ *  label visibility themselves (the terminal land's proximity reveal). */
+export interface LandSite {
+  /** Centre column — the same x `structureColumns` derives for intents. */
+  readonly x: number;
+  /** The row the (possibly truncated) label text is drawn on. */
+  readonly y: number;
+  /** The drawn text (≤7 chars). */
+  readonly text: string;
+  readonly kind: 'surface' | 'buried';
+}
+
 export interface LandModel {
   readonly width: number;
   readonly height: number;
@@ -80,6 +92,8 @@ export interface LandModel {
   /** Surface row (the crust `▀`) per column — where a being stands is row-1.
    *  Lets a movable player walk the terrain without re-deriving the field. */
   readonly surface: ReadonlyArray<number>;
+  /** Labelled sites (surface structures + buried relics), in draw order. */
+  readonly sites: ReadonlyArray<LandSite>;
   /** V0 spike: per-cell luminance step (0 dim … 3 bright) for SHADED roles
    *  (the hall's vertical gradient), parallel to `char`. Only present when
    *  composed with `hall: true`. */
@@ -140,6 +154,24 @@ const RIDGE_FAR_SALT = 0xfa42;
 /** PRNG namespace for the sky dither field (reserved-salt list as above,
  *  plus 0xfa42). */
 const SKY_DITHER_SALT = 0xd174;
+
+/** PRNG namespace for the celestial pass — stars, sun, moon, clouds — so sky
+ *  tuning never reshuffles the terrain stream again (reserved-salt list as
+ *  above, plus 0xfa42 and 0xd174). */
+const SKY_SALT = 0x57a5;
+
+/** The one moon (celestial pass). U+263E — atlas-verified; `☀` is NOT in the
+ *  Cozette atlas, never swap to it. Enumerated in smoke-glyph-coverage.mts. */
+export const MOON_GLYPH = '☾';
+
+/** Star probability for a sky row: densest at the zenith, quadratically
+ *  fading to 0 by the ridge line — the inverse shape of skyDitherDensity.
+ *  PURE — the smokeable band function. */
+export function starDensity(row: number, skyH: number): number {
+  if (skyH <= 1 || row < 0 || row >= skyH - 1) return 0;
+  const t = row / (skyH - 1);
+  return 0.08 * (1 - t) * (1 - t);
+}
 
 /** Dither vocabulary, light → heavy (all long-covered by the Cozette atlas;
  *  enumerated in scripts/smoke-glyph-coverage.mts). */
@@ -244,19 +276,31 @@ export function composeLand(
   const inJoinBuffer = (x: number): boolean =>
     (rightJoin !== null && x >= cols - 1 - K) || (leftJoin !== null && x <= K);
 
-  // --- Sky: seeded scatter (PRD V0 — no dead cells), two cloud bands, a sun.
+  // --- Celestial pass: stars, sun, moon, clouds — its own salted PRNG so
+  // sky tuning never touches the terrain stream. Star density is zenith-
+  // heavy (inverse of the dither ramp); sun/cloud rows are PROPORTIONAL to
+  // SKY_H (at the walkLand default SKY_H=7 they reproduce the old rows 2/4).
   // Two luminance tiers: dim punctuation everywhere, the odd bright ✦/*.
+  const skyRng = mulberry32((seed ^ SKY_SALT) >>> 0);
   for (let y = 0; y < SKY_H - 1; y++) {
     for (let x = 0; x < cols; x++) {
-      if (rng.next() < SKY_SCATTER_DENSITY) {
-        if (rng.next() < SKY_SCATTER_TIER2) set(x, y, rng.pick(SKY_SCATTER_BRIGHT), 'starBright');
-        else set(x, y, rng.pick(SKY_SCATTER_DIM), 'star');
+      if (skyRng.next() < starDensity(y, SKY_H)) {
+        if (skyRng.next() < SKY_SCATTER_TIER2) set(x, y, skyRng.pick(SKY_SCATTER_BRIGHT), 'starBright');
+        else set(x, y, skyRng.pick(SKY_SCATTER_DIM), 'star');
       }
     }
   }
-  set(rng.range(8, cols - 12), rng.range(0, 2), '☼', 'sun');
-  put(rng.range(6, cols - 24), 2, '~ ~~~~ ~', 'cloud');
-  put(rng.range(6, cols - 18), 4, '~~ ~~~', 'cloud');
+  const sunX = skyRng.range(8, cols - 12);
+  set(sunX, skyRng.range(0, Math.max(1, Math.floor(SKY_H / 3))), '☼', 'sun');
+  // Moon row starts at 1: the terminal drag strip overlays most of row 0.
+  const moonY = skyRng.range(1, Math.max(2, Math.floor(SKY_H / 4) + 1));
+  let moonX = skyRng.range(2, cols - 2);
+  if (Math.abs(moonX - sunX) < 8) moonX = 2 + ((moonX + Math.floor(cols / 2)) % Math.max(1, cols - 4));
+  set(moonX, moonY, MOON_GLYPH, 'moon');
+  const cloudRow1 = Math.max(1, Math.round(SKY_H * 0.3));
+  const cloudRow2 = Math.min(SKY_H - 1, Math.max(cloudRow1 + 1, Math.round(SKY_H * 0.55)));
+  put(skyRng.range(6, cols - 24), cloudRow1, '~ ~~~~ ~', 'cloud');
+  put(skyRng.range(6, cols - 18), cloudRow2, '~~ ~~~', 'cloud');
 
   // --- Far ridge plane (Tier 2 atmospheric perspective): a THIRD plane, one
   // faint ▁ hilltop line well above the near ridge, tinted nearest the sky
@@ -288,22 +332,38 @@ export function composeLand(
   // untouched); fills only cells still empty sky, so scatter stars, sun,
   // clouds and both ridge planes always sit in front. Structures drawn later
   // overwrite it, which is correct — they're nearer than the sky.
+  // The ramp spans the FULL air column (down to the ground line), not just
+  // the star band — with the raised horizon's tall sky, stopping at SKY_H
+  // left a fog shelf floating over clean air (2026-07-30 eyeball).
   const ditherRng = mulberry32((seed ^ SKY_DITHER_SALT) >>> 0);
-  for (let y = 0; y < SKY_H; y++) {
-    const d = skyDitherDensity(y, SKY_H);
+  for (let y = 0; y < groundLine; y++) {
+    const d = skyDitherDensity(y, groundLine);
     if (d <= 0) continue;
-    const tRow = SKY_H > 1 ? y / (SKY_H - 1) : 1;
+    const tRow = groundLine > 1 ? y / (groundLine - 1) : 1;
     for (let x = 0; x < cols; x++) {
       if (ditherRng.next() < d && role[y][x] === 'sky') set(x, y, skyDitherGlyph(tRow), 'skyDither');
     }
   }
 
   // --- Terrain: clear bands + big carved caverns (calm, legible) -----------
+  // Band maths are UNDER_H-relative so shallow bands (the terminal desk's
+  // underH=4 raised horizon) keep all three strata; at underH=14 the
+  // thresholds are byte-equivalent to the historical 2/7. Shallow bands
+  // (underH<=5) pack denser and carve 1-row cavern pockets so what remains
+  // below reads dense, not vestigial.
+  const topsoilD = Math.max(1, Math.round(UNDER_H * 0.15));
+  const stoneD = Math.max(topsoilD + 1, Math.round(UNDER_H * 0.5));
+  const shallow = UNDER_H <= 5;
+  const stoneFill = shallow ? 0.75 : 0.6;
+  const stoneHeavy = shallow ? 0.5 : 0.4;
+  const bedrockFill = shallow ? 0.5 : 0.4;
+  const bedrockHeavy = shallow ? 0.35 : 0.28;
+  const cavTop = groundLine + Math.max(2, Math.round(UNDER_H * 0.45));
   const caverns = Array.from({ length: 6 }, () => ({
     cx: rng.range(8, cols - 8),
-    cy: groundLine + 6 + rng.range(0, Math.max(1, UNDER_H - 5)),
+    cy: cavTop + rng.range(0, Math.max(1, groundLine + UNDER_H - 1 - cavTop)),
     rx: 5 + rng.range(0, 6),
-    ry: 2 + rng.range(0, 2),
+    ry: shallow ? 1 : 2 + rng.range(0, 2),
   }));
   const inCavern = (x: number, y: number) =>
     caverns.some((c) => ((x - c.cx) / c.rx) ** 2 + ((y - c.cy) / c.ry) ** 2 < 1);
@@ -317,17 +377,17 @@ export function composeLand(
         continue;
       }
       const r = rng.next();
-      if (depth <= 2) set(x, y, r < 0.45 ? '▒' : '░', 'topsoil'); // thin, light
-      else if (depth <= 7) {
-        if (r < 0.6) set(x, y, r < 0.4 ? '▓' : '▒', 'stone'); // mostly solid, some gaps
+      if (depth <= topsoilD) set(x, y, r < 0.45 ? '▒' : '░', 'topsoil'); // thin, light
+      else if (depth <= stoneD) {
+        if (r < stoneFill) set(x, y, r < stoneHeavy ? '▓' : '▒', 'stone'); // mostly solid, some gaps
       } else {
-        if (r < 0.4) set(x, y, r < 0.28 ? '▓' : '░', 'bedrock'); // dark, sparse
+        if (r < bedrockFill) set(x, y, r < bedrockHeavy ? '▓' : '░', 'bedrock'); // dark, sparse
       }
     }
   }
 
   // --- Surface structures, keyed to engagement (bigger, more presence) -----
-  const labels: Array<{ x: number; y: number; text: string }> = [];
+  const labels: Array<{ x: number; y: number; text: string; kind: 'surface' | 'buried' }> = [];
   const surface = games.filter((p) => p.state !== 'abandoned');
   const slot = Math.floor(cols / (surface.length + 1));
 
@@ -375,7 +435,7 @@ export function composeLand(
     const x = slot * (i + 1) + rng.range(-2, 3);
     const gy = surfaceY(x);
     if (hallSpan && i === 0) {
-      labels.push({ x: hallCx, y: surfaceY(hallCx), text: p.name }); // the hall stands here
+      labels.push({ x: hallCx, y: surfaceY(hallCx), text: p.name, kind: 'surface' }); // the hall stands here
       return;
     }
     if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall
@@ -396,7 +456,7 @@ export function composeLand(
       set(x, gy - 1, '⌂', 'cottage');
       set(x + 1, gy - 1, '♣', 'foliage');
     }
-    labels.push({ x, y: gy, text: p.name });
+    labels.push({ x, y: gy, text: p.name, kind: 'surface' });
   });
 
   // --- A descent shaft into the caverns ------------------------------------
@@ -404,13 +464,16 @@ export function composeLand(
   for (let y = surfaceY(shaftX); y < rows; y++) set(shaftX, y, y % 2 ? '‖' : '╫', 'shaft');
 
   // --- Abandoned games rest DEEP (relics) ----------------------------------
+  // Depth is UNDER_H-relative: byte-identical to the historical rows-3-r at
+  // underH=14, and clamped strictly below any crust cell (surface reaches at
+  // most groundLine+2) at shallow bands.
   games
     .filter((p) => p.state === 'abandoned')
     .forEach((p, i) => {
       const x = slot * (2 + i * 2) + rng.range(0, 6);
-      const y = rows - 3 - rng.range(0, 3);
+      const y = Math.max(groundLine + 3, groundLine + UNDER_H - 2 - rng.range(0, 3));
       set(x - 1, y, '≡', 'relic');
-      labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name });
+      labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name, kind: 'buried' });
     });
 
   // --- Beings walk the surface; player @ near centre -----------------------
@@ -436,11 +499,28 @@ export function composeLand(
   }
 
   // --- Labels last, on a cleared strip so they read ------------------------
-  for (const { x, y, text } of labels) {
+  // Surface labels sit in the FIRST ROW BELOW the strip's deepest crust cell
+  // (the surface varies ±2 across a strip, so a fixed row could eat a
+  // neighbouring column's crust) — the ground line stays continuous at every
+  // labelled column. Buried labels keep their relic-adjacent row. Each drawn
+  // label is exported on `model.sites` so a renderer can manage visibility
+  // (the terminal land's proximity reveal) without re-deriving placement.
+  const sites: LandSite[] = [];
+  for (const { x, y, text, kind } of labels) {
     const s = text.slice(0, 7);
     const start = x - Math.floor(s.length / 2);
-    for (let i = -1; i <= s.length; i++) set(start + i, y, ' ', 'sky');
-    for (let i = 0; i < s.length; i++) set(start + i, y, s[i], 'label');
+    let ly = y;
+    if (kind === 'surface') {
+      let maxSy = 0;
+      for (let i = -1; i <= s.length; i++) {
+        const cx = Math.min(cols - 1, Math.max(0, start + i));
+        maxSy = Math.max(maxSy, surfaceY(cx));
+      }
+      ly = Math.min(rows - 1, maxSy + 1);
+    }
+    for (let i = -1; i <= s.length; i++) set(start + i, ly, ' ', 'sky');
+    for (let i = 0; i < s.length; i++) set(start + i, ly, s[i], 'label');
+    sites.push({ x, y: ly, text: s, kind });
   }
 
   return {
@@ -449,6 +529,7 @@ export function composeLand(
     char,
     role,
     surface: surfaceRows,
+    sites,
     ...(shade ? { shade } : {}),
     ...(poster ? { poster } : {}),
   };

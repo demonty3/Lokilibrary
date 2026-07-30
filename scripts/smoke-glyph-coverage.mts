@@ -30,7 +30,7 @@ import { buildScatterTable } from '../src/procedural/scatter.ts';
 import { TILE_BY_ID } from '../src/procedural/tiles/library.ts';
 import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
-import { SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
+import { MOON_GLYPH, SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
@@ -93,6 +93,9 @@ for (const a of activities) add(activityGlyphFor(a), `clusters.ts activityGlyphF
 
 // 4b. Tier-2 sky dither vocabulary (src/procedural/land.ts) — imported real source.
 for (const g of SKY_DITHER_GLYPHS) add(g, 'land.ts SKY_DITHER_GLYPHS');
+
+// 4b-ii. Celestial-pass moon (raised-horizon slice) — imported real source.
+add(MOON_GLYPH, 'land.ts MOON_GLYPH (celestial pass)');
 
 // 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
 add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');
@@ -168,6 +171,7 @@ check('♠ plant covered', covered(0x2660));
 check('∩ chair covered', covered(0x2229));
 check('≡ books covered', covered(0x2261));
 check('☼ lamp covered', covered(0x263c));
+check('☾ moon covered', covered(0x263e));
 check('▤ table covered', covered(0x25a4));
 check('… ellipsis covered', covered(0x2026));
 check('↳ morning-dispatch plan arrow covered', covered(0x21b3));

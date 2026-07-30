@@ -42,6 +42,9 @@ check('glyph ramp ends heavy', skyDitherGlyph(1) === SKY_DITHER_GLYPHS[SKY_DITHE
 const dims = { width: 200, skyH: SKY_H, surfaceBand: 5, underH: 10, withPlayer: false } as const;
 const m = composeLand(0xa11ce, SAMPLE_LAND, dims);
 const vocab = new Set<string>(SKY_DITHER_GLYPHS);
+// The ramp spans the full AIR column down to the ground line (raised-horizon
+// slice: stopping at SKY_H left a fog shelf floating over clean air).
+const GROUND_LINE = SKY_H + dims.surfaceBand;
 const perRow: number[] = Array.from({ length: m.height }, () => 0);
 let vocabOk = true;
 let rowsOk = true;
@@ -50,12 +53,12 @@ for (let y = 0; y < m.height; y++)
     if (m.role[y][x] === 'skyDither') {
       perRow[y]++;
       if (!vocab.has(m.char[y][x])) vocabOk = false;
-      if (y >= SKY_H) rowsOk = false;
+      if (y >= GROUND_LINE) rowsOk = false;
     }
 const total = perRow.reduce((a, b) => a + b, 0);
 check('dither present', total > 40, `total=${total}`);
 check('dither uses only SKY_DITHER_GLYPHS', vocabOk);
-check('dither confined to the sky band', rowsOk);
+check('dither confined to the air column (above the ground line)', rowsOk);
 const top = perRow.slice(0, Math.floor(SKY_H / 2)).reduce((a, b) => a + b, 0);
 const bottom = perRow.slice(Math.floor(SKY_H / 2), SKY_H).reduce((a, b) => a + b, 0);
 check('gradient: horizon half denser than zenith half', bottom > top * 2, `top=${top} bottom=${bottom}`);
@@ -68,7 +71,7 @@ check('gradient: horizon half denser than zenith half', bottom > top * 2, `top=$
 // too — a `> 0` survival check would not catch losing 10 of 88 stars.
 const bandCensus = (model: LandModel): Partial<Record<LandRole, number>> => {
   const n: Partial<Record<LandRole, number>> = {};
-  for (let y = 1; y < SKY_H; y++)
+  for (let y = 0; y < SKY_H; y++) // from row 0 — the proportional sun/moon may seed the top row
     for (let x = 0; x < model.width; x++) {
       const r = model.role[y][x];
       n[r] = (n[r] ?? 0) + 1;
@@ -76,10 +79,11 @@ const bandCensus = (model: LandModel): Partial<Record<LandRole, number>> => {
   return n;
 };
 const GOLDEN: Partial<Record<LandRole, number>> = {
-  star: 88,
-  starBright: 6,
+  star: 56,
+  starBright: 7,
   cloud: 14,
   sun: 2,
+  moon: 1,
   ridgeFar: 43,
   monument: 3,
 };
@@ -89,7 +93,7 @@ for (const [role, want] of Object.entries(GOLDEN) as Array<[LandRole, number]>)
 
 // Seed-independent: the guard holds for any world, not just this one. monument
 // is excluded — it is legitimately absent on some seeds (e.g. 0x1).
-const ALWAYS_PRESENT: readonly LandRole[] = ['star', 'starBright', 'cloud', 'sun', 'ridgeFar'];
+const ALWAYS_PRESENT: readonly LandRole[] = ['star', 'starBright', 'cloud', 'sun', 'moon', 'ridgeFar'];
 const wiped: string[] = [];
 for (const seed of [0x1, 0xbeef, 0xc0ffee, 0xdecaf, 0xfeed]) {
   const c = bandCensus(composeLand(seed, SAMPLE_LAND, dims));
