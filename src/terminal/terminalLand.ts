@@ -32,7 +32,7 @@
  * Exposes `window.__terminal` (state + debug) for the e2e harness.
  */
 
-import { Application, BitmapText, Container } from 'pixi.js';
+import { Application, BitmapText, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../themes/types';
 import {
   COZETTE_CELL_HEIGHT as CH,
@@ -271,6 +271,18 @@ export async function mountTerminalLand(
   const world = new Container();
   world.scale.set(WORLD_SCALE);
   app.stage.addChild(world);
+
+  // Style-pack fx flag (docs/blueprints/style-pack.md): 'scanlines' lays a
+  // static CRT line field over the whole window, above the world. Oversized
+  // fixed rect — covers any resize without a listener; a single static
+  // Graphics, so the 1 Hz wallpaper throttle costs nothing. Destroyed with
+  // the stage on teardown.
+  if (theme.fx === 'scanlines') {
+    const scan = new Graphics();
+    for (let y = 0; y < 2400; y += 3) scan.rect(0, y, 4000, 1);
+    scan.fill({ color: 0x000000, alpha: 0.16 });
+    app.stage.addChild(scan);
+  }
 
   let scene = buildLandContainer(theme, model);
   let sceneContainer = scene.container;

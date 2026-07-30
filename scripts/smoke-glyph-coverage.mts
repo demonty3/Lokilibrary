@@ -32,6 +32,7 @@ import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
 import { MOON_GLYPH, SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
+import { THEMES } from '../src/themes/index.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
 
@@ -99,6 +100,17 @@ add(MOON_GLYPH, 'land.ts MOON_GLYPH (celestial pass)');
 
 // 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
 add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');
+
+// 4d. Style-pack glyph dialects (src/themes/*.json landGlyphs) — every
+//     registered theme's per-role overrides are render-emitted verbatim
+//     (landRoleGlyph in render/levels/land.ts), so they belong in the guard.
+//     smoke-style-pack.mts checks them per-pack too; this keeps the tofu
+//     guard COMPLETE from one entry point.
+for (const [id, theme] of Object.entries(THEMES)) {
+  for (const [role, glyph] of Object.entries(theme.landGlyphs ?? {})) {
+    add(glyph, `themes/${id}.json landGlyphs.${role}`);
+  }
+}
 
 // 5. Renderer-literal glyphs — box/shade/punctuation emitted directly in the
 //    render layer (NOT exported from a data module). Provenance is the file.

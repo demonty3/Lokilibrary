@@ -8,6 +8,13 @@
  * themes can be slotted in without each sprite atlas knowing the source
  * palette by name.
  */
+import type { LandRole } from '../procedural/land';
+
+/** The fx whitelist — the only flags the renderer implements. Widen this
+ *  tuple (and the renderer) deliberately; the conformance smoke reads it. */
+export const THEME_FX = ['scanlines'] as const;
+export type ThemeFx = (typeof THEME_FX)[number];
+
 export interface ThemePalette {
   bg: string;
   bgAlt: string;
@@ -48,4 +55,15 @@ export interface Theme {
   palette: ThemePalette;
   /** Optional per-theme role overrides (see ThemeRole). */
   roles?: Partial<Record<ThemeRole, PaletteKey>>;
+  /** Style-pack glyph dialect (docs/blueprints/style-pack.md): per-land-role
+   *  glyph overrides, applied at render time via landRoleGlyph() in
+   *  src/render/levels/land.ts. Roles in LAND_GLYPH_LOCKED are never
+   *  overridden; values are single Cozette-covered glyphs (conformance-
+   *  smoked by scripts/smoke-style-pack.mts). The procedural model is
+   *  untouched — determinism holds. */
+  landGlyphs?: Partial<Record<LandRole, string>>;
+  /** Style-pack fx flag: 'scanlines' lays a static CRT line field over the
+   *  terminal-land window. Absent = no fx. Widen ThemeFx deliberately, not
+   *  by prompt. */
+  fx?: ThemeFx;
 }

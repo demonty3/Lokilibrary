@@ -20,6 +20,7 @@ question. **When in doubt, check this index, not your memory.**
 | **User-blocked items (only the user can do these)** | `TODO-USER.md` | `TODO-USER.md` |
 | **Pivot design + feasibility background** | `DESIGN.md` + `FEASIBILITY.md` | `docs/pivot/` |
 | **Dated research reports** | (timestamped) | `docs/research/` |
+| **Style-pack authoring (for users' own agents)** | `style-pack.md` | `docs/blueprints/style-pack.md` |
 
 When two docs disagree:
 - **Strategy / v1.0 scope** → `docs/pivot/CONSOLIDATION.md` wins.

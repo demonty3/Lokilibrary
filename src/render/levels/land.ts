@@ -73,8 +73,9 @@ export const GROUND_DEMOTE: Partial<Record<LandRole, number>> = {
 };
 
 /** Role -> theme palette key. The whole point of the side-on look: layers
- *  separate by hue, not by glyph density. */
-const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
+ *  separate by hue, not by glyph density. Exported for the style-pack
+ *  conformance smoke (its runtime list of valid land roles). */
+export const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   sky: 'bg',
   star: 'fgDim',
   starBright: 'fg',
@@ -103,6 +104,28 @@ const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   shaft: 'orange',
   edge: 'fgDim',
 };
+
+/** Roles whose glyphs live machinery owns: wear re-texts the crust layer
+ *  (crustGlyphAt in src/terminal/wear.ts is the single ▀ → ▔ authority),
+ *  labels are game names, being/player cells are live actors, edge walls
+ *  belong to the terminal edge layer. A style pack's landGlyphs never touch
+ *  these (enforced here AND by scripts/smoke-style-pack.mts). */
+export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
+  'label',
+  'being',
+  'player',
+  'crust',
+  'edge',
+]);
+
+/** Style-pack slot 2 (docs/blueprints/style-pack.md): the active theme's
+ *  glyph dialect for a land role, or null to keep the composer's own chars.
+ *  Render-side substitution only — src/procedural/ output is untouched, so
+ *  the determinism contract holds. Pure — exported for the smoke. */
+export function landRoleGlyph(theme: Theme, r: LandRole): string | null {
+  if (LAND_GLYPH_LOCKED.has(r)) return null;
+  return theme.landGlyphs?.[r] ?? null;
+}
 
 /** Single fill-resolution point for a NON-shaded land role: far planes fade
  *  toward bg (FAR_FADE), ground roles demote by channel scale
@@ -141,11 +164,11 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
   for (let y = 0; y < model.height; y++) for (let x = 0; x < model.width; x++) roles.add(model.role[y][x]);
   roles.delete('sky'); // background, never drawn
 
-  const layerFor = (pred: (x: number, y: number) => boolean): string => {
+  const layerFor = (pred: (x: number, y: number) => boolean, glyph?: string | null): string => {
     const rows: string[] = [];
     for (let y = 0; y < model.height; y++) {
       let line = '';
-      for (let x = 0; x < model.width; x++) line += pred(x, y) ? model.char[y][x] : ' ';
+      for (let x = 0; x < model.width; x++) line += pred(x, y) ? (glyph ?? model.char[y][x]) : ' ';
       rows.push(line.replace(/\s+$/u, ''));
     }
     return rows.join('\n');
@@ -161,6 +184,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     (layers[r] ??= []).push(bt);
   };
   for (const r of roles) {
+    const glyph = landRoleGlyph(theme, r);
     const shadeGrid = model.shade;
     if (shadeGrid && SHADED_ROLES.has(r)) {
       // V0: vertical gradient — one layer per luminance step (≤4 extra
@@ -168,7 +192,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       for (let s = 0; s < GRADIENT_FACTORS.length; s++) {
         addLayer(
           r,
-          layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s),
+          layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s, glyph),
           shadeOf(theme.palette[ROLE_KEY[r]], GRADIENT_FACTORS[s]),
         );
       }
@@ -177,10 +201,10 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       if (r === 'foliage') {
         // Two parity planes so the terminal tick can counter-phase the sway
         // (lock-step trees read mechanical).
-        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 0), fill);
-        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 1), fill);
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 0, glyph), fill);
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r && x % 2 === 1, glyph), fill);
       } else {
-        addLayer(r, layerFor((x, y) => model.role[y][x] === r), fill);
+        addLayer(r, layerFor((x, y) => model.role[y][x] === r, glyph), fill);
       }
     }
   }
