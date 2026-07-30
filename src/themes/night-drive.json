@@ -1,0 +1,26 @@
+{
+  "id": "night-drive",
+  "name": "Night Drive",
+  "palette": {
+    "bg":        "#150d26",
+    "bgAlt":     "#261541",
+    "fgDim":     "#7a639c",
+    "fg":        "#c9b3e8",
+    "fgBright":  "#f8f0ff",
+    "yellow":    "#ffd319",
+    "orange":    "#ff8c1f",
+    "red":       "#ff2a4f",
+    "magenta":   "#ff2fa0",
+    "violet":    "#b45eff",
+    "blue":      "#5468ff",
+    "cyan":      "#29e0ff",
+    "green":     "#2ee6a8"
+  },
+  "landGlyphs": {
+    "sun": "◒",
+    "ridge": "▲",
+    "topsoil": "≡",
+    "foliage": "Ψ"
+  },
+  "fx": "scanlines"
+}
