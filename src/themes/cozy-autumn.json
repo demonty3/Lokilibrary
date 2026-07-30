@@ -1,0 +1,24 @@
+{
+  "id": "cozy-autumn",
+  "name": "Cozy Autumn",
+  "palette": {
+    "bg":        "#1a1410",
+    "bgAlt":     "#2d2620",
+    "fgDim":     "#7a6d5f",
+    "fg":        "#d4c9bc",
+    "fgBright":  "#ede8e0",
+    "yellow":    "#ddb855",
+    "orange":    "#d68f42",
+    "red":       "#b85a45",
+    "magenta":   "#d47a70",
+    "violet":    "#a88060",
+    "blue":      "#7a8d7e",
+    "cyan":      "#b8c5a8",
+    "green":     "#9fb88a"
+  },
+  "landGlyphs": {
+    "foliage": "♣",
+    "topsoil": "▞",
+    "stone": "▓"
+  }
+}
