@@ -299,6 +299,10 @@ export async function mountTerminalLand(
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
     structureCols = structureColumns(model.role);
+    // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
+    // than on the next tick — the recompose is the event that invalidated
+    // them, and a throttled or paused renderer may not tick for a long time.
+    for (const k of knits) anchorKnitGlow(k);
   };
 
   // Approach targets: the labelled structure columns of the CURRENT model.
@@ -394,17 +398,39 @@ export async function mountTerminalLand(
   /** One-shot ✦ sparks at crossing thresholds: [text, bornAt]. */
   const sparks: Array<{ text: BitmapText; bornAt: number }> = [];
   /** One-shot knit sweeps: a glow that runs inward from a newly-joined seam. */
-  const knits: Array<{
+  interface KnitSweep {
     side: 'left' | 'right';
     bornAt: number;
     /** Sweep head + trail glyphs (KNIT_TRAIL order), repositioned per tick. */
     trail: BitmapText[];
     /** One brightened crust glyph per seam column, fading in place. */
     glow: BitmapText[];
-  }> = [];
+  }
+  const knits: KnitSweep[] = [];
   let knitsFired = 0;
   const rng = makeRng(fnv1a(`beings:${terminalId}`));
   let elapsedS = 0;
+
+  /** Put a knit's glow on the CURRENT ground: position, glyph (wear included)
+   *  and fade. The single writer — startKnit, the tick and recompose all go
+   *  through it, so the glyphs can never be left on terrain that no longer
+   *  exists. recompose calls it because waiting for the next tick is not free:
+   *  under the wallpaper throttle that is up to a second, and paused it is
+   *  forever. Hoisted so recompose (declared earlier) can reach it. */
+  function anchorKnitGlow(k: KnitSweep): void {
+    const q = (elapsedS - k.bornAt) / KNIT_GLOW_S;
+    k.glow.forEach((g, i) => {
+      const cell = knitGlowCell(model, footfall.worn, k.side, i);
+      if (!cell) {
+        g.alpha = 0; // no ground in that column — nothing to light
+        return;
+      }
+      g.x = cell.col * CW;
+      g.y = cell.row * CH;
+      g.text = cell.glyph;
+      g.alpha = 0.75 * Math.max(0, 1 - q);
+    });
+  }
 
   const surfaceLocalY = (x: number): number => {
     const cx = Math.min(model.width - 1, Math.max(0, Math.floor(x)));
@@ -488,20 +514,16 @@ export async function mountTerminalLand(
     });
     // One text per seam column, kept even where there is no ground to
     // brighten (alpha 0) — a recompose can move a label off that column
-    // mid-fade, and the tick lights it up when it becomes crust.
+    // mid-fade, and the next anchor lights it up when it becomes crust.
     const glow: BitmapText[] = [];
     for (let i = 0; i < KNIT_SPAN; i++) {
-      const cell = knitGlowCell(model, footfall.worn, side, i); // the crust glyph, brightened
-      const g = mk(cell?.glyph ?? '');
-      if (cell) {
-        g.x = cell.col * CW;
-        g.y = cell.row * CH;
-      }
-      g.alpha = cell ? 0.75 : 0;
+      const g = mk(''); // placed by anchorKnitGlow below
       world.addChild(g);
       glow.push(g);
     }
-    knits.push({ side, bornAt: elapsedS, trail, glow });
+    const sweep: KnitSweep = { side, bornAt: elapsedS, trail, glow };
+    anchorKnitGlow(sweep);
+    knits.push(sweep);
     knitsFired += 1;
   };
 
@@ -643,17 +665,7 @@ export async function mountTerminalLand(
       // above: a mid-knit unjoin/rewire recomposes the seam ramp under these
       // very columns, and a baked glyph would hang off the redrawn ground for
       // the rest of the fade (and miss wear packing the crust down).
-      k.glow.forEach((g, i) => {
-        const cell = knitGlowCell(model, footfall.worn, k.side, i);
-        if (!cell) {
-          g.alpha = 0; // no ground in that column — nothing to light
-          return;
-        }
-        g.x = cell.col * CW;
-        g.y = cell.row * CH;
-        g.text = cell.glyph;
-        g.alpha = 0.75 * (1 - q);
-      });
+      anchorKnitGlow(k);
     }
 
     for (const b of beings.values()) {
