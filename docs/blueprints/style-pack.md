@@ -98,7 +98,7 @@ your palette, and only with palette keys as values.
 
 ## 2 · Registration (4 mechanical touch points)
 
-All in `src/themes/index.ts`, mirroring the existing six themes exactly:
+All in `src/themes/index.ts`, mirroring the existing themes exactly:
 
 1. `import myPack from './<pack-id>.json';`
 2. Add `'<pack-id>': myPack as Theme,` to the `THEMES` object.

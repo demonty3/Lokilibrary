@@ -32,9 +32,10 @@ optional `fx: 'scanlines'` — gated by `scripts/smoke-style-pack.mts`
 (bars calibrated on the six shipped themes, then frozen).
 `docs/blueprints/style-pack.md` is the agent-facing authoring spec. The
 first cold stranger-agent run (fake synthwave/DOOM feed data) produced
-the `night-drive` pack first-try green with zero hand-fixes — preserved
-VERBATIM on local branch `cold-run/night-drive`, awaiting Harry's
-eyeball; kill condition ("needs hand-fixing every run") not triggered.
+the `night-drive` pack first-try green with zero hand-fixes; Harry's
+eyeball passed 2026-07-31 and it is MERGED as the seventh shipped theme
+(unedited stranger output). Kill condition ("needs hand-fixing every
+run") not triggered; stays armed for future pack runs.
 
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
