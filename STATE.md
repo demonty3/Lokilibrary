@@ -24,6 +24,18 @@ draw from the PRD's remaining column: T2-completion runtime (real
 cohort + LLM rails in terminal lands), T3 chrome remainder, T4
 topology→reflection, T5 orchestration, terminals-as-wallpaper.
 
+**Style-pack surface SHIPPED + cold-tested 2026-07-31** (commit `6676111`).
+Themes now carry the three pack slots — 13-key palette, optional
+`landGlyphs` glyph dialect (render-side `landRoleGlyph` in
+`src/render/levels/land.ts`; label/being/player/crust/edge locked),
+optional `fx: 'scanlines'` — gated by `scripts/smoke-style-pack.mts`
+(bars calibrated on the six shipped themes, then frozen).
+`docs/blueprints/style-pack.md` is the agent-facing authoring spec. The
+first cold stranger-agent run (fake synthwave/DOOM feed data) produced
+the `night-drive` pack first-try green with zero hand-fixes — preserved
+VERBATIM on local branch `cold-run/night-drive`, awaiting Harry's
+eyeball; kill condition ("needs hand-fixing every run") not triggered.
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever

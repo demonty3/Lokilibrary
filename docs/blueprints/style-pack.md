@@ -76,6 +76,9 @@ with `--values`):
 - Keys must be real land roles. Overridable: `star starBright skyDither sun
   moon cloud ridge ridgeFar hall topsoil stone deep bedrock cavern shelf roof
   monument cottage foliage relic shaft`.
+- A role can be emitted in more than one place: `sun` draws the sky sun AND
+  the beacon glyphs on structure crowns, so your sun glyph appears two or
+  three times in the scene. Pick one that survives both readings.
 - **Locked, never overridable** (live machinery owns their glyphs): `label`
   (game names), `being`, `player`, `crust` (the wear system re-texts it),
   `edge`. `sky` is background and never drawn, so overriding it does nothing.
@@ -126,7 +129,11 @@ the bars inside them are off-limits to packs by definition.
 Green gates prove conformance, not taste. Now look at it:
 
 ```bash
-bash scripts/e2e/run.sh        # builds + serves + headless Chrome with CDP
+# Fresh clone: npm install first. run.sh builds (~60 s) then stays attached
+# to the Chrome it launched, so run it in the BACKGROUND and poll readiness:
+bash scripts/e2e/run.sh &
+until curl -s -o /dev/null http://localhost:9334/json/version && \
+      curl -s -o /dev/null http://localhost:4173/; do sleep 2; done
 export LOKI_E2E_PATH='?terminal=t1&wing=d0&theme=<pack-id>'
 node scripts/e2e/drive.mjs shot /tmp/pack.png
 ```
