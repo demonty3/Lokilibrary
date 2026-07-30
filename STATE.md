@@ -24,6 +24,38 @@ draw from the PRD's remaining column: T2-completion runtime (real
 cohort + LLM rails in terminal lands), T3 chrome remainder, T4
 topology→reflection, T5 orchestration, terminals-as-wallpaper.
 
+**Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
+`a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
+its results *after* that session hit its usage limit, so nothing was ever
+read or recorded; the findings were reconstructed from the transcript and
+the live ones fixed. **The review is PARTIAL — 34 agents ran and 18 errored
+on the same usage limit**, so an absent finding is not evidence of absence,
+and two entries sat in its `rejected` bucket with an EMPTY `reasons` list
+because their verifiers died: unverified, never refuted. Both were checked
+by hand and both held. Landed: (1) `smoke-sky-dither` asserted nothing about
+its own "never over scatter/sun/cloud/ridge" claim — dropping the
+`role === 'sky'` guard in `composeLand` left all 11 assertions passing (the
+RNG draw precedes the guard, so even determinism survived) while 10/88 stars
+and 9/43 ridgeFar were clobbered; now locked by golden per-role band counts
+plus a five-seed survival sweep. (2) The knit glow baked its glyph + x/y at
+knit time, stranding up to six bright ▀ off the ground through a mid-knit
+unjoin; placement moved to pure `src/terminal/knit.ts`, `wear.ts`'s new
+`crustGlyphAt` is the single ▀→▔ authority, and `anchorKnitGlow` is the
+single writer (startKnit + tick + **recompose** — the on-screen check showed
+tick-only re-anchoring still read `glowStale` 6 for ~1s on a throttled
+window). (3) The glow assumed the seam column is crust: measured over widths
+40-60 × 60 seeds, 1.7–7.4% of seam-span columns are non-crust in the joined
+states (20.4% solo) — game-title strips reach within 1 column of a seam and
+those columns have no crust at all — so it was brightening a letter of a
+title; those columns now yield no glyph. (4) `debugPlace` scored a footfall
+at the teleport destination (`lastCol` never re-based), inflating every
+teleport-driven e2e wear read. The wear half of finding (3) does NOT hold —
+`crustLayerText` was already role-guarded. New `state().knits.glowStale` is
+the live invariant (must read 0); new smoke `smoke-knit-glow` (13). Verified
+two-sided throughout — every fix was run against a mutant that made it fail
+first, on-screen at 60fps and throttled. Full sweep 49 smokes + both
+typecheck legs green.
+
 **T2 society migration SHIPPED 2026-07-17** (spec+plan
 `docs/superpowers/*/2026-07-17-t2-society-migration*`; commits
 `732c8d7..481dda6` on `claude/t2-society-migration`). The real cohort

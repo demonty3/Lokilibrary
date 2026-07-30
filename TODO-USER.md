@@ -13,7 +13,11 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-24** (branch prune: 45 remote branches → 2. 27 were
+Last updated: **2026-07-30** (the `wt-atmo` worktree Harry spotted in Mori was
+a throwaway `--detach` sandbox from a review subagent — no code was ever off
+`main` — but chasing it surfaced a whole adversarial review that died with its
+session unread. Findings recovered and landed; the "only half ran" item below
+is what's left.) Previously **2026-07-24** (branch prune: 45 remote branches → 2. 27 were
 merged into `main`; 13 more had landed via rebase/squash so git's ancestry
 check couldn't see them — verified by content, not by merge status — and
 their commits are mirrored to local `refs/archive/` refs. PR #28 closed as
@@ -41,6 +45,24 @@ minutes. Logs should show `⟹ full→sleeping` (at 10 min) then
 morning banner with the overnight reflections, auto-dismissing after ~30s.
 Needs `ANTHROPIC_API_KEY` in `worker/.dev.vars` + `npm run worker` running.
 **Unblocks**: nothing code-side; it's the last unwatched Phase-5 surface.
+
+### 🔔 DECIDE — the Tier-2 depth review only half ran
+**Status**: the 2026-07-16 `tier2-depth-review` workflow ran **34 agents and
+18 of them errored** on the usage limit that killed the session. Its results
+arrived after the last turn and were never read. Recovered from the transcript
+and landed on 2026-07-30 (`a47c1d2..6945474`, STATE.md has the detail): two
+confirmed findings fixed, plus two that the workflow had filed under
+`rejected` with an **empty reasons list** — their verifiers had died, so they
+were unverified rather than refuted. Both turned out to be real.
+**What's open**: the ~18 agents' worth of ground that never got covered at
+all. Nobody knows what it would have found.
+**Your call**: re-run a review over the same range (`965e043..HEAD` plus what
+has landed since), or accept the partial pass and move on. Cost is the reason
+it's your call, not mine — the original burned ~1.3M subagent tokens.
+**Note while you decide**: the knit *trail* has the same tick-latency property
+the glow had, and is re-anchored per tick but not at the recompose. The
+original review explicitly cleared it, so it was left alone rather than
+quietly widened — but if a review does re-run, that's a known place to look.
 
 ### ⏳ Bake real PixelLab sprites (Phase 3 follow-up, deferred)
 **Status**: open since slice 3C. Needs `PIXELLAB_API_KEY` in
