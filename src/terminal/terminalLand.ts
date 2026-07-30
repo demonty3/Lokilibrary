@@ -486,13 +486,18 @@ export async function mountTerminalLand(
       world.addChild(t);
       return t;
     });
+    // One text per seam column, kept even where there is no ground to
+    // brighten (alpha 0) — a recompose can move a label off that column
+    // mid-fade, and the tick lights it up when it becomes crust.
     const glow: BitmapText[] = [];
     for (let i = 0; i < KNIT_SPAN; i++) {
       const cell = knitGlowCell(model, footfall.worn, side, i); // the crust glyph, brightened
-      const g = mk(cell.glyph);
-      g.x = cell.col * CW;
-      g.y = cell.row * CH;
-      g.alpha = 0.75;
+      const g = mk(cell?.glyph ?? '');
+      if (cell) {
+        g.x = cell.col * CW;
+        g.y = cell.row * CH;
+      }
+      g.alpha = cell ? 0.75 : 0;
       world.addChild(g);
       glow.push(g);
     }
@@ -640,6 +645,10 @@ export async function mountTerminalLand(
       // the rest of the fade (and miss wear packing the crust down).
       k.glow.forEach((g, i) => {
         const cell = knitGlowCell(model, footfall.worn, k.side, i);
+        if (!cell) {
+          g.alpha = 0; // no ground in that column — nothing to light
+          return;
+        }
         g.x = cell.col * CW;
         g.y = cell.row * CH;
         g.text = cell.glyph;
@@ -836,8 +845,10 @@ export async function mountTerminalLand(
         glowStale: knits.reduce(
           (n, k) =>
             n +
-            k.glow.filter((g, i) => g.y !== knitGlowCell(model, footfall.worn, k.side, i).row * CH)
-              .length,
+            k.glow.filter((g, i) => {
+              const cell = knitGlowCell(model, footfall.worn, k.side, i);
+              return cell !== null && g.y !== cell.row * CH;
+            }).length,
           0,
         ),
       },
@@ -851,6 +862,10 @@ export async function mountTerminalLand(
       const b = beings.get(id);
       if (!b || b.pending) return false;
       b.x = Math.min(model.width - 1, Math.max(0, x));
+      // A teleport is not a walk: re-base lastCol so the next tick doesn't
+      // score a footfall for a column the being never entered (wear is
+      // "column ENTRIES", and debugWear-driven e2e reads these counts).
+      b.lastCol = Math.round(b.x);
       b.dir = dir;
       b.intent = { kind: 'wander', dir };
       b.pausedUntil = 0;

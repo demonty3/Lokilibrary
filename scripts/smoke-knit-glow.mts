@@ -7,6 +7,8 @@
  *     renderer re-deriving per tick tracks a recompose
  *   - a join genuinely moves the seam surface — the reason baking the glyphs
  *     at knit time stranded them (the bug this file was added with)
+ *   - a seam column with no crust yields NO glow glyph (labels reach within
+ *     1 column of a seam; brightening a game title is not ground knitting)
  *   - crustGlyphAt is the single ▀ → ▔ authority: crustLayerText agrees with it
  *
  * What this CANNOT see: whether terminalLand's tick actually calls it. The
@@ -42,14 +44,45 @@ check(
 // 2 · the cell sits on the model's own ground line, with the model's own glyph
 let onGround = true;
 let glyphOk = true;
+let cells = 0;
 for (const side of ['left', 'right'] as const)
   for (let i = 0; i < KNIT_SPAN; i++) {
     const cell = knitGlowCell(solo, noWear, side, i);
+    if (cell === null) continue;
+    cells++;
     if (cell.row !== solo.surface[cell.col]) onGround = false;
     if (cell.glyph !== solo.char[cell.row][cell.col]) glyphOk = false;
   }
 check('glow sits on the surface row of its column', onGround);
 check('glow takes the model glyph when nothing is worn', glyphOk);
+check('this seed has glow cells to check at all', cells > 0, `cells=${cells}`);
+
+// 2b · ONLY crust: never a game-title letter, a shelf, foliage, or empty sky.
+// Swept over the widths and join states the desk actually produces, because a
+// single seed hits crust ~80-98% of the time and would pass by luck.
+let brightenedNonCrust = 0;
+let nullCells = 0;
+let sweptCells = 0;
+for (let w = 40; w <= 60; w++)
+  for (let s = 0; s < 12; s++) {
+    const swept = composeLand((0x9e3779b9 * (s + 1)) >>> 0, SAMPLE_LAND, { ...opts, width: w });
+    for (const side of ['left', 'right'] as const)
+      for (let i = 0; i < KNIT_SPAN; i++) {
+        const cell = knitGlowCell(swept, noWear, side, i);
+        sweptCells++;
+        if (cell === null) {
+          nullCells++;
+          continue;
+        }
+        if (swept.role[cell.row][cell.col] !== 'crust') brightenedNonCrust++;
+      }
+  }
+check('glow never brightens a non-crust cell', brightenedNonCrust === 0, `offenders=${brightenedNonCrust}/${sweptCells}`);
+check(
+  'the no-ground case is reachable (so the null branch is load-bearing)',
+  nullCells > 0,
+  `null=${nullCells}/${sweptCells}`,
+);
 
 // 3 · a join MOVES the seam surface — so a glyph baked at knit time and never
 // re-anchored would hang off the ground. This is the defect, asserted as a
@@ -61,6 +94,7 @@ let maxDelta = 0;
 for (let i = 0; i < KNIT_SPAN; i++) {
   const a = knitGlowCell(solo, noWear, 'left', i);
   const b = knitGlowCell(joined, noWear, 'left', i);
+  if (a === null || b === null) continue;
   if (a.row !== b.row) movedCols++;
   maxDelta = Math.max(maxDelta, Math.abs(a.row - b.row));
 }
@@ -80,7 +114,7 @@ check(
 );
 check(
   'glow honours wear on a worn seam column',
-  knitGlowCell(solo, worn, 'left', 0).glyph === WORN_CRUST_GLYPH,
+  knitGlowCell(solo, worn, 'left', 0)?.glyph === WORN_CRUST_GLYPH,
 );
 // crustLayerText must show the same glyph the glow does, cell for cell.
 const layer = crustLayerText(solo, worn).split('\n');

@@ -29,16 +29,28 @@ export function knitGlowCol(side: 'left' | 'right', width: number, index: number
   return side === 'left' ? index : width - 1 - index;
 }
 
-/** Where the `index`-th glow glyph belongs in the CURRENT model. Called on
- *  every tick of a live knit (≤ KNIT_SPAN cells, under a second) — one small
- *  object per glyph is the price of one source of truth for the placement. */
+/** Where the `index`-th glow glyph belongs in the CURRENT model, or null when
+ *  that column has no ground to brighten.
+ *
+ *  The surface row is not always crust: a game-title strip, a shelf or foliage
+ *  is drawn over it (labels reach within 1 column of a seam), and the seam
+ *  blend can leave the row empty. Measured over widths 40-60 × 60 seeds, 1.7-7.4%
+ *  of seam-span columns are non-crust in the joined states the knit fires in
+ *  (20.4% solo) — and where the surface row is not crust, that column has no
+ *  crust at all, so there is nothing to fall back to. Brightening a letter of
+ *  a game title reads as the title flickering, not as ground knitting, so the
+ *  glyph is skipped instead.
+ *
+ *  Called on every tick of a live knit (≤ KNIT_SPAN cells, under a second) —
+ *  one small object per glyph is the price of one source of truth. */
 export function knitGlowCell(
   model: LandModel,
   worn: ReadonlySet<number>,
   side: 'left' | 'right',
   index: number,
-): KnitGlowCell {
+): KnitGlowCell | null {
   const col = knitGlowCol(side, model.width, index);
   const row = model.surface[col];
+  if (model.role[row]?.[col] !== 'crust') return null;
   return { col, row, glyph: crustGlyphAt(model, worn, col, row) };
 }
