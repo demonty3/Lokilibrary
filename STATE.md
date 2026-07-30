@@ -35,7 +35,13 @@ first cold stranger-agent run (fake synthwave/DOOM feed data) produced
 the `night-drive` pack first-try green with zero hand-fixes; Harry's
 eyeball passed 2026-07-31 and it is MERGED as the seventh shipped theme
 (unedited stranger output). Kill condition ("needs hand-fixing every
-run") not triggered; stays armed for future pack runs.
+run") not triggered; stays armed for future pack runs. **Run 2
+(2026-07-31, HAIKU 4.5** — the weak-model floor test): `cozy-autumn`,
+gates green with ZERO maintainer hand-fixes; one self-recovered failure
+(the smoke named a non-Cozette glyph, the weak agent fixed it from the
+error message — the gates work as recovery rails, not just filters).
+Pack verbatim on `refs/archive/cold-run/cozy-autumn`, awaiting eyeball.
+Tally 2/2; no model-floor caveat needed in README copy.
 
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
