@@ -49,68 +49,13 @@ demo). The Steam release gate (electron-builder packaging + Steam Direct
 and the ship-v1.0-vs-expand-v2.x decision resolved with it: consolidate
 to demo-ready, then expand into the snapping-terminals arc.**
 
-**Phase 0** (2026-05-22) shipped the integration spike: PixiJS v8 boot
-+ Solarized theme, Electron wrapper + Steamworks SDK + wallpaper-mode
-revival on Win11 22H2+ (Lively Progman-reparent port), Worker
-`/api/agent/tick` Tier 1 round-trip, Mulberry32 PRNG + FNV-1a hash,
-Steam OpenID + library fetch + behavioral profile. Retro at
-`RETROS/phase-0-spike.md`.
-
-**Phase 1** (2026-05-22) shipped renderer foundations: Cozette bitmap
-font, multi-theme registry (Solarized/Gruvbox/Catppuccin/Tokyo
-Night/IBM-3270), hand-rolled WFC, single-library-room cell renderer,
-`cell → district → … → solar_system` scale-ladder (cell + district
-implemented; higher levels stubbed), `playerPos.ts` + `scatter.ts`
-2D rewrites.
-
-**Phase 2** (2026-05-26) shipped the agent layer (slices 2A–2G):
-SQLite + sqlite-vec + FTS5 memory stream, 5-agent cohort with
-Tier-0 BT, spatially-bounded perception, Tier-1 Anthropic Haiku / local
-Qwen routing, Tier-2 Sonnet reflection at threshold 150, bookshelf
-launch + Loki marginalia, persona system, telemetry overlay, profile-
-aware remount. Retro at `RETROS/phase-2.md`.
-
-**Phase 3** (partial — 3A/3B/3C shipped) wired the pixel-art pipeline
-scaffold: sprite-aware cell renderer, placeholder generator for all
-non-floor tiles, PixelLab.ai bake script via Worker proxy. The
-displayed-size question for 16×32 sprites on a 6×13 grid is unresolved
-(documented in `src/render/sprites.ts:SLOT_DISPLAY` comment); resolves
-when Phase 5 reveals the aesthetic requirements.
-
-**Phase 4** (2026-05-27) shipped wallpaper polish: three-tier throttle
-(`full` / `throttled-1hz` / `paused`), multi-monitor tray picker,
-Ctrl+Alt+L peek hotkey. All verified end-to-end on a real Win11 raised-
-desktop setup.
-
-**Phase 5** (2026-05-28/29) finished the agent layer: 5A reflection
-completion (rate-limit + plan output + agents execute plans), 5B `SLEEPING`
-throttle + morning dispatch, 5C text-only lore upload (embed backbone +
-store + drop-zone), 5D lore-driven palette / persona / scatter adaptation.
-Retros `RETROS/phase-5*.md`.
-
-**Phase 6 — desktop wrapper** shipped the Electron skeleton, Steam-ticket
-auth, launch-via-Steamworks, wallpaper mode, multi-monitor perf, peek
-hotkey. **The Steam *release* gate (packaging + Direct submission) is NOT
-done.** **Phase 6A** rendered the local Ollama model as a world landmark.
-
-**Phase 7** (2026-05-30/31, v2.x — ahead of `CONSOLIDATION.md`'s v1.0 scope)
-built real island/continent renderers + scale ladder (7A), the multi-pane
-terminal UI (7B), and seam-walking agents that cross pane boundaries (7D.2).
-
-**Consolidation pass (2026-06, current)** — first on-screen verification on
-macOS: cell aesthetic + agents-as-beings confirmed; carved the walkable seam
-edge (`cell.ts:seamRows`) so the seam-walk is observable. Remaining:
-desktop-surface QA (lore recolor / local-AI landmark / wallpaper) + the
-ship-vs-expand decision. Retro at `RETROS/consolidation-2026-06.md`.
+Per-phase history lives in `RETROS/` (one retro per phase).
 
 ## Stack
 
 - **PixiJS v8** (WebGL/WebGPU, falls back cleanly) — 2D sprite renderer
 - **Cozette 6×13** — bitmap font baked as PNG + FNT atlas, no msdf-bake
   pipeline, ships in `public/fonts/`
-- **Vite + React 19 + TypeScript** for build / dev / type-checking
-- **Zustand** for app state in `src/state/` (auth, library, manifest,
-  wallpaper mode, scale level)
 - **Cloudflare Workers + KV** for the backend (the single AI orchestration
   surface; holds all server-side keys, caches Steam / HLTB / IGDB lookups,
   caches the Stage 1 manifest)
@@ -182,46 +127,8 @@ tiled-model solver seeded by `mulberry32(profileSeed)` from
 
 ## File layout
 
-```
-SPEC.md              — consolidated long-form spec (Memory Palace + 3D-era Appendix A)
-CLAUDE.md            — this file (day-to-day rules)
-PLAN.md              — phased build plan
-IDEAS.md             — parked alternative directions (3D-era; review for porting)
-docs/pivot/          — DESIGN.md + FEASIBILITY.md (authoritative pivot design)
-docs/research/       — dated reference reports (historical)
-RETROS/              — per-phase retros (phase-0-spike.md is the live one)
-
-package.json         — PixiJS + Vite + React + TS
-index.html           — single page; mounts React into #root
-src/main.tsx         — React entry point
-src/App.tsx          — top-level component; mounts PixiApp, owns keydown listeners + HUD
-src/render/          — PixiJS rendering
-  PixiApp.ts         — boot the Application, dispatch to level renderers
-  fonts.ts           — Cozette loader + hexToInt helper
-  levels/            — per-scale-level renderers (cell.ts, district.ts, stub.ts)
-src/procedural/      — deterministic layout layer
-  prng.ts            — Mulberry32 PRNG
-  seed.ts            — FNV-1a profile-seed hash
-  wfc.ts             — hand-rolled tiled-model WFC solver
-  cell.ts            — cell-level layout (calls solveWfc + post-processes)
-  scatter.ts         — 2D rejection-sampling scatter
-  tiles/             — tile bibles per district type
-src/themes/          — palette JSONs (one per theme) + Theme type + registry
-src/state/           — Zustand store + module-local playerPos
-src/agents/          — agent runtime (Phase 1: loki.ts test sprite; Phase 2: full Smallville)
-src/api/             — fetch wrappers for the Cloudflare Worker backend
-src/ai/              — types for the world manifest + Stage 1 prompt + parsing
-src/data/            — hard-coded sample library, asset URL helpers
-src/types.ts         — shared types
-public/fonts/        — Cozette PNG + FNT + LICENSE
-public/sprites/      — pixel-art sprite atlases (Phase 3+)
-public/audio/        — ambient + interaction stings (Phase 5+)
-worker/              — Cloudflare Worker (orchestrates Anthropic, Steam, HLTB, IGDB;
-                       all keys live here; Stage 1 / Tier 1+2 LLM calls go here)
-desktop/             — Electron wrapper (Steamworks SDK + wallpaper-mode revival)
-legacy-3d/           — preserved 3D Three.js build (reference, not active)
-legacy-desktop-v0.6/ — preserved v0.6 Electron wrapper (pre-prune; reference)
-```
+`docs/INDEX.md` is the authoritative doc map. `IDEAS.md` holds parked
+3D-era directions — review before porting.
 
 ## How to work (general)
 
@@ -323,13 +230,8 @@ You need Steam installed and running for `steam://run/{appid}` to launch
 a game in the web build; the Electron wrapper goes through Steamworks
 SDK directly.
 
-**Desktop wrapper (third terminal):**
-
-```
-cd desktop
-npm install
-npm run dev       # tsc + electron pointing at localhost:5183
-```
+**Desktop wrapper (third terminal):** run commands + one-time
+Steamworks SDK setup live in `desktop/CLAUDE.md`.
 
 **macOS is the only build + verification platform (2026-07-17
 direction).** The app boots Steam-less on macOS (`initSteam()` catches
@@ -339,26 +241,10 @@ launch + CDP-driving recipe. The Windows/WSL setup the earlier phases
 used is retired — the Win32 code paths (Progman-reparent wallpaper,
 koffi throttle) stay in the tree as dormant surface for OSS
 contributors, but we don't build, test, or gate on them.
-One-time Steamworks setup (only needed for the launch-a-game path —
-rendering + agents run without it), per
-`desktop/STEAMWORKS_SDK_LICENSE.txt` neighbours: drop the Steamworks
-SDK's `redistributable_bin/<platform>/` into
-`desktop/sdk/redistributable_bin/<platform>/`, create
-`desktop/steam_appid.txt` containing `480` (SpaceWar).
 
-**Local LLM dev mode (optional — needs a box that can host Ollama):**
-
-```
-ollama pull qwen2.5:7b           # one-time
-ollama serve                      # background daemon at http://localhost:11434
-# Set LLM_PROVIDER=local in worker/.dev.vars
-npm run worker                    # now hits Ollama instead of Anthropic
-```
-
-Harry's Mac can't host local models — dev iteration on this box uses the
-Claude API (`LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in
-`worker/.dev.vars`; Haiku Tier-1 latency ~1.7s). The Ollama path remains
-a self-hoster / contributor opt-in, never the default.
+**Local LLM dev mode** (optional, self-hoster / contributor opt-in):
+see `worker/CLAUDE.md`. This Mac can't host local models — dev
+iteration here uses the Claude API.
 
 ## Open inputs needed from Harry
 
@@ -369,10 +255,6 @@ a self-hoster / contributor opt-in, never the default.
 - PixelLab.ai API key (`PIXELLAB_API_KEY`, from Phase 3 cloud fallback)
 - ElevenLabs API key (`ELEVENLABS_API_KEY`, optional, from v0.8+ for
   reveal narration)
-- ~~OSS licence choice~~ — DONE 2026-07-11: **MIT**; `LICENSE` file at
-  repo root; repo public since 2026-07-11 (secrets pass came back clean)
-- ~~Steamworks partner account~~ — RETIRED 2026-07-11 (no Steam
-  distribution; dev appid 480 covers the SDK launch path)
 
 ## Things to NOT do
 
