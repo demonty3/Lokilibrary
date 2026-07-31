@@ -33,6 +33,9 @@
  *     being-salience bars stay sound under ramping); each ramped role's
  *     step-0 band keeps ≥ RAMP_STEP0_MIN contrast vs bg (a band that
  *     vanishes reads as a hole in the world).
+ *   - landOmit: real, never-LAND_OMIT_LOCKED roles, no duplicates, at most
+ *     OMIT_MAX — omission is a dialect choice (a blank DMG sky, a stroke-
+ *     only scope), not a licence to empty the scene.
  */
 
 import { readFileSync } from 'node:fs';
@@ -42,7 +45,7 @@ import { makeChecker } from './lib/smoke.ts';
 import { THEMES, THEME_IDS } from '../src/themes/index.ts';
 import { BEING_ROLE_KEYS, ROLE_DEFAULTS } from '../src/themes/roles.ts';
 import { THEME_FX, themeFxList, type Theme, type ThemePalette } from '../src/themes/types.ts';
-import { landRoleFill, LAND_GLYPH_LOCKED, LAND_RAMP_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
+import { landRoleFill, LAND_GLYPH_LOCKED, LAND_OMIT_LOCKED, LAND_RAMP_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
 import type { LandRole } from '../src/procedural/land.ts';
 
 const args = process.argv.slice(2);
@@ -95,10 +98,16 @@ const BEING_MIN_CONTRAST = 3.0;
  *  ramped pack; its step-0 floor is stone 1.13, bedrock/cavern 1.28, the
  *  rest ≥ 1.43) and FROZEN just under that floor. */
 const RAMP_STEP0_MIN = 1.1;
+/** Omission ceiling: at most this many roles per pack's landOmit. Set
+ *  2026-07-31 and FROZEN before any omitting pack shipped: 12 of the 21
+ *  omittable roles leaves headroom for the maximal stroke-only cut (the
+ *  08-oscilloscope direction needs ~11 fill roles gone) while keeping
+ *  "omit nearly everything" illegal. */
+const OMIT_MAX = 12;
 
 const VALID_ROLES = new Set(Object.keys(ROLE_KEY));
 const VALID_THEME_ROLES = new Set(Object.keys(ROLE_DEFAULTS));
-const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx', 'landRamp']);
+const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx', 'landRamp', 'landOmit']);
 
 const ids = onlyId ? [onlyId] : [...THEME_IDS];
 check('registry lockstep: THEME_IDS == Object.keys(THEMES)',
@@ -221,6 +230,25 @@ for (const id of ids) {
     }
   }
 
+  // 9 · landOmit (style-pack slot 5): shape + locked set + the emptiness bound
+  const omit = t.landOmit;
+  if (omit !== undefined) {
+    const omitShapeOk = Array.isArray(omit) && omit.length > 0;
+    check(`${tag} landOmit is a non-empty array`, omitShapeOk, JSON.stringify(omit));
+    for (const role of omitShapeOk ? omit : []) {
+      check(`${tag} landOmit role '${role}' is a real land role`, VALID_ROLES.has(role));
+      check(`${tag} landOmit role '${role}' is not omit-locked`,
+        !LAND_OMIT_LOCKED.has(role),
+        `locked: ${[...LAND_OMIT_LOCKED].join(' ')}`);
+    }
+    if (omitShapeOk) {
+      check(`${tag} landOmit has no duplicates`, new Set(omit).size === omit.length,
+        omit.join(','));
+      check(`${tag} landOmit stays under the emptiness bound`, omit.length <= OMIT_MAX,
+        `${omit.length} roles vs OMIT_MAX ${OMIT_MAX}`);
+    }
+  }
+
   if (wantValues) {
     // eslint-disable-next-line no-console
     console.log(`  ${tag} relLum(bg)=${bgLum.toFixed(4)}  ` +
@@ -238,6 +266,10 @@ for (const id of ids) {
         const c3 = contrast(lumOfInt(landRoleFill(t, r, 3)), bgLum);
         return `${r}=${c0.toFixed(2)}/${c3.toFixed(2)}`;
       }).join(' ')}`);
+    }
+    if (omit !== undefined && Array.isArray(omit) && omit.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`  ${tag} omit (${omit.length}/${OMIT_MAX}): ${omit.join(' ')}`);
     }
   }
 }

@@ -81,6 +81,13 @@ export interface Theme {
     /** Exactly 4 (gate-enforced; JSON modules can't carry a tuple type). */
     readonly factors?: readonly number[];
   };
+  /** Style-pack omission slot: land roles the pack deletes from the drawn
+   *  scene (a blank DMG sky, a stroke-only scope). Render-side only — the
+   *  procedural model is untouched, so determinism, sites and intents hold
+   *  (beings still path to an omitted structure; its label still reveals).
+   *  Roles in LAND_OMIT_LOCKED (src/render/levels/land.ts) can never be
+   *  omitted; at most OMIT_MAX roles (conformance-smoked). */
+  landOmit?: readonly LandRole[];
 }
 
 /** Normalised fx list — the renderer and the conformance smoke both read fx

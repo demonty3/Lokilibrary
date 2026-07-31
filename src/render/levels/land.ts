@@ -141,6 +141,28 @@ function themeRampRoles(theme: Theme): ReadonlySet<LandRole> {
   return new Set((theme.landRamp?.roles ?? []).filter((r) => !LAND_RAMP_LOCKED.has(r)));
 }
 
+/** Roles a style pack's landOmit may never delete (enforced here AND by
+ *  scripts/smoke-style-pack.mts): the glyph-locked live machinery (beings,
+ *  player, labels, crust wear, edge walls) and sky (never drawn — omitting
+ *  it would be a silent no-op). Everything else — strata, structures,
+ *  celestials, foliage — is omittable by design: this slot is the "glyph
+ *  deletion" axis (a blank DMG sky, a stroke-only scope). Note `hall`
+ *  omission leaves the V0-preview ANSI mural floating on its poster rect
+ *  (mountLandPreview mounts it off model.poster regardless of layers);
+ *  the terminal desk composes no hall, so that stays a prototype-surface
+ *  cosmetic. */
+export const LAND_OMIT_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
+  ...LAND_GLYPH_LOCKED,
+  'sky',
+]);
+
+/** The active theme's omitted-role set (style-pack slot 5), locked roles
+ *  filtered defensively so a hand-edited theme JSON can't delete live
+ *  machinery. */
+function themeOmitRoles(theme: Theme): ReadonlySet<LandRole> {
+  return new Set((theme.landOmit ?? []).filter((r) => !LAND_OMIT_LOCKED.has(r)));
+}
+
 /** Style-pack slot 2 (docs/blueprints/style-pack.md): the active theme's
  *  glyph dialect for a land role, or null to keep the composer's own chars.
  *  Render-side substitution only — src/procedural/ output is untouched, so
@@ -204,6 +226,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       else e.max = y; // y ascends, so first sight fixed min
     }
   roles.delete('sky'); // background, never drawn
+  for (const r of themeOmitRoles(theme)) roles.delete(r); // style-pack slot 5
 
   // Style-pack slot 4 step: vertical position within the role's own band,
   // top dim (0) → base bright (3); a 1-row band stays full ink.
