@@ -6,7 +6,7 @@ look like *them*. Follow it end to end and you will produce a **style pack**: on
 theme JSON that restyles the whole scene, validated by executable gates, accepted
 by screenshot. No engine code changes are required or wanted.
 
-A style pack has exactly four slots:
+A style pack has exactly five slots:
 
 1. **Palette** (required): the 13 colour keys every renderer resolves through.
 2. **Glyph dialect** (optional): per-land-role glyph overrides, e.g. foliage
@@ -17,6 +17,10 @@ A style pack has exactly four slots:
 4. **Value ramp** (optional): opted-in land roles render as four
    luminance-stepped bands (top dim → base bright) — quantised shading in
    the Game Boy / DMG family, without touching a single glyph.
+5. **Omission** (optional): land roles the pack deletes from the drawn scene
+   — a blank LCD sky with no starfield, a stroke-only scope with no fills.
+   What a machine refuses to draw is as much of its identity as what it
+   draws.
 
 Everything else in the world (layout, terrain, structures, beings' behaviour) is
 procedural and deterministic. A pack recolours and re-voices the scene; it never
@@ -65,7 +69,9 @@ filename.
   "landRamp": {
     "roles": ["topsoil", "stone", "deep"],
     "factors": [0.45, 0.6, 0.78, 1.0]
-  }
+  },
+  // OPTIONAL, slot 5: omission — roles deleted from the drawn scene.
+  "landOmit": ["star", "cloud"]
 }
 ```
 
@@ -124,6 +130,25 @@ over the glow, so `["glow", "scanlines"]` is the full CRT read.
   roof monument cottage shaft`). Ramping the faded sky roles (`ridge cloud
   star skyDither ridgeFar`) compounds their atmospheric fade and usually
   fails the step-0 bar.
+
+**Omission rules** (the gates enforce all of these):
+
+- A non-empty list of real land roles, no duplicates, **at most 12** — the
+  emptiness bound. Omission is a dialect choice, not a licence to empty the
+  scene.
+- **Omit-locked, never deletable:** everything glyph-locked (`label being
+  player crust edge`) plus `sky` (never drawn, so omitting it is a no-op the
+  gate refuses). Everything else — strata, structures, celestials, foliage —
+  is fair game.
+- Omission is render-side only. The procedural world is untouched: beings
+  still path to a structure you deleted, and its proximity label still
+  reveals beside apparently empty ground. Omit a structure role only if that
+  ghost-label read is a price your style is happy to pay.
+- `sun` draws the sky sun AND the beacon glyphs on structure crowns; omitting
+  it removes both, which flattens the structures' liveliness.
+- The faded sky roles (`star starBright skyDither cloud ridgeFar`) render as
+  colour blends toward `bg`. Omitting them is also how a strict limited-
+  palette pack (DMG-family) purges blended intermediates from its read.
 
 There is also an advanced `roles` slot (per-theme remapping of semantic roles
 like `being.loki` to different palette KEYS, see `src/themes/roles.ts`). The
@@ -185,7 +210,9 @@ LOKI_E2E_PATH='?terminal=t1&wing=d0' node scripts/e2e/drive.mjs shot /tmp/stock.
   If you have to hunt for them, raise their accent keys and reshoot.
 - The crust line (surface) reads as one continuous ground; strata below it
   (topsoil / stone / bedrock) still read as distinct bands.
-- The sky reads intentional: stars densest at the top, one moon, clouds.
+- The sky reads intentional: stars densest at the top, one moon, clouds — or,
+  if your pack omits sky roles, the emptiness itself reads deliberate: flat
+  air in the bg colour, not a rendering hole.
 - One coherent palette. If a region looks like it belongs to a different pack,
   it does; fix the offending key.
 - With `fx: scanlines`: the lines are present but legibility survives. (They
@@ -247,11 +274,19 @@ being keys sit at the bright end of it (10:1 to 14:1 contrast, beings stay
 loud), the three glyph swaps push "phosphor terminal" without touching any
 locked role, and glow + scanlines seal the CRT read.
 
-The value-ramp slot's worked example ships as `gameboy-dmg`
+The full-slot worked example ships as `gameboy-dmg`
 (`src/themes/gameboy-dmg.json`): thirteen keys collapsed onto the four
-classic DMG greens, and `landRamp` over the strata + structures so the whole
-underground reads as quantised luminance bands. Note what it does NOT do —
-no glyph swaps, no fx — one axis exercised cleanly.
+classic DMG greens, `landRamp` over the strata + structures so the whole
+underground reads as quantised luminance bands, `landOmit` deleting the
+starfield / dither / clouds / far ridge / moon (a DMG sky is a blank LCD,
+and every omitted role was a blended intermediate diluting the 4-green
+read), and a chunky block/quadrant glyph dialect so the ramp's bands read
+as solid masses. Its eleven glyph overrides exceed the §0 "2-5" advice
+deliberately — a whole-machine dialect, not decoration. Note what it still
+does NOT do — no fx: the DMG is an LCD, not a CRT, and the absence is the
+point. (Its first cut, 2026-07-31 pre-re-cut, was ramp-only — the clean
+single-axis proof — and failed the eyeball as "a green filter"; identity
+took all three axes together.)
 
 ## 6 · Hard rails (from the repo's CLAUDE.md, restated so you cannot miss them)
 
@@ -263,6 +298,9 @@ no glyph swaps, no fx — one axis exercised cleanly.
   are the whole menu), new roles, ramp-locked ramp roles, non-darken-only
   factors, or multi-glyph values. The whitelists are the product's taste
   rails; widening them is an engine decision, not a pack decision.
+- **Never** omit an omit-locked role, and never exceed the 12-role omission
+  bound. A pack that wants the scene emptier than that wants a different
+  engine.
 - One palette per scene. No per-game or per-region colour exceptions.
 - Known v1 limits, documented not fixable-by-you: light backgrounds are
   unsupported (dark-ground bar), and the Ghost being only appears on the

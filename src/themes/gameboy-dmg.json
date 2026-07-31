@@ -19,5 +19,19 @@
   "landRamp": {
     "roles": ["topsoil", "stone", "deep", "bedrock", "cavern", "shelf", "roof", "monument", "cottage", "shaft"],
     "factors": [0.45, 0.6, 0.78, 1.0]
+  },
+  "landOmit": ["star", "starBright", "skyDither", "cloud", "ridgeFar", "moon"],
+  "landGlyphs": {
+    "topsoil": "▓",
+    "stone": "▒",
+    "deep": "░",
+    "bedrock": "█",
+    "monument": "▛",
+    "cottage": "▟",
+    "shelf": "▜",
+    "roof": "▀",
+    "shaft": "▌",
+    "foliage": "▙",
+    "ridge": "▄"
   }
 }
