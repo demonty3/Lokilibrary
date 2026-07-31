@@ -32,8 +32,9 @@
  * Exposes `window.__terminal` (state + debug) for the e2e harness.
  */
 
-import { Application, BitmapText, Container, Graphics } from 'pixi.js';
-import type { Theme } from '../themes/types';
+import { Application, BitmapText, Container, Graphics, type Filter } from 'pixi.js';
+import { themeFxList, type Theme } from '../themes/types';
+import { createGlowFilter } from '../render/fx/glow';
 import {
   COZETTE_CELL_HEIGHT as CH,
   COZETTE_CELL_WIDTH as CW,
@@ -272,12 +273,25 @@ export async function mountTerminalLand(
   world.scale.set(WORLD_SCALE);
   app.stage.addChild(world);
 
-  // Style-pack fx flag (docs/blueprints/style-pack.md): 'scanlines' lays a
-  // static CRT line field over the whole window, above the world. Oversized
-  // fixed rect — covers any resize without a listener; a single static
-  // Graphics, so the 1 Hz wallpaper throttle costs nothing. Destroyed with
-  // the stage on teardown.
-  if (theme.fx === 'scanlines') {
+  // Style-pack fx slot (docs/blueprints/style-pack.md), read through
+  // themeFxList so string and array forms behave identically.
+  //
+  // 'glow': a single-pass bloom filter on `world` — bright glyphs halo, the
+  // source stays unblurred. Explicitly destroyed on teardown (filters are
+  // not stage children, so app.destroy's children sweep misses them).
+  //
+  // 'scanlines': a static CRT line field over the whole window, above the
+  // world — a stage SIBLING, so the crisp lines composite over the bloom
+  // (correct CRT layering). Oversized fixed rect — covers any resize
+  // without a listener; a single static Graphics, so the 1 Hz wallpaper
+  // throttle costs nothing. Destroyed with the stage on teardown.
+  const fxList = themeFxList(theme);
+  let glowFilter: Filter | null = null;
+  if (fxList.includes('glow')) {
+    glowFilter = createGlowFilter();
+    world.filters = [glowFilter];
+  }
+  if (fxList.includes('scanlines')) {
     const scan = new Graphics();
     for (let y = 0; y < 2400; y += 3) scan.rect(0, y, 4000, 1);
     scan.fill({ color: 0x000000, alpha: 0.16 });
@@ -983,6 +997,10 @@ export async function mountTerminalLand(
     unsubNeighbour();
     app.ticker.remove(tick);
     delete window.__terminal;
+    if (glowFilter) {
+      world.filters = [];
+      glowFilter.destroy();
+    }
     app.destroy(true, { children: true });
   };
 }

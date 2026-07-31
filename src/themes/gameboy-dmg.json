@@ -1,0 +1,23 @@
+{
+  "id": "gameboy-dmg",
+  "name": "Game Boy DMG",
+  "palette": {
+    "bg": "#0f380f",
+    "bgAlt": "#1c4a1c",
+    "fgDim": "#306230",
+    "fg": "#8bac0f",
+    "fgBright": "#9bbc0f",
+    "yellow": "#8bac0f",
+    "orange": "#8bac0f",
+    "red": "#306230",
+    "magenta": "#9bbc0f",
+    "violet": "#8bac0f",
+    "blue": "#306230",
+    "cyan": "#9bbc0f",
+    "green": "#306230"
+  },
+  "landRamp": {
+    "roles": ["topsoil", "stone", "deep", "bedrock", "cavern", "shelf", "roof", "monument", "cottage", "shaft"],
+    "factors": [0.45, 0.6, 0.78, 1.0]
+  }
+}

@@ -46,6 +46,33 @@ caveat needed in README copy. Next open thread: whether the blueprint
 gets top-level README billing (never claim the mechanism novel —
 Deephaven 2026-02; scope the claim to the smoke-gated version).
 
+**Ceiling-widening round SHIPPED 2026-07-31 (eyeball gate pending).**
+Harry's verdict session: packs should be able to read as *different
+machines*, not recolours — the in-medium ceiling (style round 01–08) is
+PURSUE; the out-of-medium provocations (09 diorama / 10 manuscript) stay
+killed. Two new engine axes shipped as style-pack slots with gates:
+**value ramp** (`landRamp` — per-role 4-step shading, step derived
+render-side from the role's row extent, top dim → base bright;
+`src/procedural/` byte-untouched, proven by a byte-identical V0-preview
+screenshot across the hall-path unification) and **glow fx** (`fx` now
+string-or-array over `['scanlines','glow']`; single-pass bright-pass
+bloom filter on the desk's `world` — `src/render/fx/glow.ts`; gotcha: the
+fragment must declare `uInputSize` **highp** or the cross-stage precision
+mismatch fails the GL link and the world renders nothing). Darken-only
+factor contract (last exactly 1.0) keeps the frozen being-salience bars
+sound; new `RAMP_STEP0_MIN 1.1` bar calibrated on the 10-theme corpus and
+frozen. Probe packs REGISTERED: `gameboy-dmg` (ramp axis) + `amber-crt`
+(fx axis; the blueprint's worked example, now shipped). All gates green
+(225 style-pack assertions); scanline probe passes (row dim ratio 0.83);
+glow proven by same-theme A/B pixel probe (dark floor beside bright
+glyphs: bg-exact 20 without the filter, 48 with). Shots for the eyeball
+gate: `docs/design-reviews/2026-07-31-ceiling-widening/`. **Kill
+condition (frozen in the plan): if gameboy-dmg at wallpaper distance
+reads as "default with a green filter" rather than a different machine,
+iterate the pack, never the gates.** Follow-on axes deliberately NOT
+built: glyph deletion (08 oscilloscope), light ground (07 e-ink), cold
+run 3 over the new slots.
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever

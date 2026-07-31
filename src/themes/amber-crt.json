@@ -1,0 +1,28 @@
+{
+  "id": "amber-crt",
+  "name": "Amber CRT",
+  "palette": {
+    "bg": "#140a00",
+    "bgAlt": "#241400",
+    "fgDim": "#7a4a00",
+    "fg": "#c47a00",
+    "fgBright": "#ffb000",
+    "yellow": "#ffcc33",
+    "orange": "#ff9500",
+    "red": "#d95f00",
+    "magenta": "#ffa64d",
+    "violet": "#cc8800",
+    "blue": "#b37400",
+    "cyan": "#ffd280",
+    "green": "#e0a000"
+  },
+  "landGlyphs": {
+    "topsoil": "▚",
+    "stone": "▞",
+    "foliage": "♠"
+  },
+  "fx": [
+    "glow",
+    "scanlines"
+  ]
+}

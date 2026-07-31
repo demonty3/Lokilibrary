@@ -12,7 +12,7 @@ import type { LandRole } from '../procedural/land';
 
 /** The fx whitelist — the only flags the renderer implements. Widen this
  *  tuple (and the renderer) deliberately; the conformance smoke reads it. */
-export const THEME_FX = ['scanlines'] as const;
+export const THEME_FX = ['scanlines', 'glow'] as const;
 export type ThemeFx = (typeof THEME_FX)[number];
 
 export interface ThemePalette {
@@ -62,8 +62,30 @@ export interface Theme {
    *  smoked by scripts/smoke-style-pack.mts). The procedural model is
    *  untouched — determinism holds. */
   landGlyphs?: Partial<Record<LandRole, string>>;
-  /** Style-pack fx flag: 'scanlines' lays a static CRT line field over the
-   *  terminal-land window. Absent = no fx. Widen ThemeFx deliberately, not
-   *  by prompt. */
-  fx?: ThemeFx;
+  /** Style-pack fx slot: 'scanlines' lays a static CRT line field over the
+   *  terminal-land window; 'glow' blooms bright glyphs via a single-pass
+   *  filter on the desk's world container. String or array (combos like
+   *  ["glow","scanlines"]); read through themeFxList(). Absent = no fx.
+   *  Widen ThemeFx deliberately, not by prompt. */
+  fx?: ThemeFx | readonly ThemeFx[];
+  /** Style-pack value-ramp slot: opted-in land roles render as four
+   *  luminance-stepped layers (top dim → base bright, step derived from the
+   *  role's vertical extent at render time — the procedural model is
+   *  untouched). `factors` scale the role's RESOLVED fill; the conformance
+   *  smoke enforces darken-only (ascending, last exactly 1.0), so step 3 is
+   *  byte-identical to the unramped colour and the being-salience bars stay
+   *  sound. Roles in LAND_RAMP_LOCKED (src/render/levels/land.ts) cannot
+   *  ramp. */
+  landRamp?: {
+    readonly roles: readonly LandRole[];
+    /** Exactly 4 (gate-enforced; JSON modules can't carry a tuple type). */
+    readonly factors?: readonly number[];
+  };
+}
+
+/** Normalised fx list — the renderer and the conformance smoke both read fx
+ *  through this, so string and array forms stay equivalent. */
+export function themeFxList(theme: Theme): readonly ThemeFx[] {
+  if (theme.fx === undefined) return [];
+  return typeof theme.fx === 'string' ? [theme.fx] : theme.fx;
 }

@@ -6,6 +6,8 @@ import ibm3270 from './ibm-3270.json';
 import phosphor from './phosphor.json';
 import nightDrive from './night-drive.json';
 import cozyAutumn from './cozy-autumn.json';
+import amberCrt from './amber-crt.json';
+import gameboyDmg from './gameboy-dmg.json';
 import type { Theme } from './types';
 
 /**
@@ -24,6 +26,8 @@ export const THEMES: Readonly<Record<string, Theme>> = Object.freeze({
   'phosphor':         phosphor as Theme,
   'night-drive':      nightDrive as Theme,
   'cozy-autumn':      cozyAutumn as Theme,
+  'amber-crt':        amberCrt as Theme,
+  'gameboy-dmg':      gameboyDmg as Theme,
 });
 
 /**
@@ -43,6 +47,8 @@ export const THEME_IDS = [
   'phosphor',
   'night-drive',
   'cozy-autumn',
+  'amber-crt',
+  'gameboy-dmg',
 ] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 

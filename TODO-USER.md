@@ -13,7 +13,9 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-30** (the `wt-atmo` worktree Harry spotted in Mori was
+Last updated: **2026-07-31** (added the ceiling-widening eyeball gate —
+gameboy-dmg + amber-crt probe packs await Harry's side-by-side).
+Previously **2026-07-30** (the `wt-atmo` worktree Harry spotted in Mori was
 a throwaway `--detach` sandbox from a review subagent — no code was ever off
 `main` — but chasing it surfaced a whole adversarial review that died with its
 session unread. Findings recovered and landed; the "only half ran" item below
@@ -34,6 +36,23 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — ceiling-widening probe packs (gameboy-dmg + amber-crt)
+**Status**: two new style-pack axes shipped 2026-07-31 (value ramp + glow
+fx), all gates green, pixel probes passed (glow proven by same-theme A/B:
+dark floor 20 → 48). Review shots:
+`docs/design-reviews/2026-07-31-ceiling-widening/` (stock vs gameboy-dmg vs
+amber-crt, plus the no-glow A/B leg). Live look:
+`npm run dev` → `?terminal=t1&wing=d0&theme=gameboy-dmg` / `&theme=amber-crt`.
+**What**: side-by-side at wallpaper distance. Kill condition, frozen before
+the build: if gameboy-dmg reads as "the default with a green filter" rather
+than a different machine (monochrome hue, quantised 4-band strata, dark
+structure masses), the widening failed — iterate the pack's palette keys /
+ramped roles, never the gates. For amber-crt: glow reads as *glowing*, not
+*blurred*; text stays sharp.
+**Unblocks**: marking the round eyeball-passed in STATE.md; the follow-on
+axes (glyph deletion for 08, light ground for 07, cold run 3 over the new
+slots).
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`

@@ -26,15 +26,20 @@ const SHADED_ROLES: ReadonlySet<LandRole> = new Set<LandRole>(['hall']);
 /** PRD V0 scene: ~200×56 cells — tall sky for the hall + poster, shallow strata. */
 const V0_SCENE = { width: 200, skyH: 38, surfaceBand: 4, underH: 13, hall: true } as const;
 
-/** Scale a theme colour's RGB channels — the per-step tint for shaded roles.
- *  Derived from the ACTIVE theme (not hard-coded hexes) so setTheme hot-swap
- *  re-tints the gradient along with everything else. */
-function shadeOf(hex: string, f: number): number {
-  const n = hexToInt(hex);
+/** Scale a packed colour's RGB channels — the per-step tint for shaded and
+ *  ramped roles. */
+function shadeOfInt(n: number, f: number): number {
   const r = Math.round(((n >> 16) & 0xff) * f);
   const g = Math.round(((n >> 8) & 0xff) * f);
   const b = Math.round((n & 0xff) * f);
   return (r << 16) | (g << 8) | b;
+}
+
+/** Scale a theme colour's RGB channels. Derived from the ACTIVE theme (not
+ *  hard-coded hexes) so setTheme hot-swap re-tints the gradient along with
+ *  everything else. */
+function shadeOf(hex: string, f: number): number {
+  return shadeOfInt(hexToInt(hex), f);
 }
 
 /** Linear per-channel mix from `hexA`'s ink toward `hexB` by t∈[0,1] — the
@@ -118,6 +123,24 @@ export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
   'edge',
 ]);
 
+/** Roles a style pack's landRamp may never step (enforced here AND by
+ *  scripts/smoke-style-pack.mts): the glyph-locked live machinery, sky
+ *  (background, never drawn), and foliage — its layers are exactly two sway
+ *  parity planes counter-phased by the terminal tick, so a 4-step ramp would
+ *  silently break the sway contract. */
+export const LAND_RAMP_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
+  ...LAND_GLYPH_LOCKED,
+  'sky',
+  'foliage',
+]);
+
+/** The active theme's rampable-role set (style-pack slot 4), locked roles
+ *  filtered defensively so a hand-edited theme JSON can't step live
+ *  machinery. */
+function themeRampRoles(theme: Theme): ReadonlySet<LandRole> {
+  return new Set((theme.landRamp?.roles ?? []).filter((r) => !LAND_RAMP_LOCKED.has(r)));
+}
+
 /** Style-pack slot 2 (docs/blueprints/style-pack.md): the active theme's
  *  glyph dialect for a land role, or null to keep the composer's own chars.
  *  Render-side substitution only — src/procedural/ output is untouched, so
@@ -127,16 +150,25 @@ export function landRoleGlyph(theme: Theme, r: LandRole): string | null {
   return theme.landGlyphs?.[r] ?? null;
 }
 
-/** Single fill-resolution point for a NON-shaded land role: far planes fade
- *  toward bg (FAR_FADE), ground roles demote by channel scale
- *  (GROUND_DEMOTE), everything else is its palette key verbatim. Pure —
+/** Single fill-resolution point for a land role: far planes fade toward bg
+ *  (FAR_FADE), ground roles demote by channel scale (GROUND_DEMOTE),
+ *  everything else is its palette key verbatim. With `step` (0..3), the
+ *  resolved fill is then scaled by the theme's ramp factor for that step —
+ *  ramp composes ON TOP of atmosphere, and darken-only factors (last exactly
+ *  1.0, gate-enforced) make step 3 byte-identical to the unstepped fill, so
+ *  the frozen being-salience bars keep measuring the true maximum. Pure —
  *  exported for the smoke. */
-export function landRoleFill(theme: Theme, r: LandRole): number {
+export function landRoleFill(theme: Theme, r: LandRole, step?: number): number {
   const fade = FAR_FADE[r];
-  if (fade !== undefined) return mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade);
   const demote = GROUND_DEMOTE[r];
-  if (demote !== undefined) return shadeOf(theme.palette[ROLE_KEY[r]], demote);
-  return hexToInt(theme.palette[ROLE_KEY[r]]);
+  const base =
+    fade !== undefined
+      ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
+      : demote !== undefined
+        ? shadeOf(theme.palette[ROLE_KEY[r]], demote)
+        : hexToInt(theme.palette[ROLE_KEY[r]]);
+  if (step === undefined) return base;
+  return shadeOfInt(base, (theme.landRamp?.factors ?? GRADIENT_FACTORS)[step]);
 }
 
 /** Build the stacked-by-role tinted container for a land model. Local glyph
@@ -159,10 +191,28 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
   const bg = new Graphics().rect(0, 0, contentW, contentH).fill(hexToInt(theme.palette.bg));
   container.addChild(bg);
 
-  // Which roles actually appear — one tinted BitmapText each.
+  // Which roles actually appear — one tinted BitmapText each. The same scan
+  // records each role's row extent (min/max y), the ramp's step source.
   const roles = new Set<LandRole>();
-  for (let y = 0; y < model.height; y++) for (let x = 0; x < model.width; x++) roles.add(model.role[y][x]);
+  const rowExtent: Partial<Record<LandRole, { min: number; max: number }>> = {};
+  for (let y = 0; y < model.height; y++)
+    for (let x = 0; x < model.width; x++) {
+      const r = model.role[y][x];
+      roles.add(r);
+      const e = rowExtent[r];
+      if (e === undefined) rowExtent[r] = { min: y, max: y };
+      else e.max = y; // y ascends, so first sight fixed min
+    }
   roles.delete('sky'); // background, never drawn
+
+  // Style-pack slot 4 step: vertical position within the role's own band,
+  // top dim (0) → base bright (3); a 1-row band stays full ink.
+  const rampRoles = themeRampRoles(theme);
+  const rampStep = (r: LandRole, y: number): number => {
+    const e = rowExtent[r];
+    if (e === undefined || e.max === e.min) return 3;
+    return Math.round(((y - e.min) / (e.max - e.min)) * 3);
+  };
 
   const layerFor = (pred: (x: number, y: number) => boolean, glyph?: string | null): string => {
     const rows: string[] = [];
@@ -188,12 +238,22 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     const shadeGrid = model.shade;
     if (shadeGrid && SHADED_ROLES.has(r)) {
       // V0: vertical gradient — one layer per luminance step (≤4 extra
-      // objects), tint scaled from the role's theme colour.
+      // objects); the model's shade grid picks the step, landRoleFill tints.
       for (let s = 0; s < GRADIENT_FACTORS.length; s++) {
         addLayer(
           r,
           layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s, glyph),
-          shadeOf(theme.palette[ROLE_KEY[r]], GRADIENT_FACTORS[s]),
+          landRoleFill(theme, r, s),
+        );
+      }
+    } else if (rampRoles.has(r)) {
+      // Style-pack slot 4: theme-opted roles render as four luminance-stepped
+      // layers, step from the role's vertical extent (top dim → base bright).
+      for (let s = 0; s < 4; s++) {
+        addLayer(
+          r,
+          layerFor((x, y) => model.role[y][x] === r && rampStep(r, y) === s, glyph),
+          landRoleFill(theme, r, s),
         );
       }
     } else {

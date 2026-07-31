@@ -25,7 +25,14 @@
  *   - landGlyphs: valid land roles only, never a LAND_GLYPH_LOCKED role,
  *     exactly one visible glyph each, every codepoint in the shipped
  *     Cozette coverage snapshot (tofu is an invisible bug).
- *   - fx: absent or one of THEME_FX.
+ *   - fx: absent, or a string/array whose entries are all in THEME_FX,
+ *     no duplicates (read through themeFxList — the renderer's own path).
+ *   - landRamp: real, never-LAND_RAMP_LOCKED roles; factors exactly 4,
+ *     in (0,1], strictly ascending, LAST EXACTLY 1.0 (darken-only — step 3
+ *     is byte-identical to the unramped fill, which is why the frozen
+ *     being-salience bars stay sound under ramping); each ramped role's
+ *     step-0 band keeps ≥ RAMP_STEP0_MIN contrast vs bg (a band that
+ *     vanishes reads as a hole in the world).
  */
 
 import { readFileSync } from 'node:fs';
@@ -34,8 +41,8 @@ import path from 'node:path';
 import { makeChecker } from './lib/smoke.ts';
 import { THEMES, THEME_IDS } from '../src/themes/index.ts';
 import { BEING_ROLE_KEYS, ROLE_DEFAULTS } from '../src/themes/roles.ts';
-import { THEME_FX, type Theme, type ThemePalette } from '../src/themes/types.ts';
-import { landRoleFill, LAND_GLYPH_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
+import { THEME_FX, themeFxList, type Theme, type ThemePalette } from '../src/themes/types.ts';
+import { landRoleFill, LAND_GLYPH_LOCKED, LAND_RAMP_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
 import type { LandRole } from '../src/procedural/land.ts';
 
 const args = process.argv.slice(2);
@@ -82,10 +89,16 @@ const BG_LUM_MAX = 0.35;
  *  floor 3.26). */
 const BEING_CLEAR = 0.85;
 const BEING_MIN_CONTRAST = 3.0;
+/** Ramp dimmest-step visibility floor: a ramped role's step-0 band must keep
+ *  this much contrast vs bg, or the band reads as a hole in the world.
+ *  Calibrated 2026-07-31 on the 10-theme corpus (gameboy-dmg is the only
+ *  ramped pack; its step-0 floor is stone 1.13, bedrock/cavern 1.28, the
+ *  rest ≥ 1.43) and FROZEN just under that floor. */
+const RAMP_STEP0_MIN = 1.1;
 
 const VALID_ROLES = new Set(Object.keys(ROLE_KEY));
 const VALID_THEME_ROLES = new Set(Object.keys(ROLE_DEFAULTS));
-const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx']);
+const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx', 'landRamp']);
 
 const ids = onlyId ? [onlyId] : [...THEME_IDS];
 check('registry lockstep: THEME_IDS == Object.keys(THEMES)',
@@ -124,7 +137,10 @@ for (const id of ids) {
     C(pal.fgBright) > C(pal.fg) && C(pal.fg) > C(pal.fgDim),
     `fgBright ${C(pal.fgBright).toFixed(2)} fg ${C(pal.fg).toFixed(2)} fgDim ${C(pal.fgDim).toFixed(2)}`);
 
-  // 4 · beings out-shout the terrain (real renderer maths via landRoleFill)
+  // 4 · beings out-shout the terrain (real renderer maths via landRoleFill).
+  //     Still sound under landRamp: factors are darken-only (last exactly
+  //     1.0, check 8), so no ramp step is ever brighter than the fills
+  //     measured here.
   const groundFills: Array<[string, number]> = [
     ['fgDim', contrast(lumOfHex(pal.fgDim), bgLum)],
     ['bgAlt', contrast(lumOfHex(pal.bgAlt), bgLum)],
@@ -157,10 +173,14 @@ for (const id of ids) {
     }
   }
 
-  // 6 · fx whitelist
-  check(`${tag} fx absent or in THEME_FX`,
-    t.fx === undefined || (THEME_FX as readonly string[]).includes(t.fx),
-    String(t.fx));
+  // 6 · fx whitelist (string or array — themeFxList is the renderer's own read)
+  const fxShapeOk = t.fx === undefined || typeof t.fx === 'string' || Array.isArray(t.fx);
+  check(`${tag} fx is absent, a string, or an array`, fxShapeOk, JSON.stringify(t.fx));
+  const fxList = fxShapeOk ? themeFxList(t) : [];
+  check(`${tag} fx entries all in THEME_FX`,
+    fxList.every((f) => (THEME_FX as readonly string[]).includes(f)),
+    JSON.stringify(t.fx));
+  check(`${tag} fx entries unique`, new Set(fxList).size === fxList.length, JSON.stringify(t.fx));
 
   // 7 · roles overrides stay inside the vocab
   for (const [role, key] of Object.entries(t.roles ?? {})) {
@@ -169,12 +189,56 @@ for (const id of ids) {
       (PALETTE_KEYS as readonly string[]).includes(key as string), String(key));
   }
 
+  // 8 · landRamp (style-pack slot 4): shape + the step-0 visibility bar
+  const ramp = t.landRamp;
+  const rampRoles: LandRole[] = [];
+  if (ramp !== undefined) {
+    const rolesShapeOk = Array.isArray(ramp.roles) && ramp.roles.length > 0;
+    check(`${tag} landRamp.roles is a non-empty array`, rolesShapeOk, JSON.stringify(ramp.roles));
+    for (const role of rolesShapeOk ? ramp.roles : []) {
+      check(`${tag} landRamp role '${role}' is a real land role`, VALID_ROLES.has(role));
+      check(`${tag} landRamp role '${role}' is not ramp-locked`,
+        !LAND_RAMP_LOCKED.has(role),
+        `locked: ${[...LAND_RAMP_LOCKED].join(' ')}`);
+      if (VALID_ROLES.has(role) && !LAND_RAMP_LOCKED.has(role)) rampRoles.push(role);
+    }
+    const f = ramp.factors;
+    if (f !== undefined) {
+      const fOk = Array.isArray(f) && f.length === 4 &&
+        f.every((v) => typeof v === 'number' && v > 0 && v <= 1);
+      check(`${tag} landRamp.factors: exactly 4 numbers in (0, 1]`, fOk, JSON.stringify(f));
+      if (fOk) {
+        check(`${tag} landRamp.factors strictly ascending`,
+          f[0] < f[1] && f[1] < f[2] && f[2] < f[3], f.join(','));
+        check(`${tag} landRamp.factors end at exactly 1.0 (darken-only)`, f[3] === 1, String(f[3]));
+      }
+    }
+    for (const role of rampRoles) {
+      const c = contrast(lumOfInt(landRoleFill(t, role, 0)), bgLum);
+      check(`${tag} landRamp '${role}' step-0 band stays visible`,
+        c >= RAMP_STEP0_MIN,
+        `${c.toFixed(2)} vs bar ${RAMP_STEP0_MIN}`);
+    }
+  }
+
   if (wantValues) {
     // eslint-disable-next-line no-console
     console.log(`  ${tag} relLum(bg)=${bgLum.toFixed(4)}  ` +
       PALETTE_KEYS.map((k) => `${k}=${C(pal[k]).toFixed(2)}`).join(' '));
     // eslint-disable-next-line no-console
     console.log(`  ${tag} ground: ${groundFills.map(([n, c]) => `${n}=${c.toFixed(2)}`).join(' ')}`);
+    if (fxList.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`  ${tag} fx: ${fxList.join('+')}`);
+    }
+    if (rampRoles.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`  ${tag} ramp step0/step3: ${rampRoles.map((r) => {
+        const c0 = contrast(lumOfInt(landRoleFill(t, r, 0)), bgLum);
+        const c3 = contrast(lumOfInt(landRoleFill(t, r, 3)), bgLum);
+        return `${r}=${c0.toFixed(2)}/${c3.toFixed(2)}`;
+      }).join(' ')}`);
+    }
   }
 }
 

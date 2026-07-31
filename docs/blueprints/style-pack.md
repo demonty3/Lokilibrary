@@ -6,13 +6,17 @@ look like *them*. Follow it end to end and you will produce a **style pack**: on
 theme JSON that restyles the whole scene, validated by executable gates, accepted
 by screenshot. No engine code changes are required or wanted.
 
-A style pack has exactly three slots:
+A style pack has exactly four slots:
 
 1. **Palette** (required): the 13 colour keys every renderer resolves through.
 2. **Glyph dialect** (optional): per-land-role glyph overrides, e.g. foliage
    `♣` becomes `♠`, topsoil dither becomes `▚`.
-3. **Fx flag** (optional): `"scanlines"` lays a static CRT line field over the
-   terminal window.
+3. **Fx** (optional): `"scanlines"` lays a static CRT line field over the
+   terminal window; `"glow"` blooms bright glyphs with a phosphor halo. One
+   as a string, or several as an array.
+4. **Value ramp** (optional): opted-in land roles render as four
+   luminance-stepped bands (top dim → base bright) — quantised shading in
+   the Game Boy / DMG family, without touching a single glyph.
 
 Everything else in the world (layout, terrain, structures, beings' behaviour) is
 procedural and deterministic. A pack recolours and re-voices the scene; it never
@@ -54,8 +58,14 @@ filename.
   },
   // OPTIONAL, slot 2: land-role → single glyph.
   "landGlyphs": { "<role>": "<one glyph>" },
-  // OPTIONAL, slot 3: exactly "scanlines" or omit.
-  "fx": "scanlines"
+  // OPTIONAL, slot 3: "scanlines" | "glow", a string or an array of both.
+  "fx": ["glow", "scanlines"],
+  // OPTIONAL, slot 4: value ramp — roles to shade, and (optionally) the
+  // four factors that scale each band's resolved colour.
+  "landRamp": {
+    "roles": ["topsoil", "stone", "deep"],
+    "factors": [0.45, 0.6, 0.78, 1.0]
+  }
 }
 ```
 
@@ -88,8 +98,32 @@ with `--values`):
   geometric shapes (`■□▪▫`), arrows, braille. The conformance smoke names any
   glyph the font lacks; trust it, not your assumption.
 
-**Fx rules:** `"scanlines"` is the entire v1 whitelist. Anything else fails the
-gate. Do not implement new fx in a pack; that is an engine change.
+**Fx rules:** the whitelist is `"scanlines"` and `"glow"`, as a single string
+or an array with no duplicates. Anything else fails the gate. Do not implement
+new fx in a pack; that is an engine change. `glow` is a phosphor bloom: bright
+glyphs halo, and since the beings own the brightest accents they get the
+loudest halos — it amplifies the attention contract. `scanlines` composites
+over the glow, so `["glow", "scanlines"]` is the full CRT read.
+
+**Value-ramp rules** (the gates enforce all of these):
+
+- `roles`: a non-empty list of real land roles. **Ramp-locked, never
+  steppable:** everything glyph-locked (`label being player crust edge`) plus
+  `sky` (never drawn) and `foliage` (its two layers are sway machinery).
+- `factors`: exactly 4 numbers in (0, 1], **strictly ascending, last exactly
+  1.0**. Darken-only is the contract: step 3 IS your palette colour, the ramp
+  only shades down from it. That is why the being-salience bars stay valid
+  under any ramp. Omit `factors` for the engine default `[0.35, 0.55, 0.78,
+  1.0]`.
+- The step is the cell's vertical position within the role's own band, top
+  dim → base bright; a 1-row band stays full ink. You do not control the
+  mapping, only the roles and the steepness.
+- Each ramped role's dimmest band must keep ≥ 1.1 contrast vs `bg` (the
+  step-0 visibility bar) — a band that vanishes reads as a hole in the world.
+- Ramp the strata and structures (`topsoil stone deep bedrock cavern shelf
+  roof monument cottage shaft`). Ramping the faded sky roles (`ridge cloud
+  star skyDither ridgeFar`) compounds their atmospheric fade and usually
+  fails the step-0 bar.
 
 There is also an advanced `roles` slot (per-theme remapping of semantic roles
 like `being.loki` to different palette KEYS, see `src/themes/roles.ts`). The
@@ -157,6 +191,13 @@ LOKI_E2E_PATH='?terminal=t1&wing=d0' node scripts/e2e/drive.mjs shot /tmp/stock.
 - With `fx: scanlines`: the lines are present but legibility survives. (They
   are subtle by design, roughly a 16% dim every third row; confirm with a
   pixel probe if unsure, not by squinting.)
+- With `fx: glow`: bright glyphs wear a soft halo — the beings loudest of
+  all — and text stays sharp underneath. Probe 2–3px outside a bright glyph
+  edge and expect above-bg values; if the world looks *blurred* rather than
+  *glowing*, something is wrong, stop and report.
+- With `landRamp`: each ramped stratum shows distinct horizontal bands,
+  dimmest at its top, full palette colour at its base — and the dimmest band
+  is still visibly there.
 
 **Iterate:** edit the JSON, then re-run `bash scripts/e2e/run.sh` (theme JSONs
 are bundled at build time; a `--no-build` rerun will NOT pick up your edit),
@@ -166,11 +207,12 @@ ten seconds and reshoot before concluding anything.
 For a live interactive look instead of headless: `npm run dev`, then open
 `http://localhost:5183/?terminal=t1&wing=d0&theme=<pack-id>`.
 
-## 5 · Worked example
+## 5 · Worked examples
 
 This exact pack passes every gate and has been verified on screen (palette
-re-tint, `♠` foliage, `▚`/`▞` strata, pixel-verified scanlines). Use it as the
-shape to copy, not the style to copy:
+re-tint, `♠` foliage, `▚`/`▞` strata, pixel-verified scanlines + glow). It now
+SHIPS as the registered `amber-crt` theme, so copy the shape and pick your own
+id — the registry will reject a duplicate:
 
 ```json
 {
@@ -196,14 +238,20 @@ shape to copy, not the style to copy:
     "stone": "▞",
     "foliage": "♠"
   },
-  "fx": "scanlines"
+  "fx": ["glow", "scanlines"]
 }
 ```
 
 Why it works: the whole 13-key ramp is one amber family (one mood), the five
 being keys sit at the bright end of it (10:1 to 14:1 contrast, beings stay
 loud), the three glyph swaps push "phosphor terminal" without touching any
-locked role, and scanlines seal the CRT read.
+locked role, and glow + scanlines seal the CRT read.
+
+The value-ramp slot's worked example ships as `gameboy-dmg`
+(`src/themes/gameboy-dmg.json`): thirteen keys collapsed onto the four
+classic DMG greens, and `landRamp` over the strata + structures so the whole
+underground reads as quantised luminance bands. Note what it does NOT do —
+no glyph swaps, no fx — one axis exercised cleanly.
 
 ## 6 · Hard rails (from the repo's CLAUDE.md, restated so you cannot miss them)
 
@@ -211,9 +259,10 @@ locked role, and scanlines seal the CRT read.
   `src/themes/index.ts`. A style pack that edits the renderer, the smokes, or
   anything in `src/procedural/` is not a style pack.
 - **Never** add `Math.random()` (or any RNG) anywhere; packs are static data.
-- **Never** invent new palette keys, new fx values, new roles, or multi-glyph
-  values. The whitelists are the product's taste rails; widening them is an
-  engine decision, not a pack decision.
+- **Never** invent new palette keys, new fx values (`scanlines` and `glow`
+  are the whole menu), new roles, ramp-locked ramp roles, non-darken-only
+  factors, or multi-glyph values. The whitelists are the product's taste
+  rails; widening them is an engine decision, not a pack decision.
 - One palette per scene. No per-game or per-region colour exceptions.
 - Known v1 limits, documented not fixable-by-you: light backgrounds are
   unsupported (dark-ground bar), and the Ghost being only appears on the
