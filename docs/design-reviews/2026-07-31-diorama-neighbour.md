@@ -116,4 +116,20 @@ recorded in this file, dated, below this line.
 
 ---
 
-*Verdict: pending Harry's eyeball.*
+## Verdict — 2026-07-31, Harry's eyeball (same day the probe opened): MUTATE
+
+Harry, verbatim: "I think it's working but the design choice of the terminal
+is unbearable to look at. I think this is a mutate option."
+
+Read against §3: the kill condition did **not** fire. Nothing in the reaction
+says the glyph window reads as downgraded, or that the eye refuses to return
+to it — "I think it's working" is a read of coexistence. What fails is the
+mockup's own presentation: a design choice of "the terminal" reads as
+unbearable. Which element he means — the diorama window's art direction, the
+window chrome framing the pair, or the glyph side's styling — was not pinned
+in-session and must be pinned before any re-mock.
+
+Per §3's own rule this is the fix-the-mockup-and-look-again path: the bar does
+not soften, a re-mock inherits it verbatim, and §4's two preconditions for
+engine work remain unmet and untouched. Until a re-mock is judged, the probe's
+standing is: **coexistence unrefuted, unconfirmed.**

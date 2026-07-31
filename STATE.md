@@ -119,6 +119,41 @@ static joined-pair mockup (same hand-authored technique as the style
 page), `2026-07-31-diorama-neighbour.html`. 09/10 collapsed to
 tombstones on the style page per its own round-2 protocol.
 
+**Widening round CLOSED 2026-07-31, late evening — eyeballs judged,
+track PARKED (depth over breadth).** Harry's verdicts, each against its
+bar frozen before viewing: (1) **gameboy-dmg re-cut PASSED** — reads as
+a different machine; the omission axis + chunky dialect flipped the read
+that fired the first kill. (2) **amber-crt glow leg PASSED** — glows,
+not blurred, text stays sharp. Both legs of the ceiling-widening round
+are closed green. (3) **diorama-neighbour mockup: MUTATE** — kill did
+NOT fire (coexistence unrefuted, unconfirmed); what mutates is the
+mockup's presentation ("the design choice of the terminal is unbearable
+to look at" — which element to be pinned before any re-mock); bars
+inherit verbatim; both engine preconditions remain unmet. Full verdict
+in the decision doc. **Direction call (Harry, this session): depth over
+breadth.** The remaining widening axes — oscilloscope 08 stroke-only
+cut, light-ground 07 e-ink, cold run 3 over the new slots — are
+**PARKED** with their kill conditions frozen where they stand; unpark
+precondition: *a real pack author needs a slot that does not exist, or
+the depth track reaches its bar*. Effort redirects to the
+terminals-first column and the land-facing depth items —
+marginalia-on-land is the first candidate (spec approved 2026-07-17),
+then murals #16, land polish #19, static-beings liveliness. The one
+style-track survivor: README billing for the pack blueprint (claim
+scoped to the smoke-gated version, mechanism credited to Deephaven).
+**New design thread (Harry, same session): shared rules across
+terminals.** Joined terminals are lenses on ONE shared world: shared
+truths (time of day first; salient events when they exist) should be
+*conformed* across windows — a pack may compress or omit a shared truth
+(the lossy lens IS pack identity; DMG's blank sky is legal) but may
+never contradict it (a sunny sky beside a midnight neighbour breaks the
+join). No world clock exists today — the sky is static ambience — so
+this is a candidate depth-track slice, recorded, not scheduled. Open
+one-liner from the DMG eyeball: the re-cut sky keeps a single `*`
+although the pack omits every sky role including starBright — the
+painter is unidentified (not ambient scatter; likely an event/salience
+overlay). Identify the painter, then rule feature vs leak.
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever

@@ -13,7 +13,17 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-31, evening** (the ceiling-widening eyeball FIRED
+Last updated: **2026-07-31, late evening** (all three open eyeballs
+judged: gameboy-dmg re-cut PASSED — reads as a different machine;
+amber-crt glow leg PASSED; diorama-neighbour MUTATE — pairing works,
+the mockup's terminal design reads unbearable, element to pin before
+re-mock. Direction call: **depth over breadth** — the remaining
+widening axes (oscilloscope 08, light-ground 07, cold run 3) are PARKED
+with a concrete unpark precondition; effort redirects to the
+terminals-first / land-depth column. New thread recorded in STATE.md:
+shared rules across terminals — time of day etc. conformed, packs may
+omit but never contradict).
+Previously **2026-07-31, evening** (the ceiling-widening eyeball FIRED
 its kill condition on gameboy-dmg — read as "another reshade"; the pack
 was re-cut over the new omission axis + full glyph dialect and awaits a
 fresh eyeball. amber-crt's glow leg unchanged. Also opened: the
@@ -41,56 +51,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 👁 EYEBALL — gameboy-dmg re-cut (omission + chunky dialect)
-**Status**: the first cut's eyeball FIRED the kill condition 2026-07-31
-(Harry: reads as "another reshade"). Re-cut same day over the new
-omission slot (`landOmit`, style-pack slot 5) + eleven chunky
-block/quadrant glyph overrides, ramp unchanged, no fx (LCD, not CRT).
-All gates green (corpus 284 assertions), regression trio green. Shots:
-`docs/design-reviews/2026-07-31-dmg-recut/` — `gameboy-dmg-before.png`
-is the exact artifact you judged (copied, never retaken),
-`gameboy-dmg-recut.png` is the new cut, `stock-phosphor.png` the
-reference. Live look: `npm run dev` →
-`?terminal=t1&wing=d0&theme=gameboy-dmg`.
-**What**: side-by-side at wallpaper distance. **Kill condition,
-inherited verbatim from the fired round**: if gameboy-dmg reads as "the
-default with a green filter" rather than a different machine (monochrome
-hue, quantised 4-band strata, dark structure masses), the widening
-failed — iterate the pack's palette keys / ramped roles, never the
-gates. Known approximation, judge it knowingly: the locked crust/foliage
-and the kept ridge still render blended greens outside the 4-colour set
-(engine maths, not pack-fixable).
-**Unblocks**: marking the omission round eyeball-passed in STATE.md; the
-remaining follow-on axes (oscilloscope 08 pack over the omission slot,
-light ground for 07, cold run 3 over the new slots).
-
-### 👁 EYEBALL — diorama-neighbour joined-pair mockup
-**Status**: probe opened 2026-07-31 as a NEW question (the 09
-replacement kill stands; this asks whether a hi-bit diorama world can
-coexist as a *neighbour window*, seam as the boundary). Decision doc
-with the inherited bars quoted verbatim:
-`docs/design-reviews/2026-07-31-diorama-neighbour.md`. Mockup:
-`docs/design-reviews/2026-07-31-diorama-neighbour.html` (published as its
-own artifact: https://claude.ai/code/artifact/4951def3-0957-43ca-9a26-193ade95520c).
-**What**: view the joined pair at wallpaper distance. **Kill condition,
-frozen before the mockup was viewed**: if the glyph window reads as
-downgraded beside the diorama window — if your eye refuses to return to
-it — coexistence fails and the diorama stays dead at every scope. Pass =
-the pair reads as a portal between genuinely different places. React
-keep / kill / mutate; the verdict is recorded in the .md.
-**Unblocks**: nothing mechanical — engine work stays parked behind two
-preconditions regardless (in-medium round resolved; one Phase 3 sprite
-surviving your curation eyeball).
-
-### 👁 EYEBALL — amber-crt glow leg (unchanged from the ceiling round)
-**Status**: shipped 2026-07-31, gates green, glow proven by same-theme
-A/B pixel probe (dark floor 20 → 48). Shots:
-`docs/design-reviews/2026-07-31-ceiling-widening/` (`amber-crt-glow.png`
-+ the no-glow A/B leg). Live look:
-`npm run dev` → `?terminal=t1&wing=d0&theme=amber-crt`.
-**What**: glow reads as *glowing*, not *blurred*; text stays sharp.
-**Unblocks**: closing the ceiling-widening round's amber leg in STATE.md.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
@@ -158,6 +118,22 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL gameboy-dmg re-cut — PASSED 2026-07-31** (judged against
+  the kill condition inherited verbatim from the fired round: reads as a
+  different machine, not "the default with a green filter"; the omission
+  slot + chunky dialect fixed what fired the first kill). One open
+  one-liner recorded in STATE.md: a single `*` survives the blank sky
+  although the pack omits every sky role — painter unidentified, ruling
+  (feature vs leak) open.
+- ✅ **EYEBALL amber-crt glow leg — PASSED 2026-07-31** (glow reads as
+  glowing, not blurred; text stays sharp). Both legs of the
+  ceiling-widening round are now closed green.
+- ✅ **EYEBALL diorama-neighbour joined pair — MUTATE 2026-07-31**
+  (Harry: pairing works, but "the design choice of the terminal is
+  unbearable to look at" — which element to pin before any re-mock; the
+  frozen kill condition did NOT fire; engine work stays parked behind
+  its two preconditions regardless). Full verdict recorded in
+  `docs/design-reviews/2026-07-31-diorama-neighbour.md`.
 - ✅ **Reveal flythrough — RETIRED 2026-07-24** (retired, not failed).
   `claude/reveal-flythrough` / PR #34, one commit `48cc0a1` (2026-06-02),
   779 lines, no new deps: a first-run cinematic — the cell builds itself
