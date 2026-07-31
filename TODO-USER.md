@@ -65,6 +65,24 @@ and the kept ridge still render blended greens outside the 4-colour set
 remaining follow-on axes (oscilloscope 08 pack over the omission slot,
 light ground for 07, cold run 3 over the new slots).
 
+### 👁 EYEBALL — diorama-neighbour joined-pair mockup
+**Status**: probe opened 2026-07-31 as a NEW question (the 09
+replacement kill stands; this asks whether a hi-bit diorama world can
+coexist as a *neighbour window*, seam as the boundary). Decision doc
+with the inherited bars quoted verbatim:
+`docs/design-reviews/2026-07-31-diorama-neighbour.md`. Mockup:
+`docs/design-reviews/2026-07-31-diorama-neighbour.html` (published as its
+own artifact: https://claude.ai/code/artifact/4951def3-0957-43ca-9a26-193ade95520c).
+**What**: view the joined pair at wallpaper distance. **Kill condition,
+frozen before the mockup was viewed**: if the glyph window reads as
+downgraded beside the diorama window — if your eye refuses to return to
+it — coexistence fails and the diorama stays dead at every scope. Pass =
+the pair reads as a portal between genuinely different places. React
+keep / kill / mutate; the verdict is recorded in the .md.
+**Unblocks**: nothing mechanical — engine work stays parked behind two
+preconditions regardless (in-medium round resolved; one Phase 3 sprite
+surviving your curation eyeball).
+
 ### 👁 EYEBALL — amber-crt glow leg (unchanged from the ceiling round)
 **Status**: shipped 2026-07-31, gates green, glow proven by same-theme
 A/B pixel probe (dark floor 20 → 48). Shots:

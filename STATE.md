@@ -100,6 +100,25 @@ the re-cut still reads as "default with a green filter" rather than a
 different machine, iterate the pack, never the gates. The amber-crt glow
 leg of the previous eyeball stays open, unchanged.
 
+**Diorama-neighbour probe OPENED 2026-07-31 (mockup only, no engine
+work).** Harry asked a NEW question, distinct from the killed 09: can a
+hi-bit diorama world coexist as a *neighbour* — its own terminal window
+snapped to the glyph desk, beings re-embodied by each side's renderer as
+they cross? The 09-as-replacement kill stands untouched; every prior
+sprite kill was about pixels *inside or instead of* the glyph scene, and
+VISION.md's per-terminal-identity principle ("the seam is the boundary
+… a portal between genuinely different places") already blesses the
+neighbour shape. New document with the inherited bars quoted verbatim:
+`docs/design-reviews/2026-07-31-diorama-neighbour.md`. **Kill condition
+frozen before the mockup was viewed**: if the glyph window reads as
+downgraded beside the diorama window — the eye refuses to return to it —
+coexistence fails and the diorama stays dead at every scope.
+Preconditions for ANY engine work, both unmet: the in-medium round
+resolved, and one Phase 3 sprite surviving curation. Probe artefact: a
+static joined-pair mockup (same hand-authored technique as the style
+page), `2026-07-31-diorama-neighbour.html`. 09/10 collapsed to
+tombstones on the style page per its own round-2 protocol.
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever
