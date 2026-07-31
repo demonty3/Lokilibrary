@@ -73,6 +73,33 @@ iterate the pack, never the gates.** Follow-on axes deliberately NOT
 built: glyph deletion (08 oscilloscope), light ground (07 e-ink), cold
 run 3 over the new slots.
 
+**Omission axis + gameboy-dmg re-cut SHIPPED 2026-07-31, same day
+(eyeball pending).** The kill condition above FIRED on gameboy-dmg's
+first cut — Harry's eyeball read it as "another reshade". Clean negative
+result, two causes: the pack used none of the existing `landGlyphs` slot
+(ramp only), and the identity axis of *omission* did not exist (sky
+decorations were drawn unconditionally). Shipped: **style-pack slot 5,
+`landOmit`** — render-side role deletion in `buildLandContainer`
+(`src/procedural/` byte-untouched, mirroring the ramp);
+`LAND_OMIT_LOCKED` = glyph-locked ∪ `sky`; strata/structures/celestials
+stay omittable by design (this slot IS the deferred 08 "glyph deletion"
+axis); `OMIT_MAX 12` emptiness bound set and frozen BEFORE any omitting
+pack shipped (12 of the 21 omittable roles — headroom for the maximal 08
+stroke-only cut, ~11 fills). gameboy-dmg re-cut to the full slot set:
+`landOmit` deletes star/starBright/skyDither/cloud/ridgeFar/moon (blank
+LCD sky; every omitted role was a `mixToward` blend diluting the 4-green
+read), eleven chunky block/quadrant `landGlyphs` so the ramp's bands read
+as solid quantised masses, ramp kept byte-identical, `fx` deliberately
+absent (DMG is an LCD, not a CRT). All gates green — style-pack corpus
+now **284 assertions** (was 225; the omit checks + the re-cut's glyph
+checks); land-atmosphere / land-bands / knit-glow regression trio green.
+Shots: `docs/design-reviews/2026-07-31-dmg-recut/` — `gameboy-dmg-before.png`
+is the JUDGED artifact copied from the ceiling-widening folder, never
+retaken. **Kill condition inherited verbatim from the round above:** if
+the re-cut still reads as "default with a green filter" rather than a
+different machine, iterate the pack, never the gates. The amber-crt glow
+leg of the previous eyeball stays open, unchanged.
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever

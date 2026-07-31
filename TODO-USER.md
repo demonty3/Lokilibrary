@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-07-31** (added the ceiling-widening eyeball gate —
+Last updated: **2026-07-31, evening** (the ceiling-widening eyeball FIRED
+its kill condition on gameboy-dmg — read as "another reshade"; the pack
+was re-cut over the new omission axis + full glyph dialect and awaits a
+fresh eyeball. amber-crt's glow leg unchanged. Also opened: the
+diorama-neighbour probe, a NEW question distinct from the killed 09).
+Previously **2026-07-31** (added the ceiling-widening eyeball gate —
 gameboy-dmg + amber-crt probe packs await Harry's side-by-side).
 Previously **2026-07-30** (the `wt-atmo` worktree Harry spotted in Mori was
 a throwaway `--detach` sandbox from a review subagent — no code was ever off
@@ -37,22 +42,37 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — ceiling-widening probe packs (gameboy-dmg + amber-crt)
-**Status**: two new style-pack axes shipped 2026-07-31 (value ramp + glow
-fx), all gates green, pixel probes passed (glow proven by same-theme A/B:
-dark floor 20 → 48). Review shots:
-`docs/design-reviews/2026-07-31-ceiling-widening/` (stock vs gameboy-dmg vs
-amber-crt, plus the no-glow A/B leg). Live look:
-`npm run dev` → `?terminal=t1&wing=d0&theme=gameboy-dmg` / `&theme=amber-crt`.
-**What**: side-by-side at wallpaper distance. Kill condition, frozen before
-the build: if gameboy-dmg reads as "the default with a green filter" rather
-than a different machine (monochrome hue, quantised 4-band strata, dark
-structure masses), the widening failed — iterate the pack's palette keys /
-ramped roles, never the gates. For amber-crt: glow reads as *glowing*, not
-*blurred*; text stays sharp.
-**Unblocks**: marking the round eyeball-passed in STATE.md; the follow-on
-axes (glyph deletion for 08, light ground for 07, cold run 3 over the new
-slots).
+### 👁 EYEBALL — gameboy-dmg re-cut (omission + chunky dialect)
+**Status**: the first cut's eyeball FIRED the kill condition 2026-07-31
+(Harry: reads as "another reshade"). Re-cut same day over the new
+omission slot (`landOmit`, style-pack slot 5) + eleven chunky
+block/quadrant glyph overrides, ramp unchanged, no fx (LCD, not CRT).
+All gates green (corpus 284 assertions), regression trio green. Shots:
+`docs/design-reviews/2026-07-31-dmg-recut/` — `gameboy-dmg-before.png`
+is the exact artifact you judged (copied, never retaken),
+`gameboy-dmg-recut.png` is the new cut, `stock-phosphor.png` the
+reference. Live look: `npm run dev` →
+`?terminal=t1&wing=d0&theme=gameboy-dmg`.
+**What**: side-by-side at wallpaper distance. **Kill condition,
+inherited verbatim from the fired round**: if gameboy-dmg reads as "the
+default with a green filter" rather than a different machine (monochrome
+hue, quantised 4-band strata, dark structure masses), the widening
+failed — iterate the pack's palette keys / ramped roles, never the
+gates. Known approximation, judge it knowingly: the locked crust/foliage
+and the kept ridge still render blended greens outside the 4-colour set
+(engine maths, not pack-fixable).
+**Unblocks**: marking the omission round eyeball-passed in STATE.md; the
+remaining follow-on axes (oscilloscope 08 pack over the omission slot,
+light ground for 07, cold run 3 over the new slots).
+
+### 👁 EYEBALL — amber-crt glow leg (unchanged from the ceiling round)
+**Status**: shipped 2026-07-31, gates green, glow proven by same-theme
+A/B pixel probe (dark floor 20 → 48). Shots:
+`docs/design-reviews/2026-07-31-ceiling-widening/` (`amber-crt-glow.png`
++ the no-glow A/B leg). Live look:
+`npm run dev` → `?terminal=t1&wing=d0&theme=amber-crt`.
+**What**: glow reads as *glowing*, not *blurred*; text stays sharp.
+**Unblocks**: closing the ceiling-widening round's amber leg in STATE.md.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
