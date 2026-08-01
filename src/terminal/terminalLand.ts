@@ -49,6 +49,7 @@ import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './
 import {
   maybeMark,
   markDisplayRow,
+  noteFor,
   pickReveal,
   MARK_RENDER_CAP,
   REVEAL_FADE_S,
@@ -188,8 +189,10 @@ export interface TerminalLandState {
    *  live glow glyphs sitting off the current ground line. `glowStale` must
    *  always read 0 — a mid-knit recompose used to strand them mid-air. */
   knits: { live: number; fired: number; glowStale: number };
-  /** Columns worn past the footfall threshold (session-scoped). */
+  /** Columns worn past the footfall threshold (persisted per wing). */
   worn: number[];
+  /** Rendered marks (marginalia) + the live reveal slot. */
+  marks: Array<{ col: number; agentId: string; revealed: boolean }>;
   /** The joined neighbours' near-edge beings, projected into THIS land's
    *  column space (x < 0 / x > width-1 — just outside the local land). */
   neighbours: {
@@ -212,6 +215,9 @@ declare global {
       debugLabels(): Array<{ text: string; x: number; y: number; kind: string; alpha: number }>;
       /** e2e only — force footfall on a column (n passes); true if worn. */
       debugWear(col: number, passes: number): boolean;
+      /** e2e only — place a mark immediately (bypasses maybeMark's
+       *  cooldown/chance gates, mirrors debugWear's directness). */
+      debugMark(col: number, agentId?: string): boolean;
     };
   }
 }
@@ -1138,6 +1144,11 @@ export async function mountTerminalLand(
         ),
       },
       worn: [...footfall.worn].sort((a, b) => a - b),
+      marks: marks.map((m) => ({
+        col: m.col,
+        agentId: m.agentId,
+        revealed: reveal !== null && reveal.mark === m,
+      })),
       neighbours: {
         left: projectAcrossEdge('left', model.width, neighbourNear.left),
         right: projectAcrossEdge('right', model.width, neighbourNear.right),
@@ -1178,6 +1189,13 @@ export async function mountTerminalLand(
       if (passes > 0) wearDirty = true;
       if (crossed) refreshWear();
       return footfall.worn.has(col);
+    },
+    debugMark: (col, agentId = 'loki') => {
+      const note = noteFor(agentId, 'mid_wander', rng, '');
+      const c = Math.max(0, Math.min(model.width - 1, col));
+      recordMark(memory, { agentId, note, col: c, row: model.surface[c] });
+      addMarkView(agentId, note, c);
+      return marks.some((m) => m.col === c);
     },
   };
 
