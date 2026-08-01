@@ -45,7 +45,7 @@ import {
 } from '../render/fonts';
 import { buildLandContainer } from '../render/levels/land';
 import { knitGlowCell } from './knit';
-import { createFootfall, crustLayerText } from './wear';
+import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
 import {
   maybeMark,
   markDisplayRow,
@@ -92,7 +92,7 @@ import {
 import { roleKey } from '../themes/roles';
 import { COHORT, filterByTheme, type AgentDef } from '../agents/cohort';
 import { tickPresence } from '../agents/behavior';
-import { nullMemoryWriter, routeTier1 } from '../agents/router';
+import { nullMemoryWriter, routeTier1, type MemoryWriter } from '../agents/router';
 import type { AgentRuntimeState } from '../state/agentRuntime';
 import { mulberry32, type Prng } from '../procedural/prng';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
@@ -123,6 +123,8 @@ const WATCH_DRIFT = 0.4;
 const CROSS_COOLDOWN_S = 4;
 /** Near-edge report cadence (seconds; also change-gated). */
 const NEAR_EDGE_REPORT_S = 1;
+/** Wear flush cadence (seconds; dirty-gated — never per footstep). */
+const WEAR_FLUSH_S = 30;
 /** Idle bob: local px amplitude + speed. */
 const BOB_PX = 1.5;
 const BOB_HZ = 1.6;
@@ -275,6 +277,7 @@ export async function mountTerminalLand(
     for (const m of r.writer.placedMarksForCell(cellIdFor(seed)).slice(0, MARK_RENDER_CAP)) {
       addMarkView(m.agentId, m.text, m.location.x);
     }
+    seedWear(r.writer); // fresh-process path (bootstrap cache was cold)
   });
   // Each wing owns a DISTINCT slice of the library — same games in the same
   // order across terminals made t1/t2 read as copies, not as two wings.
@@ -334,11 +337,39 @@ export async function mountTerminalLand(
   // ── Worn paths (Tier 2): session-scoped footfall wear ──────────────────
   // Column entries accumulate; past WEAR_THRESHOLD the crust packs down
   // (▀ → ▔) — paths wear deeper where beings actually walk.
-  const footfall = createFootfall();
+  let footfall = createFootfall();
   const refreshWear = (): void => {
     const crust = scene.layers.crust?.[0];
     if (crust) crust.text = crustLayerText(model, footfall.worn);
   };
+  // Wear persists per wing with lazy half-life decay. Seed synchronously
+  // when the bootstrap cache is warm (worn from frame one); the fresh-
+  // process path re-seeds when the writer lands — the few pre-seed
+  // footsteps dropped by the re-create are heuristic counts, accepted.
+  let wearDirty = false;
+  let wearFlushAt = 0;
+  const seedWear = (w: MemoryWriter): void => {
+    const nowMs = Date.now();
+    const initial = new Map<number, number>();
+    for (const r of w.landWearForCell()) {
+      const c = decayedCount(r.count, r.updatedAt, nowMs);
+      if (c >= 1) initial.set(r.col, c);
+    }
+    if (initial.size === 0) return;
+    footfall = createFootfall(WEAR_THRESHOLD, initial);
+    refreshWear();
+  };
+  const flushWear = (): void => {
+    try {
+      memory.flushLandWear(
+        [...footfall.snapshot()].map(([col, count]) => ({ col, count })),
+        Date.now(),
+      );
+    } catch {
+      // Contention costs a lost flush, never a broken tick.
+    }
+  };
+  seedWear(memory);
 
   // ── Marginalia: marks (marginalia-on-land slice) ───────────────────────
   // A being's completed intent occasionally earns a mark (marks.ts
@@ -755,6 +786,16 @@ export async function mountTerminalLand(
       }
     }
 
+    // Wear flush — ~30 s cadence, dirty-gated (never per footstep; the
+    // DB is WAL-shared across renderer processes).
+    if (elapsedS >= wearFlushAt) {
+      wearFlushAt = elapsedS + WEAR_FLUSH_S;
+      if (wearDirty) {
+        wearDirty = false;
+        flushWear();
+      }
+    }
+
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
 
@@ -986,6 +1027,7 @@ export async function mountTerminalLand(
       const col = Math.round(b.x);
       if (col !== b.lastCol) {
         b.lastCol = col;
+        wearDirty = true;
         if (footfall.step(col)) refreshWear();
       }
     }
@@ -1133,12 +1175,14 @@ export async function mountTerminalLand(
     debugWear: (col, passes) => {
       let crossed = false;
       for (let i = 0; i < passes; i++) if (footfall.step(col)) crossed = true;
+      if (passes > 0) wearDirty = true;
       if (crossed) refreshWear();
       return footfall.worn.has(col);
     },
   };
 
   return () => {
+    flushWear(); // final wear write — teardown must not lose the session
     unsubTopology();
     unsubEnter();
     unsubNeighbour();
