@@ -38,6 +38,8 @@ export type EngagementState = 'loved' | 'recent' | 'mastered' | 'dusty' | 'aband
 export interface LandGame {
   name: string;
   state: EngagementState;
+  /** Steam appid for the CDN recognition surface (mural). Absent = no mural. */
+  appid?: number;
 }
 
 /** Every cell carries a role; the renderer maps role -> palette key. */
@@ -103,6 +105,12 @@ export interface LandModel {
   /** V0 spike: cell rect on the hall face where the renderer mounts the ANSI
    *  capsule mural. Only present when composed with `hall: true`. */
   readonly poster?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  /** Murals #16: INTERIOR cell rect + the flagship's identity. Present only
+   *  when composed with `mural: true` and the window fits. */
+  readonly mural?: {
+    readonly x: number; readonly y: number; readonly w: number; readonly h: number;
+    readonly appid: number; readonly name: string;
+  };
 }
 
 export interface ComposeLandOptions {
@@ -117,6 +125,10 @@ export interface ComposeLandOptions {
    *  bearing HALL — a glyph luminance field with a vertical gradient and a
    *  poster rect for the ANSI capsule. Default false (walkLand untouched). */
   readonly hall?: boolean;
+  /** Murals #16: stamp the flagship game's framed mural rect into the sky
+   *  (frame + cartouche in the model; PIXELS are render-side). Default
+   *  absent = byte-identical output to pre-slice. */
+  readonly mural?: boolean;
   /** When terminal wings are JOINED, ramp the named edge(s)'s last
    *  SEAM_BLEND_COLS columns to a boundary height shared with the neighbour
    *  (its wing seed). Absent / {} = today's independent silhouette (single
@@ -130,13 +142,13 @@ const BEINGS = ['L', 'A', 'M', 'C', 'V'];
 /** A small built-in library so the renderer/harness can preview with no
  *  profile. Real callers pass the profile's engagement-tagged games. */
 export const SAMPLE_LAND: LandGame[] = [
-  { name: 'hades', state: 'loved' },
-  { name: 'stardew', state: 'recent' },
-  { name: 'hollow', state: 'mastered' },
-  { name: 'disco', state: 'dusty' },
-  { name: 'wilds', state: 'abandoned' },
-  { name: 'spire', state: 'recent' },
-  { name: 'civ', state: 'dusty' },
+  { name: 'hades', state: 'loved', appid: 1145360 },
+  { name: 'stardew', state: 'recent', appid: 413150 },
+  { name: 'hollow', state: 'mastered', appid: 367520 },
+  { name: 'disco', state: 'dusty', appid: 632470 },
+  { name: 'wilds', state: 'abandoned', appid: 753640 },
+  { name: 'spire', state: 'recent', appid: 646570 },
+  { name: 'civ', state: 'dusty', appid: 289070 },
   { name: 'celeste', state: 'abandoned' },
 ];
 
@@ -161,6 +173,12 @@ const SKY_DITHER_SALT = 0xd174;
  *  tuning never reshuffles the terrain stream again (reserved-salt list as
  *  above, plus 0xfa42 and 0xd174). */
 const SKY_SALT = 0x57a5;
+
+export const MURAL_INTERIOR_W = 22;
+export const MURAL_INTERIOR_H = 5;
+const MURAL_MIN_COLS = 32;
+const MURAL_MIN_SKY = 9;
+const MURAL_NAME_MAX = 16;
 
 /** The one moon (celestial pass). U+263E — atlas-verified; `☀` is NOT in the
  *  Cozette atlas, never swap to it. Enumerated in smoke-glyph-coverage.mts. */
@@ -525,6 +543,32 @@ export function composeLand(
     sites.push({ x, y: ly, text: s, kind });
   }
 
+  // --- Mural frame + cartouche (Murals #16) --------------------------------
+  let mural: LandModel['mural'];
+  if (opts.mural) {
+    const flagship = games.find((g) => g.state !== 'abandoned');
+    if (flagship?.appid !== undefined && cols >= MURAL_MIN_COLS && SKY_H >= MURAL_MIN_SKY) {
+      const name = flagship.name.slice(0, MURAL_NAME_MAX);
+      const ox = Math.floor((cols - (MURAL_INTERIOR_W + 2)) / 2); // outer left col
+      const oy = 2; // outer top row (sky row 2 — clear of the drag strip)
+      // Clear the outer rect (sky decorations mechanically evicted), then frame.
+      for (let y = oy; y < oy + MURAL_INTERIOR_H + 2; y++)
+        for (let x = ox; x < ox + MURAL_INTERIOR_W + 2; x++) set(x, y, ' ', 'sky');
+      put(ox, oy, '╔' + '═'.repeat(MURAL_INTERIOR_W) + '╗', 'muralFrame');
+      for (let y = oy + 1; y <= oy + MURAL_INTERIOR_H; y++) {
+        set(ox, y, '║', 'muralFrame');
+        set(ox + MURAL_INTERIOR_W + 1, y, '║', 'muralFrame');
+        for (let x = ox + 1; x <= ox + MURAL_INTERIOR_W; x++) set(x, y, ' ', 'mural');
+      }
+      const cart = `╡ ${name} ╞`; // ╡ U+2561 / ╞ U+255E — atlas-verified (coverage smoke)
+      const pad = MURAL_INTERIOR_W - cart.length;
+      const left = Math.floor(pad / 2);
+      put(ox, oy + MURAL_INTERIOR_H + 1,
+        '╚' + '═'.repeat(left) + cart + '═'.repeat(pad - left) + '╝', 'muralFrame');
+      mural = { x: ox + 1, y: oy + 1, w: MURAL_INTERIOR_W, h: MURAL_INTERIOR_H, appid: flagship.appid, name };
+    }
+  }
+
   return {
     width: cols,
     height: rows,
@@ -534,5 +578,6 @@ export function composeLand(
     sites,
     ...(shade ? { shade } : {}),
     ...(poster ? { poster } : {}),
+    ...(mural ? { mural } : {}),
   };
 }
