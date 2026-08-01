@@ -46,8 +46,17 @@ import {
 import { buildLandContainer } from '../render/levels/land';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText } from './wear';
-import { maybeMark, markDisplayRow, MARK_RENDER_CAP, type MarkContextKind } from './marks';
+import {
+  maybeMark,
+  markDisplayRow,
+  pickReveal,
+  MARK_RENDER_CAP,
+  REVEAL_FADE_S,
+  REVEAL_HOLD_S,
+  type MarkContextKind,
+} from './marks';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
+import { captionFor } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
 import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../procedural/land';
 import {
@@ -376,6 +385,19 @@ export async function mountTerminalLand(
       m.text.y = markDisplayRow(model.surface, m.col) * CH;
     }
   };
+
+  // ── Marginalia: the reveal (being-proximity, ambient) ──────────────────
+  // One slot per land: a passing being unfurls the nearest eligible note
+  // in a captionFor box — fade in, hold, fade out on elapsedS (freezes
+  // under throttle). While the slot is occupied, passes don't queue.
+  const CAPTION_MAX_W = 24;
+  let reveal: { mark: MarkView; startedAtS: number } | null = null;
+  const caption = new BitmapText({
+    text: '',
+    style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fg) },
+  });
+  caption.visible = false;
+  world.addChild(caption);
 
   // ── Proximity labels (raised-horizon slice, 2026-07-30) ────────────────
   // The baked label layer is hidden in the TERMINAL path only (web preview /
@@ -811,6 +833,7 @@ export async function mountTerminalLand(
       anchorKnitGlow(k);
     }
 
+    const beingCols: number[] = []; // present beings' columns (reveal proximity)
     for (const b of beings.values()) {
       // Exit juice: slide one cell past the edge while fading, then go.
       if (b.exitingSince !== null) {
@@ -957,12 +980,45 @@ export async function mountTerminalLand(
 
       b.text.x = Math.round(b.x * CW);
       b.text.y = surfaceLocalY(b.x) + Math.sin(elapsedS * BOB_HZ * 6.283 + b.bobPhase) * BOB_PX;
+      beingCols.push(b.x);
 
       // Footfall: count column ENTRIES (not frames) toward path wear.
       const col = Math.round(b.x);
       if (col !== b.lastCol) {
         b.lastCol = col;
         if (footfall.step(col)) refreshWear();
+      }
+    }
+
+    // Marginalia reveal — one slot; a passing being unfurls a note.
+    if (!reveal) {
+      const idx = pickReveal(marks, beingCols, elapsedS);
+      if (idx !== null) {
+        const mark = marks[idx];
+        reveal = { mark, startedAtS: elapsedS };
+        mark.lastRevealAtS = elapsedS;
+        caption.text = captionFor(mark.note, CAPTION_MAX_W);
+        caption.x = Math.max(0, Math.min(model.width * CW - caption.width, Math.round(mark.col * CW - caption.width / 2)));
+        caption.y = markDisplayRow(model.surface, mark.col) * CH - caption.height - CH;
+        caption.alpha = 0;
+        caption.visible = true;
+        world.addChild(caption); // re-append → topmost over runtime-added texts
+      }
+    } else if (!marks.includes(reveal.mark)) {
+      // Evicted by the render cap mid-reveal: close the caption safely.
+      caption.visible = false;
+      reveal = null;
+    } else {
+      const t = elapsedS - reveal.startedAtS;
+      const total = REVEAL_FADE_S + REVEAL_HOLD_S + REVEAL_FADE_S;
+      caption.alpha = t < REVEAL_FADE_S
+        ? t / REVEAL_FADE_S
+        : t < REVEAL_FADE_S + REVEAL_HOLD_S
+          ? 1
+          : Math.max(0, (total - t) / REVEAL_FADE_S);
+      if (t >= total) {
+        caption.visible = false;
+        reveal = null;
       }
     }
   };
