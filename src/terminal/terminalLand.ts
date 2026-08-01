@@ -44,6 +44,8 @@ import {
   waitForCozette,
 } from '../render/fonts';
 import { buildLandContainer } from '../render/levels/land';
+import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '../render/mural';
+import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
 import {
@@ -193,6 +195,9 @@ export interface TerminalLandState {
   worn: number[];
   /** Rendered marks (marginalia) + the live reveal slot. */
   marks: Array<{ col: number; agentId: string; revealed: boolean }>;
+  /** Murals #16: the mount status of the flagship's framed mural, if this
+   *  land was composed with one. */
+  mural: { state: TerminalMuralState; appid: number } | null;
   /** The joined neighbours' near-edge beings, projected into THIS land's
    *  column space (x < 0 / x > width-1 — just outside the local land). */
   neighbours: {
@@ -293,7 +298,7 @@ export async function mountTerminalLand(
     { length: 5 },
     (_, i) => SAMPLE_LAND[(rot + i) % SAMPLE_LAND.length],
   );
-  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false };
+  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: true };
   let model = composeLand(seed, games, composeOpts);
 
   // Persistent transform container; the land SCENE is a swappable child so a
@@ -472,8 +477,32 @@ export async function mountTerminalLand(
       return { site, text, alpha: 0 };
     });
   };
+  let muralState: TerminalMuralState = 'idle';
+  const mountMural = (): void => {
+    const spec = model.mural;
+    if (!spec) { muralState = 'idle'; return; }
+    if ((theme.landOmit ?? []).includes('mural')) { muralState = 'omitted'; return; }
+    const host = sceneContainer; // capture: a recompose swaps this out — the dead-guard
+    muralState = 'loading';
+    loadMuralPixels(spec.appid)
+      .then((px) => {
+        if (host !== sceneContainer || host.destroyed) return; // late resolve, dead scene
+        const cells = quantizeMural(px.data, px.w, px.h, spec.w, spec.h, muralQuantizeTargets(theme.palette));
+        const mc = buildQuantizedMural(cells, spec.w, spec.h, theme);
+        mc.x = spec.x * CW;
+        mc.y = spec.y * CH;
+        host.addChild(mc); // child of the scene → dies with it on recompose
+        muralState = 'ready';
+      })
+      .catch((err: unknown) => {
+        muralState = err instanceof Error && err.name === 'SecurityError' ? 'failed-cors' : 'failed-load';
+        console.warn('[terminal] mural failed:', err); // frame + cartouche stand alone
+      });
+  };
+
   hideBakedLayers();
   buildSiteLabels();
+  mountMural();
 
   const recompose = (join: { left?: number; right?: number } | null): void => {
     model = composeLand(seed, games, join ? { ...composeOpts, join } : composeOpts);
@@ -488,6 +517,7 @@ export async function mountTerminalLand(
     drawMarks(); // marks re-sit on the reshaped surface
     hideBakedLayers();
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
+    mountMural(); // scene child was destroyed with sceneContainer; pixel cache makes this instant
     structureCols = structureColumns(model.role);
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
     // than on the next tick — the recompose is the event that invalidated
@@ -1153,6 +1183,7 @@ export async function mountTerminalLand(
         left: projectAcrossEdge('left', model.width, neighbourNear.left),
         right: projectAcrossEdge('right', model.width, neighbourNear.right),
       },
+      mural: model.mural ? { state: muralState, appid: model.mural.appid } : null,
     }),
     debugPlace: (id, x, dir, hold) => {
       const b = beings.get(id);
