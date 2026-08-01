@@ -117,6 +117,14 @@ if (onlyId) {
     Object.hasOwn(THEMES, onlyId) && (THEME_IDS as readonly string[]).includes(onlyId));
 }
 
+// --- mural + muralFrame role lock-set wiring -----
+check('mural is glyph-locked', LAND_GLYPH_LOCKED.has('mural'));
+check('muralFrame is glyph-locked', LAND_GLYPH_LOCKED.has('muralFrame'));
+check('muralFrame is omit-locked', LAND_OMIT_LOCKED.has('muralFrame'));
+check('mural is omit-ALLOWED (lossy-lens doctrine)', !LAND_OMIT_LOCKED.has('mural'));
+check('mural is ramp-locked', LAND_RAMP_LOCKED.has('mural'));
+check('muralFrame is ramp-locked', LAND_RAMP_LOCKED.has('muralFrame'));
+
 for (const id of ids) {
   const t = THEMES[id] as Theme | undefined;
   if (!t) continue; // registration failure already recorded above

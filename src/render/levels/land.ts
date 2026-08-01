@@ -108,12 +108,15 @@ export const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   label: 'fgDim',
   shaft: 'orange',
   edge: 'fgDim',
+  mural: 'fgDim', // nominal — interior colour resolves per-cell in the quantiser
+  muralFrame: 'fg', // structure register, NOT fgBright (beings' reserved contract)
 };
 
 /** Roles whose glyphs live machinery owns: wear re-texts the crust layer
  *  (crustGlyphAt in src/terminal/wear.ts is the single ▀ → ▔ authority),
  *  labels are game names, being/player cells are live actors, edge walls
- *  belong to the terminal edge layer. A style pack's landGlyphs never touch
+ *  belong to the terminal edge layer, mural interior is rendered per-cell,
+ *  muralFrame holds the cartouche. A style pack's landGlyphs never touch
  *  these (enforced here AND by scripts/smoke-style-pack.mts). */
 export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
   'label',
@@ -121,6 +124,8 @@ export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
   'player',
   'crust',
   'edge',
+  'mural',
+  'muralFrame',
 ]);
 
 /** Roles a style pack's landRamp may never step (enforced here AND by
@@ -144,17 +149,18 @@ function themeRampRoles(theme: Theme): ReadonlySet<LandRole> {
 /** Roles a style pack's landOmit may never delete (enforced here AND by
  *  scripts/smoke-style-pack.mts): the glyph-locked live machinery (beings,
  *  player, labels, crust wear, edge walls) and sky (never drawn — omitting
- *  it would be a silent no-op). Everything else — strata, structures,
- *  celestials, foliage — is omittable by design: this slot is the "glyph
- *  deletion" axis (a blank DMG sky, a stroke-only scope). Note `hall`
- *  omission leaves the V0-preview ANSI mural floating on its poster rect
- *  (mountLandPreview mounts it off model.poster regardless of layers);
- *  the terminal desk composes no hall, so that stays a prototype-surface
- *  cosmetic. */
-export const LAND_OMIT_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
-  ...LAND_GLYPH_LOCKED,
-  'sky',
-]);
+ *  it would be a silent no-op). Exception: mural is the ONE glyph-locked
+ *  role a pack MAY omit (lossy-lens doctrine — a pack may delete the picture,
+ *  never contradict it; the frame + cartouche stay, so the wing keeps its
+ *  name). Everything else — strata, structures, celestials, foliage — is
+ *  omittable by design: this slot is the "glyph deletion" axis (a blank DMG
+ *  sky, a stroke-only scope). Note `hall` omission leaves the V0-preview ANSI
+ *  mural floating on its poster rect (mountLandPreview mounts it off
+ *  model.poster regardless of layers); the terminal desk composes no hall,
+ *  so that stays a prototype-surface cosmetic. */
+export const LAND_OMIT_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>(
+  ([...LAND_GLYPH_LOCKED, 'sky'] as LandRole[]).filter((r) => r !== 'mural'),
+);
 
 /** The active theme's omitted-role set (style-pack slot 5), locked roles
  *  filtered defensively so a hand-edited theme JSON can't delete live

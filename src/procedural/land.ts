@@ -68,7 +68,9 @@ export type LandRole =
   | 'player'
   | 'label'
   | 'shaft'
-  | 'edge';
+  | 'edge'
+  | 'mural'       // reserved interior of the framed mural (blank in the model; pixels are render-side)
+  | 'muralFrame'; // the box-drawing frame + name cartouche
 
 /** A labelled site: where a game's name is drawn, for renderers that manage
  *  label visibility themselves (the terminal land's proximity reveal). */
