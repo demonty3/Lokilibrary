@@ -120,8 +120,12 @@ check('row importance persisted', recent[0]?.importance === CROSSING_IMPORTANCE)
   const Database = require('better-sqlite3');
   const rawDb = new Database(path.join(tmp, 'memory.sqlite'), { readonly: true });
   try {
-    check('schema_version contains 3',
-      (rawDb.prepare(`SELECT COUNT(*) AS n FROM schema_version WHERE version = 3`).get() as { n: number }).n === 1);
+    // A fresh bootstrap stamps only the CURRENT version (the table
+    // accumulates across upgrades of a real DB) — track the export, not
+    // a literal, so a version bump can't silently break this smoke.
+    const { SCHEMA_VERSION } = await import('../src/agents/memory/schema.ts');
+    check(`schema_version contains ${SCHEMA_VERSION}`,
+      (rawDb.prepare(`SELECT COUNT(*) AS n FROM schema_version WHERE version = ?`).get(SCHEMA_VERSION) as { n: number }).n === 1);
   } finally {
     rawDb.close();
   }

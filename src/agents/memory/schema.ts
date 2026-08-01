@@ -231,5 +231,7 @@ export interface WorldEventRow {
 /** Schema version. Bump when changing column shape; migration lives in db.ts.
  *  v3 (2026-07-17): +terminal_crossing/+terminal_arrival ObservationSource
  *  tokens — additive only (`source` is unconstrained TEXT; old rows untouched;
- *  the version table accumulates one row per version). */
-export const SCHEMA_VERSION = 3;
+ *  the version table accumulates one row per version).
+ *  v4 (2026-08-01): +land_wear table (marginalia slice) — additive only
+ *  (CREATE IF NOT EXISTS; existing tables and rows untouched). */
+export const SCHEMA_VERSION = 4;

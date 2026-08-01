@@ -144,6 +144,18 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
     activeShelfMoves(todayKey) {
       return activeMovesFrom(db.listWorldEvents(), todayKey);
     },
+    landWearForCell() {
+      return db.landWearRows(ns.cellId).map((r) => ({
+        col: r.col,
+        count: r.count,
+        updatedAt: r.updated_at,
+      }));
+    },
+    flushLandWear(entries, nowMs) {
+      const upserts = entries.filter((e) => e.count >= 1);
+      const prunes = entries.filter((e) => e.count < 1).map((e) => e.col);
+      db.flushLandWear(ns.cellId, upserts, prunes, nowMs);
+    },
     recordLore({ text, source, embedding }) {
       const id = uuidv7();
       db.insertLore({

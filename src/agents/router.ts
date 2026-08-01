@@ -206,6 +206,14 @@ export interface MemoryWriter {
   /** Read the agent's persona row, if any. */
   persona(agentId: string): PersonaSnippet | null;
 
+  // ---- Land wear (marginalia slice) — per-wing, additive table ----
+  /** All persisted wear rows for the writer's namespaced land cell.
+   *  Raw counts + timestamps; the caller applies lazy decay on read. */
+  landWearForCell(): ReadonlyArray<{ col: number; count: number; updatedAt: number }>;
+  /** Flush footfall counts for the namespaced cell: upserts `count >= 1`
+   *  entries, deletes `< 1` entries (decay prune), one transaction. */
+  flushLandWear(entries: ReadonlyArray<{ col: number; count: number }>, nowMs: number): void;
+
   // ---- Lore (Phase 5C) — library-scoped, not per-agent ----
   /** Persist one uploaded lore chunk. `embedding` (768-dim, from the
    *  worker /api/embed route) is attached when present; FTS5 indexes the
@@ -236,6 +244,8 @@ export const nullMemoryWriter: MemoryWriter = {
   logTier2: () => undefined,
   recentMemories: () => [],
   persona: () => null,
+  landWearForCell: () => [],
+  flushLandWear: () => {},
   recordLore: () => null,
   recentLore: () => [],
   loreCount: () => 0,

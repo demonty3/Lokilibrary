@@ -73,6 +73,17 @@ export interface MemoryDb {
   /** Count lore chunks in a library. */
   loreCount(libraryId: string): number;
 
+  // ---- Land wear (marginalia slice) — per-wing footfall counts ----
+  /** All wear rows for one wing's land cell. */
+  landWearRows(cellId: string): Array<{ cell_id: string; col: number; count: number; updated_at: number }>;
+  /** Upsert + prune in one transaction (the flush; ~30 s cadence). */
+  flushLandWear(
+    cellId: string,
+    upserts: ReadonlyArray<{ col: number; count: number }>,
+    pruneCols: readonly number[],
+    nowMs: number,
+  ): void;
+
   // ---- World-events ledger (events-calendar, 2026-07-12) ----
   /** Insert one day's staged event. INSERT OR IGNORE on the `day` PK —
    *  re-staging the same day is a no-op (idempotent). */
@@ -244,6 +255,33 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     `SELECT day, kind, payload, staged_at FROM world_events ORDER BY day ASC`,
   );
 
+  // ---- Land wear statements (marginalia slice) ----
+  const landWearRowsStmt = db.prepare(
+    `SELECT cell_id, col, count, updated_at FROM land_wear WHERE cell_id = ?`,
+  );
+  const upsertLandWearStmt = db.prepare(`
+    INSERT INTO land_wear (cell_id, col, count, updated_at)
+    VALUES (@cell_id, @col, @count, @updated_at)
+    ON CONFLICT(cell_id, col) DO UPDATE SET
+      count = excluded.count, updated_at = excluded.updated_at
+  `);
+  const deleteLandWearStmt = db.prepare(
+    `DELETE FROM land_wear WHERE cell_id = ? AND col = ?`,
+  );
+  const flushLandWearTx = db.transaction(
+    (
+      cellId: string,
+      upserts: ReadonlyArray<{ col: number; count: number }>,
+      pruneCols: readonly number[],
+      nowMs: number,
+    ) => {
+      for (const u of upserts) {
+        upsertLandWearStmt.run({ cell_id: cellId, col: u.col, count: u.count, updated_at: nowMs });
+      }
+      for (const col of pruneCols) deleteLandWearStmt.run(cellId, col);
+    },
+  );
+
   let insertVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
   let updateEmbeddingFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
   let insertLoreVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
@@ -352,6 +390,14 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     loreCount(libraryId) {
       const r = loreCountStmt.get(libraryId) as { n: number } | undefined;
       return r?.n ?? 0;
+    },
+    landWearRows(cellId) {
+      return landWearRowsStmt.all(cellId) as Array<{
+        cell_id: string; col: number; count: number; updated_at: number;
+      }>;
+    },
+    flushLandWear(cellId, upserts, pruneCols, nowMs) {
+      flushLandWearTx(cellId, upserts, pruneCols, nowMs);
     },
     insertWorldEvent(row) {
       insertWorldEventStmt.run(row);
@@ -519,6 +565,17 @@ function bootstrap(db: SqliteHandle, hasVec: boolean): void {
     );
     CREATE INDEX IF NOT EXISTS idx_lore_library
       ON lore(library_id, created_at DESC);
+
+    -- Land wear (marginalia slice). Per-wing footfall counts, additive —
+    -- its own table (the lore precedent), never touching the memories
+    -- contract. Decay is lazy (on read); rows are pruned on flush.
+    CREATE TABLE IF NOT EXISTS land_wear (
+      cell_id    TEXT NOT NULL,
+      col        INTEGER NOT NULL,
+      count      REAL NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (cell_id, col)
+    );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS lore_fts
       USING fts5(text, content='', contentless_delete=1);
