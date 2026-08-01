@@ -128,12 +128,15 @@ session if convenient:
 - ✅ **EYEBALL amber-crt glow leg — PASSED 2026-07-31** (glow reads as
   glowing, not blurred; text stays sharp). Both legs of the
   ceiling-widening round are now closed green.
-- ✅ **EYEBALL diorama-neighbour joined pair — MUTATE 2026-07-31**
-  (Harry: pairing works, but "the design choice of the terminal is
-  unbearable to look at" — which element to pin before any re-mock; the
-  frozen kill condition did NOT fire; engine work stays parked behind
-  its two preconditions regardless). Full verdict recorded in
-  `docs/design-reviews/2026-07-31-diorama-neighbour.md`.
+- ✅ **EYEBALL diorama-neighbour joined pair — MUTATE 2026-07-31,
+  element PINNED 2026-08-01** (Harry: pairing works, but the glyph
+  side's shade-dither crust band reads as unreadable letter-noise —
+  "all of those ae's"; the frozen kill condition did NOT fire; engine
+  work stays parked behind its two preconditions regardless). The pin
+  reclassified the mutate: the mockup reproduces the shipped desk, so
+  this is a first-contact legibility finding about the DESK — fix on
+  the depth track, re-mock only after the desk's ground band improves.
+  Full verdict + pin in `docs/design-reviews/2026-07-31-diorama-neighbour.md`.
 - ✅ **Reveal flythrough — RETIRED 2026-07-24** (retired, not failed).
   `claude/reveal-flythrough` / PR #34, one commit `48cc0a1` (2026-06-02),
   779 lines, no new deps: a first-run cinematic — the cell builds itself

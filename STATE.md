@@ -126,11 +126,20 @@ a different machine; the omission axis + chunky dialect flipped the read
 that fired the first kill. (2) **amber-crt glow leg PASSED** — glows,
 not blurred, text stays sharp. Both legs of the ceiling-widening round
 are closed green. (3) **diorama-neighbour mockup: MUTATE** — kill did
-NOT fire (coexistence unrefuted, unconfirmed); what mutates is the
-mockup's presentation ("the design choice of the terminal is unbearable
-to look at" — which element to be pinned before any re-mock); bars
-inherit verbatim; both engine preconditions remain unmet. Full verdict
-in the decision doc. **Direction call (Harry, this session): depth over
+NOT fire (coexistence unrefuted, unconfirmed); element PINNED 2026-08-01:
+the glyph desk's shade-dither crust band reads as rows of unreadable
+letterforms ("all of those ae's") to a first-time viewer — and since the
+mockup reproduces the shipped desk faithfully, this is a first-contact
+legibility finding about the DESK, not the mockup; the fix lives on the
+depth track (land legibility), and any re-mock waits for the improved
+desk, inheriting the frozen bar. Bars inherit verbatim; both engine
+preconditions remain unmet. Full verdict + pin in the decision doc.
+**Depth-track input (2026-08-01, from the pin): the crust register fails
+first-contact READ** — a stranger can't tell what the dense dither band
+IS (Harry: "if i couldn't understand the world I would be confused";
+his caveat: live context may teach it — the risk is the clone-and-run
+first minute). Concrete evidence for sequencing land-legibility work
+(murals / crust material read / labels) inside the depth column. **Direction call (Harry, this session): depth over
 breadth.** The remaining widening axes — oscilloscope 08 stroke-only
 cut, light-ground 07 e-ink, cold run 3 over the new slots — are
 **PARKED** with their kill conditions frozen where they stand; unpark

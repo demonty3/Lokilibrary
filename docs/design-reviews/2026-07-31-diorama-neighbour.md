@@ -133,3 +133,26 @@ Per §3's own rule this is the fix-the-mockup-and-look-again path: the bar does
 not soften, a re-mock inherits it verbatim, and §4's two preconditions for
 engine work remain unmet and untouched. Until a re-mock is judged, the probe's
 standing is: **coexistence unrefuted, unconfirmed.**
+
+### The element, pinned — 2026-08-01
+
+Harry, verbatim: "i think it's the glyph style all of those ae's are
+unreadable. Might be fine when there are more terminals already on the go but
+If i was to open this up on the first time and i couldn't understand the world
+I would be confused."
+
+Identified on the rendered page: the "ae's" are the glyph desk's dense
+shade-dither ground band — Cozette's medium-shade glyphs, whose dot-columns at
+reading size read as rows of squashed letterforms rather than as material.
+There are no letter glyphs in that band; the *read* is letter-noise anyway.
+
+Scope correction that follows: the mockup's glyph side reproduces the shipped
+desk faithfully ("every grade real"), and the real desk shots show the same
+dotted crust patches. So the mutate does not route to mockup rework — it is a
+**first-contact legibility finding about the shipped desk's crust register**,
+surfaced by adjacency to a machine with no such ambiguity. Harry's own caveat
+bounds it: context may teach the reading once several terminals are alive; the
+risk is first contact (the clone-and-run stranger). The fix therefore lives on
+the depth track (land legibility/polish); a re-mock only makes sense *after*
+the desk's ground band improves, re-shot from the improved desk, inheriting
+§3's bar verbatim.
