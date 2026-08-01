@@ -164,6 +164,44 @@ although the pack omits every sky role including starBright — the
 painter is unidentified (not ambient scatter; likely an event/salience
 overlay). Identify the painter, then rule feature vs leak.
 
+**Murals #16 SHIPPED 2026-08-01, eyeball PENDING** (spec
+`docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan
+`docs/superpowers/plans/2026-08-01-murals-on-land.md`, commits
+`ad3ac9f..ecc1dd3` — the depth track's second slice; Harry's ruling on
+the palette-quantise question: full-RGB exemption RETIRED). Every
+terminal window now wears its wing's flagship as a framed,
+palette-quantised mural, mid-sky: `composeLand` stamps frame + `╡ name ╞`
+cartouche into the model as new roles `mural`/`muralFrame` (pure
+arithmetic, stamped last — no RNG shift; `opts.mural` absent is
+byte-identical, LOCKED by a frozen fnv1a golden in `smoke-land-mural`),
+interior pixels arrive render-side: `src/render/muralCells.ts` (pure
+quantiser — Rec.709 luminance → ` ░▒▓█`, chroma → nearest theme palette
+key, `bg/bgAlt/fgBright` excluded so the being-salience contract holds
+by construction) + `src/render/mural.ts` (session pixel cache per appid,
+one BitmapText per palette key, backing from `theme.palette.bg` — the
+ansiSpike `0x050505` debt does not propagate; ansiSpike untouched for
+the V0 preview). Lock contract: both roles glyph+ramp-locked;
+`muralFrame` omit-locked; `mural` omit-ALLOWED (lossy-lens doctrine).
+`LandGame.appid?` added (celeste bare → no mural, no empty frame).
+Dead-guards both legs of the async mount (`.then` AND `.catch`).
+Verified live (macOS, 2 windows): both murals `ready` with DIFFERENT
+appids (d0 stardew 413150 / d1 civ 289070), gameboy-dmg relaunch
+re-quantises to the 4-green LCD palette, join recompose survives from
+cache (no refetch), bogus-appid load rejects → `failed-load`, frame
+stands alone. Shots: `/tmp/loki-murals/{desk-two-windows,desk-dmg,desk-joined}.png`.
+Smokes: `smoke-land-mural` 21, `smoke-mural-cells` 16, style-pack 290,
+glyph-coverage extended (`╡╞` atlas-verified); full 15-smoke sweep +
+both typecheck legs green. SDD run: 6 tasks, all task reviews clean,
+final whole-branch review clean after one fix wave (golden + catch
+guard + comment). DEFERRED (follow-ups, parked in the final review):
+negative-cache failed loads (offline desk re-fetches per recompose,
+console-only cost); box-average right-edge crop (~4% of the 460px
+header — revisit only if the identity read seems off-centre). The
+stray-`*` painter (open thread above) was seen ON a mural frame edge —
+same unidentified overlay, not a mural defect. **Eyeball gate open:
+the spec's frozen kill condition — noise-not-Hades ⇒ iterate the
+quantise, never the recognition rule.**
+
 **Marginalia on land SHIPPED 2026-08-01, eyeball PASSED same day**
 (Harry watched the live beat on the terminals build — a driven reveal
 plus the ambient surface — and called it: "this feels right") — the depth
