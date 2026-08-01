@@ -164,7 +164,7 @@ although the pack omits every sky role including starBright — the
 painter is unidentified (not ambient scatter; likely an event/salience
 overlay). Identify the painter, then rule feature vs leak.
 
-**Murals #16 SHIPPED 2026-08-01, eyeball PENDING** (spec
+**Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan
 `docs/superpowers/plans/2026-08-01-murals-on-land.md`, commits
 `ad3ac9f..ecc1dd3` — the depth track's second slice; Harry's ruling on
@@ -198,9 +198,8 @@ negative-cache failed loads (offline desk re-fetches per recompose,
 console-only cost); box-average right-edge crop (~4% of the 460px
 header — revisit only if the identity read seems off-centre). The
 stray-`*` painter (open thread above) was seen ON a mural frame edge —
-same unidentified overlay, not a mural defect. **Eyeball gate open:
-the spec's frozen kill condition — noise-not-Hades ⇒ iterate the
-quantise, never the recognition rule.**
+same unidentified overlay, not a mural defect. Eyeball PASSED 2026-08-01 — the
+slice is closed; the kill condition never fired.
 
 **Marginalia on land SHIPPED 2026-08-01, eyeball PASSED same day**
 (Harry watched the live beat on the terminals build — a driven reveal

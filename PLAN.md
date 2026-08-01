@@ -47,11 +47,10 @@ git history (`git log --follow PLAN.md`) and summarised per-phase in
 
 1. ~~Marginalia on land~~ — **SHIPPED 2026-08-01, eyeball PASSED**
    ("this feels right"); slice closed, no tuning.
-2. ~~Murals #16~~ — **SHIPPED 2026-08-01, eyeball PENDING** (STATE.md
-   has the record; kill condition frozen in the spec: noise-not-Hades ⇒
-   iterate the quantise, never the recognition rule). Built to the KEPT
-   Mural Anchor composition — one framed, palette-quantised mural per
-   window.
+2. ~~Murals #16~~ — **SHIPPED 2026-08-01, eyeball PASSED**
+   (STATE.md has the record; kill condition never fired). Built to the
+   KEPT Mural Anchor composition — one framed, palette-quantised mural
+   per window.
 3. **Land polish #19** — monument architecture + door, constellations
    / moon / cloud wisps, ore veins / caverns, site signage, **plus**
    unopened-wing skyline silhouettes on the ridge (09 folded in,
