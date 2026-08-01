@@ -32,6 +32,7 @@ import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
 import { MOON_GLYPH, SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
+import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
 import { THEMES } from '../src/themes/index.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
@@ -127,7 +128,7 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   ['·', 'middle-dot separator (headers/footers/status)'],
   // cell.ts literals.
   ['@', 'cell.ts player avatar'],
-  ['·', 'cell.ts placed-mark glyph'],
+  ['·', 'markStyles.ts DEFAULT_MARK_STYLE (placed-mark glyph)'],
   // bookshelfPrompt.ts launch prompt frame.
   ['[E]', 'bookshelfPrompt.ts launch prompt'],
   // morning-dispatch.ts banner — renderDispatch emits the box-drawing rule
@@ -137,13 +138,15 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   // Phase 7-B — composable-panes seam glyphs (PixiApp.ts SEAM_GLYPHS +
   // drawSeamGlyphs). Drawn as box-drawing decoration where panes abut.
   ['│─┼├┤┬┴', 'PixiApp.ts SEAM_GLYPHS pane seams'],
-  // Agent-mind pass — per-agent trace glyphs (cell.ts MARK_STYLES).
-  ['’≡⌐°,·', 'cell.ts MARK_STYLES'],
+  // Agent-mind pass — per-agent trace glyphs, derived from the shared
+  // module so a new style can't dodge the coverage gate.
+  [Object.values(MARK_STYLES).map((s) => s.glyph).join('') + DEFAULT_MARK_STYLE.glyph,
+    'src/agents/markStyles.ts MARK_STYLES'],
   // Salience — marginalia frame dialect: the walk-over caption's found-note
   // frame is EXCLUSIVELY double-line (captionFor), distinct from the
   // single-line card frames and the double-line stub/empty panel above.
-  ['╔═╗╚╝║', 'src/render/levels/cell.ts captionFor (marginalia frame)'],
-  ['…', 'cell.ts captionFor truncation (capped-text ellipsis)'],
+  ['╔═╗╚╝║', 'src/render/noteBox.ts captionFor (marginalia frame)'],
+  ['…', 'noteBox.ts captionFor truncation (capped-text ellipsis)'],
 ];
 for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
 

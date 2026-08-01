@@ -20,7 +20,6 @@ import {
 import { fnv1a32 } from '../../procedural/seed';
 import type { Theme, ThemePalette } from '../../themes/types';
 import { roleKey } from '../../themes/roles';
-import type { PaletteKey, ThemeRole } from '../../themes/types';
 import { getPlayerPos, setPlayerPos, clearPlayerPos } from '../../state/playerPos';
 import { useAppStore } from '../../state/store';
 import { pickLokiSpawn } from '../../agents/loki';
@@ -71,27 +70,8 @@ import {
   COZETTE_FONT_SIZE,
   hexToInt,
 } from '../fonts';
-
-/** Agent-mind pass — per-agent trace vocabulary. The mark's glyph + tint
- *  identify WHO left it before you read a word: Loki dog-ears, the
- *  Archivist files, the cat topples, the ghost chills, the visitor drops.
- *  Every glyph is enumerated in smoke-glyph-coverage RENDERER_LITERALS.
- *  Ladder identity pass (2026-07-17): tints resolve through the role
- *  layer so a mark wears its AUTHOR's accent; the ghost's marks take the
- *  dedicated 'mark.ghost' role (default fg — the dim-but-distinct step;
- *  being.ghost's fgDim would vanish into the floor). */
-const MARK_STYLES: Record<string, { glyph: string; role: ThemeRole; fallback: PaletteKey }> = {
-  loki: { glyph: '’', role: 'being.loki', fallback: 'magenta' },
-  archivist: { glyph: '≡', role: 'being.archivist', fallback: 'violet' },
-  cat: { glyph: '⌐', role: 'being.cat', fallback: 'orange' },
-  ghost: { glyph: '°', role: 'mark.ghost', fallback: 'fg' },
-  visitor: { glyph: ',', role: 'being.visitor', fallback: 'cyan' },
-};
-const DEFAULT_MARK_STYLE = {
-  glyph: '·',
-  role: 'being.loki' as ThemeRole,
-  fallback: 'magenta' as PaletteKey,
-};
+import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../../agents/markStyles';
+import { captionFor } from '../noteBox';
 
 /** Swap books so a move's pair sits at consecutive bookshelfSlots
  *  indices: the second book moves to index(first)+1; the displaced book
@@ -126,51 +106,6 @@ export function setE2ECalendarMoves(moves: typeof e2eCalendarMoves): void {
 }
 function getE2ECalendarMoves(): typeof e2eCalendarMoves {
   return e2eCalendarMoves;
-}
-
-/** Boxed caption for a found note, word-wrapped to `maxWidth` columns of
- *  interior text so the box fits inside rooms narrower than a single
- *  unwrapped line (rooms run ~24 tiles wide; authored notes run 40-90
- *  chars — an unwrapped line would blow straight through the room wall
- *  and off the screen). Monospace framing works because the whole
- *  surface is one bitmap font. Capped at 90 chars total before wrapping. */
-function captionFor(text: string, maxWidth: number): string {
-  const capped = text.length > 90 ? `${text.slice(0, 89)}…` : text;
-  const width = Math.max(4, maxWidth);
-  const words = capped.split(' ');
-  const lines: string[] = [];
-  let line = '';
-  for (const w of words) {
-    if (w.length > width) {
-      // Hard-break: a single token wider than the interior can't fit on
-      // any line, wrapped or not — flush what's pending and slice the
-      // token into width-sized chunks so the box never exceeds the
-      // room-width clamp (`maxWidth`).
-      if (line) {
-        lines.push(line);
-        line = '';
-      }
-      let i = 0;
-      while (w.length - i > width) {
-        lines.push(w.slice(i, i + width));
-        i += width;
-      }
-      line = w.slice(i);
-      continue;
-    }
-    const candidate = line ? `${line} ${w}` : w;
-    if (candidate.length > width && line) {
-      lines.push(line);
-      line = w;
-    } else {
-      line = candidate;
-    }
-  }
-  lines.push(line);
-  const boxWidth = Math.max(...lines.map((l) => l.length));
-  const bar = '═'.repeat(boxWidth + 2);
-  const body = lines.map((l) => `║ ${l.padEnd(boxWidth)} ║`).join('\n');
-  return `╔${bar}╗\n${body}\n╚${bar}╝`;
 }
 
 /** Agent-mind pass — Loki's launch-path notes. This path fires without
