@@ -33,6 +33,7 @@ import type { ClusterActivity } from '../src/procedural/clusters.ts';
 import { MOON_GLYPH, SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
+import { MURAL_RAMP } from '../src/render/muralCells.ts';
 import { THEMES } from '../src/themes/index.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
@@ -149,6 +150,11 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   ['…', 'noteBox.ts captionFor truncation (capped-text ellipsis)'],
 ];
 for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
+
+// Murals #16 — frame + cartouche (composeLand) and the quantise ramp.
+for (const g of ['╔', '╗', '╚', '╝', '║', '═', '╡', '╞'])
+  emitted.push([g, 'src/procedural/land.ts composeLand mural frame/cartouche']);
+for (const g of MURAL_RAMP) if (g !== ' ') emitted.push([g, 'src/render/muralCells.ts MURAL_RAMP']);
 
 // --- assert every emitted codepoint is covered -----------------------------
 // De-dupe by codepoint but remember a provenance for the failure message.
