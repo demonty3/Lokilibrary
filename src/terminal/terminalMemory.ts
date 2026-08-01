@@ -49,6 +49,30 @@ export function recordCrossing(
   }
 }
 
+/** Palace launch-mark parity (cell.ts handleLaunch): importance 6. */
+export const MARK_IMPORTANCE = 6;
+
+/** Persist a land mark as a plan row — the palace's exact shape.
+ *  status 'active' + step 'pending' is load-bearing: placedMarksForCell
+ *  filters to exactly that pair; a 'done' step would be invisible to the
+ *  read path. Try/caught like every write here. */
+export function recordMark(
+  writer: MemoryWriter,
+  args: { agentId: string; note: string; col: number; row: number },
+): string | null {
+  try {
+    return writer.recordPlan({
+      agentId: args.agentId,
+      text: args.note,
+      steps: [{ kind: 'place_mark', location: { x: args.col, y: args.row }, status: 'pending' }],
+      status: 'active',
+      importance: MARK_IMPORTANCE,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function recordArrival(
   writer: MemoryWriter,
   args: { agentId: string; wing: string; col: number; row: number; whenMs: number },
