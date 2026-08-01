@@ -137,6 +137,8 @@ Once Depth 1 ships and users notice it:
 
 **Status.** Depth 1 is a v0.7–v0.8 polish feature — small, distinctive, Easter-egg in spirit (no headline marketing for v1.0, let users discover it). Ship it quietly; Reddit does the marketing. Depths 2 and 3 are v1.x+ and shouldn't be planned now. The reserved-slot work in the procedural layer at v0.5 should leave one location per template free so Depth 1 doesn't require a layout refactor later.
 
+*Update 2026-08-01:* Depth 1 CODE SHIPPED as slice 6A (landmark + press-E status panel, smoke-locked; STATE.md § Local model presence) but never verified live — this Mac can't host Ollama (parked in `TODO-USER.md`), and the production path (Electron main-process probe; a deployed Worker can't reach `localhost:11434`) is documented, not built. Depths 2–3 unchanged.
+
 ---
 
 ## Sleep mode: the agent organises while you're away

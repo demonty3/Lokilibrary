@@ -193,7 +193,7 @@ distinct in the first place (`CLAUDE.md`):
 | Agent-initiated world-joining | `IDEAS.md` § Composable panes (Depth 3, 2026-06-03) | v2.x, gated on trust rails |
 | Per-terminal identity | `IDEAS.md` § Per-terminal identity | parked; after land renderer settles |
 | Per-scale projection bands | `IDEAS.md` § Per-scale perspective | partially realised (terminals are side-on) |
-| Local LLM in the world | `IDEAS.md` § The local LLM is visible | Depth 1 shipped (6A) |
+| Local LLM in the world | `IDEAS.md` § The local LLM is visible | Depth 1 code shipped (6A, smoke-locked); never verified live — needs a local Ollama (parked, `TODO-USER.md`); production Electron-side probe documented, not built |
 | Enrichment/creative budget | `docs/pivot/CONSOLIDATION.md` § v1.0 MVP | unbuilt; the Art system's seed |
 | Dream mode / multi-source | `SPEC.md` §10 Year 2, `CLAUDE.md` rails | year 2 |
 | MCP / agent-native / agent-to-agent | `IDEAS.md` § Agent-native LibraryWorld | keep warm; revisit ~6 months post-v1.0 |
