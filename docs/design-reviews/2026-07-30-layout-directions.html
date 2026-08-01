@@ -52,6 +52,9 @@ pre.x1{font-size:13px;line-height:13px}
 footer{padding:36px 0 0;color:var(--dim)}
 footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max-width:72ch;margin-bottom:18px}
 .tomb{color:var(--dim)}
+.r2{border:1px solid var(--line);border-left:2px solid var(--blue);padding:6px 12px;margin:2px 0 14px;max-width:86ch;color:var(--fg)}
+.r2.ship{border-left-color:var(--green);color:var(--green)}
+.r2.ctx{border-left-color:var(--dim);color:var(--dim)}
 @media (max-width:900px){.duo{flex-direction:column}.card{max-width:none}}
 @media (prefers-reduced-motion: reduce){*{animation:none;transition:none}}
 </style>
@@ -59,9 +62,10 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 <header class="top">
 <p class="eyebrow">Lokilibrary · terminals desk</p>
 <h1>Ten layout directions</h1>
-<p class="sub">Round 1 · 2026-07-30 · phosphor palette, Cozette 6×13, real role colours · react by number</p>
+<p class="sub">Round 2 · 2026-08-01 · keep · kill · mutate · react by number (01 already shipped)</p>
 <div class="swatches"><span class="sw"><i style="background:#0a0a0a"></i>bg</span><span class="sw"><i style="background:#161616"></i>bgAlt</span><span class="sw"><i style="background:#4a564a"></i>fgDim</span><span class="sw"><i style="background:#b8c4b8"></i>fg</span><span class="sw"><i style="background:#f2fff2"></i>fgBright</span><span class="sw"><i style="background:#ffe14d"></i>yellow</span><span class="sw"><i style="background:#ff9f40"></i>orange</span><span class="sw"><i style="background:#ff4d4d"></i>red</span><span class="sw"><i style="background:#ff5fd2"></i>magenta</span><span class="sw"><i style="background:#9d6bff"></i>violet</span><span class="sw"><i style="background:#4f8cff"></i>blue</span><span class="sw"><i style="background:#2de2e6"></i>cyan</span><span class="sw"><i style="background:#3dff8c"></i>green</span></div>
 <p class="legend">Mockups use the renderer’s actual role table, including the far-plane fades and the crust demotion, so what you judge here is what the engine would draw. Yellow chips name what a direction serves; blue means it concretises already-planned work (#16 murals, #19 land polish, PRD T3 chrome); green means genuinely new. Red banners flag the two directions that would break an engine invariant.</p>
+<p class="legend">Round-2 context, everything since round 1: <b>01 Raised Horizon shipped</b> with proximity labels (fb4913e, 2026-07-30) and is out of the running. The depth-over-breadth ruling (07-31) fixed the live queue at murals #16 → land polish #19 → static-beings liveliness — so for several directions the honest verdict is not build/kill but <i>fold into a queue slice</i>; each card’s blue strip says which. The crust-legibility finding (08-01, diorama-neighbour pin) is new evidence: the dither band reads as letter-noise to a stranger — 02 and 04 touch that surface directly. Killed directions collapse to one-line tombstones; survivors grow variants next round.</p>
 </header>
 <nav class="jump">
 <a href="#now">00 current</a>
@@ -78,6 +82,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </nav>
 <section class="dir" id="now">
 <div class="dhead"><span class="dnum">00</span><h2>Current state</h2></div>
+<p class="r2 ctx">ROUND-2 NOTE · this comparator is the 07-30 morning capture — it predates the shipped Raised Horizon sky, proximity labels, marginalia-on-land and footfall wear. The live desk has already moved partway toward 01.</p>
 <p class="dsub">Not a proposal: the bar. Today’s single window and joined pair, sketched in the same dialect as the ten directions so like compares with like.</p>
 <div class="duo">
 <div>
@@ -132,6 +137,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d1">
 <div class="dhead"><span class="dnum">01</span><h2>Raised Horizon</h2></div>
+<p class="r2 ship">SHIPPED 2026-07-30 (fb4913e, with proximity labels) · eyeballed on the live desk · not up for review this round — mockup retained as the reference the others are judged against.</p>
 <p class="dsub">The land becomes mostly air and light. Underground drops from ten rows to four, and the sky doubles.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -165,6 +171,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d2">
 <div class="dhead"><span class="dnum">02</span><h2>Reliquary Strata</h2></div>
+<p class="r2">ROUND 2 · bears directly on the crust-legibility finding (the ten rows ARE the band that reads as letter-noise) — a keep most naturally folds into land polish #19 as the crust-material-read work.</p>
 <p class="dsub">Keep all ten underground rows, but make every one of them earn its place.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -198,6 +205,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d3">
 <div class="dhead"><span class="dnum">03</span><h2>Ledger Frame</h2></div>
+<p class="r2">ROUND 2 · neighbours PRD T3 chrome (parked, not rejected; statuses in PLAN.md) — a keep here is effectively a vote to schedule T3’s frame craft.</p>
 <p class="dsub">The window earns real chrome: a box-drawing ledger whose frame parts when two terminals join.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f">╔══╡ d0 · west wing ╞══════════════════════</span><span class="d">╡ ─ × ╞</span><span class="f">══╗</span>
@@ -251,6 +259,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d4">
 <div class="dhead"><span class="dnum">04</span><h2>Quiet Surface</h2></div>
+<p class="r2">ROUND 2 · partially overtaken: proximity labels shipped with 01. The remaining claim is the lane discipline — and the crust-legibility finding argues for its “names move into the architecture” half.</p>
 <p class="dsub">Every element gets its own lane. Names move into the architecture; the promenade belongs to the beings.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -284,6 +293,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d5">
 <div class="dhead"><span class="dnum">05</span><h2>Mural Anchor</h2></div>
+<p class="r2">ROUND 2 · concretises murals #16, which is now the NEXT depth-track slice — a keep here shapes that slice’s composition (one framed face per window) rather than starting a separate build.</p>
 <p class="dsub">One framed, palette-quantised mural per window: each terminal gets a face you recognise across the room.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -317,6 +327,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d6">
 <div class="dhead"><span class="dnum">06</span><h2>Archipelago Desk</h2></div>
+<p class="r2">ROUND 2 · desk persistence + chains shipped (T1), so the mainland/outpost read is buildable with today’s physics; the themed-mainland half leans on parked per-terminal identity (IDEAS.md, canonical).</p>
 <p class="dsub">The desk itself becomes the composition: a themed mainland, a strait of desktop, and a deliberate outpost.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x1"><span class="q1 bs2">               ┤ d2 ├               </span><span class="f bs">               ┤ d0 ├               </span>      <span class="f bs">         ┤ d5 ├         </span>
@@ -348,6 +359,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d7">
 <div class="dhead"><span class="dnum">07</span><h2>Terrace Join</h2></div>
+<p class="r2">ROUND 2 · invariant break stands: horizontal-joins-only (desktop/src/topology.ts). A keep is a vote to open vertical snapping as an engine question — weigh against the depth queue before scheduling.</p>
 <p class="dsub">Snap a window underneath and it becomes the underground. Depth becomes something you add to the desk.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -382,6 +394,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d8">
 <div class="dhead"><span class="dnum">08</span><h2>Ribbon Shelf</h2></div>
+<p class="r2">ROUND 2 · invariant break stands: the fixed 640×520 window contract that ground-line continuity depends on. Same weight as 07: keeping it opens an engine question, not a restyle.</p>
 <p class="dsub">A different window shape entirely: a wide, short landscape ribbon with no underground at all.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x1"><span class="f bs">                                             ┤ d0 · ribbon ├                                              </span>
@@ -405,6 +418,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d9">
 <div class="dhead"><span class="dnum">09</span><h2>Skyline of Closed Wings</h2></div>
+<p class="r2">ROUND 2 · cheapest depth on offer (silhouettes of unopened wings on the ridge) — pairs naturally with land polish #19’s sky/constellation work; could ride that slice rather than stand alone.</p>
 <p class="dsub">The horizon is the rest of your desk: wings you have not opened stand as silhouettes on the ridge.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -438,6 +452,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </section>
 <section class="dir" id="d10">
 <div class="dhead"><span class="dnum">10</span><h2>Cutaway Interiors</h2></div>
+<p class="r2">ROUND 2 · heaviest new surface on the page (interior rooms + inhabitants). Static-beings liveliness is queue item 4 — interiors would sit behind it; a keep here is a long-horizon keep.</p>
 <p class="dsub">Loved structures become dollhouses: rooms you can see into, with beings living inside.</p>
 <div class="duo">
 <div><div class="shot"><div class="shotscroll"><pre class="term x2"><span class="f bs">                       ┤ d0 ├                        </span>
@@ -470,7 +485,7 @@ footer .react{color:var(--fg);border:1px solid var(--line);padding:12px 16px;max
 </div>
 </section>
 <footer>
-<div class="react">React by number: keep · kill · mutate. “Keep 3, kill 8, and 4 but with the labels on the crust” is a complete review. Round 2 edits this same page in place; killed directions collapse to one-line tombstones; survivors grow variants.</div>
-<p class="tomb">Changelog · Round 1 (2026-07-30): first ten directions, calibrated against the live desk capture from this morning. Sibling page: the style-directions round (same date) explores what engine could be drawing the world, rather than how the frame is composed.</p>
+<div class="react">Round 2 — react by number: keep · kill · mutate. “Keep 5, kill 8, 2 but only the top three rows” is a complete review, and “fold 9 into #19” is a legal verdict (several cards name their natural slice). Kills collapse to one-line tombstones; survivors grow variants (a joined-pair render, or a live in-engine trial). 01 is shipped and not in the round.</div>
+<p class="tomb">Changelog · Round 2 staged (2026-08-01): 01 marked shipped; per-card round-2 strips added (depth-queue folds, crust-legibility evidence, invariant breaks re-affirmed); awaiting reactions. · Round 1 (2026-07-30): first ten directions, calibrated against the live desk capture from this morning. Sibling page: the style-directions round (same date) explores what engine could be drawing the world, rather than how the frame is composed.</p>
 </footer>
 </div>

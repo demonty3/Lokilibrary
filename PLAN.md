@@ -126,8 +126,10 @@ the smoke-gated version).
 - **Enrichment budget** — the one v1.0-scoped feature still unbuilt
   (CONSOLIDATION.md; the Art system's seed). Core vision, not
   release-gated.
-- **Layout directions round 2** — nine unactioned round-1 directions
-  await their keep/kill round: `IDEAS.md` § Layout directions round 1.
+- **Layout directions round 2** — 🔔 STAGED 2026-08-01, awaiting
+  Harry's keep/kill/mutate by number:
+  `docs/design-reviews/2026-07-30-layout-directions.html` (context in
+  `IDEAS.md` § Layout directions round 1).
 - Standing gaps: `scripts/*.mts` not covered by `npm run typecheck`
   ("worth its own slice someday"); knit trail tick-latency
   (deliberately left; see STATE.md); a telemetry-schema slice

@@ -653,10 +653,11 @@ they survive outside the mockup HTML. One line each, from the page's theses:
 - **Cutaway Interiors** — loved structures become dollhouses: rooms you see
   into, beings living inside.
 
-**Status.** Parked pending a round-2 keep/kill session (Harry reacts by
-number; overwrite the same page each round, tombstones for kills, per the
-established mockup protocol). Not implicitly killed by the 2026-07-31
-depth-over-breadth ruling — they were never judged. Note before building any
+**Status.** Round 2 STAGED 2026-08-01 on the same page (per-card round-2
+strips: 01 marked shipped, depth-queue folds named, invariant breaks
+re-affirmed) — awaiting Harry's keep/kill/mutate reactions by number. Not
+implicitly killed by the 2026-07-31 depth-over-breadth ruling — they were
+never judged. Note before building any
 of them: Terrace Join and Ribbon Shelf require engine-invariant changes, and
 several (Mural Anchor, Quiet Surface, Reliquary Strata) may be absorbed
 naturally by depth-track work (murals #16, land polish #19) rather than built
