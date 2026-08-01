@@ -1,10 +1,12 @@
 /**
- * Worn paths (Tier-2 depth pass) — pure, session-scoped footfall wear.
+ * Worn paths (Tier-2 depth pass) — pure footfall wear.
  *
  * The terminal renderer counts a footfall each time a being ENTERS an
  * integer column (terminalLand tracks lastCol); past WEAR_THRESHOLD entries
  * the column's crust glyph packs down (▀ → ▔) — "paths wear deeper", the
- * agent-as-marginalia beat. Session-scoped: no persistence this tier.
+ * agent-as-marginalia beat. Marginalia slice: counts persist per wing
+ * (land_wear table) and decay lazily — createFootfall seeds from persisted
+ * counts, snapshot() exposes them for flushing.
  *
  * Pure + renderer-side: no PIXI, no procedural coupling — composeLand's
  * output is untouched (the determinism contract holds); wear is a live
@@ -19,28 +21,49 @@ export const WEAR_THRESHOLD = 8;
  *  atlas; enumerated in scripts/smoke-glyph-coverage.mts). */
 export const WORN_CRUST_GLYPH = '▔';
 
+/** Wear half-life: persisted counts halve per real-world day (lazy, on read). */
+export const WEAR_HALF_LIFE_MS = 86_400_000;
+
+/** Effective count after lazy decay. Wall-clock is fine here (renderer-side,
+ *  the lastTier1At precedent); src/procedural/ is untouched. */
+export function decayedCount(count: number, updatedAtMs: number, nowMs: number): number {
+  return count * Math.pow(0.5, Math.max(0, nowMs - updatedAtMs) / WEAR_HALF_LIFE_MS);
+}
+
 export interface Footfall {
   /** Record one column entry. Returns true exactly when this step crosses
    *  the wear threshold (the caller re-renders the crust layer). */
   step(col: number): boolean;
   /** Columns at/past the threshold. */
   readonly worn: ReadonlySet<number>;
+  /** Current counts (seeded + stepped), copied — for the persistence flush. */
+  snapshot(): ReadonlyMap<number, number>;
 }
 
-export function createFootfall(threshold: number = WEAR_THRESHOLD): Footfall {
-  const counts = new Map<number, number>();
+export function createFootfall(
+  threshold: number = WEAR_THRESHOLD,
+  initial?: ReadonlyMap<number, number>,
+): Footfall {
+  const counts = new Map<number, number>(initial ?? []);
   const worn = new Set<number>();
+  for (const [col, n] of counts) if (n >= threshold) worn.add(col);
   return {
     step(col: number): boolean {
       const n = (counts.get(col) ?? 0) + 1;
       counts.set(col, n);
-      if (n === threshold) {
+      // Worn-guard crossing (not n === threshold): seeded counts are
+      // fractional after decay, so a column can pass the threshold
+      // between integers — the guard still fires exactly once.
+      if (!worn.has(col) && n >= threshold) {
         worn.add(col);
         return true;
       }
       return false;
     },
     worn,
+    snapshot(): ReadonlyMap<number, number> {
+      return new Map(counts);
+    },
   };
 }
 
