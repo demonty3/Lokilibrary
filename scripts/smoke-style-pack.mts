@@ -99,7 +99,7 @@ const BEING_MIN_CONTRAST = 3.0;
  *  rest ≥ 1.43) and FROZEN just under that floor. */
 const RAMP_STEP0_MIN = 1.1;
 /** Omission ceiling: at most this many roles per pack's landOmit. Set
- *  2026-07-31 and FROZEN before any omitting pack shipped: 12 of the 21
+ *  2026-07-31 and FROZEN before any omitting pack shipped: 12 of the 22
  *  omittable roles leaves headroom for the maximal stroke-only cut (the
  *  08-oscilloscope direction needs ~11 fill roles gone) while keeping
  *  "omit nearly everything" illegal. */

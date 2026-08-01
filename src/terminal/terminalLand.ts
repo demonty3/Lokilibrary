@@ -495,6 +495,7 @@ export async function mountTerminalLand(
         muralState = 'ready';
       })
       .catch((err: unknown) => {
+        if (host !== sceneContainer || host.destroyed) return; // late reject, dead scene
         muralState = err instanceof Error && err.name === 'SecurityError' ? 'failed-cors' : 'failed-load';
         console.warn('[terminal] mural failed:', err); // frame + cartouche stand alone
       });

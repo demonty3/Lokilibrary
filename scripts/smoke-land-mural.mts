@@ -5,11 +5,39 @@ const { check, report } = makeChecker('smoke land-mural');
 
 const T = { width: 53, skyH: 11, surfaceBand: 4, underH: 4, withPlayer: false } as const;
 
+/** FNV-1a 32-bit — local copy (src/terminal/terminalLand.ts has the canonical
+ *  version); used here only to compress the golden compose output into a
+ *  short hex string instead of a megabyte JSON literal. */
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+const hash = (v: unknown): string => fnv1a(JSON.stringify(v)).toString(16);
+
 // 1 — off by default: no mural field, no mural roles anywhere (byte-identity guard).
 const off = composeLand(7, SAMPLE_LAND, T);
 check('no mural field without opts.mural', off.mural === undefined);
 check('no mural roles without opts.mural',
   !off.role.some((row) => row.some((r) => r === 'mural' || r === 'muralFrame')));
+
+// golden: no-mural compose output frozen 2026-08-01 (murals slice) — a
+// change here means the mural-off path is no longer byte-identical.
+const NO_MURAL_GOLDEN: Record<string, string> = {
+  seed7: '19eda7d7',
+  seed41: '93f3431a',
+  join: '19eda7d7',
+};
+check('no-mural golden: seed 7', hash(off) === NO_MURAL_GOLDEN.seed7, hash(off));
+check('no-mural golden: seed 41',
+  hash(composeLand(41, SAMPLE_LAND, T)) === NO_MURAL_GOLDEN.seed41,
+  hash(composeLand(41, SAMPLE_LAND, T)));
+check('no-mural golden: join',
+  hash(composeLand(7, SAMPLE_LAND, { ...T, join: { right: 99 } })) === NO_MURAL_GOLDEN.join,
+  hash(composeLand(7, SAMPLE_LAND, { ...T, join: { right: 99 } })));
 
 // 2 — on: interior rect + frame + cartouche.
 const on = composeLand(7, SAMPLE_LAND, { ...T, mural: true });
