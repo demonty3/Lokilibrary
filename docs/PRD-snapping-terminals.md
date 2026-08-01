@@ -164,6 +164,10 @@ the other side.
 **Acceptance:** screenshot of two joined terminals reads as one continuous
 diegetic object; a third, unjoined terminal reads as deliberately apart.
 
+*(The developed form of per-terminal theming lives at `IDEAS.md`
+§ Per-terminal identity — that entry is canonical; T3 is its buildable
+first rung. Slice statuses live in `PLAN.md`.)*
+
 ### T4 — Topology → reflection (~½ week)
 
 - Tier-2 reflection context gains a topology summary (which terminals

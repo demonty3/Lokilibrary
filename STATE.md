@@ -157,7 +157,8 @@ truths (time of day first; salient events when they exist) should be
 (the lossy lens IS pack identity; DMG's blank sky is legal) but may
 never contradict it (a sunny sky beside a midnight neighbour breaks the
 join). No world clock exists today — the sky is static ambience — so
-this is a candidate depth-track slice, recorded, not scheduled. Open
+this is a candidate depth-track slice, recorded, not scheduled (canonical
+write-up now at `IDEAS.md` § Shared rules across terminals). Open
 one-liner from the DMG eyeball: the re-cut sky keeps a single `*`
 although the pack omits every sky role including starBright — the
 painter is unidentified (not ambient scatter; likely an event/salience

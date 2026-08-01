@@ -46,6 +46,8 @@ Two annotations that preserve all optionality without adding any v1.0 work:
 
 **Status.** Conceptually committed direction; not on the v0.1–v1.0 critical path. v0.5–v0.6 absorbs the two architectural acknowledgements above. Depth 1 implementation lands in the v0.7–v0.8 window at earliest. Depths 2 and 3 are v2.x territory and shouldn't be planned until v1.0 has shipped and an audience has been earned.
 
+*Update 2026-08-01:* Depth 1 is SHIPPED on both surfaces — the palace (Phase 5A reflection-driven marks) and the terminals desk (marginalia-on-land, eyeball passed 2026-08-01). Depths 2–3 stay parked; the depth-track queue in `PLAN.md` owns sequencing.
+
 ---
 
 ## Agent-native LibraryWorld (v2.x speculation)
@@ -194,6 +196,8 @@ It also produces the right marketing artifact: a morning dispatch, terminal-styl
 ### Status
 
 Strategic direction worth committing to. Architectural seeds belong in **Phase 2** (per-agent tick budget already there; just needs the off-focus trigger) and **Phase 4** (the `SLEEPING` throttle state lands in the wallpaper-mode ladder). The headline implementation — daily reflection + dispatch + Depth 1 changes — is **Phase 5** territory and could plausibly be the phase's marquee feature, not a side note. Depth 2 is post-v1.0; Depth 3 is Year 2.
+
+*Update 2026-08-01:* Depth 1 SHIPPED as Phase 5 slice 5B (the `SLEEPING` throttle state + morning dispatch; retro `RETROS/phase-5B.md`). Depths 2–3 unchanged.
 
 **Depends on:** *Agent-as-marginalia* (Depths 1 + 2 — this entry is the delivery mechanism for those), *The local LLM is visible in the world* (Depth 1 — the local LLM gains a real job here).
 
@@ -607,3 +611,89 @@ descriptor, and every renderer's `theme` plumbing.
 land renderer lands (don't stack two structural rewrites). Natural pairing with
 Composable-Panes Depth 3 (agent-initiated world-joining) and the seam-walk —
 crossing a seam between two *visually distinct* worlds is the payoff moment.
+Also recorded at: `VISION.md` § The desk as world; `docs/PRD-snapping-terminals.md`
+T3 (the buildable first rung); quoted as doctrine in
+`docs/design-reviews/2026-07-31-diorama-neighbour.md`. This entry is canonical.
+
+---
+
+## Layout directions round 1 — nine unactioned directions
+
+*Captured 2026-08-01 (from the 2026-07-30 mockup round; consolidation pass).*
+
+The round-1 desk-layout page
+(`docs/design-reviews/2026-07-30-layout-directions.html`) proposed ten named
+directions for the terminals desk. Only **Raised Horizon** was actioned
+(shipped with proximity labels, commit `fb4913e`, 2026-07-30). The page's own
+round-2 keep/kill/mutate pass never ran for layouts (only the style page got
+its tombstone round), so the other nine were never judged — parked here so
+they survive outside the mockup HTML. One line each, from the page's theses:
+
+- **Reliquary Strata** — keep all ten underground rows, but make every one
+  earn its place.
+- **Ledger Frame** — real box-drawing window chrome; the frame parts where
+  two terminals join. (Natural neighbour of PRD T3 chrome.)
+- **Quiet Surface** — every element gets its own lane; names move into the
+  architecture, the promenade belongs to the beings.
+- **Mural Anchor** — one framed, palette-quantised mural per window; each
+  terminal gets a recognisable face. (Concretises murals #16.)
+- **Archipelago Desk** — the desk itself as composition: themed mainland, a
+  strait of desktop, a deliberate outpost. (Concretises the parked
+  hundred-terminal desk / T3.)
+- **Terrace Join** — snap a window *underneath* and it becomes the
+  underground. **Invariant break:** violates horizontal-joins-only
+  (`desktop/src/topology.ts`).
+- **Ribbon Shelf** — a wide, short landscape ribbon with no underground.
+  **Invariant break:** violates the fixed 640×520 window contract that
+  ground-line continuity depends on.
+- **Skyline of Closed Wings** — the horizon is the rest of your desk;
+  unopened wings stand as silhouettes on the ridge.
+- **Cutaway Interiors** — loved structures become dollhouses: rooms you see
+  into, beings living inside.
+
+**Status.** Parked pending a round-2 keep/kill session (Harry reacts by
+number; overwrite the same page each round, tombstones for kills, per the
+established mockup protocol). Not implicitly killed by the 2026-07-31
+depth-over-breadth ruling — they were never judged. Note before building any
+of them: Terrace Join and Ribbon Shelf require engine-invariant changes, and
+several (Mural Anchor, Quiet Surface, Reliquary Strata) may be absorbed
+naturally by depth-track work (murals #16, land polish #19) rather than built
+as layouts.
+
+---
+
+## Shared rules across terminals — conformed truths across the desk
+
+*Captured 2026-08-01 (Harry's design thread from the 2026-07-31 widening-round
+session; canonical home moved here from STATE.md).*
+
+Joined terminals are lenses on ONE shared world, so shared truths must be
+*conformed* across windows — time of day first, then salient events when they
+exist. A pack may **compress or omit** a shared truth (the lossy lens IS pack
+identity; DMG's blank sky is legal) but may never **contradict** it (a sunny
+sky beside a midnight neighbour breaks the join). No world clock exists today
+— the sky is static ambience — so the first buildable rung is a world clock
+that packs render through their own vocabulary.
+
+**Status.** Candidate depth-track slice; recorded, not scheduled (Harry,
+2026-07-31). Sequencing lives in `PLAN.md` § Open decisions. Related: the
+stray-`*` painter question (an omitted-role glyph surviving in gameboy-dmg's
+sky — identify the painter, then rule feature vs leak) is the same
+conformance surface seen from the leak side.
+
+---
+
+## Passive crossing — beings only cross when they happen onto a doorway
+
+*Captured 2026-08-01 (from `RETROS/consolidation-2026-06.md` § parked design
+directions; consolidation pass).*
+
+Seam-crossing today is passive: a being crosses only when its wander happens
+to reach a doorway cell. A one-function tweak to the intent engine could make
+crossing *sought* — a being that wants the neighbour wing walks toward the
+doorway deliberately. Deferred in June 2026 as not-yet-needed; the T1 society
+work (watch_edge pull) has since given beings edge-directed intent, so check
+whether this is already effectively delivered before building.
+
+**Status.** Loose one-function tweak, parked. Verify against
+`src/terminal/beingIntents.ts` (watch_edge) first — it may be moot.

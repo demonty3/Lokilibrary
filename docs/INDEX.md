@@ -1,39 +1,45 @@
 # Docs index — where the authority lives
 
-Reconciled 2026-05-28 as Phase 5 slice 5R. The project has accumulated
-docs across the 3D era + the Memory Palace pivot + strategic
-brainstorms; this page is the single map of which doc owns which
-question. **When in doubt, check this index, not your memory.**
+Reconciled 2026-05-28 as Phase 5 slice 5R; routing refreshed 2026-08-01
+(PLAN.md rewritten as the roadmap of record). This page is the single
+map of which doc owns which question. **When in doubt, check this
+index, not your memory.**
 
 ## Authoritative docs (read these)
 
 | Scope | Authority | Path |
 |---|---|---|
-| **Strategy + v1.0 scope** | `CONSOLIDATION.md` | `docs/pivot/CONSOLIDATION.md` |
+| **Roadmap: directions, next slices, statuses, open decisions** | `PLAN.md` | `PLAN.md` |
 | **Day-to-day rules, conventions, what not to do** | `CLAUDE.md` | `CLAUDE.md` |
-| **Phase + slice plan, sequence of work** | `PLAN.md` | `PLAN.md` |
+| **Present-tense state + per-slice evidence** | `STATE.md` | `STATE.md` |
+| **The active arc's full spec (snapping terminals T0–T5)** | `PRD-snapping-terminals.md` | `docs/PRD-snapping-terminals.md` |
 | **Long-form spec (architecture, surfaces, schemas)** | `SPEC.md` | `SPEC.md` |
-| **Live data shapes (what's there RIGHT NOW)** | `STATE.md` | `STATE.md` |
 | **Parked ideas, future directions** | `IDEAS.md` | `IDEAS.md` |
 | **The assembled long view (map of the above)** | `VISION.md` | `VISION.md` |
+| **Design-review verdicts (frozen; statuses live in PLAN.md)** | (dated) | `docs/design-reviews/` |
 | **Per-phase retros (per-slice from 4A onward)** | `RETROS/phase-*.md` | `RETROS/` |
 | **User-blocked items (only the user can do these)** | `TODO-USER.md` | `TODO-USER.md` |
+| **Strategy-era v1.0 scope (2026-05, partly superseded)** | `CONSOLIDATION.md` | `docs/pivot/CONSOLIDATION.md` |
 | **Pivot design + feasibility background** | `DESIGN.md` + `FEASIBILITY.md` | `docs/pivot/` |
 | **Dated research reports** | (timestamped) | `docs/research/` |
 | **Style-pack authoring (for users' own agents)** | `style-pack.md` | `docs/blueprints/style-pack.md` |
 
 When two docs disagree:
-- **Strategy / v1.0 scope** → `docs/pivot/CONSOLIDATION.md` wins.
-  It's the newest (2026-05-28) and the most opinionated about what's
-  v1.0 vs v1.x vs Year-2.
+- **What to build next / statuses** → `PLAN.md` wins (rewritten
+  2026-08-01 as the roadmap of record; maintenance rule: slice closure
+  updates it). `STATE.md` carries the evidence behind each status.
 - **Day-to-day conventions** → `CLAUDE.md` wins.
-- **Slice sequencing** → `PLAN.md` wins, but Phase 5+ should be cross-
-  checked against `CONSOLIDATION.md` for v1.0 scope alignment (5R did
-  this reconciliation for Phase 5; future phases may need similar
-  passes).
+- **Strategy / scope** → the direction banners in `PLAN.md` +
+  `CLAUDE.md` win. `docs/pivot/CONSOLIDATION.md` is strategy-era
+  (2026-05-27): still the best statement of the pillars and the v1.0
+  MVP reasoning, but its distribution section is superseded by the
+  2026-07-11 free-OSS direction and its scope predates terminals-first.
 - **Schemas / surface definitions** → `SPEC.md` wins (but check Phase
   retros — Phase 2D and later often updated schemas without
   re-syncing SPEC.md verbatim).
+- **Design verdicts and bars** → the dated doc in
+  `docs/design-reviews/` is frozen; bars inherit verbatim into new
+  documents, and current live/parked status lives in `PLAN.md`.
 
 ## Recent strategic updates worth knowing
 
@@ -88,11 +94,13 @@ spec preserved verbatim.
 
 ## Quick-reference: what to check before non-trivial work
 
-1. **Strategy or scope question?** Read CONSOLIDATION.md.
+1. **Strategy or scope question?** Read PLAN.md's direction banners
+   (CONSOLIDATION.md for the 2026-05 pillars background).
 2. **Convention question?** Read CLAUDE.md.
-3. **"What's the next slice?"** Read PLAN.md § current phase.
-4. **"How does feature X work today?"** Read the relevant `RETROS/`
-   phase first, then the code.
+3. **"What's the next slice?"** Read PLAN.md (the depth track + slice
+   ladder).
+4. **"How does feature X work today?"** Read STATE.md's entry, then
+   the relevant `RETROS/` phase, then the code.
 5. **"Is this a parked idea?"** Read IDEAS.md.
 6. **"Why did we pivot from 3D?"** Read `docs/pivot/DESIGN.md` +
    `FEASIBILITY.md`.

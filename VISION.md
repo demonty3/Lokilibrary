@@ -198,3 +198,5 @@ distinct in the first place (`CLAUDE.md`):
 | Dream mode / multi-source | `SPEC.md` §10 Year 2, `CLAUDE.md` rails | year 2 |
 | MCP / agent-native / agent-to-agent | `IDEAS.md` § Agent-native LibraryWorld | keep warm; revisit ~6 months post-v1.0 |
 | Community content (themes/templates/lore packs) | `SPEC.md` §10 v1.x | v1.x, free only |
+| Shared rules across terminals (conformed truths) | `IDEAS.md` § Shared rules across terminals | candidate depth-track slice, recorded 2026-07-31 |
+| Desk-layout directions (nine unactioned) | `IDEAS.md` § Layout directions round 1 | parked pending round-2 keep/kill |
