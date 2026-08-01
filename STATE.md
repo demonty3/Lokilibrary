@@ -163,7 +163,9 @@ although the pack omits every sky role including starBright — the
 painter is unidentified (not ambient scatter; likely an event/salience
 overlay). Identify the painter, then rule feature vs leak.
 
-**Marginalia on land SHIPPED 2026-08-01 (eyeball pending)** — the depth
+**Marginalia on land SHIPPED 2026-08-01, eyeball PASSED same day**
+(Harry watched the live beat on the terminals build — a driven reveal
+plus the ambient surface — and called it: "this feels right") — the depth
 track's first slice, plan `docs/superpowers/plans/2026-08-01-marginalia-on-land.md`
 against the approved 2026-07-17 spec, commits `0ad9f6a..` this date.
 Shape: pure `src/terminal/marks.ts` — `maybeMark` rides the intent
@@ -192,8 +194,8 @@ build** (2 windows, key-free rail — no worker running): organic
 placement within the first minute, cap eviction 14→12, reveal
 on-screen (shot in the session record), relaunch restores 12 marks +
 worn columns before any being moves, `land_wear` rows confirmed in the
-real userData DB. Harry's eyeball of the live reveal: PENDING
-(TODO-USER).
+real userData DB. Harry's eyeball: PASSED 2026-08-01 — the slice is
+closed; no tuning requested.
 
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned

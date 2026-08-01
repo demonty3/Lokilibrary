@@ -13,10 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-01** (marginalia-on-land SHIPPED — the depth
-track's first slice: marks + in-voice notes + proximity reveal +
-persistent decaying wear, all verified live on the terminals build;
-your eyeball of the reveal beat is the new item below).
+Last updated: **2026-08-01** (marginalia-on-land SHIPPED and the eyeball
+PASSED the same day — "this feels right", watched live on the terminals
+build. The depth track's first slice is fully closed: marks + in-voice
+notes + proximity reveal + persistent decaying wear. No tuning
+requested; the knobs stay in src/terminal/marks.ts if cadence ever
+needs a nudge.)
 Previously **2026-07-31, late evening** (all three open eyeballs
 judged: gameboy-dmg re-cut PASSED — reads as a different machine;
 amber-crt glow leg PASSED; diorama-neighbour MUTATE — pairing works,
@@ -55,26 +57,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 👁 EYEBALL — marginalia on land (the moat beat, live)
-**Status**: SHIPPED 2026-08-01, all gates + a mechanical live pass green
-(placement, reveal, cap, relaunch persistence all verified via CDP on
-the terminals build). What no script can judge: whether the beat FEELS
-right — marks as quiet punctuation, the reveal as an event, wear as
-history.
-**What**: run the terminals build and just watch at wallpaper distance
-for a few minutes. A being should occasionally leave a small accent-
-coloured glyph after lingering somewhere; when another being passes it,
-the note unfurls in a boxed caption (~5 s), in that being's voice.
-Relaunch: the marks and the worn (▔) columns should still be there.
-Judge: cadence (confetti vs punctuation), note voice (do the lines land
-per being?), caption legibility at distance, and whether wear reads as
-history rather than dirt. Live: `cd desktop && npx tsc &&
-LOKILIBRARY_TERMINALS=2 LOKILIBRARY_RENDERER_URL=http://localhost:5183
-./node_modules/.bin/electron .` (with `npm run dev` serving).
-**Unblocks**: marking the slice eyeball-passed in STATE.md; tuning
-knobs if anything reads off (MARK_CHANCE / cooldowns / CAPTION_MAX_W —
-all in `src/terminal/marks.ts`, one place).
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
@@ -142,6 +124,11 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL marginalia on land — PASSED 2026-08-01** (Harry watched
+  the live beat — a driven reveal plus the ambient marks/wear surface —
+  and called it: "this feels right"; no tuning requested). The moat
+  beat is on the product surface: slice shape in STATE.md, knobs in
+  `src/terminal/marks.ts`.
 - ✅ **EYEBALL gameboy-dmg re-cut — PASSED 2026-07-31** (judged against
   the kill condition inherited verbatim from the fired round: reads as a
   different machine, not "the default with a green filter"; the omission
