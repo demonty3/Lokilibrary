@@ -46,6 +46,8 @@ import {
 import { buildLandContainer } from '../render/levels/land';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText } from './wear';
+import { maybeMark, markDisplayRow, MARK_RENDER_CAP, type MarkContextKind } from './marks';
+import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
 import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../procedural/land';
 import {
@@ -86,7 +88,7 @@ import type { AgentRuntimeState } from '../state/agentRuntime';
 import { mulberry32, type Prng } from '../procedural/prng';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
 import { cellIdFor, libraryIdFor } from '../agents/memory/schema';
-import { recordArrival, recordCrossing } from './terminalMemory';
+import { recordArrival, recordCrossing, recordMark } from './terminalMemory';
 
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
@@ -156,6 +158,9 @@ interface Being {
   /** Exit/enter juice state (progress driven by elapsedS). */
   exitingSince: number | null;
   enteringSince: number | null;
+  /** Marginalia: the first re-pick after a seam arrival may leave an
+   *  after_crossing mark; consumed (set false) at that re-pick. */
+  pendingArrivalMark: boolean;
   /** The REAL agent runtime (initialRuntime-built) — the mind. routeTier1
    *  reads/mutates it directly; carried across seams via society.ts. */
   mind: AgentRuntimeState;
@@ -255,6 +260,12 @@ export async function mountTerminalLand(
     namespace: { cellId: cellIdFor(seed), libraryId: libraryIdFor(null) },
   }).then((r) => {
     memory = r.writer;
+    // Persisted marks (the palace's exact read path) — the 12 most
+    // recent; stored y is advisory, the display row re-derives from the
+    // live surface inside addMarkView.
+    for (const m of r.writer.placedMarksForCell(cellIdFor(seed)).slice(0, MARK_RENDER_CAP)) {
+      addMarkView(m.agentId, m.text, m.location.x);
+    }
   });
   // Each wing owns a DISTINCT slice of the library — same games in the same
   // order across terminals made t1/t2 read as copies, not as two wings.
@@ -320,6 +331,52 @@ export async function mountTerminalLand(
     if (crust) crust.text = crustLayerText(model, footfall.worn);
   };
 
+  // ── Marginalia: marks (marginalia-on-land slice) ───────────────────────
+  // A being's completed intent occasionally earns a mark (marks.ts
+  // maybeMark, on the re-pick clock); each mark wears its AUTHOR's accent
+  // via the shared style table. Persisted as plan rows (recordMark); the
+  // in-memory list is the render truth either way (null writer = session-
+  // only, everything else identical).
+  interface MarkView {
+    col: number;
+    agentId: string;
+    note: string;
+    text: BitmapText;
+    /** elapsedS of the last note reveal; -Infinity = never revealed. */
+    lastRevealAtS: number;
+  }
+  const marks: MarkView[] = [];
+  const markLastAt = new Map<string, number>();
+  const marksLayer = new Container(); // world-local; under edges + beings
+  world.addChild(marksLayer);
+  const addMarkView = (agentId: string, note: string, col: number): void => {
+    const style = MARK_STYLES[agentId] ?? DEFAULT_MARK_STYLE;
+    const text = new BitmapText({
+      text: style.glyph,
+      style: {
+        fontFamily: COZETTE_FONT_FAMILY,
+        fontSize: COZETTE_FONT_SIZE,
+        fill: hexToInt(theme.palette[roleKey(theme, style.role, style.fallback)]),
+      },
+    });
+    text.x = col * CW;
+    text.y = markDisplayRow(model.surface, col) * CH;
+    marksLayer.addChild(text);
+    marks.push({ col, agentId, note, text, lastRevealAtS: -Infinity });
+    if (marks.length > MARK_RENDER_CAP) {
+      const evicted = marks.shift();
+      evicted?.text.destroy();
+    }
+  };
+  /** Re-derive every mark's display row from the CURRENT surface (the
+   *  stored y is advisory; a join's Hermite ramp moves rows near seams). */
+  const drawMarks = (): void => {
+    for (const m of marks) {
+      m.text.x = m.col * CW;
+      m.text.y = markDisplayRow(model.surface, m.col) * CH;
+    }
+  };
+
   // ── Proximity labels (raised-horizon slice, 2026-07-30) ────────────────
   // The baked label layer is hidden in the TERMINAL path only (web preview /
   // V0 keep always-on labels); per-site overlay texts — knit-glow ownership
@@ -369,6 +426,7 @@ export async function mountTerminalLand(
     world.addChildAt(sceneContainer, 0);
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
+    drawMarks(); // marks re-sit on the reshaped surface
     hideBakedLayers();
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
     structureCols = structureColumns(model.role);
@@ -544,6 +602,7 @@ export async function mountTerminalLand(
       pending: false,
       exitingSince: null,
       enteringSince: entering ? elapsedS : null,
+      pendingArrivalMark: entering,
       mind: reconstructMind(id, Math.round(x), surfaceRow),
       persona,
     };
@@ -787,6 +846,38 @@ export async function mountTerminalLand(
       if (!b.pending) {
         // BT re-pick on cadence (or forced when an intent invalidates).
         if (elapsedS >= b.nextIntentAt) {
+          // Marginalia: the COMPLETED intent may earn a mark before the
+          // next one is picked — placement rides the re-pick clock as a
+          // side-effect of living, deliberately not a new intent kind.
+          const done = b.intent;
+          let markKind: MarkContextKind | null = null;
+          if (b.pendingArrivalMark) {
+            markKind = 'after_crossing';
+            b.pendingArrivalMark = false;
+          } else if (done.kind === 'approach' && Math.abs(b.x - done.targetX) <= APPROACH_NEAR) {
+            markKind = 'at_structure';
+          } else if (done.kind === 'watch_edge' && edges[done.side]) {
+            markKind = 'at_edge';
+          } else if (done.kind === 'wander' || done.kind === 'rest') {
+            markKind = 'mid_wander';
+          }
+          if (markKind) {
+            const d = maybeMark(rng, {
+              agentId: b.id,
+              kind: markKind,
+              col: Math.round(b.x),
+              nowS: elapsedS,
+              lastMarkAtS: markLastAt.get(b.id) ?? -Infinity,
+              existingCols: marks.map((m) => m.col),
+              thought: b.mind.intent,
+            });
+            if (d) {
+              markLastAt.set(b.id, elapsedS);
+              recordMark(memory, { agentId: b.id, note: d.note, col: d.col, row: model.surface[d.col] });
+              addMarkView(b.id, d.note, d.col);
+            }
+          }
+
           b.intent = pickIntent(rng, intentCtx(b.x), b.persona.bias);
           b.pausedUntil = elapsedS + HESITATE_S[0] + rng() * HESITATE_S[1];
           b.nextIntentAt = elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * b.persona.intentWindowMult;
