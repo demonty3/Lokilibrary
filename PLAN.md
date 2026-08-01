@@ -82,14 +82,13 @@ murals / #19, not a separate item.
 Shipped / fixed: **#1** ladder label double-draw (salience campaign),
 **#9** ambient life register, **#10** shelves read as books (both
 2026-07-17 ambient-salience bundle), **#13** ladder identity pass
-(2026-07-17). Several quick wins (**#2** HUD ink, **#4** seam dialect,
+(2026-07-17), **#16** murals (2026-08-01, eyeball passed). Several quick wins (**#2** HUD ink, **#4** seam dialect,
 **#6** pane focus, **#7** note-reveal frames) were substantially
 absorbed by the 2026-07-13 salience campaign (themed HUD, blue
 aperture dialect, focus alpha, double-line marginalia frames) without
 individual rulings.
 
-Live (land-facing, on the depth track): **#16** murals, **#19** land
-polish.
+Live (land-facing, on the depth track): **#19** land polish.
 
 Parked (palace-facing, per terminals-first): **#12** shade-ramp
 deployment, **#14** phosphor / raw ANSI, **#17** composition /
