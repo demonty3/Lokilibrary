@@ -163,6 +163,38 @@ although the pack omits every sky role including starBright — the
 painter is unidentified (not ambient scatter; likely an event/salience
 overlay). Identify the painter, then rule feature vs leak.
 
+**Marginalia on land SHIPPED 2026-08-01 (eyeball pending)** — the depth
+track's first slice, plan `docs/superpowers/plans/2026-08-01-marginalia-on-land.md`
+against the approved 2026-07-17 spec, commits `0ad9f6a..` this date.
+Shape: pure `src/terminal/marks.ts` — `maybeMark` rides the intent
+re-pick clock (NO new BeingIntent kind; ladder byte-identical):
+FNV-staggered 90–180 s per-being cooldown, 2-col dedupe, per-context
+odds (`at_structure`/`after_crossing` likeliest, `mid_wander` 0.06
+tail); vocab total over 5 beings × 4 contexts in the persona [MARKS]
+voices; the `{thought}` slot folds `b.mind.intent` in lowercased —
+ZERO new AI calls, key-free rail gets everything but the garnish.
+Storage = palace parity: `recordMark` (terminalMemory.ts) writes the
+exact plan-row shape (`active` + step `pending` + importance 6);
+`placedMarksForCell` unchanged; render cap 12, display rows re-derived
+from the live surface (stored y advisory). Shared extractions:
+`src/agents/markStyles.ts` + `src/render/noteBox.ts` (cell.ts imports,
+palace behaviour unchanged; glyph smoke derives the mark-glyph run from
+the export). Reveal: one slot per land, 1.5-col being proximity, 60 s
+per-mark cooldown, fade–hold–fade on `elapsedS`. Wear: persists per
+wing in the additive `land_wear` table (schema v4), lazy half-life
+decay (halve/day), seeded at mount (worn from frame one when the
+bootstrap cache is warm), dirty-gated 30 s flush + teardown flush;
+`createFootfall` crossing is worn-guarded `>=` because decayed seeds
+are fractional. e2e: `state().marks` + `debugMark`. New smokes:
+`smoke-t2-marks` (43) + `smoke-land-wear-persist` (21); full 52-smoke
+sweep + both typecheck legs green. **Verified live on the terminals
+build** (2 windows, key-free rail — no worker running): organic
+placement within the first minute, cap eviction 14→12, reveal
+on-screen (shot in the session record), relaunch restores 12 marks +
+worn columns before any being moves, `land_wear` rows confirmed in the
+real userData DB. Harry's eyeball of the live reveal: PENDING
+(TODO-USER).
+
 **Tier-2 depth review RECOVERED + LANDED 2026-07-30** (commits
 `a47c1d2..6945474`). The 2026-07-16 `tier2-depth-review` workflow returned
 its results *after* that session hit its usage limit, so nothing was ever
@@ -1388,6 +1420,8 @@ Assertion counts as of 2026-05-30:
 | 7D seam-crossing | smoke-7d-seams.mts | 69 |
 | 7D.2 live seam walk | smoke-7d2-walk.mts | 58 |
 | glyph coverage | smoke-glyph-coverage.mts | 19 |
+| marginalia marks | smoke-t2-marks.mts | 43 |
+| marginalia wear | smoke-land-wear-persist.mts | 21 |
 | (others) | 2a/2d/2e/2f/2g | print "cleaned /tmp/..." |
 | **Total numeric** | | **782** |
 
