@@ -653,11 +653,15 @@ they survive outside the mockup HTML. One line each, from the page's theses:
 - **Cutaway Interiors** — loved structures become dollhouses: rooms you see
   into, beings living inside.
 
-**Status.** Round 2 STAGED 2026-08-01 on the same page (per-card round-2
-strips: 01 marked shipped, depth-queue folds named, invariant breaks
-re-affirmed) — awaiting Harry's keep/kill/mutate reactions by number. Not
-implicitly killed by the 2026-07-31 depth-over-breadth ruling — they were
-never judged. Note before building any
+**Status.** Round 2 JUDGED 2026-08-01 (verdicts on the page, same session):
+**05 Mural Anchor KEPT** — design input to the murals #16 slice, not a
+separate build. **09 Skyline FOLDED into #19** — unopened-wing silhouettes
+join the land-polish scope. **07 Terrace Join + 08 Ribbon Shelf KILLED** —
+both invariant-breakers (vertical snapping / the 640×520 contract); opening
+those engine questions was judged not worth it against the depth queue;
+tombstones on the page. **Still open, no verdict:** 02 Reliquary Strata,
+03 Ledger Frame, 04 Quiet Surface, 06 Archipelago Desk, 10 Cutaway
+Interiors — parked awaiting a future round; not implicitly killed. Note before building any
 of them: Terrace Join and Ribbon Shelf require engine-invariant changes, and
 several (Mural Anchor, Quiet Surface, Reliquary Strata) may be absorbed
 naturally by depth-track work (murals #16, land polish #19) rather than built

@@ -49,8 +49,12 @@ git history (`git log --follow PLAN.md`) and summarised per-phase in
    ("this feels right"); slice closed, no tuning.
 2. **Murals #16** — Hades mural terminal treatment (CDN art through
    the shade ramp, hung in a box-drawing frame). Next candidate.
+   Composition input: the KEPT Mural Anchor direction (layout round 2,
+   2026-08-01) — one framed mural per window as its recognisable face.
 3. **Land polish #19** — monument architecture + door, constellations
-   / moon / cloud wisps, ore veins / caverns, site signage.
+   / moon / cloud wisps, ore veins / caverns, site signage, **plus**
+   unopened-wing skyline silhouettes on the ridge (09 folded in,
+   layout round 2, 2026-08-01).
 4. **Static-beings liveliness.**
 
 Sequencing evidence for 2–3: the **crust-legibility finding**
@@ -126,10 +130,10 @@ the smoke-gated version).
 - **Enrichment budget** — the one v1.0-scoped feature still unbuilt
   (CONSOLIDATION.md; the Art system's seed). Core vision, not
   release-gated.
-- **Layout directions round 2** — 🔔 STAGED 2026-08-01, awaiting
-  Harry's keep/kill/mutate by number:
-  `docs/design-reviews/2026-07-30-layout-directions.html` (context in
-  `IDEAS.md` § Layout directions round 1).
+- **Layout directions round 2 — JUDGED 2026-08-01.** 05 KEPT (→ murals
+  #16 input), 09 FOLDED into #19, 07+08 KILLED (invariant-breakers,
+  tombstoned). Still open, no verdict: 02, 03, 04, 06, 10 — parked for
+  a future round (`IDEAS.md` § Layout directions round 1).
 - Standing gaps: `scripts/*.mts` not covered by `npm run typecheck`
   ("worth its own slice someday"); knit trail tick-latency
   (deliberately left; see STATE.md); a telemetry-schema slice
