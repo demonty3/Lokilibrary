@@ -122,14 +122,22 @@ function wingsMap(): Record<string, string> {
   return m;
 }
 
+/** Change gate for broadcastTopology: joins + the wings map (a spawn/close
+ *  changes which wings are OPEN without changing any join, and the closed-
+ *  wing skyline recomposes off that). */
+let lastTopologyKey = '';
+
 function broadcastTopology(): void {
   const next = computeJoins(allBounds());
-  if (JSON.stringify(next) === JSON.stringify(joins)) return;
+  const key = JSON.stringify({ joins: next, wings: wingsMap() });
+  if (key === lastTopologyKey) return;
+  lastTopologyKey = key;
   joins = next;
   // eslint-disable-next-line no-console
   console.log(`[terminals] topology: ${joins.length ? joins.map((j) => `${j.left}+${j.right}`).join(' ') : '(none)'}`);
   for (const t of terminals.values()) {
-    if (!t.win.isDestroyed()) t.win.webContents.send('terminal:topology', { joins, wings: wingsMap() });
+    if (!t.win.isDestroyed())
+      t.win.webContents.send('terminal:topology', { joins, wings: wingsMap(), allWings: WINGS });
   }
 }
 
@@ -262,6 +270,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     const id = `t${nextIndex++}`;
     const i = terminals.size;
     spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80)), 160 + i * 36);
+    broadcastTopology(); // the opened wing leaves every sibling's skyline
     persistTerminals();
     rebuildTray();
     return id;
@@ -290,7 +299,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
   // Hydration: a terminal renderer asks for the current joins on mount.
-  ipcMain.handle('terminal:getTopology', () => ({ joins, wings: wingsMap() }));
+  ipcMain.handle('terminal:getTopology', () => ({ joins, wings: wingsMap(), allWings: WINGS }));
 
   // Society hydration: which cohort member lives on which wing.
   ipcMain.handle('terminal:getSociety', () => Object.fromEntries(homes));

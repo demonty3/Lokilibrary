@@ -30,7 +30,7 @@ import { buildScatterTable } from '../src/procedural/scatter.ts';
 import { TILE_BY_ID } from '../src/procedural/tiles/library.ts';
 import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
-import { MOON_GLYPH, SKY_DITHER_GLYPHS } from '../src/procedural/land.ts';
+import { MOON_GLYPH, SKY_DITHER_GLYPHS, WING_SIL_SHAPES } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
 import { MURAL_RAMP } from '../src/render/muralCells.ts';
@@ -99,6 +99,9 @@ for (const g of SKY_DITHER_GLYPHS) add(g, 'land.ts SKY_DITHER_GLYPHS');
 
 // 4b-ii. Celestial-pass moon (raised-horizon slice) — imported real source.
 add(MOON_GLYPH, 'land.ts MOON_GLYPH (celestial pass)');
+
+// 4b-iii. Closed-wing skyline silhouettes (land polish #19) — imported real source.
+add(WING_SIL_SHAPES.join(''), 'land.ts WING_SIL_SHAPES (closed-wing skyline)');
 
 // 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
 add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');

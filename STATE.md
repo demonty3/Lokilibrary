@@ -158,11 +158,61 @@ truths (time of day first; salient events when they exist) should be
 never contradict it (a sunny sky beside a midnight neighbour breaks the
 join). No world clock exists today — the sky is static ambience — so
 this is a candidate depth-track slice, recorded, not scheduled (canonical
-write-up now at `IDEAS.md` § Shared rules across terminals). Open
-one-liner from the DMG eyeball: the re-cut sky keeps a single `*`
-although the pack omits every sky role including starBright — the
-painter is unidentified (not ambient scatter; likely an event/salience
-overlay). Identify the painter, then rule feature vs leak.
+write-up now at `IDEAS.md` § Shared rules across terminals). The DMG
+stray-`*` one-liner is RESOLVED (2026-08-02, land-polish slice 1): the
+painter is the celestial **sun** — `☼` role `sun` misread as `*` at desk
+scale. Headless survivorship over the composed d0 model showed exactly one
+star-like glyph surviving DMG's omit set, `(24,1) ☼ sun` — the pack's
+blank-sky omit list never covered `sun`. RULING: pack gap, NOT an engine
+leak (`landOmit` filtering works — an omitted role cannot reach a layer);
+fixed by adding `sun` to gameboy-dmg's landOmit (blanks monument-top `☼`
+too — same role; confirmed blank on screen, flagged for the eyeball). The
+mural-frame-edge `*` sighting on a non-omitting theme is a legal
+`starBright` beside the frame's cleared rect — FEATURE.
+
+**Land polish #19 slice 1 SHIPPED 2026-08-02 (eyeball PENDING)** — the
+evidence-first cut: crust material read + closed-wing skyline + the stray-`*`
+ruling (plan `~/.claude/plans/let-s-do-the-next-encapsulated-marble.md`; bars
+frozen there before implementation). (1) **Strata material read** — the
+"unreadable ae's" band was the strata FILL (topsoil/stone/bedrock per-cell
+`░▒▓` noise, `src/procedural/land.ts:400-404`), not the `crust` role; fixed
+render-side: `strataMaterialGlyph` (land.ts render module, pure, exported)
+redraws undialected strata cells in 6-col horizontal runs (per-role two-glyph
+class, fnv1a over `(role,y,run)`) so the bands read as quantised masses —
+`composeLand` byte-untouched (mural goldens are the proof), pack `landGlyphs`
+dialects keep priority so DMG's judged bands never moved; `GROUND_DEMOTE`
+topsoil extension reserved as the pre-authorised iteration dial. (2)
+**Closed-wing skyline** — `ComposeLandOptions.skyline` (absent = byte-identical,
+murals-opt pattern) stamps per closed wing a 3–4-glyph far silhouette
+(`WING_SIL_SHAPES`, atlas-gated) + faint wing-id mark, roles `wingSil`
+(glyph/ramp/omit-allowed) / `wingMark` (glyph-locked like label, omit-ALLOWED
+with its silhouette); placement per-wing deterministic (`fnv1a(wing) ^
+0x5117`, zero main/sky-stream draws) with ≤8 fit re-rolls so a tall structure
+can't leave a wing unrepresented (other wings' cells count passable → the
+final spot is closed-set-independent); draws only over sky/skyDither/ridgeFar
+/star cells — the world always wins, the mural rect evicts mechanically.
+Broker: topology payloads carry `allWings`; **two live-found broker gaps
+fixed** — `broadcastTopology`'s change gate keyed on joins only (a spawn/close
+changes the WINGS map without changing joins → skyline never updated) now
+keys on joins+wings, and `spawnNext` never broadcast at all. Renderer:
+`applyJoins` derives the closed set, folds it into the recompose key.
+VERIFIED LIVE (macOS, 2-window RESET desk): d0 shows silhouettes+marks for
+exactly d2–d5; tray-parity spawn (d2) lifts its silhouette on the broadcast,
+close returns it; joined desk recomposes with seam/knit/murals/marks intact
+(`glowStale` 0); DMG relaunch = blank sky, no skyline, judged bands unmoved.
+(3) **Stray-`*` RULED, thread closed** (see the widening-round paragraph).
+New smokes `smoke-land-material` (9) + `smoke-land-skyline` (11); style-pack
+corpus 301; glyph-coverage imports `WING_SIL_SHAPES`; broker-handoff expects
+`allWings`; full 58-smoke sweep + both typecheck legs green. New e2e hook
+`debugCellAt(x,y) → {char, role}`. Shots for the eyeball:
+`docs/design-reviews/2026-08-02-land-polish-slice1/` (solo d0, joined desk,
+DMG). **Frozen bars for Harry's eyeball:** strata — a first-time viewer can
+say what the band IS, no letters (kill: 2 failed render-side iterations →
+route to compose-side strata rework, stop dialing); skyline — reads as
+distant structures with faint marks (kill: reads as sky clutter → pull the
+feature, don't tune it in); DMG — blank sky confirmed on screen. Remaining
+#19 legs (monument architecture + door, constellations/clouds, ore veins/
+caverns, signage) are the next slice.
 
 **Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan

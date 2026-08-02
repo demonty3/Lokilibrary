@@ -103,9 +103,13 @@ check('debugMove → snap → joined',
 
 const [w1, w2] = FakeBrowserWindow.all;
 const topo = w1.webContents.sent.filter((m) => m.channel === 'terminal:topology').pop();
-check('topology broadcast carries joins + wings',
+check('topology broadcast carries joins + wings + allWings',
   JSON.stringify(topo?.payload) ===
-    JSON.stringify({ joins: [{ left: 't1', right: 't2' }], wings: { t1: 'd0', t2: 'd1' } }));
+    JSON.stringify({
+      joins: [{ left: 't1', right: 't2' }],
+      wings: { t1: 'd0', t2: 'd1' },
+      allWings: ['d0', 'd1', 'd2', 'd3', 'd4', 'd5'],
+    }));
 
 // --- roster uniqueness (7D.2 single-roaming-roster over IPC) -----------------
 const spawn = handlers.get('terminal:agentSpawn')!;

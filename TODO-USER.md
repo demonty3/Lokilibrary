@@ -58,6 +58,26 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 🔔 EYEBALL — land polish #19 slice 1 (strata material read + closed-wing skyline)
+**Status**: SHIPPED 2026-08-02, all gates green, verified live; awaiting
+your judgement against the bars frozen before implementation (STATE.md has
+the full record).
+**What**: look at `docs/design-reviews/2026-08-02-land-polish-slice1/` —
+`desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
+`desk-dmg.png` (gameboy-dmg). Judge three things:
+1. **Strata bar**: the ground band — can you say what it IS (ground/rock/
+   strata)? Does any of it still read as letters? (Kill: after 2 render-side
+   iterations it still reads as letters → the fix routes to a compose-side
+   strata rework, we stop dialing.)
+2. **Skyline bar**: the faint silhouettes with `d2`/`d3`/`d4`/`d5` marks
+   mid-sky — distant structures, or sky clutter? (Kill: clutter → pull the
+   feature.) Live behaviour verified: tray-spawning a wing lifts its
+   silhouette; closing returns it.
+3. **DMG note**: the pack's sky is now FULLY blank — the stray `*` was the
+   `☼` sun (never in the pack's omit list; now omitted). This also blanks
+   the monument-top `☼` glyphs — same role. Flag if the monuments read
+   worse for it.
+
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
 (desktop commit `7926a64`); the sleep→reflect→morning-banner chain has never
@@ -132,10 +152,10 @@ session if convenient:
 - ✅ **EYEBALL gameboy-dmg re-cut — PASSED 2026-07-31** (judged against
   the kill condition inherited verbatim from the fired round: reads as a
   different machine, not "the default with a green filter"; the omission
-  slot + chunky dialect fixed what fired the first kill). One open
-  one-liner recorded in STATE.md: a single `*` survives the blank sky
-  although the pack omits every sky role — painter unidentified, ruling
-  (feature vs leak) open.
+  slot + chunky dialect fixed what fired the first kill). The open
+  one-liner (a single `*` surviving the blank sky) was RESOLVED
+  2026-08-02: the painter was the `☼` sun, never in the pack's omit
+  list — pack gap, not a leak; now omitted (STATE.md has the ruling).
 - ✅ **EYEBALL amber-crt glow leg — PASSED 2026-07-31** (glow reads as
   glowing, not blurred; text stays sharp). Both legs of the
   ceiling-widening round are now closed green.

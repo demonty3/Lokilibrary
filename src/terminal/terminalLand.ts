@@ -223,6 +223,9 @@ declare global {
       /** e2e only — place a mark immediately (bypasses maybeMark's
        *  cooldown/chance gates, mirrors debugWear's directness). */
       debugMark(col: number, agentId?: string): boolean;
+      /** e2e only — the composed model's cell at (x,y): glyph + role
+       *  provenance for on-screen sightings. */
+      debugCellAt(x: number, y: number): { char: string; role: string } | null;
     };
   }
 }
@@ -505,8 +508,18 @@ export async function mountTerminalLand(
   buildSiteLabels();
   mountMural();
 
+  /** Wings with no open terminal window — the closed-wing skyline (land
+   *  polish #19). Derived in applyJoins from the broker's allWings roster;
+   *  empty until the first topology arrives (and always empty on the web
+   *  preview, which has no broker). */
+  let closedWings: string[] = [];
+
   const recompose = (join: { left?: number; right?: number } | null): void => {
-    model = composeLand(seed, games, join ? { ...composeOpts, join } : composeOpts);
+    model = composeLand(seed, games, {
+      ...composeOpts,
+      ...(join ? { join } : {}),
+      ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
+    });
     world.removeChild(sceneContainer);
     sceneContainer.destroy({ children: true });
     scene = buildLandContainer(theme, model);
@@ -588,10 +601,16 @@ export async function mountTerminalLand(
     }
   };
 
-  /** Cache key of the current join seeds — recompose only when it changes.
-   *  Initialised to the no-join key so the boot applyJoins doesn't recompose. */
-  let joinKey = '|';
-  const applyJoins = (joins: TerminalJoin[], wings: Record<string, string>): void => {
+  /** Cache key of the current scene inputs (join seeds + closed-wing set) —
+   *  recompose only when it changes. Initialised to the no-join, no-skyline
+   *  key so a broker-less boot (web preview) never recomposes; the first
+   *  desktop topology carries allWings and recomposes the skyline in. */
+  let joinKey = '||';
+  const applyJoins = (
+    joins: TerminalJoin[],
+    wings: Record<string, string>,
+    allWings?: string[],
+  ): void => {
     const prev = edges;
     edges = {
       left: joins.some((j) => j.right === terminalId),
@@ -604,7 +623,9 @@ export async function mountTerminalLand(
     const join: { left?: number; right?: number } = {};
     if (leftNb && wings[leftNb]) join.left = fnv1a(`terminal:${wings[leftNb]}`);
     if (rightNb && wings[rightNb]) join.right = fnv1a(`terminal:${wings[rightNb]}`);
-    const key = `${join.left ?? ''}|${join.right ?? ''}`;
+    const open = new Set(Object.values(wings));
+    closedWings = (allWings ?? []).filter((w) => w !== wing && !open.has(w)).sort();
+    const key = `${join.left ?? ''}|${join.right ?? ''}|${closedWings.join(',')}`;
     if (key !== joinKey) {
       joinKey = key;
       recompose(join.left === undefined && join.right === undefined ? null : join);
@@ -1104,7 +1125,9 @@ export async function mountTerminalLand(
   app.ticker.add(tick);
 
   // ── Broker wiring ────────────────────────────────────────────────────────
-  const unsubTopology = subscribeTerminalTopology(({ joins, wings }) => applyJoins(joins, wings));
+  const unsubTopology = subscribeTerminalTopology(({ joins, wings, allWings }) =>
+    applyJoins(joins, wings, allWings),
+  );
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
     spawnSpark(side);
@@ -1146,7 +1169,7 @@ export async function mountTerminalLand(
   const unsubNeighbour = subscribeTerminalNeighbourSummary(({ side, beings: bs }) => {
     neighbourNear[side] = bs;
   });
-  void getTerminalTopology().then(({ joins, wings }) => applyJoins(joins, wings));
+  void getTerminalTopology().then(({ joins, wings, allWings }) => applyJoins(joins, wings, allWings));
   drawEdges();
 
   window.__terminal = {
@@ -1229,6 +1252,8 @@ export async function mountTerminalLand(
       addMarkView(agentId, note, c);
       return marks.some((m) => m.col === c);
     },
+    debugCellAt: (x, y) =>
+      model.char[y]?.[x] !== undefined ? { char: model.char[y][x], role: model.role[y][x] } : null,
   };
 
   return () => {

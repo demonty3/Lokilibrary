@@ -684,9 +684,9 @@ that packs render through their own vocabulary.
 
 **Status.** Candidate depth-track slice; recorded, not scheduled (Harry,
 2026-07-31). Sequencing lives in `PLAN.md` § Open decisions. Related: the
-stray-`*` painter question (an omitted-role glyph surviving in gameboy-dmg's
-sky — identify the painter, then rule feature vs leak) is the same
-conformance surface seen from the leak side.
+stray-`*` painter question was the same conformance surface seen from the
+leak side — RESOLVED 2026-08-02 (the `☼` sun, a pack-list gap, not an
+engine leak; `landOmit` filtering held — STATE.md has the ruling).
 
 ---
 

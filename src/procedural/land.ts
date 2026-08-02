@@ -72,7 +72,9 @@ export type LandRole =
   | 'shaft'
   | 'edge'
   | 'mural'       // reserved interior of the framed mural (blank in the model; pixels are render-side)
-  | 'muralFrame'; // the box-drawing frame + name cartouche
+  | 'muralFrame'  // the box-drawing frame + name cartouche
+  | 'wingSil'     // skyline silhouette of a wing with no open terminal (land polish #19)
+  | 'wingMark';   // the faint wing id under its silhouette
 
 /** A labelled site: where a game's name is drawn, for renderers that manage
  *  label visibility themselves (the terminal land's proximity reveal). */
@@ -135,6 +137,12 @@ export interface ComposeLandOptions {
    *  window / outer edges / web preview). Both edges may be set (a middle
    *  terminal in a chain); the two ramp regions never overlap. */
   readonly join?: { readonly left?: number; readonly right?: number };
+  /** Land polish #19: wings that EXIST but have no open terminal window —
+   *  each gets a faint far-ridge silhouette + wing-id mark, so the desk shows
+   *  the library's unexplored extent. Absent / [] = byte-identical output.
+   *  Placement is per-wing deterministic (own salted PRNG per wing id), so a
+   *  silhouette never moves when a DIFFERENT wing opens or closes. */
+  readonly skyline?: readonly string[];
 }
 
 const BEINGS = ['L', 'A', 'M', 'C', 'V'];
@@ -173,6 +181,14 @@ const SKY_DITHER_SALT = 0xd174;
  *  tuning never reshuffles the terrain stream again (reserved-salt list as
  *  above, plus 0xfa42 and 0xd174). */
 const SKY_SALT = 0x57a5;
+
+/** PRNG namespace for the closed-wing skyline — folded per WING ID, not the
+ *  land seed, so every window agrees where wing dN's silhouette stands
+ *  (reserved-salt list as above, plus 0x57a5). */
+const WING_SIL_SALT = 0x5117;
+/** Silhouette vocabulary — small far-structure masses from block + quadrant
+ *  elements. Exported for scripts/smoke-glyph-coverage.mts (atlas gate). */
+export const WING_SIL_SHAPES = ['▟█▙', '▄██▄', '▟██▄', '▄█▙'] as const;
 
 export const MURAL_INTERIOR_W = 22;
 export const MURAL_INTERIOR_H = 5;
@@ -541,6 +557,58 @@ export function composeLand(
     for (let i = -1; i <= s.length; i++) set(start + i, ly, ' ', 'sky');
     for (let i = 0; i < s.length; i++) set(start + i, ly, s[i], 'label');
     sites.push({ x, y: ly, text: s, kind });
+  }
+
+  // --- Skyline of closed wings (land polish #19 slice 1) -------------------
+  // Faint silhouettes on the far-ridge plane for wings with no open terminal.
+  // Zero draws from the main/sky streams (per-wing salted PRNG — no stream
+  // shift; opts.skyline absent is byte-identical). Draws only over sky-plane
+  // cells (sky / skyDither / ridgeFar) so structures, labels and terrain
+  // always win; the mural pass runs after and mechanically evicts anything
+  // inside its cleared rect.
+  if (opts.skyline !== undefined && opts.skyline.length > 0) {
+    const skyPlane = (x: number, y: number): boolean => {
+      const r = role[y]?.[x];
+      // Scatter stars sit BEHIND a horizon mass (a star shining through a
+      // silhouette reads broken); clouds/moon/sun stay in front — nearer sky.
+      return r === 'sky' || r === 'skyDither' || r === 'ridgeFar' || r === 'star' || r === 'starBright';
+    };
+    const lo = K + 2;
+    const hi = cols - 2 - K;
+    // Placement fit: every shape + mark cell must be sky-plane or an EARLIER
+    // wing's silhouette (masses may merge; the world never yields). Re-rolled
+    // deterministically per wing, so a tall structure at the hashed column
+    // can't leave a wing unrepresented — and other wings' cells count as
+    // passable, so each wing's final spot is independent of the closed set.
+    const passable = (x: number, y: number): boolean => {
+      const r = role[y]?.[x];
+      return skyPlane(x, y) || r === 'wingSil' || r === 'wingMark';
+    };
+    for (const w of opts.skyline) {
+      const silRng = mulberry32((fnv1a32(w) ^ WING_SIL_SALT) >>> 0);
+      const shape = silRng.pick(WING_SIL_SHAPES);
+      const mark = w.slice(0, 4);
+      if (hi - lo < shape.length + 2) continue; // window too narrow for a skyline
+      let cx = 0;
+      let sy = 0;
+      let fits = false;
+      for (let attempt = 0; attempt < 8 && !fits; attempt++) {
+        cx = lo + silRng.range(0, hi - lo - shape.length);
+        sy = groundLine - 5 - silRng.range(0, 2); // on/above the far-ridge band
+        const mx0 = cx + Math.floor((shape.length - mark.length) / 2);
+        fits = sy >= 1;
+        for (let i = 0; fits && i < shape.length; i++) fits = passable(cx + i, sy);
+        for (let i = 0; fits && i < mark.length; i++) fits = passable(mx0 + i, sy + 1);
+      }
+      if (sy < 1) continue; // keep clear of the drag-strip row on tiny skies
+      // No clean spot after 8 rolls: draw best-effort at the last candidate
+      // (clipped by whatever is nearer — the pre-fit behaviour).
+      for (let i = 0; i < shape.length; i++)
+        if (skyPlane(cx + i, sy)) set(cx + i, sy, shape[i], 'wingSil');
+      const mx = cx + Math.floor((shape.length - mark.length) / 2);
+      for (let i = 0; i < mark.length; i++)
+        if (skyPlane(mx + i, sy + 1)) set(mx + i, sy + 1, mark[i], 'wingMark');
+    }
   }
 
   // --- Mural frame + cartouche (Murals #16) --------------------------------

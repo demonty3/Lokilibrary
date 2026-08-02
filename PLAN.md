@@ -51,10 +51,12 @@ git history (`git log --follow PLAN.md`) and summarised per-phase in
    (STATE.md has the record; kill condition never fired). Built to the
    KEPT Mural Anchor composition — one framed, palette-quantised mural
    per window.
-3. **Land polish #19** — monument architecture + door, constellations
-   / moon / cloud wisps, ore veins / caverns, site signage, **plus**
-   unopened-wing skyline silhouettes on the ridge (09 folded in,
-   layout round 2, 2026-08-01).
+3. **Land polish #19** — slice 1 (evidence-first: strata material read
+   + closed-wing skyline + stray-`*` ruling) **SHIPPED 2026-08-02,
+   eyeball PENDING** — STATE.md has the record + the frozen bars.
+   Remaining legs for slice 2: monument architecture + door,
+   constellations / moon / cloud wisps, ore veins / caverns, site
+   signage.
 4. **Static-beings liveliness.**
 
 Sequencing evidence for 2–3: the **crust-legibility finding**
@@ -117,9 +119,9 @@ the smoke-gated version).
 - **Shared rules across terminals** — candidate depth-track slice,
   recorded not scheduled. Canonical write-up: `IDEAS.md` § Shared
   rules across terminals.
-- **Stray `*` in gameboy-dmg's sky** — painter unidentified (likely an
-  event/salience overlay). Identify the painter, then rule feature vs
-  leak. (STATE.md, 2026-07-31.)
+- ~~Stray `*` in gameboy-dmg's sky~~ — **RESOLVED 2026-08-02**: the
+  painter was the `☼` sun (role `sun`, never in the pack's omit list);
+  pack gap, not an engine leak. STATE.md has the ruling.
 - **Tier-2 depth review** — 🔔 Harry decides: re-run (18/34 agents
   errored; ~1.3M tokens) or accept the partial pass. `TODO-USER.md`.
 - **Diorama-neighbour engine work** — parked behind two unmet

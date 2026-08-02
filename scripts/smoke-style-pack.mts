@@ -125,6 +125,13 @@ check('mural is omit-ALLOWED (lossy-lens doctrine)', !LAND_OMIT_LOCKED.has('mura
 check('mural is ramp-locked', LAND_RAMP_LOCKED.has('mural'));
 check('muralFrame is ramp-locked', LAND_RAMP_LOCKED.has('muralFrame'));
 
+// --- closed-wing skyline role lock-set wiring (land polish #19) -----
+check('wingMark is glyph-locked (it is a name, like label)', LAND_GLYPH_LOCKED.has('wingMark'));
+check('wingMark is omit-ALLOWED (deletes with its silhouette)', !LAND_OMIT_LOCKED.has('wingMark'));
+check('wingSil is glyph-allowed', !LAND_GLYPH_LOCKED.has('wingSil'));
+check('wingSil is omit-allowed', !LAND_OMIT_LOCKED.has('wingSil'));
+check('wingSil is ramp-allowed', !LAND_RAMP_LOCKED.has('wingSil'));
+
 for (const id of ids) {
   const t = THEMES[id] as Theme | undefined;
   if (!t) continue; // registration failure already recorded above

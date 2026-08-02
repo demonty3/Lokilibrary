@@ -17,6 +17,7 @@ import { Application, BitmapText, Container, Graphics } from 'pixi.js';
 import type { Theme } from '../../themes/types';
 import { COZETTE_CELL_HEIGHT, COZETTE_CELL_WIDTH, COZETTE_FONT_FAMILY, COZETTE_FONT_SIZE, hexToInt } from '../fonts';
 import { composeLand, type LandGame, type LandModel, type LandRole } from '../../procedural/land';
+import { fnv1a32 } from '../../procedural/seed';
 import { buildMuralContainer, capsuleToCells } from '../ansiSpike';
 
 // ── V0 spike knobs (PRD: Terminal Terraria visual direction) ──────────────
@@ -66,6 +67,10 @@ export const FAR_FADE: Partial<Record<LandRole, number>> = {
   cloud: 0.4,
   star: 0.35,
   skyDither: 0.55,
+  // Closed-wing skyline: between the two ridge planes — present, but clearly
+  // farther than anything walkable; the mark fades a step beyond its mass.
+  wingSil: 0.6,
+  wingMark: 0.7,
 };
 
 /** Ground demotion (ambient-salience bundle): crust + foliage keep their
@@ -76,6 +81,32 @@ export const GROUND_DEMOTE: Partial<Record<LandRole, number>> = {
   crust: 0.6,
   foliage: 0.6,
 };
+
+/** Strata material read (land polish #19 slice 1): the composer draws
+ *  topsoil/stone/bedrock as per-cell-random ░▒▓ — high-frequency noise with
+ *  the statistics of TEXT, which a first-time viewer reads as rows of
+ *  letterforms (the 2026-08-01 first-contact finding). Redraw the SAME cells
+ *  in horizontal runs — one glyph per (role, row, run-of-RUN_LEN-columns) —
+ *  so the bands read as strata/masonry. Render-side only: the model (fills,
+ *  roles, rng streams) is byte-untouched, and a theme's own landGlyphs
+ *  dialect takes priority (gameboy-dmg's judged bands never move). Cavern
+ *  speckle stays per-cell — 5%-density dust has no runs to cohere. */
+const STRATA_RUN_LEN = 6;
+const STRATA_MATERIAL: Partial<Record<LandRole, readonly [string, string, number]>> = {
+  // [primary, secondary, primary %] — echoes the composer's per-role mix.
+  topsoil: ['▒', '░', 45],
+  stone: ['▓', '▒', 55],
+  bedrock: ['▓', '░', 60],
+};
+
+/** The run-coherent glyph for a strata cell, null for non-strata roles.
+ *  Pure — exported for scripts/smoke-land-material.mts. */
+export function strataMaterialGlyph(role: LandRole, x: number, y: number): string | null {
+  const m = STRATA_MATERIAL[role];
+  if (m === undefined) return null;
+  const h = fnv1a32(`${role}:${y}:${Math.floor(x / STRATA_RUN_LEN)}`);
+  return h % 100 < m[2] ? m[0] : m[1];
+}
 
 /** Role -> theme palette key. The whole point of the side-on look: layers
  *  separate by hue, not by glyph density. Exported for the style-pack
@@ -110,6 +141,8 @@ export const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   edge: 'fgDim',
   mural: 'fgDim', // nominal — interior colour resolves per-cell in the quantiser
   muralFrame: 'fg', // structure register, NOT fgBright (beings' reserved contract)
+  wingSil: 'fgDim',
+  wingMark: 'fgDim',
 };
 
 /** Roles whose glyphs live machinery owns: wear re-texts the crust layer
@@ -126,6 +159,7 @@ export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
   'edge',
   'mural',
   'muralFrame',
+  'wingMark', // wing-id text, like label — a dialect glyph would erase the name
 ]);
 
 /** Roles a style pack's landRamp may never step (enforced here AND by
@@ -152,14 +186,17 @@ function themeRampRoles(theme: Theme): ReadonlySet<LandRole> {
  *  it would be a silent no-op). Exception: mural is the ONE glyph-locked
  *  role a pack MAY omit (lossy-lens doctrine — a pack may delete the picture,
  *  never contradict it; the frame + cartouche stay, so the wing keeps its
- *  name). Everything else — strata, structures, celestials, foliage — is
- *  omittable by design: this slot is the "glyph deletion" axis (a blank DMG
- *  sky, a stroke-only scope). Note `hall` omission leaves the V0-preview ANSI
- *  mural floating on its poster rect (mountLandPreview mounts it off
- *  model.poster regardless of layers); the terminal desk composes no hall,
- *  so that stays a prototype-surface cosmetic. */
+ *  name). `wingMark` is glyph-locked for the same reason as label (it IS a
+ *  name) but omit-allowed with its silhouette — the closed-wing skyline is
+ *  sky decoration, and a blank-sky pack may delete it whole. Everything
+ *  else — strata, structures, celestials, foliage — is omittable by design:
+ *  this slot is the "glyph deletion" axis (a blank DMG sky, a stroke-only
+ *  scope). Note `hall` omission leaves the V0-preview ANSI mural floating on
+ *  its poster rect (mountLandPreview mounts it off model.poster regardless
+ *  of layers); the terminal desk composes no hall, so that stays a
+ *  prototype-surface cosmetic. */
 export const LAND_OMIT_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>(
-  ([...LAND_GLYPH_LOCKED, 'sky'] as LandRole[]).filter((r) => r !== 'mural'),
+  ([...LAND_GLYPH_LOCKED, 'sky'] as LandRole[]).filter((r) => r !== 'mural' && r !== 'wingMark'),
 );
 
 /** The active theme's omitted-role set (style-pack slot 5), locked roles
@@ -243,11 +280,17 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     return Math.round(((y - e.min) / (e.max - e.min)) * 3);
   };
 
-  const layerFor = (pred: (x: number, y: number) => boolean, glyph?: string | null): string => {
+  type GlyphSource = string | ((x: number, y: number) => string) | null;
+  const layerFor = (pred: (x: number, y: number) => boolean, glyph?: GlyphSource): string => {
     const rows: string[] = [];
     for (let y = 0; y < model.height; y++) {
       let line = '';
-      for (let x = 0; x < model.width; x++) line += pred(x, y) ? (glyph ?? model.char[y][x]) : ' ';
+      for (let x = 0; x < model.width; x++)
+        line += pred(x, y)
+          ? typeof glyph === 'function'
+            ? glyph(x, y)
+            : (glyph ?? model.char[y][x])
+          : ' ';
       rows.push(line.replace(/\s+$/u, ''));
     }
     return rows.join('\n');
@@ -263,7 +306,10 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     (layers[r] ??= []).push(bt);
   };
   for (const r of roles) {
-    const glyph = landRoleGlyph(theme, r);
+    // Pack dialect first; undialected strata take the run-coherent material.
+    const dialect = landRoleGlyph(theme, r);
+    const glyph: GlyphSource =
+      dialect ?? (STRATA_MATERIAL[r] !== undefined ? (x, y) => strataMaterialGlyph(r, x, y) as string : null);
     const shadeGrid = model.shade;
     if (shadeGrid && SHADED_ROLES.has(r)) {
       // V0: vertical gradient — one layer per luminance step (≤4 extra

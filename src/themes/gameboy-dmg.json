@@ -20,7 +20,7 @@
     "roles": ["topsoil", "stone", "deep", "bedrock", "cavern", "shelf", "roof", "monument", "cottage", "shaft"],
     "factors": [0.45, 0.6, 0.78, 1.0]
   },
-  "landOmit": ["star", "starBright", "skyDither", "cloud", "ridgeFar", "moon"],
+  "landOmit": ["star", "starBright", "skyDither", "cloud", "ridgeFar", "moon", "sun", "wingSil", "wingMark"],
   "landGlyphs": {
     "topsoil": "▓",
     "stone": "▒",
