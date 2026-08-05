@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-01** (marginalia-on-land SHIPPED and the eyeball
+Last updated: **2026-08-05** (land polish #19 slice 1 eyeball PASSED —
+"the shots look right" on all three shots: strata, skyline, DMG blank
+sky. Neither frozen kill condition fired; no tuning requested. The
+slice is fully closed; next up is #19 slice 2 — monument architecture,
+constellations/clouds, ore veins/caverns, signage.)
+Previously **2026-08-01** (marginalia-on-land SHIPPED and the eyeball
 PASSED the same day — "this feels right", watched live on the terminals
 build. The depth track's first slice is fully closed: marks + in-voice
 notes + proximity reveal + persistent decaying wear. No tuning
@@ -57,26 +62,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 🔔 EYEBALL — land polish #19 slice 1 (strata material read + closed-wing skyline)
-**Status**: SHIPPED 2026-08-02, all gates green, verified live; awaiting
-your judgement against the bars frozen before implementation (STATE.md has
-the full record).
-**What**: look at `docs/design-reviews/2026-08-02-land-polish-slice1/` —
-`desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
-`desk-dmg.png` (gameboy-dmg). Judge three things:
-1. **Strata bar**: the ground band — can you say what it IS (ground/rock/
-   strata)? Does any of it still read as letters? (Kill: after 2 render-side
-   iterations it still reads as letters → the fix routes to a compose-side
-   strata rework, we stop dialing.)
-2. **Skyline bar**: the faint silhouettes with `d2`/`d3`/`d4`/`d5` marks
-   mid-sky — distant structures, or sky clutter? (Kill: clutter → pull the
-   feature.) Live behaviour verified: tray-spawning a wing lifts its
-   silhouette; closing returns it.
-3. **DMG note**: the pack's sky is now FULLY blank — the stray `*` was the
-   `☼` sun (never in the pack's omit list; now omitted). This also blanks
-   the monument-top `☼` glyphs — same role. Flag if the monuments read
-   worse for it.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
@@ -144,6 +129,12 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL land polish #19 slice 1 — PASSED 2026-08-05** ("the
+  shots look right — eyeball passed on all three": strata material read,
+  closed-wing skyline, DMG blank sky, judged against the bars frozen
+  before implementation. Neither kill condition fired; no tuning
+  requested.) Remaining #19 legs (monument architecture + door,
+  constellations/clouds, ore veins/caverns, signage) are slice 2.
 - ✅ **EYEBALL marginalia on land — PASSED 2026-08-01** (Harry watched
   the live beat — a driven reveal plus the ambient marks/wear surface —
   and called it: "this feels right"; no tuning requested). The moat

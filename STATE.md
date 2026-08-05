@@ -170,7 +170,10 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
-**Land polish #19 slice 1 SHIPPED 2026-08-02 (eyeball PENDING)** — the
+**Land polish #19 slice 1 SHIPPED 2026-08-02, eyeball PASSED 2026-08-05**
+("the shots look right — eyeball passed on all three": strata, skyline,
+and the DMG blank sky judged against the pre-frozen bars; neither kill
+condition fired, no tuning requested — the slice is fully closed) — the
 evidence-first cut: crust material read + closed-wing skyline + the stray-`*`
 ruling (plan `~/.claude/plans/let-s-do-the-next-encapsulated-marble.md`; bars
 frozen there before implementation). (1) **Strata material read** — the
