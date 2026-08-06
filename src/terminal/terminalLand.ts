@@ -59,7 +59,7 @@ import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '.
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
-import { foliageSway } from './ambient';
+import { foliageSway, pulse, sunGlow } from './ambient';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   launchNote,
@@ -169,9 +169,7 @@ const ENTER_S = 0.25;
 const SPARK_S = 0.3;
 /** Tier-2 structure glow: alpha pulse (the 6A landmark-pulse envelope). */
 const GLOW_STRUCT_PERIOD_S = 2.8;
-const GLOW_STRUCT_RANGE: [number, number] = [0.72, 1];
-const GLOW_SUN_PERIOD_S = 4.2;
-const GLOW_SUN_RANGE: [number, number] = [0.62, 1];
+const GLOW_STRUCT_RANGE = [0.72, 1] as const;
 /** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
 const KNIT_S = 0.6;
 const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
@@ -1227,15 +1225,23 @@ export async function mountTerminalLand(
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
 
-    // Tier-2 structure glow: monuments (and a hall, if one ever composes
-    // here) pulse gently; ☼ sun/lamps cycle slower. Cos-eased off elapsedS
-    // (deltaMS-accumulated), so it freezes cleanly under throttle.
-    const glow = (periodS: number, [lo, hi]: [number, number]): number =>
-      lo + (hi - lo) * (0.5 - 0.5 * Math.cos(((elapsedS % periodS) / periodS) * 2 * Math.PI));
-    const structAlpha = glow(GLOW_STRUCT_PERIOD_S, GLOW_STRUCT_RANGE);
+    // Wall clock, read once for every desk-global CONDITION in this tick (sun,
+    // wind, sky drift): their whole job is to agree across windows that were
+    // opened at different times, so they must share one instant — see
+    // src/terminal/ambient.ts. Everything window-local keeps elapsedS.
+    const skyT = Date.now() / 1000;
+
+    // Tier-2 structure glow: monuments (and a hall, if one ever composes here)
+    // pulse gently off elapsedS (deltaMS-accumulated), so they freeze cleanly
+    // under throttle. Structures are WING-OWNED content — neighbours hold
+    // different buildings, so their glows agreeing would mean nothing.
+    const structAlpha = pulse(elapsedS, GLOW_STRUCT_PERIOD_S, GLOW_STRUCT_RANGE);
     for (const t of scene.layers.monument ?? []) t.alpha = structAlpha;
     for (const t of scene.layers.hall ?? []) t.alpha = structAlpha;
-    const sunAlpha = glow(GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
+    // …but the ☼ is SHARED SKY, so it takes the wall clock: every window is a
+    // lens on one sky, and on separate accumulators two joined terminals read
+    // as two different suns over one landscape. Same pulse shape, other clock.
+    const sunAlpha = sunGlow(skyT);
     for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
 
     // Launcher beat: while an errand is live the door PULSES — the click is
@@ -1247,11 +1253,6 @@ export async function mountTerminalLand(
           (0.5 - 0.5 * Math.cos(elapsedS * DOOR_PULSE_HZ * 2 * Math.PI))
       : 1;
     for (const t of scene.layers.door ?? []) t.alpha = doorAlpha;
-
-    // Wall clock, read once for every ambient oscillator below it: these are
-    // the desk-global CONDITIONS, and their whole job is to agree across
-    // windows that were opened at different times (src/terminal/ambient.ts).
-    const skyT = Date.now() / 1000;
 
     // Tier-2 foliage sway: sub-cell x offsets, parity planes counter-phased
     // (glyphs move BETWEEN cells — never snap-to-cell). Wall-clock phased, not

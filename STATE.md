@@ -1886,7 +1886,7 @@ to user verification on Windows (logged in commit messages + TODO-USER.md).
 
 ---
 
-**Wind phase FIXED 2026-08-06 — the first rung of the conditions ladder.**
+**Wind phase + ☼ FIXED 2026-08-06 — the first rung of the conditions ladder.**
 Foliage sway ran off each window's own ticker accumulator (`elapsedS`, zeroed
 at mount), so two terminals opened at different times leant their trees in
 opposite directions across a shared seam — the join's most visible
@@ -1902,26 +1902,47 @@ ONCE and feeds both sway and cloud drift from it (clouds were already
 wall-clock — `src/terminal/clouds.ts` had the pattern and the reasoning; this
 just brings foliage onto it).
 
-Gated by `scripts/smoke-wind-phase.mts` (17 assertions), which carries the old
-accumulator as a live **negative control** — if the pre-fix maths ever stops
-diverging, the smoke has stopped testing anything. Two calibration notes worth
-keeping: `SWAY_HZ = 0.35` makes the period exactly 20/7 s, so mount gaps of
-60 s and 3600 s are whole periods and the BROKEN code agreed at precisely those
-gaps (the control's first draft used them and proved nothing); and the phase
-tolerance is set by double precision, not by the maths — one ulp at epoch
-magnitude is ~4e-7 s, worth ~6e-7 px of a 1.2 px sway.
+**The ☼ followed the same day** (Harry: "fix the sun glow pulse too"). Same
+class, and the split is the ladder's whole point: the ☼ is SHARED SKY and now
+takes the wall clock (`sunGlow`), while the monument/hall glow is WING-OWNED
+content and deliberately stays on `elapsedS` — neighbours hold different
+buildings, so their glows agreeing would mean nothing, and local keeps the
+"freezes cleanly under throttle" property. The cos-ease shape moved into
+ambient.ts as `pulse()` and both call it, so a condition and a local pulse now
+differ in exactly ONE thing: which clock the caller hands it.
 
-**Verified live on the two-window desk** (not just in smoke): t1 and t2 sampled
-15 s apart both tracked one global phase function, and a freshly RELOADED t2 —
-the exact defect condition, its accumulator zeroed — still tracked it. Worst
-deviation 0.04 px against a 1.2 px amplitude, which is frame lag between the
-last tick and the `Date.now()` read, not phase error. Readback via
-`__terminal.debugDepth().foliageX` + `scripts/e2e/term-drive.mjs`.
+Known and accepted: the composer spends the `sun` ROLE on two things — the
+sky's ☼ (`land.ts:367`) and the ☼ lamp beside a loved game's shelf
+(`land.ts:581`) — sharing one render layer, so this syncs the lamps across
+windows too. Benign (one light rhythm over the desk); splitting the role would
+drag in the palette contract, the tile bibles and the glyph-coverage smoke for
+no visible gain.
 
-Not done, same class, flagged not fixed: the structure/sun glow pulses still
-run on `elapsedS`. Structure glow is wing-owned content and correctly local,
-but the SUN is a shared sky — two joined windows pulse their suns out of phase.
-Next rungs are in IDEAS.md § Shared rules across terminals.
+Gated by `scripts/smoke-ambient-phase.mts` (31 assertions), which carries both
+old accumulators as live **negative controls** — if the pre-fix maths ever
+stops diverging, the smoke has stopped testing anything. Three calibration
+notes worth keeping. `SWAY_HZ = 0.35` makes the sway period exactly 20/7 s, so
+mount gaps of 60 s and 3600 s are whole periods and the BROKEN code agreed at
+precisely those (the control's first draft used them and proved nothing) — the
+☼'s 4.2 s period has its OWN degenerate gaps, so its control derives them
+separately and asserts non-degeneracy before asserting divergence. And the
+phase tolerance is set by double precision, not by the maths: one ulp at epoch
+magnitude is ~4e-7 s, worth ~6e-7 px of a 1.2 px sway. The transferable half is
+in the brain as [[a-negative-control-needs-non-degenerate-inputs]].
+
+**Verified live on the two-window desk** (not just in smoke), both fixes: four
+samples across t1 and t2 — including a freshly RELOADED t2, the exact defect
+condition with its accumulator zeroed — all tracked one shared phase. Worst ☼
+deviation 0.006 alpha (range 0.62..1), worst sway deviation 0.044 px
+(amplitude 1.2); both are frame lag between the last tick and the `Date.now()`
+read, not phase error. The same reads carry the **inverse control**: monument
+alphas in those samples missed a shared-clock prediction by 0.036–0.061, i.e.
+window-local exactly as intended, so the conditions/content split is real and
+not over-synced. Readback via `__terminal.debugDepth()` +
+`scripts/e2e/term-drive.mjs`.
+
+Next rungs (world clock proper, then light direction and weather riding it)
+are in IDEAS.md § Shared rules across terminals.
 
 ---
 

@@ -1,12 +1,20 @@
-/** Wind-phase smoke — `npx tsx scripts/smoke-wind-phase.mts`.
+/** Ambient-phase smoke (wind + ☼) — `npx tsx scripts/smoke-ambient-phase.mts`.
  *  Foliage sway is a desk-global CONDITION (IDEAS.md § Shared rules across
  *  terminals): every window's trees lean the same way at the same instant, so
  *  a seam never shows two wings blowing against each other. This smokes the
  *  pure maths (src/terminal/ambient.ts); the Pixi wiring is e2e-verified via
  *  __terminal.debugDepth().foliageX. */
 import { makeChecker } from './lib/smoke.ts';
-import { foliageSway, SWAY_HZ, SWAY_PX } from '../src/terminal/ambient.ts';
-const { check, report } = makeChecker('smoke wind-phase');
+import {
+  foliageSway,
+  GLOW_SUN_PERIOD_S,
+  GLOW_SUN_RANGE,
+  pulse,
+  sunGlow,
+  SWAY_HZ,
+  SWAY_PX,
+} from '../src/terminal/ambient.ts';
+const { check, report } = makeChecker('smoke ambient-phase');
 
 const PERIOD = 1 / SWAY_HZ;
 
@@ -74,5 +82,51 @@ check('phase holds precision at epoch magnitudes', worst < PX_EPS, String(worst)
 check('negative time stays in phase',
   Math.abs(foliageSway(-PERIOD * 3 + 0.4) - foliageSway(0.4)) < PX_EPS,
   String(foliageSway(-PERIOD * 3 + 0.4) - foliageSway(0.4)));
+
+// --- The ☼ (same class: shared sky on a per-window accumulator). Its period
+// is 4.2 s, so the degenerate gaps are DIFFERENT from the sway's — 4.2 and
+// 42 s are whole periods here and would prove nothing, exactly as 60 s and
+// 3600 s did for the 20/7 s sway. Controls are derived per-oscillator.
+const oldSun = (elapsedS: number) =>
+  GLOW_SUN_RANGE[0] +
+  (GLOW_SUN_RANGE[1] - GLOW_SUN_RANGE[0]) *
+    (0.5 - 0.5 * Math.cos(((elapsedS % GLOW_SUN_PERIOD_S) / GLOW_SUN_PERIOD_S) * 2 * Math.PI));
+
+for (const gap of [1.1, 5.9, 61, 3607]) {
+  check(`☼ gap ${gap}s: not a whole period (control is non-degenerate)`,
+    Math.abs((gap / GLOW_SUN_PERIOD_S) - Math.round(gap / GLOW_SUN_PERIOD_S)) > 0.05,
+    String(gap / GLOW_SUN_PERIOD_S));
+  check(`☼ gap ${gap}s: negative control — the old accumulator DID diverge`,
+    Math.abs(oldSun(gap) - oldSun(0)) > 0.01,
+    JSON.stringify({ old0: oldSun(0), oldGap: oldSun(gap) }));
+}
+
+// Same instant ⇒ same alpha, whatever each window's mount age.
+check('☼ agrees at one instant', sunGlow(WALL) === sunGlow(WALL), String(sunGlow(WALL)));
+check('☼ periodic at epoch magnitude',
+  Math.abs(sunGlow(WALL + 1.234) - sunGlow(WALL + 1.234 + GLOW_SUN_PERIOD_S * 1000)) < PX_EPS,
+  String(sunGlow(WALL + 1.234) - sunGlow(WALL + 1.234 + GLOW_SUN_PERIOD_S * 1000)));
+
+// Alpha stays inside the composed range — a glow that overshoots 1 would clip
+// the glyph to flat white and lose the ease.
+let lo = Infinity;
+let hi = -Infinity;
+for (let k = 0; k < 4000; k++) {
+  const a = sunGlow(WALL + k * 0.011);
+  lo = Math.min(lo, a);
+  hi = Math.max(hi, a);
+}
+check('☼ alpha within GLOW_SUN_RANGE', lo >= GLOW_SUN_RANGE[0] - 1e-9 && hi <= GLOW_SUN_RANGE[1] + 1e-9,
+  JSON.stringify({ lo, hi }));
+check('☼ uses its full range (it actually pulses)',
+  lo < GLOW_SUN_RANGE[0] + 0.01 && hi > GLOW_SUN_RANGE[1] - 0.01, JSON.stringify({ lo, hi }));
+
+// The shape is shared with the window-local structure pulse: ONE difference
+// between a condition and a local pulse, and it is which clock it is handed.
+check('☼ is exactly pulse() on the wall clock',
+  sunGlow(WALL + 2.5) === pulse(WALL + 2.5, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE));
+check('pulse() takes small accumulator inputs identically',
+  Math.abs(pulse(1.7, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE) - oldSun(1.7)) < 1e-12,
+  String(pulse(1.7, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE) - oldSun(1.7)));
 
 report();

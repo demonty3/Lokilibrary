@@ -12,7 +12,7 @@
  * join's most visible contradiction, since the seam blend puts foliage from
  * both wings side by side.
  *
- * Pure + Pixi-free so scripts/smoke-wind-phase.mts can run it.
+ * Pure + Pixi-free so scripts/smoke-ambient-phase.mts can run it.
  */
 
 /** Tier-2 foliage sway: sub-cell x oscillation in local px (× WORLD_SCALE on
@@ -34,4 +34,38 @@ export function foliageSway(tSeconds: number): number {
   const period = 1 / SWAY_HZ;
   const phase = ((tSeconds % period) + period) % period;
   return Math.sin(phase * SWAY_HZ * 2 * Math.PI) * SWAY_PX;
+}
+
+/**
+ * The cos-eased pulse shape every glow in the terminal shares — exported so
+ * that a desk-global condition and a window-local pulse differ in ONE thing
+ * only: which clock the caller hands it. `t` is reduced modulo the period, so
+ * it takes epoch-magnitude wall-clock seconds and small accumulator seconds
+ * with equal precision.
+ */
+export function pulse(tSeconds: number, periodS: number, [lo, hi]: readonly [number, number]): number {
+  const phase = ((tSeconds % periodS) + periodS) % periodS;
+  return lo + (hi - lo) * (0.5 - 0.5 * Math.cos((phase / periodS) * 2 * Math.PI));
+}
+
+/** ☼ cycle — slower than the structure glow it used to share a clock with. */
+export const GLOW_SUN_PERIOD_S = 4.2;
+export const GLOW_SUN_RANGE = [0.62, 1] as const;
+
+/**
+ * The desk's daylight at wall-clock time `tSeconds`. The sky's ☼ is a shared
+ * truth — every window is a lens on ONE sky — so two joined terminals must
+ * brighten together; on separate accumulators they read as two different suns
+ * hanging over one landscape.
+ *
+ * Caveat worth knowing: the composer spends the `sun` role on two different
+ * things — the sky's ☼ (`land.ts:367`) and the ☼ LAMP beside a loved game's
+ * shelf (`land.ts:581`) — and they share a render layer, so this syncs the
+ * lamps across windows too. That is benign (one light rhythm over the desk,
+ * if anything more coherent) and splitting it would mean a new role in the
+ * composer's vocabulary, which drags in the palette contract, the tile bibles
+ * and the glyph-coverage smoke for no visible gain.
+ */
+export function sunGlow(tSeconds: number): number {
+  return pulse(tSeconds, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
 }
