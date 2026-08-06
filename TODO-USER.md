@@ -13,7 +13,14 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-05** (land polish #19 slice 1 eyeball PASSED —
+Last updated: **2026-08-06** (land polish #19 slice 2 SHIPPED — monument
+architecture + door, constellations + cloud drift, ore veins, sign
+posts, closing the #19 programme item. Verified live on a
+`LOKILIBRARY_TERMINALS=2` desk; two live-found defects fixed along the
+way (a door-overwrite guard, and a constellation/mural-rect placement
+gap) — STATE.md has the full record. Eyeball item below awaits your
+judgement against the bars frozen 2026-08-05.)
+Previously **2026-08-05** (land polish #19 slice 1 eyeball PASSED —
 "the shots look right" on all three shots: strata, skyline, DMG blank
 sky. Neither frozen kill condition fired; no tuning requested. The
 slice is fully closed; next up is #19 slice 2 — monument architecture,
@@ -62,6 +69,38 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 🔔 EYEBALL — land polish #19 slice 2
+**Status**: SHIPPED 2026-08-06, all gates green, verified live; awaiting
+your judgement against the bars frozen before implementation (STATE.md
+has the full record).
+**What**: look at `docs/design-reviews/2026-08-06-land-polish-slice2/` —
+`desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
+`desk-dmg.png` (gameboy-dmg). Then watch the live desk for ~15 s and see
+if you notice the sky wisps drifting. Judge against these six bars
+(frozen 2026-08-05, before implementation):
+1. **Monument**: reads as built architecture with an entrance. (Kill:
+   noisier blob → revert to the column, rethink at mockup level.)
+2. **Constellations**: ≥1 figure reads as deliberate; sky NO busier.
+   (Kill: more cluttered → remove figures, keep scatter.)
+3. **Cloud drift**: noticeable in ~10 s, invisible at a glance. (Kill:
+   draws the eye from across the room → halve speed once; still pulls
+   focus → ship static.)
+4. **Ore**: "rock with veins", not confetti. (Kill: confetti → halve
+   count once; still confetti → pull the role.)
+5. **Sign posts**: site furniture; reveal feels unchanged. (Kill: stray
+   glyphs → omit everywhere.)
+6. **gameboy-dmg**: sky blank, crowns blank, judged bands unmoved, doors
+   present.
+
+**Heads-up on `desk-t1-d0.png` specifically**: on this particular
+default-library world, the monument's cap + first window-slit row sit
+inside the "stardew" mural's rect and are evicted by it (a pre-existing
+interaction with Murals #16, not something this slice introduced or
+scoped to fix — the door, the one locked invariant, is unaffected and
+visible). If bar 1 reads ambiguous from that shot alone, the fuller
+7-row structure (cap/slits/body/crown/door all intact) is visible on
+the desk's other wing — flag if you'd like a supplementary shot.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`

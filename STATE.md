@@ -217,6 +217,89 @@ feature, don't tune it in); DMG — blank sky confirmed on screen. Remaining
 #19 legs (monument architecture + door, constellations/clouds, ore veins/
 caverns, signage) are the next slice.
 
+**Land polish #19 slice 2 SHIPPED 2026-08-06** (spec
+`docs/superpowers/specs/2026-08-05-land-polish-slice2-design.md`, plan
+`docs/superpowers/plans/2026-08-06-land-polish-slice2.md`; eyeball PENDING
+— TODO-USER has the item) — the four remaining #19 legs, closing the
+programme item. Architectural decision: **one deliberate compose-side
+upgrade + renderer-side cloud drift**, changing composed bytes ONCE (a
+re-roll like the raised-horizon pass), with two approaches explicitly
+rejected — per-leg `ComposeLandOptions` flags (the skyline opt-in gate was
+slice 1's mid-round eyeball protection; that round is closed, and permanent
+flags for always-on visuals are plumbing not needed) and render-side
+redraw (the strata trick — wrong tool for shapes with footprints). (1)
+**Monument architecture + door** — the old 6-tall column + sun-borrowed
+crown becomes real box-drawing architecture: `MONUMENT_BODY` (footing,
+window-slit rows, shafted body, `land.ts`), a ground-level `▯` door (new
+role `door`, glyph-locked, omit NOT allowed — the future launcher beat's
+landing spot), and the crown moved to its OWN role `monumentCrown`
+(omit-allowed, so gameboy-dmg's blank-crown look is now an explicit pack
+edit, not sun-role borrowing). Placement/slots/seam-buffer/hall-avoidance
+unchanged. (2) **Constellations + cloud drift** — 2–3 recognisable figures
+(`CONSTELLATIONS`: the W, the plough, the arc) stamped from the existing
+salted sky PRNG, replacing scatter in their patch rather than adding to
+it (blank-sky packs stay blank with zero edits — reuses `star`/
+`starBright`). Cloud drift is the renderer-side exception (`src/terminal/
+clouds.ts`, pure + Pixi-free): wisps lift out of the static grid and drift
+continuously on `app.ticker` elapsed time, wrapping across the strip,
+fading to 0 approaching a mural/skyline/structure and back in past it
+("the world always wins" — never pops). (3) **Ore veins** — short
+diagonal `◆` glints seeded through stone/bedrock, role `ore` (omit-
+allowed, ramp-allowed), role-guarded at stamp time so caverns/topsoil/
+shaft/relics are excluded by construction. (4) **Sign posts** — site
+furniture, reveal untouched. **Live-found and fixed, both during Task 8
+verification, not caught by any smoke:** (a) during Task 6's golden
+re-freeze, unguarded beings/trees scatter could overwrite the monument
+door (seed 41) — fixed by guarding decorative stamps to sky-only cells
+(built world always wins), commit `c211f84`, then a complete re-freeze;
+(b) constellations' design promised figures "avoid... the murals rect",
+but the placement fit check had no knowledge of the mural (which composes
+LATER and unconditionally clears its rect) — a figure could pass its fit
+check then lose points once the mural evicted them, seen live on the
+default t1/d0 desk (a W-figure's two points blanked under "stardew"'s
+mural). Fixed by precomputing the mural rect's pure-arithmetic geometry
+ahead of the constellation loop and folding it into the fit check —
+no RNG-stream change on the no-mural path — commit `8d973ed`. **Known,
+UNFIXED, out-of-scope interaction:** the monument's placement rules were
+explicitly left untouched this slice (per the design doc) and have no
+equivalent mural-avoidance; on the default library's `d0` wing the
+monument's cap + first window-slit row sit inside "stardew"'s mural rect
+and are evicted the same way the old (pre-slice-2) monument's crown would
+have been — pre-existing since Murals #16, not a slice-2 regression, the
+door (the locked invariant) is unaffected. New smokes:
+`smoke-land-monument` (18), `smoke-land-constellations` (23, re-run
+after the mural-rect fix), `smoke-land-ore`, `smoke-land-signpost`,
+`smoke-cloud-drift` (11); style-pack corpus 301→303 (Task 1); full sweep
++ both typecheck legs green. VERIFIED LIVE (macOS, `LOKILIBRARY_TERMINALS=2`
+desk): solo d0 shows the door + 5 of 7 monument body rows (cap/crown
+mural-evicted per above), ≥1 constellation figure clear of the mural,
+ore glints in the deep band, posts at sites; drift readback
+(`debugClouds()`, two reads 5 s apart) on both windows: t1 x
+45.26→45.74 (Δ0.48 ≈ 5×0.096 cells/s), t2 x 50.61→50.98 (Δ0.37 ≈
+5×0.074 cells/s), alpha 0.9 both reads both windows (the design's
+`*0.9` render cap) — a separate reading on the mural-adjacent wisp
+correctly showed alpha 0 while mid-transit behind the mural, confirming
+the fade-to-occluded behaviour is live, not just smoke-tested; joined
+two-window desk: seam/knit(`fired:1, glowStale:0`)/murals/marks intact,
+both windows' murals `ready`; DMG relaunch: sky fully blank (no figures,
+no wisps), crowns blank, judged strata bands unmoved (smoke-land-material
+still green), door present (`debugCellAt` confirms `{char:'▯',
+role:'door'}` at (22,13)), ore confirmed via `debugCellAt` → `{char:'◆',
+role:'ore'}` at (38,17). Shots:
+`docs/design-reviews/2026-08-06-land-polish-slice2/` (`desk-t1-d0.png`,
+`desk-joined.png`, `desk-dmg.png`). **Frozen bars for Harry's eyeball
+(copied verbatim, frozen 2026-08-05 before implementation):** (1)
+Monument: reads as built architecture with an entrance. KILL: noisier
+blob → revert to the column, rethink at mockup level. (2) Constellations:
+≥1 figure reads as deliberate; sky NO busier. KILL: more cluttered →
+remove figures, keep scatter. (3) Cloud drift: noticeable in ~10 s,
+invisible at a glance. KILL: draws the eye from across the room → halve
+speed once; still pulls focus → ship static. (4) Ore: "rock with veins",
+not confetti. KILL: confetti → halve count once; still confetti → pull
+the role. (5) Sign posts: site furniture; reveal feels unchanged. KILL:
+stray glyphs → omit everywhere. (6) gameboy-dmg: sky blank, crowns
+blank, judged bands unmoved, doors present.
+
 **Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan
 `docs/superpowers/plans/2026-08-01-murals-on-land.md`, commits
