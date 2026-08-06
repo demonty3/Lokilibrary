@@ -30,7 +30,10 @@ import { buildScatterTable } from '../src/procedural/scatter.ts';
 import { TILE_BY_ID } from '../src/procedural/tiles/library.ts';
 import { activityGlyphFor } from '../src/procedural/clusters.ts';
 import type { ClusterActivity } from '../src/procedural/clusters.ts';
-import { MOON_GLYPH, SKY_DITHER_GLYPHS, WING_SIL_SHAPES } from '../src/procedural/land.ts';
+import {
+  MOON_GLYPH, SKY_DITHER_GLYPHS, WING_SIL_SHAPES,
+  MONUMENT_BODY, MONUMENT_CROWN, MONUMENT_DOOR, ORE_GLYPH, SIGNPOST_GLYPHS,
+} from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
 import { MURAL_RAMP } from '../src/render/muralCells.ts';
@@ -102,6 +105,14 @@ add(MOON_GLYPH, 'land.ts MOON_GLYPH (celestial pass)');
 
 // 4b-iii. Closed-wing skyline silhouettes (land polish #19) — imported real source.
 add(WING_SIL_SHAPES.join(''), 'land.ts WING_SIL_SHAPES (closed-wing skyline)');
+
+// 4b-iv. Land polish #19 slice 2 — monument architecture, ore veins, sign
+// posts (imported real source).
+add(MONUMENT_BODY.join(''), 'land.ts MONUMENT_BODY (monument architecture)');
+add(MONUMENT_CROWN, 'land.ts MONUMENT_CROWN (monument architecture)');
+add(MONUMENT_DOOR, 'land.ts MONUMENT_DOOR (monument architecture)');
+add(ORE_GLYPH, 'land.ts ORE_GLYPH (ore veins)');
+add(SIGNPOST_GLYPHS.join(''), 'land.ts SIGNPOST_GLYPHS (sign posts)');
 
 // 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
 add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');

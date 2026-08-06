@@ -78,14 +78,15 @@ const bandCensus = (model: LandModel): Partial<Record<LandRole, number>> => {
     }
   return n;
 };
+// re-frozen 2026-08-06 (#19 slice 2 land re-roll)
 const GOLDEN: Partial<Record<LandRole, number>> = {
-  star: 56,
-  starBright: 7,
+  star: 62,
+  starBright: 10,
   cloud: 14,
-  sun: 2,
+  sun: 1,
   moon: 1,
   ridgeFar: 43,
-  monument: 3,
+  monument: 6,
 };
 const census = bandCensus(m);
 for (const [role, want] of Object.entries(GOLDEN) as Array<[LandRole, number]>)

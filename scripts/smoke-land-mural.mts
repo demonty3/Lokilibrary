@@ -24,12 +24,13 @@ check('no mural field without opts.mural', off.mural === undefined);
 check('no mural roles without opts.mural',
   !off.role.some((row) => row.some((r) => r === 'mural' || r === 'muralFrame')));
 
-// golden: no-mural compose output frozen 2026-08-01 (murals slice) — a
-// change here means the mural-off path is no longer byte-identical.
+// golden: no-mural compose output re-frozen 2026-08-06 (#19 slice 2 land
+// re-roll) — a change here means the mural-off path is no longer
+// byte-identical.
 const NO_MURAL_GOLDEN: Record<string, string> = {
-  seed7: '19eda7d7',
-  seed41: '93f3431a',
-  join: '19eda7d7',
+  seed7: '6fe56cde',
+  seed41: '1b1ab10c',
+  join: '6fe56cde',
 };
 check('no-mural golden: seed 7', hash(off) === NO_MURAL_GOLDEN.seed7, hash(off));
 check('no-mural golden: seed 41',
