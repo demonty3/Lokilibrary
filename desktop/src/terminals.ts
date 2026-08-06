@@ -24,14 +24,17 @@
  */
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
+import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
 import { getMode, getSociety, getTerminals, setMode, setSociety, setTerminals, type Mode } from './config';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { startThrottleController, stopThrottleController } from './wallpaper/throttle';
-import { broadcast } from './broadcast';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
-import { registerWindow } from './broadcast';
+import { broadcast, registerWindow } from './broadcast';
 
+/** Peek hotkey label for the tray item. main.ts owns the registration (it
+ *  binds the accelerator for both the palace and the desk). */
+const PEEK_ACCELERATOR = 'CmdOrCtrl+Alt+L';
 
 // Sized so two terminals tile side-by-side on a 1440-wide display with
 // margin — a half-offscreen window invites macOS to shuffle its neighbours,
@@ -163,7 +166,13 @@ function settle(id: string): void {
   persistTerminals();
 }
 
-export function startTerminalsMode(count: number, rendererUrl: string): void {
+/** Returns the desk's handle for main.ts — currently just peek, which main.ts
+ *  binds to the global accelerator (registered in BOTH branches now; it used
+ *  to sit after the terminals early-return, so the desk never had it). */
+export function startTerminalsMode(
+  count: number,
+  rendererUrl: string,
+): { togglePeek: () => void } {
   const settleTimers = new Map<string, NodeJS.Timeout>();
 
   function spawnTerminal(id: string, wing: string, x: number, y: number): void {
@@ -288,8 +297,79 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     }
   }
 
+  /** Peek: the desk's ONLY interaction path while wallpapered.
+   *
+   *  SPIKE-A (2026-08-06) settled that this is not a choice. At the desktop
+   *  level — and even one level ABOVE the desktop icons, with click-through
+   *  off and the activation policy left alone — the WindowServer routes no
+   *  mouse events to the window at all: a real CGEvent click on a site did
+   *  nothing, and a real CGEvent drag left bounds byte-identical. So a
+   *  wallpapered desk is ambience, and peek is how you reach it.
+   *
+   *  Desk-wide by construction: all N lift together, arrangement preserved,
+   *  and everything (drag, snap, joins, crossings, the launcher) works
+   *  exactly as it does in window mode until the desk drops back. */
+  let deskPeeking = false;
+
+  function toggleDeskPeek(): void {
+    if (deskMode !== 'wallpaper') {
+      // eslint-disable-next-line no-console
+      console.log('[peek] ignored — only meaningful in wallpaper mode');
+      return;
+    }
+    deskPeeking = !deskPeeking;
+    if (deskPeeking) {
+      // Stop the controller first so its watchdog can't race the transition
+      // (the palace's togglePeek does the same, for the same reason).
+      stopThrottleController();
+      broadcast('throttle:state-change', { state: 'full', isInitial: true });
+      exitAll();
+      for (const t of terminals.values()) {
+        if (!t.win.isDestroyed()) t.win.setAlwaysOnTop(true);
+      }
+      // ONE app-level focus, then the FIRST window only. Focusing N windows
+      // in a loop fights the WindowServer and ends with an arbitrary winner.
+      app.focus({ steal: true });
+      const first = [...terminals.values()].find((t) => !t.win.isDestroyed());
+      first?.win.focus();
+      // A peek is a deliberate "I am here and looking at the desk" — better
+      // evidence of return than a stray mousemove, and in wallpaper mode the
+      // pointer/focus paths are dead, so this is how an away being comes
+      // back. Peek-OFF is you leaving, so it does not fire.
+      broadcast('desk:attention');
+    } else {
+      for (const t of terminals.values()) {
+        if (!t.win.isDestroyed()) t.win.setAlwaysOnTop(false);
+      }
+      // Re-enter at whatever bounds each window NOW has, so a drag made
+      // during peek is preserved. No re-snap: settle() already ran on the
+      // drag, and re-running it here could pull together windows the user
+      // deliberately left apart.
+      enterAll();
+      startThrottleController(null, {
+        display: screen.getPrimaryDisplay(),
+        onStateChange: (state, isInitial) => {
+          broadcast('throttle:state-change', { state, isInitial });
+        },
+      });
+    }
+    rebuildTray();
+    broadcast('wallpaper:peekChanged', deskPeeking);
+    // eslint-disable-next-line no-console
+    console.log(`[peek] desk peek ${deskPeeking ? 'on' : 'off'} (${terminals.size} windows)`);
+  }
+
   function applyDeskMode(mode: Mode): void {
     if (mode === deskMode) return; // the tray checkbox auto-fire guard
+    // A mode change wins over peek (palace parity, main.ts:268-272): clear it
+    // first, or a peeked desk would carry alwaysOnTop into window mode.
+    if (deskPeeking) {
+      deskPeeking = false;
+      for (const t of terminals.values()) {
+        if (!t.win.isDestroyed()) t.win.setAlwaysOnTop(false);
+      }
+      broadcast('wallpaper:peekChanged', false);
+    }
     deskMode = mode;
     if (mode === 'wallpaper') {
       enterAll();
@@ -363,6 +443,17 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
           checked: deskMode === 'wallpaper',
           click: () => applyDeskMode('wallpaper'),
         },
+        // Peek is the interaction path while wallpapered, so the tray item is
+        // not a convenience — it is the recovery route if the accelerator is
+        // taken by another app (globalShortcut.register can return false).
+        ...(deskMode === 'wallpaper'
+          ? [
+              {
+                label: deskPeeking ? 'Exit peek' : `Peek (${PEEK_ACCELERATOR})`,
+                click: () => toggleDeskPeek(),
+              } as MenuItemConstructorOptions,
+            ]
+          : []),
         // No Display submenu, deliberately: for a desk of individually
         // positioned windows, picking a display means MOVING N windows to
         // another monitor — an arrangement change, and adjacent to the PRD's
@@ -509,8 +600,13 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     applyDeskMode(mode);
     return deskMode;
   });
+  ipcMain.handle('terminal:debugTogglePeek', () => {
+    toggleDeskPeek();
+    return deskPeeking;
+  });
   ipcMain.handle('terminal:debugDeskState', () => ({
     mode: deskMode,
+    peeking: deskPeeking,
     windows: [...terminals.values()].map((t) => ({
       id: t.id,
       bounds: t.win.isDestroyed() ? null : t.win.getBounds(),
@@ -518,4 +614,6 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
     })),
     joins: joins.map((j) => `${j.left}|${j.right}`),
   }));
+
+  return { togglePeek: toggleDeskPeek };
 }

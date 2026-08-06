@@ -148,6 +148,28 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+/** Phase 4C — register the peek global shortcut. Log the result so false
+ *  (already registered by another app system-wide) is user-actionable rather
+ *  than a silent no-op.
+ *
+ *  Hoisted out of the palace branch for the terminals-as-wallpaper slice: it
+ *  used to sit AFTER the terminals early-return, so the desk never registered
+ *  it at all — and on the desk peek is not a convenience, it is the only way
+ *  to interact with a wallpapered desk. globalShortcut.unregisterAll() in
+ *  window-all-closed already covers both callers. */
+function registerPeekShortcut(onToggle: () => void): void {
+  const registered = globalShortcut.register(PEEK_ACCELERATOR, onToggle);
+  // eslint-disable-next-line no-console
+  console.log(`[peek] registered ${PEEK_ACCELERATOR} (${registered})`);
+  if (!registered) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[peek] ${PEEK_ACCELERATOR} appears to be in use by another app; ` +
+        'peek hotkey will not fire. Use the tray "Peek" item instead.',
+    );
+  }
+}
+
 function createTray(): Tray {
   // Compiled main.js sits at desktop/dist/main.js; the asset is at
   // desktop/assets/tray-icon.png. Two levels up.
@@ -452,7 +474,8 @@ void app.whenReady().then(() => {
   const terminalCount =
     process.env.LOKILIBRARY_TERMINALS === undefined ? 2 : Number(process.env.LOKILIBRARY_TERMINALS) || 0;
   if (terminalCount >= 2) {
-    startTerminalsMode(terminalCount, rendererUrl());
+    const desk = startTerminalsMode(terminalCount, rendererUrl());
+    registerPeekShortcut(() => desk.togglePeek());
     return;
   }
 
@@ -469,19 +492,7 @@ void app.whenReady().then(() => {
 
   tray = createTray();
 
-  // Phase 4C — register the peek global shortcut. Log the result so
-  // false (already registered by another app system-wide) is
-  // user-actionable rather than a silent no-op.
-  const registered = globalShortcut.register(PEEK_ACCELERATOR, () => togglePeek());
-  // eslint-disable-next-line no-console
-  console.log(`[peek] registered ${PEEK_ACCELERATOR} (${registered})`);
-  if (!registered) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[peek] ${PEEK_ACCELERATOR} appears to be in use by another app; ` +
-        'peek hotkey will not fire. Use the tray "Peek" item instead.',
-    );
-  }
+  registerPeekShortcut(() => togglePeek());
 
   const initialMode = getMode();
   // eslint-disable-next-line no-console

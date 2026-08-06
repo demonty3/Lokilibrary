@@ -63,6 +63,7 @@ export interface ElectronAPI {
   getPeeking(): Promise<boolean>;
   togglePeek(): Promise<boolean>;
   onPeekChanged(cb: (peeking: boolean) => void): () => void;
+  onDeskAttention(cb: () => void): () => void;
 
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
@@ -329,6 +330,23 @@ export function subscribePeek(
     return () => undefined;
   }
   return api.onPeekChanged(cb);
+}
+
+/**
+ * The user's attention returned to the desk — fired by the main process on
+ * peek-ON. In wallpaper mode the desk is click-through and the app is
+ * 'accessory', so the launcher beat's pointer and focus triggers are both
+ * dead; this is the surviving return-from-away signal. Same defensive shape
+ * as the peek helpers: web build (or a stale preload) is a silent no-op.
+ */
+export function subscribeDeskAttention(cb: () => void): () => void {
+  const api = getElectronAPI();
+  if (!api) return () => undefined;
+  if (typeof api.onDeskAttention !== 'function') {
+    warnStalePreload('onDeskAttention');
+    return () => undefined;
+  }
+  return api.onDeskAttention(cb);
 }
 
 /**

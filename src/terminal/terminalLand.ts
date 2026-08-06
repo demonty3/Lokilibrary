@@ -91,6 +91,7 @@ import {
   subscribeTerminalNeighbourSummary,
   subscribeTerminalTopology,
   subscribeThrottle,
+  subscribeDeskAttention,
   terminalAgentExit,
   terminalAgentSpawn,
   terminalReportNearEdge,
@@ -1101,6 +1102,9 @@ export async function mountTerminalLand(
     throttleState = s;
     applyThrottle(s);
   });
+  // Peek counts as attention: a deliberate "I am here and looking at the
+  // desk" is better evidence of return than a stray mousemove.
+  const unsubDeskAttention = subscribeDeskAttention(onAttention);
   const unsubThrottle = subscribeThrottle(({ state, isInitial }) => {
     if (shouldFireAttention(throttleState, state, isInitial)) onAttention();
     throttleState = state;
@@ -1790,6 +1794,7 @@ export async function mountTerminalLand(
     unsubEnter();
     unsubNeighbour();
     unsubThrottle();
+    unsubDeskAttention();
     app.ticker.remove(tick);
     app.canvas.removeEventListener('pointermove', onPointerMove);
     app.canvas.removeEventListener('pointerdown', onPointerDown);

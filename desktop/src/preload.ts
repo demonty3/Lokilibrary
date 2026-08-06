@@ -104,6 +104,12 @@ export interface ElectronAPI {
    *  function. */
   onPeekChanged(cb: (peeking: boolean) => void): () => void;
 
+  /** The user's attention returned to the desk. Fired on peek-ON only
+   *  (peek-off is you leaving). In wallpaper mode the desk is click-through
+   *  and the app is 'accessory', so pointer and focus are BOTH dead — this
+   *  is how a being who went into a game gets to come back. */
+  onDeskAttention(cb: () => void): () => void;
+
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md) ----
   // Present on every window but only live in terminals mode
   // (LOKILIBRARY_TERMINALS=N); the palace renderer never calls these.
@@ -211,6 +217,11 @@ const api: ElectronAPI = {
     const handler = (_e: IpcRendererEvent, peeking: boolean): void => cb(peeking);
     ipcRenderer.on('wallpaper:peekChanged', handler);
     return () => ipcRenderer.off('wallpaper:peekChanged', handler);
+  },
+  onDeskAttention: (cb) => {
+    const handler = (): void => cb();
+    ipcRenderer.on('desk:attention', handler);
+    return () => ipcRenderer.off('desk:attention', handler);
   },
   terminalGetTopology: () =>
     ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>,
