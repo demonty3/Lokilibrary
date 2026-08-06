@@ -27,6 +27,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'el
 import * as path from 'path';
 import { getSociety, getTerminals, setSociety, setTerminals } from './config';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
+import { registerWindow } from './broadcast';
 
 // Sized so two terminals tile side-by-side on a 1440-wide display with
 // margin — a half-offscreen window invites macOS to shuffle its neighbours,
@@ -179,6 +180,7 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
         nodeIntegration: true,
       },
     });
+    registerWindow(win); // throttle / mode / peek / attention fan-out
     win.once('ready-to-show', () => win.show());
     const sep = rendererUrl.includes('?') ? '&' : '?';
     void win.loadURL(`${rendererUrl}${sep}terminal=${id}&wing=${wing}`);

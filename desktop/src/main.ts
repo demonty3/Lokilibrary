@@ -24,6 +24,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen,
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'node:path';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
+import { broadcast, registerWindow, targetCount } from './broadcast';
 import { getDisplayId, getMode, setDisplayId, setMode, type Mode } from './config';
 import {
   getCurrentThrottleState,
@@ -129,6 +130,7 @@ function createWindow(): BrowserWindow {
   win.once('ready-to-show', () => win.show());
   void win.loadURL(rendererUrl());
   mainWindow = win;
+  registerWindow(win); // throttle / mode / peek fan-out (broadcast.ts)
 
   // Phase 5C.2b — drag-drop safety. With contextIsolation:false +
   // nodeIntegration:true, a file dropped ANYWHERE in the window (outside
@@ -289,12 +291,9 @@ function applyMode(mode: Mode): void {
   }
   setMode(mode);
   if (tray) rebuildTrayMenu(tray);
-  try {
-    mainWindow.webContents.send('wallpaper:modeChanged', mode);
-  } catch {
-    // webContents may not be ready on early startup; the renderer can
-    // poll getWallpaperMode() on mount as a backstop.
-  }
+  // webContents may not be ready on early startup; the renderer polls
+  // getWallpaperMode() on mount as a backstop (broadcast swallows the throw).
+  broadcast('wallpaper:modeChanged', mode);
 }
 
 /** Phase 4C — toggle "peek" state. When peeking on, fully exit
@@ -352,27 +351,18 @@ function togglePeek(): void {
  *  to show a "press Ctrl+Alt+L to exit peek" hint or any other
  *  peek-aware UI. Same pattern as wallpaper:modeChanged. */
 function notifyPeek(): void {
-  if (!mainWindow) return;
-  try {
-    mainWindow.webContents.send('wallpaper:peekChanged', peeking);
-  } catch {
-    // pre-load: renderer reads getPeeking() on mount as a backstop.
-  }
+  broadcast('wallpaper:peekChanged', peeking);
 }
 
 /** Broadcast throttle changes to the renderer. Separate from the
  *  controller's onStateChange callback so the IPC details stay in main
  *  and the throttle module stays Electron-API-light. */
 function emitThrottleChange(state: ThrottleState, isInitial: boolean): void {
-  if (!mainWindow) return;
   // eslint-disable-next-line no-console
-  console.log(`[throttle/ipc] sending state=${state} isInitial=${isInitial}`);
-  try {
-    mainWindow.webContents.send('throttle:state-change', { state, isInitial });
-  } catch {
-    // Same backstop as wallpaper:modeChanged — the renderer can poll
-    // throttle:getCurrent on mount.
-  }
+  console.log(
+    `[throttle/ipc] sending state=${state} isInitial=${isInitial} targets=${targetCount()}`,
+  );
+  broadcast('throttle:state-change', { state, isInitial });
 }
 
 // --- IPC bridge ----------------------------------------------------------

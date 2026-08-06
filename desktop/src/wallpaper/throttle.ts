@@ -604,7 +604,10 @@ function startIdleController(opts: ThrottleControllerOptions): void {
  *  first poll so the renderer can configure its Ticker before any frame
  *  budget is wasted. */
 export function startThrottleController(
-  win: BrowserWindow,
+  /** null = no single owning window (the terminals desk, which is N windows).
+   *  Only the Win32 branch needs a handle; the macOS idle ladder ignores it
+   *  entirely, so ONE controller legitimately serves the whole desk. */
+  win: BrowserWindow | null,
   opts: ThrottleControllerOptions,
 ): void {
   stopThrottleController(); // idempotent reset
@@ -618,7 +621,7 @@ export function startThrottleController(
   // fine: the wallpaper sits behind everything, so a covering app hides it
   // for free.
   const w = getWin32();
-  if (!w) {
+  if (!w || !win) {
     startIdleController(opts);
     return;
   }
