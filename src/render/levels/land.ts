@@ -143,6 +143,10 @@ export const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   muralFrame: 'fg', // structure register, NOT fgBright (beings' reserved contract)
   wingSil: 'fgDim',
   wingMark: 'fgDim',
+  monumentCrown: 'yellow', // the old ☼ borrowed 'sun' (also yellow) — same look, decoupled role
+  door: 'blue', // apertures are blue (the seam/door/window dialect, ROLE_DEFAULTS.seam)
+  ore: 'yellow',
+  signpost: 'fgDim',
 };
 
 /** Roles whose glyphs live machinery owns: wear re-texts the crust layer
@@ -160,6 +164,7 @@ export const LAND_GLYPH_LOCKED: ReadonlySet<LandRole> = new Set<LandRole>([
   'mural',
   'muralFrame',
   'wingMark', // wing-id text, like label — a dialect glyph would erase the name
+  'door', // a door that dialects into noise stops reading as a door; omit-locked via derivation too
 ]);
 
 /** Roles a style pack's landRamp may never step (enforced here AND by

@@ -74,7 +74,11 @@ export type LandRole =
   | 'mural'       // reserved interior of the framed mural (blank in the model; pixels are render-side)
   | 'muralFrame'  // the box-drawing frame + name cartouche
   | 'wingSil'     // skyline silhouette of a wing with no open terminal (land polish #19)
-  | 'wingMark';   // the faint wing id under its silhouette
+  | 'wingMark'      // the faint wing id under its silhouette
+  | 'monumentCrown' // the monument's ☼ finial (#19 slice 2 — own role, so packs choose crown visibility independently of their sky)
+  | 'door'          // the monument's ground-level opening (glyph-locked; the future launcher beat lands here)
+  | 'ore'           // mineral glints in stone/bedrock (#19 slice 2)
+  | 'signpost';     // standing post at a surface site — the proximity label's furniture (#19 slice 2)
 
 /** A labelled site: where a game's name is drawn, for renderers that manage
  *  label visibility themselves (the terminal land's proximity reveal). */
