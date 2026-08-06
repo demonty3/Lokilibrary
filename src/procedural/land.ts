@@ -44,6 +44,11 @@ export const MONUMENT_DOOR = '▯';
 /** #19 slice 2 ore glyph — exported for smoke-land-ore + smoke-glyph-coverage. */
 export const ORE_GLYPH = '◆';
 
+/** #19 slice 2 sign post — head over post, stamped beside each surface site.
+ *  Exported for smoke-land-signpost + smoke-glyph-coverage. */
+export const SIGNPOST_GLYPHS = ['┬', '│'] as const;
+export const SIGNPOST_OFFSET = 3;
+
 /** #19 slice 2 constellation figures — [dx, dy] offsets; point 0 is the
  *  bright anchor (`✦`), the rest dim (`·`). Arrangements of the existing
  *  star roles, so blank-sky packs stay blank by construction. Exported for
@@ -609,6 +614,21 @@ export function composeLand(
     const gy = surfaceY(x);
     set(x, gy - 1, '♣', 'foliage');
     set(x, gy - 2, '♣', 'foliage');
+  }
+
+  // Sign posts (#19 slice 2): a small standing post beside each surface
+  // site — the furniture the proximity-revealed name hangs off. The reveal
+  // itself (model.sites, siteLabels.ts) is untouched. Collision → skip: a
+  // missing post is fine, a mangled one is not. Buried relics get no post.
+  for (const l of labels) {
+    if (l.kind !== 'surface') continue;
+    const px = l.x + SIGNPOST_OFFSET;
+    if (px < 1 || px >= cols - 1 || inJoinBuffer(px)) continue;
+    if (hallSpan && px >= hallSpan[0] - 1 && px <= hallSpan[1] + 1) continue;
+    const gyp = surfaceY(px);
+    if (role[gyp - 1]?.[px] !== 'sky' || role[gyp - 2]?.[px] !== 'sky') continue;
+    set(px, gyp - 2, SIGNPOST_GLYPHS[0], 'signpost');
+    set(px, gyp - 1, SIGNPOST_GLYPHS[1], 'signpost');
   }
 
   // --- Labels last, on a cleared strip so they read ------------------------
