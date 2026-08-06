@@ -451,12 +451,16 @@ ipcMain.handle('steam:getAuthTicket', async () => {
 void app.whenReady().then(() => {
   initSteam();
 
-  // T0 spike — snapping-terminals mode (docs/PRD-snapping-terminals.md).
-  // `LOKILIBRARY_TERMINALS=N` boots N terminal windows + the topology broker
-  // instead of the palace window. Window-mode only: no tray, no wallpaper
-  // restore, no peek (those singletons get a real multi-window registry in
-  // T1). Early-return keeps the default path byte-identical.
-  const terminalCount = Number(process.env.LOKILIBRARY_TERMINALS) || 0;
+  // Terminals-first (2026-08-06, Harry's call): the desk IS the product, so
+  // a plain launch boots it — 2 terminal windows + the topology broker.
+  // `LOKILIBRARY_TERMINALS=N` (N ≥ 2) sets the window count; `=0` (or 1)
+  // boots the palace window instead — it stays in-tree as the reference
+  // implementation, one env var away. Terminals mode has its own tray
+  // ("New terminal" spawns the next wing); the known gap until the
+  // terminals-as-wallpaper migration item lands is wallpaper mode + peek,
+  // which remain palace-only.
+  const terminalCount =
+    process.env.LOKILIBRARY_TERMINALS === undefined ? 2 : Number(process.env.LOKILIBRARY_TERMINALS) || 0;
   if (terminalCount >= 2) {
     startTerminalsMode(terminalCount, rendererUrl());
     return;

@@ -95,10 +95,11 @@ One-time Steamworks SDK setup (and the Windows/WSL gotchas):
 
 ## Snapping terminals — worlds that join
 
-The demo at the top of this page. `LOKILIBRARY_TERMINALS=N` boots N
-frameless terminal windows instead of the palace — each one holds a wing of
-your library as a side-on living land, with its own beings. The windows are
-real OS windows, and the magic is in how they compose:
+The demo at the top of this page — and what a plain launch boots (two
+windows by default; `LOKILIBRARY_TERMINALS=N` sets the count, `=0` boots
+the top-down palace instead). Each frameless terminal window holds a wing
+of your library as a side-on living land, with its own beings. The windows
+are real OS windows, and the magic is in how they compose:
 
 - **Drag two windows side by side** and they snap edge-to-edge. The walls
   open, the ground lines up into one continuous terrain (both windows derive
@@ -115,9 +116,9 @@ real OS windows, and the magic is in how they compose:
   unused wing (up to six).
 
 ```sh
-npm run dev                          # terminal 1 — the renderer
-cd desktop && LOKILIBRARY_TERMINALS=2 npm run dev   # terminal 2
-# (PowerShell: $env:LOKILIBRARY_TERMINALS=2; npm run dev)
+npm run dev                # terminal 1 — the renderer
+cd desktop && npm run dev  # terminal 2 — boots the two-window desk
+# (LOKILIBRARY_TERMINALS=N for more windows; =0 for the palace)
 ```
 
 Then drag the windows together by their `┤ wing ├` glyph strip.
