@@ -374,8 +374,27 @@ export function composeLand(
   // and only lands where every point sits on a sky-register cell, so the
   // sun, moon and clouds always survive. ≤8 placement re-rolls (the skyline
   // precedent); a crowded sky keeps its scatter — a missing figure is fine.
-  const clearable = (r: LandRole | undefined): boolean =>
-    r === 'sky' || r === 'star' || r === 'starBright' || r === 'skyDither';
+  // Mural-rect exclusion (live-found 2026-08-06): the mural pass runs LATER
+  // in this function and unconditionally clears its rect, mechanically
+  // evicting anything stamped earlier — same eviction the skyline pass
+  // already accounts for. Figures placed before knowing that meant a figure
+  // could land inside the rect and lose points once the mural stamped over
+  // it (design doc's "avoiding... murals rect" wasn't actually enforced).
+  // The rect's geometry is pure arithmetic (no RNG), so it's safe to
+  // precompute here and feed into the fit check without touching the
+  // skyRng draw sequence — the no-mural path is untouched (muralRect stays
+  // null, `clearable` behaves exactly as before).
+  const muralRect = (() => {
+    if (!opts.mural) return null;
+    const flagship = games.find((g) => g.state !== 'abandoned');
+    if (flagship?.appid === undefined || cols < MURAL_MIN_COLS || SKY_H < MURAL_MIN_SKY) return null;
+    const ox = Math.floor((cols - (MURAL_INTERIOR_W + 2)) / 2);
+    return { x0: ox, x1: ox + MURAL_INTERIOR_W + 2, y0: 2, y1: 2 + MURAL_INTERIOR_H + 2 };
+  })();
+  const inMuralRect = (x: number, y: number): boolean =>
+    muralRect !== null && x >= muralRect.x0 && x < muralRect.x1 && y >= muralRect.y0 && y < muralRect.y1;
+  const clearable = (r: LandRole | undefined, x: number, y: number): boolean =>
+    (r === 'sky' || r === 'star' || r === 'starBright' || r === 'skyDither') && !inMuralRect(x, y);
   const figureCount = skyRng.next() < 0.5 ? 2 : 3;
   for (let f = 0; f < figureCount; f++) {
     const fig = CONSTELLATIONS[f % CONSTELLATIONS.length];
@@ -387,7 +406,7 @@ export function composeLand(
     for (let tries = 0; tries < 8 && !ok; tries++) {
       ox = skyRng.range(2, Math.max(3, cols - fw - 2));
       oy = skyRng.range(1, Math.max(2, Math.floor(SKY_H / 2)));
-      ok = fig.every(([dx, dy]) => clearable(role[oy + dy]?.[ox + dx]));
+      ok = fig.every(([dx, dy]) => clearable(role[oy + dy]?.[ox + dx], ox + dx, oy + dy));
     }
     if (!ok) continue;
     for (let yy = oy - 1; yy <= oy + fh; yy++)
