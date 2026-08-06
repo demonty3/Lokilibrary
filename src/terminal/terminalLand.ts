@@ -34,6 +34,17 @@
 
 import { Application, BitmapText, Container, Graphics, type Filter } from 'pixi.js';
 import { themeFxList, type Theme } from '../themes/types';
+import {
+  beatOffset,
+  bobOffset,
+  IDLE_BEAT_DUR,
+  IDLE_BEAT_S,
+  IDLE_TURN_CHANCE,
+  LEAN_PX,
+  stepGait,
+  stepLean,
+  stepMoving,
+} from './beingAnim';
 import { createGlowFilter } from '../render/fx/glow';
 import {
   COZETTE_CELL_HEIGHT as CH,
@@ -144,9 +155,8 @@ const CROSS_COOLDOWN_S = 4;
 const NEAR_EDGE_REPORT_S = 1;
 /** Wear flush cadence (seconds; dirty-gated — never per footstep). */
 const WEAR_FLUSH_S = 30;
-/** Idle bob: local px amplitude + speed. */
-const BOB_PX = 1.5;
-const BOB_HZ = 1.6;
+/** Being liveliness (breath/gait/lean/idle beats) lives in beingAnim.ts —
+ *  it owns its own amplitude + cadence consts, the siteLabels.ts posture. */
 /** Crossing juice durations (seconds). */
 const EXIT_S = 0.25;
 const ENTER_S = 0.25;
@@ -198,7 +208,18 @@ interface Being {
   pausedUntil: number; // hesitation beat after a re-pick
   /** Anti-ping-pong: a just-entered being may not exit until this. */
   crossCooldownUntil: number;
+  /** Liveliness channels (beingAnim.ts): breath phase, gait phase, the drawn
+   *  facing + its eased lean, the walk/stand blend, and the live idle beat.
+   *  `face` is the DRAWN facing only — `dir` above stays the behaviour /
+   *  handoff / state() channel, so an idle turn can never perturb a crossing. */
+  face: 1 | -1;
+  lean: number;
+  moving: number;
+  gaitPhase: number;
   bobPhase: number;
+  idleBeat: { startedS: number; turn: boolean } | null;
+  /** Next elapsed-second at which a stationary being may fidget. */
+  idleBeatAt: number;
   /** Last integer column counted toward footfall wear. */
   lastCol: number;
   text: BitmapText;
@@ -266,6 +287,19 @@ declare global {
       debugPlace(id: string, x: number, dir: 1 | -1, hold?: boolean): boolean;
       /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
       debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
+      /** e2e only — live liveliness readback. `dx`/`dy` are the DRAWN
+       *  sub-cell offsets in local px (sprite minus ground truth), not the
+       *  model x, so bob/gait/lean/beat can be asserted on screen. */
+      debugBeings(): Array<{
+        id: string;
+        x: number;
+        dx: number;
+        dy: number;
+        face: 1 | -1;
+        moving: number;
+        beat: boolean;
+        intent: string;
+      }>;
       /** e2e only — the proximity-label sites + their live fade alphas. */
       debugLabels(): Array<{ text: string; x: number; y: number; kind: string; alpha: number }>;
       /** e2e only — force footfall on a column (n passes); true if worn. */
@@ -808,7 +842,15 @@ export async function mountTerminalLand(
       nextIntentAt: elapsedS + (INTENT_S[0] + rng() * INTENT_S[1]) * persona.intentWindowMult,
       pausedUntil: 0,
       crossCooldownUntil: 0,
+      face: dir,
+      lean: dir * LEAN_PX,
+      moving: 0,
+      // Seeded phases (fnv1a, like bobPhase) so nobody breathes or steps in
+      // sync; the beat clock jitters off the same rng() stream as speed.
+      gaitPhase: (fnv1a(`${id}/gait`) % 628) / 100,
       bobPhase: (fnv1a(id) % 628) / 100,
+      idleBeat: null,
+      idleBeatAt: elapsedS + IDLE_BEAT_S[0] + rng() * IDLE_BEAT_S[1],
       lastCol: Math.round(x),
       text,
       pending: false,
@@ -1336,6 +1378,7 @@ export async function mountTerminalLand(
       b.text.visible = b.mind.present;
       if (!b.mind.present) continue;
 
+      const x0 = b.x;
       if (!b.pending) {
         // BT re-pick on cadence (or forced when an intent invalidates).
         if (elapsedS >= b.nextIntentAt) {
@@ -1459,8 +1502,29 @@ export async function mountTerminalLand(
         }
       }
 
-      b.text.x = Math.round(b.x * CW);
-      b.text.y = surfaceLocalY(b.x) + Math.sin(elapsedS * BOB_HZ * 6.283 + b.bobPhase) * BOB_PX;
+      // Liveliness (beingAnim.ts). The gait rides DISTANCE walked, the
+      // walk/stand blend and the facing lean ride dt, and a being that has
+      // not moved gets seeded idle beats so a 6-18 s rest reads as loitering
+      // rather than as a frozen prop. Deliberately outside the !b.pending
+      // block: a being waiting on the broker stands still and should fidget.
+      const moved = Math.abs(b.x - x0);
+      b.gaitPhase = stepGait(b.gaitPhase, moved);
+      b.moving = stepMoving(b.moving, moved > 0, dt);
+      if (moved > 0) b.face = b.dir;
+      if (moved === 0 && b.idleBeat === null && elapsedS >= b.idleBeatAt) {
+        const turn = rng() < IDLE_TURN_CHANCE;
+        if (turn) b.face = b.face === 1 ? -1 : 1;
+        b.idleBeat = { startedS: elapsedS, turn };
+        b.idleBeatAt = elapsedS + IDLE_BEAT_S[0] + rng() * IDLE_BEAT_S[1];
+      } else if (b.idleBeat !== null && elapsedS - b.idleBeat.startedS >= IDLE_BEAT_DUR) {
+        b.idleBeat = null;
+      }
+      b.lean = stepLean(b.lean, b.face, dt);
+
+      // Half-pixel snap, not whole: a 1.3 px lean would be rounded away, and
+      // 0.5 local px = 1 screen px at WORLD_SCALE 2, so it stays crisp.
+      b.text.x = Math.round((b.x * CW + b.lean + beatOffset(b, elapsedS)) * 2) / 2;
+      b.text.y = surfaceLocalY(b.x) + bobOffset(b, elapsedS);
       beingCols.push(b.x);
 
       // Footfall: count column ENTRIES (not frames) toward path wear.
@@ -1601,6 +1665,7 @@ export async function mountTerminalLand(
       // "column ENTRIES", and debugWear-driven e2e reads these counts).
       b.lastCol = Math.round(b.x);
       b.dir = dir;
+      b.face = dir; // a parked being never moves, so nothing else would set it
       // hold: park (rest) so a proximity-reveal shot has time to land.
       b.intent = hold ? { kind: 'rest' } : { kind: 'wander', dir };
       b.pausedUntil = 0;
@@ -1608,6 +1673,17 @@ export async function mountTerminalLand(
       b.nextIntentAt = elapsedS + 30; // hold course long enough to cross
       return true;
     },
+    debugBeings: () =>
+      [...beings.values()].map((b) => ({
+        id: b.id,
+        x: Math.round(b.x * 1000) / 1000,
+        dx: Math.round((b.text.x - b.x * CW) * 1000) / 1000,
+        dy: Math.round((b.text.y - surfaceLocalY(b.x)) * 1000) / 1000,
+        face: b.face,
+        moving: Math.round(b.moving * 1000) / 1000,
+        beat: b.idleBeat !== null,
+        intent: b.intent.kind,
+      })),
     debugDepth: () => ({
       monument: scene.layers.monument?.[0]?.alpha ?? null,
       sun: scene.layers.sun?.[0]?.alpha ?? null,

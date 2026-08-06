@@ -301,6 +301,66 @@ the role. (5) Sign posts: site furniture; reveal feels unchanged. KILL:
 stray glyphs → omit everywhere. (6) gameboy-dmg: sky blank, crowns
 blank, judged bands unmoved, doors present.
 
+**Static-beings liveliness SHIPPED 2026-08-06 — CODE-COMPLETE, eyeball
+PENDING (Harry's live watch against six frozen bars).** The desk's flagged
+next item after the launcher beat. Before this, a being's entire steady-state
+draw was two lines: `x = round(b.x*CW)` and one 1.6 Hz / 1.5 px sine on y that
+ran identically whether the being was sprinting or standing still, so the bob
+carried no information; `b.dir` was tracked by every intent branch and **never
+reached the sprite**, so there was no facing at all. With `INTENT_S [6,6]` ×
+`intentWindowMult` (cat 1.3, ghost 1.5) plus the `HESITATE_S` freeze, a being
+could be a motionless glyph for **18 continuous seconds** — props, not
+inhabitants. Spec:
+`docs/superpowers/specs/2026-08-06-being-liveliness-design.md` (three
+direction calls + the six bars frozen before any code). Shape: **breath vs
+gait, an eased facing lean, and seeded idle beats**. New
+`src/terminal/beingAnim.ts` (~115 lines, pure, PIXI-free, the
+`siteLabels.ts`/`wear.ts` posture) + ~35 lines in `terminalLand.ts`.
+Rules that fell out: **gait phase rides DISTANCE walked, not time** — it takes
+no time argument at all, which is what makes persona speed visible for free,
+makes `WATCH_DRIFT 0.4` read as *slowing down* rather than as the same bob at
+a lower x-rate, and crossfades gait→breath on arrival so `approach`-linger
+reads as *settling* with no code for settling; the hop is shaped `-|sin|` so
+the body rises off the ground line and never sinks below it; the drawn facing
+is a render-only `face`, **deliberately not `b.dir`** (dir rides the seam
+handoff, near-edge reports and `state()`, so an idle turn must never perturb a
+crossing); the anim block sits OUTSIDE the `!b.pending` guard on purpose, so a
+being waiting on the broker fidgets; render x moved from a whole-pixel to a
+**half-pixel** snap, because `Math.round` would have eaten the 1.3 px lean
+entirely (0.5 local px = 1 screen px at `WORLD_SCALE 2`). Zero intent-engine
+change — an `idle` kind would either score (breaking the smoke-enforced
+persona dominance proof) or never score (a second `errand`-shaped dead union
+member); `smoke-t1-being-intents` passes **unchanged**, which is the proof.
+No new AI calls, no wall clock (all `elapsedS`/`dt`, so it freezes cleanly
+under the wallpaper throttle). One dial moved pre-observation: `GAIT_PX`
+1.5 → 2.0, because the hop is one-sided and 1.5 px peak-to-peak would have
+made a *walking* being read as less alive than a standing one (breath is
+±0.9 = 1.8 swing) — caught by the smoke, not by eye. New
+`smoke-being-liveliness` (42 assertions), **mutant-checked seven ways** (fixed
+per-call gait step → red; `dtS <= 0` guards dropped → red; `stepLean` sign
+flipped → red; `IDLE_BEAT_PX` 2.5 → red on the sub-cell cap; `BREATH_PX = 0`
+→ red; plain `sin` gait → red; beat ignoring the `moving` blend → red).
+**The mutants found a real hole in the smoke**: the "a 4 s idle is never flat"
+bar was written as `>= BREATH_PX * 1.8`, so `BREATH_PX = 0` satisfied it
+vacuously — rewritten as an absolute 1.5 px floor. A bar expressed in terms of
+the constant it guards is not a bar. Full 65-smoke sweep + both typecheck legs
+green. New debug hook `__terminal.debugBeings()` (drawn sub-cell `dx`/`dy`,
+not the model x — the `debugDepth()` mould). VERIFIED ON SCREEN (macOS desk,
+t2 frontmost): a parked being holds `moving 0` with a **1.797 px breath swing**
+(≈ 2 × `BREATH_PX`), **20 of 60 sampled frames inside an idle beat**, and
+`face` observed flipping both ways (turn-in-place); a walker holds
+`moving 1` over 3.53 cells with `dy` spanning **-1.999 … -0.02** (full
+`GAIT_PX`, never above the ground line) and **10 gait slope reversals** (a
+cycling gait, not a drift), `face` and lean sign both tracking the walk
+direction; worst observed `|dx|` 2.5 < CW/2 = 3. Nothing regressed: monument
++ sun glow still pulsing, foliage sway still moving, mural `ready`, knits
+`glowStale 0`, and a real click still ran the full errand (`archivist` →
+door 39, `ok:true surface:electron`). Shots:
+`docs/design-reviews/2026-08-06-being-liveliness/` — **context only; a still
+cannot show motion, so all six bars are a live watch.** Note the t1 window
+read as frozen mid-session (`xMoved 0`, stale `dy`) — the occluded-window
+vacuous pass; the readings above are all from the frontmost window.
+
 **Launcher beat SHIPPED 2026-08-06, eyeball PASSED same day — all six bars,
 no kill fired, no dial spent.** Harry watched it live on the two-window desk
 ("bars 1-6 all pass"): the hover affordance read, the click read as sending
