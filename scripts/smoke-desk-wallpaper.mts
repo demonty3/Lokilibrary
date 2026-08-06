@@ -33,6 +33,7 @@ import {
   type CapturedWindowState,
 } from '../desktop/src/wallpaper/wallpaperState.ts';
 import { computeJoins, type TermBounds } from '../desktop/src/topology.ts';
+import { shouldFireAttention, tickerFor } from '../src/terminal/deskThrottle.ts';
 
 const { check, report } = makeChecker('smoke desk-wallpaper');
 
@@ -144,5 +145,27 @@ check(
   JSON.stringify(computeJoins(desk)) === JSON.stringify(joinsBefore),
 );
 check('the desk is still joined after the round-trip', computeJoins(desk).length === 1);
+
+// 7 · The throttle-to-attention gate (src/terminal/deskThrottle.ts). In
+//     wallpaper mode pointer AND focus are both dead, so a wake from idle is
+//     the return signal; without the isInitial gate every mode toggle would
+//     snap all away beings back and the 30-min ceiling would be decorative.
+check('a real wake fires attention', shouldFireAttention('throttled-1hz', 'full', false));
+check('waking from sleeping fires attention', shouldFireAttention('sleeping', 'full', false));
+check('waking from paused fires attention', shouldFireAttention('paused', 'full', false));
+check('full -> full is not a wake', !shouldFireAttention('full', 'full', false));
+check('going TO idle is not a wake', !shouldFireAttention('full', 'throttled-1hz', false));
+check(
+  'an isInitial full does NOT fire (enterWallpaper / peek-off / startup)',
+  !shouldFireAttention('throttled-1hz', 'full', true),
+);
+check('isInitial suppresses even a real-looking wake', !shouldFireAttention('sleeping', 'full', true));
+
+// The ticker ladder, as data — asserted without a PIXI Application.
+check('full is uncapped', tickerFor('full').started && tickerFor('full').maxFPS === 0);
+check('throttled-1hz caps at 1', tickerFor('throttled-1hz').maxFPS === 1);
+check('throttled-1hz keeps running', tickerFor('throttled-1hz').started);
+check('paused stops the ticker', !tickerFor('paused').started);
+check('sleeping stops the ticker', !tickerFor('sleeping').started);
 
 report();

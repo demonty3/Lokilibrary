@@ -86,14 +86,18 @@ import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../proce
 import {
   getTerminalSociety,
   getTerminalTopology,
+  getThrottleState,
   subscribeTerminalAgentEnter,
   subscribeTerminalNeighbourSummary,
   subscribeTerminalTopology,
+  subscribeThrottle,
   terminalAgentExit,
   terminalAgentSpawn,
   terminalReportNearEdge,
   type TerminalJoin,
+  type ThrottleState,
 } from '../api/electron';
+import { shouldFireAttention, tickerFor } from './deskThrottle';
 import { nearEdgeSummary, projectAcrossEdge, type NearEdgeBeing } from './crossEdge';
 import {
   beingAccentRole,
@@ -1071,6 +1075,34 @@ export async function mountTerminalLand(
   app.canvas.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('focus', onWindowFocus);
 
+  // Wallpaper throttle. The desk subscribed to this NOWHERE before — it was
+  // window-mode-only surface — so a wallpapered desk would have run at full
+  // FPS forever. Two jobs:
+  //   1. the ticker ladder (PixiApp.ts's, via tickerFor)
+  //   2. a wake counts as ATTENTION. In wallpaper mode the desk is
+  //      click-through and 'accessory', so pointer AND focus are both dead;
+  //      without this the 30-min ceiling is the only way an away being
+  //      returns. Gated on !isInitial — see deskThrottle.ts.
+  let throttleState: ThrottleState = 'full';
+  const applyThrottle = (state: ThrottleState): void => {
+    const t = tickerFor(state);
+    if (!t.started) {
+      if (app.ticker.started) app.ticker.stop();
+    } else {
+      if (!app.ticker.started) app.ticker.start();
+      app.ticker.maxFPS = t.maxFPS;
+    }
+  };
+  void getThrottleState().then((s) => {
+    throttleState = s;
+    applyThrottle(s);
+  });
+  const unsubThrottle = subscribeThrottle(({ state, isInitial }) => {
+    if (shouldFireAttention(throttleState, state, isInitial)) onAttention();
+    throttleState = state;
+    applyThrottle(state);
+  });
+
   /** The fuse beat: on a fresh join, a bright block runs inward from the seam
    *  along the (now continuous) ground, fading as it goes. Both windows play
    *  it ground-line-aligned, so it reads as one sweep crossing the seam. */
@@ -1748,6 +1780,7 @@ export async function mountTerminalLand(
     unsubTopology();
     unsubEnter();
     unsubNeighbour();
+    unsubThrottle();
     app.ticker.remove(tick);
     app.canvas.removeEventListener('pointermove', onPointerMove);
     app.canvas.removeEventListener('pointerdown', onPointerDown);
