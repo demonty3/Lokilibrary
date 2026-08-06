@@ -5,8 +5,9 @@
  * the SAME wisps from here, drifting on the wall clock — two windows on the
  * same wing agree without a broker channel, and a throttled renderer that
  * wakes simply snaps to where the sky has got to. Speed is wallpaper-scale
- * (a few cells per minute): noticeable in ~10 s of watching, invisible at
- * a glance. Pure + Pixi-free so scripts/smoke-cloud-drift.mts can run it.
+ * (a window crossing every few minutes): noticeable in ~10 s of watching,
+ * ambient at a glance. Pure + Pixi-free so scripts/smoke-cloud-drift.mts
+ * can run it.
  */
 import type { LandModel, LandRole } from '../procedural/land';
 import { fnv1a32 } from '../procedural/seed';
@@ -103,7 +104,12 @@ export function extractWisps(model: LandModel, seed: number): WispSpec[] {
     return {
       row,
       text: run.text,
-      speed: 0.04 + (h % 61) / 1000, // 0.040..0.100 cells/s (2.4..6 cells/min)
+      // 0.25..0.45 cells/s — a window crossing every ~3-5 min. The first cut
+      // (0.04..0.10) moved under a cell per 15 s of watching: mechanically
+      // alive, humanly invisible (Harry, 2026-08-06). This band clears the
+      // bar's "noticeable in ~10 s" leg (~3-4 cells of motion) while staying
+      // ambient; the too-salient direction has its own frozen kill ladder.
+      speed: 0.25 + (h % 61) / 300,
       phase: h % model.width,
       blocked: blockedSpansAt(model, row),
     };

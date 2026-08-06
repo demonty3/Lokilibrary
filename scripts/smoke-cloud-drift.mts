@@ -13,7 +13,9 @@ const wisps = extractWisps(m, 7);
 
 check('two wisps extracted (composer bakes two)', wisps.length === 2, String(wisps.length));
 check('wisp text is the baked glyph run', wisps.every((w) => /^[~ ]+$/.test(w.text) && w.text.length >= 3));
-check('speeds within the wallpaper band', wisps.every((w) => w.speed >= 0.04 && w.speed <= 0.11),
+// Band re-dialed 2026-08-06: 0.04..0.10 was humanly invisible (bar-3 re-watch);
+// 0.25..0.45 gives ~3-4 cells of motion per 10 s of watching.
+check('speeds within the wallpaper band', wisps.every((w) => w.speed >= 0.25 && w.speed <= 0.46),
   JSON.stringify(wisps.map((w) => w.speed)));
 check('deterministic', JSON.stringify(wisps) === JSON.stringify(extractWisps(m, 7)));
 check('seed varies phase', JSON.stringify(extractWisps(m, 8).map((w) => w.phase))
