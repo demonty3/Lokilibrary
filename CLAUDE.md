@@ -42,12 +42,15 @@ been smoke-tested headlessly under WSL until the desktop app started booting
 on macOS. **`STATE.md` is the present-tense source of truth** (this section
 summarises; STATE.md is authoritative); `TODO-USER.md` holds the verification
 backlog, `docs/INDEX.md` the authoritative-doc map, `docs/pivot/CONSOLIDATION.md`
-the v1.0 scope. **Still open: finishing the visual pass + desktop-surface
-QA, then demo readiness (clone-and-run README + the snapping-terminals
-demo). The Steam release gate (electron-builder packaging + Steam Direct
-+ AI-content disclosure) was RETIRED by the 2026-07-11 direction change,
-and the ship-v1.0-vs-expand-v2.x decision resolved with it: consolidate
-to demo-ready, then expand into the snapping-terminals arc.**
+the v1.0 scope. **The demo-readiness bar was MET at v1.0.0 (2026-07-16;
+STATE.md is authoritative) and the build has since expanded into the
+snapping-terminals arc — the desk is now the default boot, with the
+launcher beat, being liveliness, and wallpaper mode + desk peek all
+shipped on 2026-08-06. Still open: the arc's T3/T4/T5 slices, and a
+re-cut of the README's headline demo GIF, which is a T0/T1-era desk
+predating murals, marginalia, land polish, the launcher and liveliness.
+The Steam release gate (electron-builder packaging + Steam Direct +
+AI-content disclosure) was RETIRED by the 2026-07-11 direction change.**
 
 Per-phase history lives in `RETROS/` (one retro per phase).
 

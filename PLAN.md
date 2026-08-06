@@ -77,7 +77,7 @@ murals / #19, not a separate item.
 | T3 — terminal identity + chrome | OPEN (parked, not rejected; glyph-chrome craft resurfaces here) |
 | T4 — topology → reflection | OPEN |
 | T5 — orchestration v0 (Depth-3 gated) | OPEN |
-| Terminals-as-wallpaper | OPEN |
+| Terminals-as-wallpaper | SHIPPED 2026-08-06 (eyeball PENDING) — desk wallpaper mode + desk-wide peek; spec `docs/superpowers/specs/2026-08-06-terminals-as-wallpaper-design.md` |
 
 ## Visual-programme backlog (numbering from the 2026-07-13 review — statuses live here)
 

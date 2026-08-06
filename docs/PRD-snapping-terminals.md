@@ -47,7 +47,15 @@ window layout IS the world's topology. Decisions made with Harry
   wallpaper enter/exit is per-window; `display-picker.ts` helpers are pure.
   Known singletons to refactor: `mainWindow`, global `peeking`, the
   throttle controller, broadcasts hardcoded to one webContents
-  (desktop/src/main.ts:61-370).
+  (desktop/src/main.ts:61-370). **DONE 2026-08-06** (terminals-as-wallpaper):
+  broadcasts now fan out through `desktop/src/broadcast.ts`; peek is per-
+  surface (the palace keeps its `peeking`, the desk owns `deskPeeking`); the
+  throttle controller takes `BrowserWindow | null` and one instance serves N
+  terminals. Wallpaper enter/exit was NOT in fact per-window — it held a
+  module-level `state` whose capture guard silently swallowed the second
+  window — and is now keyed per window in `wallpaper/wallpaperState.ts`.
+  `mainWindow` deliberately SURVIVES as the palace's own handle; only the
+  broadcasts, peek and throttle fan-out were de-singletoned.
 - **In-app pane system (7B):** stays as-is, PARKED for terminals. Its
   seam/roster semantics are the spec the window version implements.
 
@@ -75,6 +83,15 @@ window layout IS the world's topology. Decisions made with Harry
   (pure parts: snap detection, ground alignment, handoff protocol).
 - Wallpaper mode: out of scope for joins in v0 (a wallpaper terminal is
   click-through and pinned; treat it as un-snappable until T3+).
+  **SUPERSEDED 2026-08-06** by the terminals-as-wallpaper slice, and the true
+  reading is narrower: **wallpapered ⇒ un-snappable; peeked ⇒ FULLY
+  snappable.** A wallpapered desk really is un-snappable — SPIKE-A measured it
+  with real CGEvents, and the WindowServer routes no mouse events at any
+  negative window level, so there is nothing to drag. But peek lifts the whole
+  desk together with its arrangement intact, and during peek dragging,
+  snapping, joins, crossings and the launcher all work exactly as in window
+  mode. "Un-snappable" was never a permanent property of the desk, only of the
+  layer it sits on.
 - Sub-character animation preserved: snapping quantises WINDOW BOUNDS to
   the Cozette grid, never sprite movement.
 
@@ -197,8 +214,8 @@ explore the new terminal; opted-out: nothing ever appears.
 | Window-move event spam → broker thrash | Debounce; joins evaluated on settle, not mid-drag |
 | Frameless drag region fights world input | Title row is the only drag region; world input below it |
 | Multi-window Pixi perf | One land per window is light (V0 scene ≈ 30 text layers); throttle controller goes per-terminal in T1 |
-| `mainWindow`/throttle singleton refactor regressions | T0 avoids them (dev flag, window-mode only); T1 does the refactor with the existing wallpaper QA checklist |
-| Wallpaper-mode interactions | Explicitly out of scope until T3+; wallpaper terminal is un-snappable |
+| `mainWindow`/throttle singleton refactor regressions | T0 avoids them (dev flag, window-mode only); T1 does the refactor with the existing wallpaper QA checklist. **T1 shipped WITHOUT it; done 2026-08-06** by terminals-as-wallpaper Legs 1–2 (per-window wallpaper state, `broadcast.ts`, `startThrottleController(win \| null)`) |
+| Wallpaper-mode interactions | Explicitly out of scope until T3+; wallpaper terminal is un-snappable. **RESOLVED 2026-08-06:** wallpapered ⇒ ambience (click-through, measured); peeked ⇒ fully interactive |
 
 ## 7. Sequencing notes
 

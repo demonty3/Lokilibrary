@@ -454,7 +454,103 @@ the palace boot and called it ("I thought we've moved past that");
 the palace stays one env var away (`LOKILIBRARY_TERMINALS=0`) as the
 reference implementation. Wallpaper mode + peek remain palace-only
 until the terminals-as-wallpaper migration item lands; the desk has its
-own tray. README launch instructions updated.
+own tray. README launch instructions updated. **(That gap CLOSED the same
+day — see the terminals-as-wallpaper entry below.)**
+
+**Terminals-as-wallpaper SHIPPED 2026-08-06 — CODE-COMPLETE, eyeball
+PENDING.** The last missing product pillar for the shipped surface:
+CLAUDE.md's first line promises a thing that "lives as a live wallpaper and
+an alt-tab destination, doubles as a launcher", and the desk had two of
+three. Spec:
+`docs/superpowers/specs/2026-08-06-terminals-as-wallpaper-design.md` (three
+direction calls + six bars frozen before code). Six legs, each shipped
+independently: per-window wallpaper state → broadcast registry → throttle
+into the desk renderer → desk wallpaper mode → desk peek → docs.
+
+**SPIKE-A ran first and returned a clean negative that made the direction
+call a measurement instead of an argument.** The plan reasoned that
+`kCGDesktopWindowLevel` sits below Finder's click-eating desktop window. The
+spike tested the alternative's *best* case — `CGWindowLevelForKey(3) + 1 =
+-19`, one level ABOVE the desktop icons, click-through OFF, activation policy
+left at `'regular'` — and the WindowServer still routed nothing: a real
+CGEvent click dead centre on a site returned `{last:null, errand:null,
+hoverX:null}`, and a real CGEvent drag across the 20px strip left bounds
+byte-identical. **Method mattered**: a CDP `Input.dispatchMouseEvent` is
+delivered straight into the renderer and never touches the WindowServer, so
+it would have "passed" while proving nothing; both answers used real
+`CGEvent`s posted to `.cghidEventTap` with every visible app hidden. So
+"interactive wallpaper" is not a dial we declined to turn — there is no
+negative window level where the desk is both behind apps and clickable. The
+third tier is **dead, not deferred**.
+
+Shape: **wallpapered ⇒ click-through read-only ambience; PEEK (Cmd+Alt+L) is
+the interaction path**, lifting all N windows together with the arrangement
+intact. Rules that fell out: the DESK is the unit, not the window (one
+app-wide `config.mode`, zero config diff — `config.ts:76-78` warns an
+unparsed field is erased by the next read-modify-write); terminals enter with
+`bounds:'keep'` because their snapped 640×520 IS the arrangement; **no
+re-snap on either edge**, because nothing moved and re-running `settle()`
+could pull together windows the user deliberately left apart — and join
+invariance across the round-trip is *provable* (`computeJoins` is bounds-pure)
+so it is a smoke assertion, not a hope; peek does ONE `app.focus({steal:true})`
+then focuses the FIRST window only (focusing N in a loop fights the
+WindowServer); a mode change clears peek first, or a peeked desk carries
+`alwaysOnTop` into window mode; **no desk Display submenu, deliberately** —
+for individually positioned windows that means MOVING N windows to another
+monitor. Latent bug fixed *for the palace too*: `macos.ts` held ONE module-
+level `state` whose `priorLevel === null` capture guard silently swallowed the
+second window's capture, so N-window exits corrupted each other; now keyed per
+window in `wallpaper/wallpaperState.ts` with an activation-policy refcount
+(`app.setActivationPolicy` is process-scoped). The **`mainWindow` / peek /
+throttle singleton refactor that `PRD:200` assigned to T1 and T1 never did**
+is done here (`broadcast.ts`; `startThrottleController(win | null)`);
+`mainWindow` deliberately survives as the palace's own handle. The peek
+accelerator sat AFTER the terminals early-return, so the desk had never
+registered it at all.
+
+The away consequence, and why the fix is better than what it replaces: with
+click-through AND `accessory`, all three of the launcher beat's return
+triggers die at once (pointermove, pointerdown, focus — an accessory app's
+window is never key), leaving the 30-minute ceiling as the only way back. Two
+new signals, both through `broadcast('desk:attention')`: **peek-ON** (not
+peek-off, which is you leaving), and a **gated `throttled-1hz → full`** wake.
+A wake can only follow a real idle period, so unlike a mousemove it cannot
+fire spuriously; it is honestly "you came back to the machine", not "to the
+desk", which is *better* — the payoff lands next time you glance at the
+wallpaper. **The gate: `isInitial` never counts**, or every mode toggle snaps
+everyone back and the ceiling becomes decorative.
+
+New: `desktop/src/wallpaper/wallpaperState.ts`, `desktop/src/broadcast.ts`,
+`src/terminal/deskThrottle.ts`, smokes `smoke-desk-wallpaper` (41) +
+`smoke-broadcast` (20), debug IPC `terminal:debugSetMode` /
+`debugTogglePeek` / `debugDeskState` and `__terminal.debugThrottle()`.
+**Mutant-checked twelve ways.** Two mutants earned their keep by NOT going
+red: the broadcast idempotence guard (a `Set` dedupes membership on its own —
+what the guard actually protects is a second `'closed'` listener, so an
+assertion on the listener count was added), and the `resetForTests` seam,
+which zeroed the count but could not clear a `WeakMap`, so stale entries drove
+it to −1.
+
+VERIFIED ON SCREEN (joined two-window desk): both windows to level
+−2147483623 and back to 0; bounds byte-identical (60,160 / 700,160) and the
+`t1|t2` join intact across the transition; four round-trips with `entered
+1→2` on enter and `2→1→0` on exit; 76 s of real idle → ladder fires →
+**both** renderers report `{state:'throttled-1hz', maxFPS:1}` and return to
+`{full, 0}` on wake (that fan-out reaching two windows is exactly what was a
+silent no-op before); peek lifts both to layer 3 with the arrangement intact;
+**a real CGEvent click DURING peek created an errand** (`archivist` →
+`stardew`) where the identical click at desktop level produced nothing; and
+attention three-sided — a being stays away across an EARLY peek, stays away
+after 22 s of waiting with NO peek, and returns on a LATE peek. **Two earlier
+attempts at that last test were vacuous and are not counted**: shell
+round-trips took 56 s where I estimated 14 s, and a later run stamped
+DETECTION rather than the actual away start, so the "early" peek was really
+well past the floor. Only the in-page, click-from-t0 run is evidence.
+
+67 smokes and all three typecheck legs green (`npm run typecheck` covers
+`src` + `worker` only — **`desktop/src` needs `cd desktop && npm run build`**,
+and `scripts/*.mts` are covered by neither). Persisted mode left at `window`.
+**Eyeball PENDING: six frozen bars, `docs/design-reviews/2026-08-06-terminals-as-wallpaper/`.**
 
 **Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan

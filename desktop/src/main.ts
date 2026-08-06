@@ -468,9 +468,9 @@ void app.whenReady().then(() => {
   // `LOKILIBRARY_TERMINALS=N` (N ≥ 2) sets the window count; `=0` (or 1)
   // boots the palace window instead — it stays in-tree as the reference
   // implementation, one env var away. Terminals mode has its own tray
-  // ("New terminal" spawns the next wing); the known gap until the
-  // terminals-as-wallpaper migration item lands is wallpaper mode + peek,
-  // which remain palace-only.
+  // ("New terminal", Window/Wallpaper mode, Peek) and, since 2026-08-06,
+  // its own wallpaper mode + desk-wide peek — the gap this comment used to
+  // record is closed.
   const terminalCount =
     process.env.LOKILIBRARY_TERMINALS === undefined ? 2 : Number(process.env.LOKILIBRARY_TERMINALS) || 0;
   if (terminalCount >= 2) {
