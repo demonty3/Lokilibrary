@@ -71,9 +71,16 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ## Active
 
 ### 🔔 EYEBALL — land polish #19 slice 2
-**Status**: SHIPPED 2026-08-06, all gates green, verified live; awaiting
-your judgement against the bars frozen before implementation (STATE.md
-has the full record).
+**Status**: JUDGED 2026-08-06 — bars 1, 2, 4, 5, 6 PASSED (monument,
+constellations, ore, sign posts, DMG). Bar 3 (cloud drift) OPEN: Harry
+couldn't tell it was working. Diagnosis: the drift is mechanically live
+(CDP readback shows seeded-speed motion) but perceptually absent —
+every window wears a mural (#16), the mural's occlusion span covers
+~60% of the cloud rows, one of the two baked wisps is evicted outright
+where its row crosses the rect, and the survivor spends most of its
+slow crossing faded to zero. This does NOT fire the frozen kill (that
+was for drift drawing TOO MUCH attention); it is a visibility defect in
+the mural interaction. Fix direction under discussion below.
 **What**: look at `docs/design-reviews/2026-08-06-land-polish-slice2/` —
 `desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
 `desk-dmg.png` (gameboy-dmg). Then watch the live desk for ~15 s and see
