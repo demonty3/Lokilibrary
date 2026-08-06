@@ -41,6 +41,16 @@ export const MONUMENT_BODY = ['╔═╗', '║▪║', '║ ║', '║▪║', 
 export const MONUMENT_CROWN = '☼';
 export const MONUMENT_DOOR = '▯';
 
+/** #19 slice 2 constellation figures — [dx, dy] offsets; point 0 is the
+ *  bright anchor (`✦`), the rest dim (`·`). Arrangements of the existing
+ *  star roles, so blank-sky packs stay blank by construction. Exported for
+ *  scripts/smoke-land-constellations.mts. */
+export const CONSTELLATIONS = [
+  [[0, 1], [1, 0], [2, 1], [3, 0], [4, 1]],         // the W
+  [[0, 0], [1, 0], [2, 0], [3, 1], [4, 1], [4, 2]], // the plough
+  [[0, 2], [1, 1], [2, 0], [3, 1]],                 // the arc
+] as const; // as const, NOT an explicit annotation — bare [0, 1] literals widen to number[] and break the [dx, dy] destructuring
+
 export type EngagementState = 'loved' | 'recent' | 'mastered' | 'dusty' | 'abandoned';
 
 export interface LandGame {
@@ -349,6 +359,35 @@ export function composeLand(
   const cloudRow2 = Math.min(SKY_H - 1, Math.max(cloudRow1 + 1, Math.round(SKY_H * 0.55)));
   put(skyRng.range(6, cols - 24), cloudRow1, '~ ~~~~ ~', 'cloud');
   put(skyRng.range(6, cols - 18), cloudRow2, '~~ ~~~', 'cloud');
+
+  // Constellations (#19 slice 2): 2–3 recognisable figures stamped from the
+  // star roles — arrangements, not material. Each figure clears the scatter
+  // in its patch first (figures REPLACE scatter; local density stays calm)
+  // and only lands where every point sits on a sky-register cell, so the
+  // sun, moon and clouds always survive. ≤8 placement re-rolls (the skyline
+  // precedent); a crowded sky keeps its scatter — a missing figure is fine.
+  const clearable = (r: LandRole | undefined): boolean =>
+    r === 'sky' || r === 'star' || r === 'starBright' || r === 'skyDither';
+  const figureCount = skyRng.next() < 0.5 ? 2 : 3;
+  for (let f = 0; f < figureCount; f++) {
+    const fig = CONSTELLATIONS[f % CONSTELLATIONS.length];
+    const fw = Math.max(...fig.map(([dx]) => dx)) + 1;
+    const fh = Math.max(...fig.map(([, dy]) => dy)) + 1;
+    let ox = 0;
+    let oy = 0;
+    let ok = false;
+    for (let tries = 0; tries < 8 && !ok; tries++) {
+      ox = skyRng.range(2, Math.max(3, cols - fw - 2));
+      oy = skyRng.range(1, Math.max(2, Math.floor(SKY_H / 2)));
+      ok = fig.every(([dx, dy]) => clearable(role[oy + dy]?.[ox + dx]));
+    }
+    if (!ok) continue;
+    for (let yy = oy - 1; yy <= oy + fh; yy++)
+      for (let xx = ox - 1; xx <= ox + fw; xx++)
+        if (role[yy]?.[xx] === 'star' || role[yy]?.[xx] === 'starBright') set(xx, yy, ' ', 'sky');
+    fig.forEach(([dx, dy], i) =>
+      set(ox + dx, oy + dy, i === 0 ? '✦' : '·', i === 0 ? 'starBright' : 'star'));
+  }
 
   // --- Far ridge plane (Tier 2 atmospheric perspective): a THIRD plane, one
   // faint ▁ hilltop line well above the near ridge, tinted nearest the sky
