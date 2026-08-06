@@ -29,6 +29,7 @@
  */
 
 import { app, type BrowserWindow, type Display } from 'electron';
+import { beginEnter, endExit, enteredCount, policyFor } from './wallpaperState';
 
 // --- koffi typing (loose; koffi's own .d.ts isn't worth pulling in here) -----
 
@@ -160,22 +161,29 @@ function nsWindowOf(win: BrowserWindow, b: ObjcBridge): unknown {
   return nsWindow ?? null;
 }
 
-// --- Module state (saved on enter, restored on exit) -------------------------
-
-interface WallpaperState {
-  priorLevel: number | null;
-  priorCollectionBehavior: number | null;
-  preWallpaperBounds: Electron.Rectangle | null;
-}
-const state: WallpaperState = {
-  priorLevel: null,
-  priorCollectionBehavior: null,
-  preWallpaperBounds: null,
-};
-
 // --- Public API --------------------------------------------------------------
 
-export function enterWallpaper(win: BrowserWindow, display: Display): void {
+/** How a window joins the desktop.
+ *
+ *  The palace covers the chosen display and goes click-through — that is the
+ *  default, so main.ts's call sites are unchanged. The terminals desk passes
+ *  `bounds: 'keep'`: its snapped 640x520 IS the arrangement, and covering the
+ *  display would destroy the very thing being made ambient. */
+export interface EnterWallpaperOptions {
+  /** 'display' covers `display.bounds`; 'keep' leaves bounds untouched (and
+   *  so captures none, so exit restores none). */
+  bounds: 'display' | 'keep';
+  /** setIgnoreMouseEvents. Exit only undoes this if enter set it. */
+  clickThrough: boolean;
+}
+
+const DEFAULT_ENTER: EnterWallpaperOptions = { bounds: 'display', clickThrough: true };
+
+export function enterWallpaper(
+  win: BrowserWindow,
+  display: Display,
+  opts?: Partial<EnterWallpaperOptions>,
+): void {
   try {
     const b = ensureBridge();
     if (!b) return;
@@ -186,30 +194,42 @@ export function enterWallpaper(win: BrowserWindow, display: Display): void {
       console.warn('[wallpaper:macos] no NSWindow for handle; staying in window mode');
       return;
     }
+    const o: EnterWallpaperOptions = { ...DEFAULT_ENTER, ...opts };
 
-    // Capture originals once (guard against a double-enter from startup-restore
-    // racing a tray click) so exit restores exactly what Electron configured.
-    if (state.priorLevel === null) {
-      state.priorLevel = b.msgSendLong(nsWindow, b.selLevel);
-      state.priorCollectionBehavior = b.msgSendULong(nsWindow, b.selCollectionBehavior);
-      state.preWallpaperBounds = win.getBounds();
-    }
+    // Capture this WINDOW's originals exactly once (a startup-restore can race
+    // a tray click). Per-window, so a desk of N terminals each restores its
+    // own level/behaviour — see wallpaperState.ts.
+    const before = enteredCount();
+    const { fresh } = beginEnter(win, () => ({
+      level: b.msgSendLong(nsWindow, b.selLevel),
+      collectionBehavior: b.msgSendULong(nsWindow, b.selCollectionBehavior),
+      bounds: o.bounds === 'display' ? win.getBounds() : null,
+      clickThrough: o.clickThrough,
+    }));
 
     // Drop to the desktop-picture level + all-Spaces/stationary behavior.
+    // Re-applied even on a non-fresh enter: idempotent, and cheap.
     b.msgSendVoidLong(nsWindow, b.selSetLevel, b.desktopLevel);
     b.msgSendVoidULong(nsWindow, b.selSetCollectionBehavior, WALLPAPER_COLLECTION_BEHAVIOR);
 
     // Cover the CHOSEN display (the tray multi-monitor picker passes it in),
     // go click-through, hide chrome + Dock icon (the menu-bar tray stays — the
     // macOS analogue of Windows' hide-from-Alt-Tab).
-    const { x, y, width, height } = display.bounds;
-    win.setBounds({ x, y, width, height });
-    win.setIgnoreMouseEvents(true);
+    if (o.bounds === 'display') {
+      const { x, y, width, height } = display.bounds;
+      win.setBounds({ x, y, width, height });
+    }
+    if (o.clickThrough) win.setIgnoreMouseEvents(true);
     win.setWindowButtonVisibility(false);
-    app.setActivationPolicy('accessory');
+    // Process-scoped, so it must be refcounted: one terminal's exit must not
+    // put the Dock icon back while the rest of the desk is still wallpapered.
+    const policy = fresh ? policyFor(before, enteredCount()) : null;
+    if (policy) app.setActivationPolicy(policy);
 
     // eslint-disable-next-line no-console
-    console.log(`[wallpaper:macos] entered — level ${b.desktopLevel}, behavior ${WALLPAPER_COLLECTION_BEHAVIOR}`);
+    console.log(
+      `[wallpaper:macos] entered — level ${b.desktopLevel}, behavior ${WALLPAPER_COLLECTION_BEHAVIOR}, bounds ${o.bounds}, entered ${enteredCount()}`,
+    );
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[wallpaper:macos] enter failed:', (e as Error).message);
@@ -222,24 +242,28 @@ export function exitWallpaper(win: BrowserWindow): void {
     if (!b) return;
     if (win.isDestroyed()) return;
 
+    const before = enteredCount();
+    const state = endExit(win);
+
     const nsWindow = nsWindowOf(win, b);
     if (nsWindow) {
-      const level = state.priorLevel ?? NS_NORMAL_WINDOW_LEVEL;
-      const behavior = state.priorCollectionBehavior ?? NS_COLLECTION_BEHAVIOR_DEFAULT;
+      const level = state?.level ?? NS_NORMAL_WINDOW_LEVEL;
+      const behavior = state?.collectionBehavior ?? NS_COLLECTION_BEHAVIOR_DEFAULT;
       b.msgSendVoidLong(nsWindow, b.selSetLevel, level);
       b.msgSendVoidULong(nsWindow, b.selSetCollectionBehavior, behavior);
     }
 
-    win.setIgnoreMouseEvents(false);
+    // Only undo what enter did: a desk terminal entered with bounds:'keep'
+    // captured no bounds, so restoring any would move a window the user
+    // arranged. Same reasoning for click-through.
+    if (state?.clickThrough !== false) win.setIgnoreMouseEvents(false);
     win.setWindowButtonVisibility(true);
-    app.setActivationPolicy('regular');
-    if (state.preWallpaperBounds) win.setBounds(state.preWallpaperBounds);
+    if (state?.bounds) win.setBounds(state.bounds);
+    const policy = state ? policyFor(before, enteredCount()) : null;
+    if (policy) app.setActivationPolicy(policy);
 
-    state.priorLevel = null;
-    state.priorCollectionBehavior = null;
-    state.preWallpaperBounds = null;
     // eslint-disable-next-line no-console
-    console.log('[wallpaper:macos] exited');
+    console.log(`[wallpaper:macos] exited — entered ${enteredCount()}`);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[wallpaper:macos] exit failed:', (e as Error).message);

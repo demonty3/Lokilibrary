@@ -27,9 +27,20 @@
  */
 
 import type { BrowserWindow, Display } from 'electron';
+import type { EnterWallpaperOptions } from './macos';
 
+export type { EnterWallpaperOptions };
+
+/** Note the third parameter is macOS-only in practice. windows.ts's impl
+ *  takes two arguments and needs NO diff to satisfy this: a 2-arg function is
+ *  structurally assignable to a 3-arg type and simply ignores the extra. That
+ *  keeps the dormant Win32 path untouched without a platform branch here. */
 interface WallpaperImpl {
-  enterWallpaper(win: BrowserWindow, display: Display): void;
+  enterWallpaper(
+    win: BrowserWindow,
+    display: Display,
+    opts?: Partial<EnterWallpaperOptions>,
+  ): void;
   exitWallpaper(win: BrowserWindow): void;
 }
 
@@ -53,9 +64,13 @@ function platformImpl(): WallpaperImpl | null {
   return cachedImpl;
 }
 
-export function enterWallpaper(win: BrowserWindow, display: Display): void {
+export function enterWallpaper(
+  win: BrowserWindow,
+  display: Display,
+  opts?: Partial<EnterWallpaperOptions>,
+): void {
   const impl = platformImpl();
-  if (impl) return impl.enterWallpaper(win, display);
+  if (impl) return impl.enterWallpaper(win, display, opts);
   // eslint-disable-next-line no-console
   console.warn(`[wallpaper] platform ${process.platform} not supported; window mode only.`);
 }
