@@ -59,7 +59,7 @@ import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '.
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
-import { foliageSway, pulse, sunGlow } from './ambient';
+import { daylight, foliageSway, localHour, pulse, skyPresence, sunGlow } from './ambient';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   launchNote,
@@ -286,7 +286,17 @@ declare global {
        *  `hold` parks it (rest intent) so a reveal shot has time to land. */
       debugPlace(id: string, x: number, dir: 1 | -1, hold?: boolean): boolean;
       /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
-      debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
+      debugDepth(): {
+        monument: number | null;
+        sun: number | null;
+        moon: number | null;
+        star: number | null;
+        foliageX: number[];
+      };
+      /** e2e only — force the world-clock hour (0..24), null restores the real
+       *  one. Returns what the sky did about it: midnight is otherwise only
+       *  verifiable by waiting until midnight. */
+      debugClock(hour: number | null): { hour: number; overridden: boolean; daylight: number };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
        *  checkable from outside the renderer without this. */
@@ -791,6 +801,9 @@ export async function mountTerminalLand(
   let knitsFired = 0;
   const rng = makeRng(fnv1a(`beings:${terminalId}`));
   let elapsedS = 0;
+  /** e2e only — force the world-clock hour (0..24), or null for the real one.
+   *  Night is otherwise unverifiable except by waiting for it. */
+  let clockOverrideH: number | null = null;
 
   /** Put a knit's glow on the CURRENT ground: position, glyph (wear included)
    *  and fade. The single writer — startKnit, the tick and recompose all go
@@ -1229,7 +1242,15 @@ export async function mountTerminalLand(
     // wind, sky drift): their whole job is to agree across windows that were
     // opened at different times, so they must share one instant — see
     // src/terminal/ambient.ts. Everything window-local keeps elapsedS.
-    const skyT = Date.now() / 1000;
+    const nowMs = Date.now();
+    const skyT = nowMs / 1000;
+
+    // World clock: which of the baked sky is out at this hour. Every window
+    // derives it from the same wall clock, so the desk agrees with no broker
+    // channel — and a terminal opened at midnight matches its neighbours the
+    // instant it mounts. `clockOverrideH` is the e2e hook (you cannot verify
+    // midnight by waiting for it).
+    const sky = skyPresence(daylight(clockOverrideH ?? localHour(nowMs)));
 
     // Tier-2 structure glow: monuments (and a hall, if one ever composes here)
     // pulse gently off elapsedS (deltaMS-accumulated), so they freeze cleanly
@@ -1241,8 +1262,16 @@ export async function mountTerminalLand(
     // …but the ☼ is SHARED SKY, so it takes the wall clock: every window is a
     // lens on one sky, and on separate accumulators two joined terminals read
     // as two different suns over one landscape. Same pulse shape, other clock.
-    const sunAlpha = sunGlow(skyT);
+    // The pulse is now the ☼'s BREATH and the clock its ENVELOPE — at night it
+    // still breathes, at zero.
+    const sunAlpha = sunGlow(skyT) * sky.sun;
     for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
+    // ☾ and the stars are the same truth seen from the other side. The
+    // composer bakes them into every sky; until the clock existed they simply
+    // sat there at noon alongside the sun.
+    for (const t of scene.layers.moon ?? []) t.alpha = sky.night;
+    for (const t of scene.layers.star ?? []) t.alpha = sky.night;
+    for (const t of scene.layers.starBright ?? []) t.alpha = sky.night;
 
     // Launcher beat: while an errand is live the door PULSES — the click is
     // acknowledged in the world within a frame, whatever Steam does later.
@@ -1736,8 +1765,26 @@ export async function mountTerminalLand(
     debugDepth: () => ({
       monument: scene.layers.monument?.[0]?.alpha ?? null,
       sun: scene.layers.sun?.[0]?.alpha ?? null,
+      // null = this wing composed no such body (a mural or a pack's landOmit
+      // can evict one) — distinct from 0, which means the clock has set it.
+      moon: scene.layers.moon?.[0]?.alpha ?? null,
+      star: scene.layers.star?.[0]?.alpha ?? null,
       foliageX: (scene.layers.foliage ?? []).map((t) => t.x),
     }),
+    // Command only — it reports the hour it INTENDS, never the drawn alphas:
+    // those are still the previous tick's until the next frame runs, and a hook
+    // that returned them here would report the sky it just replaced (observed:
+    // forcing noon read back the 06:30 sky). Read the result from debugDepth
+    // after a frame.
+    debugClock: (hour) => {
+      clockOverrideH = hour;
+      const h = hour ?? localHour(Date.now());
+      return {
+        hour: Math.round(h * 1000) / 1000,
+        overridden: hour !== null,
+        daylight: Math.round(daylight(h) * 1000) / 1000,
+      };
+    },
     debugLabels: () =>
       siteLabelViews.map((v) => ({
         text: v.site.text,

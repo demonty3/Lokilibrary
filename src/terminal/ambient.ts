@@ -69,3 +69,65 @@ export const GLOW_SUN_RANGE = [0.62, 1] as const;
 export function sunGlow(tSeconds: number): number {
   return pulse(tSeconds, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
 }
+
+// --- The world clock ---------------------------------------------------
+// The rung IDEAS.md § Shared rules across terminals named: "no world clock
+// exists today — the sky is static ambience". The composer bakes ☼, ☾ AND
+// stars into every sky unconditionally (land.ts:366-372), so every terminal
+// has shown all three at once, at every hour, since the desk existed. The
+// clock does not add sky; it decides which of the baked sky is OUT.
+//
+// It needs no broker channel. Like sway and the ☼ pulse, every window derives
+// it from the same wall clock, so N terminals agree by construction — there is
+// no tick to broadcast, no join event to handle, and a window opened at noon
+// agrees with one opened at dawn the instant it mounts.
+
+/**
+ * Local hour as a fraction, 0..24 (13:30 → 13.5).
+ *
+ * LOCAL time, deliberately, and this is the one place in the project where
+ * that is right: the desk is a wallpaper you live in front of all day, and the
+ * whole point is that your 9pm looks like night. The UTC-everywhere convention
+ * governs logs and pipelines — anything we STAMP stays UTC; this is something
+ * we RENDER.
+ */
+export function localHour(nowMs: number): number {
+  const d = new Date(nowMs);
+  return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+}
+
+/** Dawn and dusk sit either side of these; full night ≤ 5.5, full day ≥ 7.7. */
+const SUNRISE_H = 6;
+const DAY_GAIN = 2.5;
+
+/**
+ * Daylight at `hour`, 0 (full night) → 1 (full day).
+ *
+ * A stylised day, NOT an ephemeris: a sine of solar elevation with sunrise at
+ * 06:00 and sunset at 18:00, gained so the twilight band is ~1.7 h either side
+ * rather than the six hours a raw sine gives. Latitude, season and the user's
+ * actual sunset are all out of scope — they would need a location, and the
+ * desk is a stylised world, not an observatory.
+ *
+ * Smoothstepped at the ends so dawn and dusk ease in and out; a linear ramp
+ * reads as a dimmer switch being turned.
+ */
+export function daylight(hour: number): number {
+  const elevation = Math.sin(((hour - SUNRISE_H) / 24) * 2 * Math.PI);
+  const t = Math.min(1, Math.max(0, elevation * DAY_GAIN));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * How present each baked celestial body is at this daylight level. Alphas
+ * only: **packs own colour**, and the ruling is that a pack may compress or
+ * omit a shared truth but never contradict it — so the clock says how much
+ * sun and how much night, never what colour either is. A pack whose landOmit
+ * drops the sky roles (DMG's blank sky) simply has nothing to fade, which is
+ * legal omission and needs no special case here.
+ *
+ * `sun` multiplies the ☼ pulse; `night` drives ☾ and the stars together.
+ */
+export function skyPresence(daylightLevel: number): { sun: number; night: number } {
+  return { sun: daylightLevel, night: 1 - daylightLevel };
+}

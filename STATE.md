@@ -1941,8 +1941,66 @@ window-local exactly as intended, so the conditions/content split is real and
 not over-synced. Readback via `__terminal.debugDepth()` +
 `scripts/e2e/term-drive.mjs`.
 
-Next rungs (world clock proper, then light direction and weather riding it)
-are in IDEAS.md § Shared rules across terminals.
+**World clock SHIPPED 2026-08-06** — the rung IDEAS.md named ("no world clock
+exists today; the sky is static ambience"). `localHour` / `daylight(hour)` /
+`skyPresence()` in `src/terminal/ambient.ts`, wired in the terminal tick.
+
+- **Real LOCAL time**, deliberately, and the one place the UTC convention does
+  not apply: the desk is a wallpaper you sit in front of all day and the point
+  is that your 9pm looks like night. UTC still governs anything we *stamp*;
+  this is something we *render*.
+- **No broker channel.** Every window derives the hour from the same wall
+  clock, so N terminals agree by construction — nothing to broadcast, no join
+  event to handle, and a terminal opened at midnight matches its neighbours the
+  instant it mounts. Third condition in a row where the wall clock removed the
+  IPC rather than needing it.
+- **Presence, not colour.** The composer bakes ☼, ☾ AND stars into every sky
+  unconditionally (`land.ts:366-372`), so every terminal has shown all three at
+  once at every hour since the desk existed. The clock decides which are out:
+  `sun` multiplies the ☼ pulse (the pulse is the breath, the clock the
+  envelope — at night it still breathes, at zero), `night` drives ☾, `star` and
+  `starBright` together. Packs keep colour, so the ruling holds: a pack whose
+  landOmit drops the sky roles has nothing to fade, which is legal omission.
+- Stylised day, NOT an ephemeris: sine of solar elevation, sunrise 06:00,
+  sunset 18:00, gained ×2.5 so twilight is ~1.7 h a side instead of the six a
+  raw sine gives, smoothstepped so dawn eases rather than switching. Latitude
+  and season would need a location and are out of scope.
+- `src/procedural/` is untouched — the clock is render-side only, so the
+  determinism contract is unaffected.
+- e2e hook `__terminal.debugClock(hour|null)`; ☾/★ alphas added to
+  `debugDepth()`. They are deliberately split: the first draft returned drawn
+  alphas from `debugClock` and reported the sky it had just REPLACED (forcing
+  noon read back the 06:30 sky), because the override does not reach the layers
+  until the next tick. Command and readback are now separate calls.
+
+Gated by `scripts/smoke-ambient-phase.mts` (71 assertions). The clock's failure
+modes are not the oscillators' — nothing accumulates — so its bars are
+different: no hard cut anywhere in the day (largest step per 30 s of world
+time), twilight is a band of hours rather than a switch, monotone up all
+morning and down all evening, continuous across midnight, sun and night
+complementary, no ☼ at midnight, no stars at noon, and the ☼ still breathing
+under a noon envelope (an envelope must not freeze the oscillator).
+
+**Verified live on the two-window desk at forced hours** (you cannot verify
+midnight by waiting for it): 00:00 → ☼ 0, ☾/★ 1; 06:30 → ☼ 0.18, ☾/★ 0.75,
+both partly out; 08:00 and 12:00 → ☼ pulsing 0.72, ☾/★ 0; 17:30 → the mirror of
+dawn; 18:30 → night. Both windows moved together at every step, and the
+unforced clock read the true local hour (22.9, night) in both. Screenshots at
+noon and midnight composited across the joined seam
+(`scripts/e2e/join-shot.py`): midnight is a full starfield with the ☾ up,
+across BOTH windows; noon has neither, in both. t1 composed no ☾ at all — its
+readback is `null`, not 0, which is why that distinction is now in the hook.
+
+**The honest limit, visible in those shots:** the sky's *colour* is a pack
+constant, so noon reads as "night with the stars taken away" rather than as
+daylight. Alphas-only was the right first rung — it respects packs owning
+colour — but a bright day needs the pack contract to gain a second sky
+register. That is now the top item on the ladder (IDEAS.md § Shared rules
+across terminals, "Daylight colour"), and it is an authoring-spec change, not
+a tweak. Harry's eyeball is the gate on whether the current state ships as-is.
+
+Remaining rungs (daylight colour, then light direction and weather) are in
+IDEAS.md § Shared rules across terminals.
 
 ---
 

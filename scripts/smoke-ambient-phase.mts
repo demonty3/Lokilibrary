@@ -1,15 +1,24 @@
-/** Ambient-phase smoke (wind + ☼) — `npx tsx scripts/smoke-ambient-phase.mts`.
- *  Foliage sway is a desk-global CONDITION (IDEAS.md § Shared rules across
- *  terminals): every window's trees lean the same way at the same instant, so
- *  a seam never shows two wings blowing against each other. This smokes the
- *  pure maths (src/terminal/ambient.ts); the Pixi wiring is e2e-verified via
- *  __terminal.debugDepth().foliageX. */
+/** Ambient-phase smoke (wind, ☼, world clock) —
+ *  `npx tsx scripts/smoke-ambient-phase.mts`.
+ *
+ *  These are the desk-global CONDITIONS (IDEAS.md § Shared rules across
+ *  terminals): every window's trees lean the same way at the same instant, its
+ *  ☼ brightens with its neighbours', and its sky knows the same hour — so a
+ *  seam never shows two wings blowing against each other or two hours of the
+ *  day side by side. All three take the wall clock, so agreement needs no
+ *  broker channel and holds across any mount gap.
+ *
+ *  This smokes the pure maths (src/terminal/ambient.ts); the Pixi wiring is
+ *  e2e-verified via __terminal.debugDepth() and __terminal.debugClock(). */
 import { makeChecker } from './lib/smoke.ts';
 import {
   foliageSway,
   GLOW_SUN_PERIOD_S,
   GLOW_SUN_RANGE,
+  daylight,
+  localHour,
   pulse,
+  skyPresence,
   sunGlow,
   SWAY_HZ,
   SWAY_PX,
@@ -128,5 +137,92 @@ check('☼ is exactly pulse() on the wall clock',
 check('pulse() takes small accumulator inputs identically',
   Math.abs(pulse(1.7, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE) - oldSun(1.7)) < 1e-12,
   String(pulse(1.7, GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE) - oldSun(1.7)));
+
+// --- The world clock. Failure modes here are NOT the oscillators' (nothing
+// accumulates); they are a hard cut at dawn, a sun at midnight, and a sky that
+// disagrees between two windows because one of them asked a different clock.
+const noon = daylight(12);
+const midnight = daylight(0);
+check('noon is full day', noon === 1, String(noon));
+check('midnight is full night', midnight === 0, String(midnight));
+check('03:00 is night', daylight(3) === 0, String(daylight(3)));
+check('21:00 is night', daylight(21) === 0, String(daylight(21)));
+check('sunrise 06:00 is the crossing point', daylight(6) === 0 && daylight(6.5) > 0,
+  JSON.stringify({ h6: daylight(6), h65: daylight(6.5) }));
+check('sunset 18:00 has gone dark by 18.5', daylight(17.5) > 0 && daylight(18.5) === 0,
+  JSON.stringify({ h175: daylight(17.5), h185: daylight(18.5) }));
+
+// Monotone up over the morning, down over the evening — a clock that dips
+// mid-morning would read as weather, not as time.
+let monotone = true;
+for (let h = 6; h < 12; h += 0.05) if (daylight(h + 0.05) < daylight(h) - 1e-12) monotone = false;
+for (let h = 12; h < 18; h += 0.05) if (daylight(h + 0.05) > daylight(h) + 1e-12) monotone = false;
+check('rises all morning, falls all evening', monotone);
+
+// No hard cut: the largest step across the whole day, sampled every 30 s of
+// world time, must stay small — dawn easing in is the point of the smoothstep.
+let biggestStep = 0;
+for (let h = 0; h < 24; h += 1 / 120) {
+  biggestStep = Math.max(biggestStep, Math.abs(daylight(h + 1 / 120) - daylight(h)));
+}
+check('no hard cut anywhere in the day', biggestStep < 0.01, String(biggestStep));
+// …and the twilight band is a real span, not a switch: time spent strictly
+// between night and day should be hours, not minutes.
+let twilightH = 0;
+for (let h = 0; h < 24; h += 1 / 60) if (daylight(h) > 0.02 && daylight(h) < 0.98) twilightH += 1 / 60;
+check('twilight is a band of hours, not a switch', twilightH > 2 && twilightH < 8, String(twilightH));
+
+// Wraps: 24:00 is 00:00, and the function takes hours outside 0..24 without a
+// discontinuity (a tick that reads 23.999 then 0.001 must not flash).
+check('midnight wraps continuously',
+  Math.abs(daylight(23.999) - daylight(0.001)) < 1e-6,
+  JSON.stringify({ before: daylight(23.999), after: daylight(0.001) }));
+check('hours outside 0..24 stay periodic',
+  Math.abs(daylight(25) - daylight(1)) < 1e-12 && Math.abs(daylight(-2) - daylight(22)) < 1e-12);
+
+// Sky presence: sun and night are complementary, in range, and the sun is
+// never out at midnight (the defect a reader would actually notice).
+for (const h of [0, 3, 6, 9, 12, 15, 18, 21, 23.5]) {
+  const p = skyPresence(daylight(h));
+  check(`h${h}: presences in range`, p.sun >= 0 && p.sun <= 1 && p.night >= 0 && p.night <= 1,
+    JSON.stringify(p));
+  check(`h${h}: sun + night = 1 (one sky, two sides)`, Math.abs(p.sun + p.night - 1) < 1e-12);
+}
+check('no sun at midnight', skyPresence(daylight(0)).sun === 0);
+check('no stars at noon', skyPresence(daylight(12)).night === 0);
+check('☾ and ☼ are both partly out at dawn',
+  skyPresence(daylight(6.7)).sun > 0.05 && skyPresence(daylight(6.7)).night > 0.05,
+  JSON.stringify(skyPresence(daylight(6.7))));
+
+// The ☼'s breath survives its envelope: at night the pulse still runs, at
+// zero. (Multiplying an envelope in must not freeze the oscillator.)
+const nightSun = sunGlow(WALL) * skyPresence(daylight(2)).sun;
+check('☼ fully dark at 02:00 whatever the pulse is doing', nightSun === 0, String(nightSun));
+const dayLo = Math.min(...[0, 1, 2, 3].map((k) => sunGlow(WALL + k) * skyPresence(daylight(12)).sun));
+const dayHi = Math.max(...[0, 1, 2, 3].map((k) => sunGlow(WALL + k) * skyPresence(daylight(12)).sun));
+check('☼ still breathes at noon (envelope ≠ freeze)', dayHi - dayLo > 0.05,
+  JSON.stringify({ dayLo, dayHi }));
+
+// localHour: the impure edge. Machine timezone varies, so assert the
+// properties that hold anywhere rather than a value.
+const H = 3_600_000;
+check('localHour in range', [0, 1e12, WALL * 1000].every((ms) => {
+  const h = localHour(ms);
+  return h >= 0 && h < 24;
+}));
+check('localHour advances an hour per hour',
+  Math.abs(((localHour(1e12 + H) - localHour(1e12) + 24) % 24) - 1) < 1e-6,
+  String(localHour(1e12 + H) - localHour(1e12)));
+check('localHour advances a minute per minute',
+  Math.abs(((localHour(1e12 + 60_000) - localHour(1e12) + 24) % 24) - 1 / 60) < 1e-6);
+
+// Two windows, one sky: the clock takes no broker channel, so agreement means
+// "same instant in ⇒ same sky out", including across a mount gap.
+for (const gap of [1.1, 61, 3607]) {
+  const a = skyPresence(daylight(localHour(1e12)));
+  const b = skyPresence(daylight(localHour(1e12)));
+  check(`gap ${gap}s: two windows agree on the sky at one instant`,
+    a.sun === b.sun && a.night === b.night, JSON.stringify({ a, b }));
+}
 
 report();
