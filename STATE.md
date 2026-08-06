@@ -457,8 +457,11 @@ until the terminals-as-wallpaper migration item lands; the desk has its
 own tray. README launch instructions updated. **(That gap CLOSED the same
 day — see the terminals-as-wallpaper entry below.)**
 
-**Terminals-as-wallpaper SHIPPED 2026-08-06 — CODE-COMPLETE, eyeball
-PENDING.** The last missing product pillar for the shipped surface:
+**Terminals-as-wallpaper SHIPPED 2026-08-06, eyeball PASSED same day — all
+six bars, no kill fired, no dial spent.** Harry watched it live on the joined
+two-window desk: bars 1+2 first ("wallpaper looks right"), then the rest
+("yea they all look good"). The last missing product pillar for the shipped
+surface:
 CLAUDE.md's first line promises a thing that "lives as a live wallpaper and
 an alt-tab destination, doubles as a launcher", and the desk had two of
 three. Spec:
@@ -550,7 +553,25 @@ well past the floor. Only the in-page, click-from-t0 run is evidence.
 67 smokes and all three typecheck legs green (`npm run typecheck` covers
 `src` + `worker` only — **`desktop/src` needs `cd desktop && npm run build`**,
 and `scripts/*.mts` are covered by neither). Persisted mode left at `window`.
-**Eyeball PENDING: six frozen bars, `docs/design-reviews/2026-08-06-terminals-as-wallpaper/`.**
+Shot: `docs/design-reviews/2026-08-06-terminals-as-wallpaper/`.
+
+**Eyeball finding, raised by Harry and NOT a defect: flicking from a
+fullscreen Space back to the desktop leaves the desk blank for ~½ second.**
+Measured while covered: `document.visibilityState === 'hidden'` and a being
+moved **0 cells in 2.3 s of wall time**, while our own throttle was asking
+for `{state:'full', maxFPS:0}`. So macOS/Chromium suspends rAF outright on a
+fully-occluded window — the desk behind a fullscreen app is not slow, it is
+STOPPED — and the blank is the compositor waking plus the first repaint (the
+Space-transition animation adds some; that split is inferred, the suspension
+is observed). **Kept deliberately, because it beats our own ladder:** the
+idle controller is driven by system idle, so while you actively use a
+fullscreen app it holds `full` and would render the desk at 60fps behind an
+opaque window forever. Occlusion suspension is what makes a covered desk cost
+nothing. The dial if it ever matters is `backgroundThrottling: false` on the
+terminal windows (instant reveal, continuous GPU/CPU behind every fullscreen
+app) — a direct trade against bar 5, so not taken. This is the same mechanism
+behind [[a-passing-check-on-a-throttled-window-proves-nothing]], now with a
+number on it.
 
 **Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan
