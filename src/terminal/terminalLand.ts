@@ -59,6 +59,7 @@ import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '.
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
+import { foliageSway } from './ambient';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   launchNote,
@@ -171,10 +172,6 @@ const GLOW_STRUCT_PERIOD_S = 2.8;
 const GLOW_STRUCT_RANGE: [number, number] = [0.72, 1];
 const GLOW_SUN_PERIOD_S = 4.2;
 const GLOW_SUN_RANGE: [number, number] = [0.62, 1];
-/** Tier-2 foliage sway: sub-cell x oscillation (local px; × WORLD_SCALE on
- *  screen), the parity planes counter-phased. Stays well under CW = 6. */
-const SWAY_PX = 1.2;
-const SWAY_HZ = 0.35;
 /** Knit-sweep: a one-shot glow that runs across a newly-joined seam. */
 const KNIT_S = 0.6;
 const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
@@ -1251,16 +1248,22 @@ export async function mountTerminalLand(
       : 1;
     for (const t of scene.layers.door ?? []) t.alpha = doorAlpha;
 
+    // Wall clock, read once for every ambient oscillator below it: these are
+    // the desk-global CONDITIONS, and their whole job is to agree across
+    // windows that were opened at different times (src/terminal/ambient.ts).
+    const skyT = Date.now() / 1000;
+
     // Tier-2 foliage sway: sub-cell x offsets, parity planes counter-phased
-    // (glyphs move BETWEEN cells — never snap-to-cell).
-    const sway = Math.sin(elapsedS * SWAY_HZ * 2 * Math.PI) * SWAY_PX;
+    // (glyphs move BETWEEN cells — never snap-to-cell). Wall-clock phased, not
+    // elapsedS: one breeze crosses the whole desk, so foliage either side of a
+    // seam leans together however long apart the terminals were opened.
+    const sway = foliageSway(skyT);
     (scene.layers.foliage ?? []).forEach((t, i) => {
       t.x = i % 2 === 0 ? sway : -sway;
     });
 
-    // #19 slice 2: cloud drift — wall-clock so same-wing windows agree and a
-    // woken throttle snaps to where the sky has got to (no accumulator).
-    const skyT = Date.now() / 1000;
+    // #19 slice 2: cloud drift — same wall clock, same reason (and a woken
+    // throttle snaps to where the sky has got to, with no accumulator).
     for (const w of wispViews) {
       const xc = wispX(w.spec, skyT, model.width);
       w.text.x = xc * CW;

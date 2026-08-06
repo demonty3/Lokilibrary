@@ -1886,6 +1886,45 @@ to user verification on Windows (logged in commit messages + TODO-USER.md).
 
 ---
 
+**Wind phase FIXED 2026-08-06 — the first rung of the conditions ladder.**
+Foliage sway ran off each window's own ticker accumulator (`elapsedS`, zeroed
+at mount), so two terminals opened at different times leant their trees in
+opposite directions across a shared seam — the join's most visible
+contradiction, since the seam blend places foliage from both wings side by
+side. Found while writing up IDEAS.md § Shared rules across terminals (the
+conditions-vs-content ladder), not from an eyeball.
+
+`src/terminal/ambient.ts` is the new home for wall-clock-phased ambient
+oscillators — the desk-global CONDITIONS, whose job is to agree across windows
+opened at different times. `foliageSway(tSeconds)` is the first; `SWAY_PX` /
+`SWAY_HZ` moved there from `terminalLand.ts`. The tick now reads the wall clock
+ONCE and feeds both sway and cloud drift from it (clouds were already
+wall-clock — `src/terminal/clouds.ts` had the pattern and the reasoning; this
+just brings foliage onto it).
+
+Gated by `scripts/smoke-wind-phase.mts` (17 assertions), which carries the old
+accumulator as a live **negative control** — if the pre-fix maths ever stops
+diverging, the smoke has stopped testing anything. Two calibration notes worth
+keeping: `SWAY_HZ = 0.35` makes the period exactly 20/7 s, so mount gaps of
+60 s and 3600 s are whole periods and the BROKEN code agreed at precisely those
+gaps (the control's first draft used them and proved nothing); and the phase
+tolerance is set by double precision, not by the maths — one ulp at epoch
+magnitude is ~4e-7 s, worth ~6e-7 px of a 1.2 px sway.
+
+**Verified live on the two-window desk** (not just in smoke): t1 and t2 sampled
+15 s apart both tracked one global phase function, and a freshly RELOADED t2 —
+the exact defect condition, its accumulator zeroed — still tracked it. Worst
+deviation 0.04 px against a 1.2 px amplitude, which is frame lag between the
+last tick and the `Date.now()` read, not phase error. Readback via
+`__terminal.debugDepth().foliageX` + `scripts/e2e/term-drive.mjs`.
+
+Not done, same class, flagged not fixed: the structure/sun glow pulses still
+run on `elapsedS`. Structure glow is wing-owned content and correctly local,
+but the SUN is a shared sky — two joined windows pulse their suns out of phase.
+Next rungs are in IDEAS.md § Shared rules across terminals.
+
+---
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

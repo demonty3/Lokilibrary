@@ -682,11 +682,57 @@ sky beside a midnight neighbour breaks the join). No world clock exists today
 — the sky is static ambience — so the first buildable rung is a world clock
 that packs render through their own vocabulary.
 
+### The conditions-vs-content ladder (added 2026-08-06)
+
+*Harry, same day as § Terminals of different sizes: "the setting should be
+continual, like landscape that makes sense and synchronised time."*
+
+Two kinds of continuity, needing different machinery. Conflating them is how
+this sprawls.
+
+**Conditions — desk-global.** Time of day, weather, light direction, wind. One
+scalar world-state ticked in the MAIN process and broadcast; each window
+renders it through its own pack vocabulary (compress or omit, never
+contradict). Build the tick once and the whole rung falls out of one pipe.
+
+**Content — wing-owned.** Terrain, biome character, distant horizon, worn
+paths. Making these continuous means making them a function of a shared desk
+coordinate, i.e. of *where the user dragged the window*.
+
+Ordered by payoff over cost:
+
+| Rung | State | Note |
+|---|---|---|
+| Terrain height at the seam | **SHIPPED** | `landSeamBoundary` (`src/procedural/land.ts:279`) folds both wing seeds in canonical order, so both windows compute the same boundary independently and hermite-blend their last 6 columns into it. No talking required. |
+| World clock / time of day | first rung, unscheduled | the original entry above |
+| **Wind phase** | live defect, ~an hour | Sway is `sin(elapsedS × SWAY_HZ)` where `elapsedS` counts from each window's OWN mount (`src/terminal/terminalLand.ts:1256`, `:798`). Terminals opened seconds apart sway counter to each other across a seam. Drive phase from shared world-time and one breeze crosses the desk. Highest payoff per line on the list. |
+| Light direction | cheap rider on the clock | One sun-azimuth scalar into the existing shade channel. This is what makes it read as one *place* rather than N places agreeing on the hour. |
+| Weather | cheap rider on the clock | Rain stopping at a window edge is the worst available break. Hooks § The living world (Loki as climate). |
+| Far-layer parallax | **NEEDS-CHECK** | Each window scrolls its camera independently; if the distant plane isn't anchored to a shared world-x the horizon jumps at every seam. At a glance the far layer is the strongest "one place" cue, so a break there costs more than a near break. Check = screenshot two joined terminals scrolled apart. |
+| Worn paths across seams | later | Trail wear dead-ending at a frame edge undoes the crossing beat. |
+| Ambience as one field | no audio yet | Fix the per-window-loop assumption before any audio work starts, not after. |
+
+**The ruling: conditions are desk-global, content stays wing-owned.** The
+strong reading of "landscape that makes sense" — biome character interpolating
+along the desk so a desert never abuts a forest — requires terrain to be a
+function of where the window was dragged, which contradicts two shipped
+commitments at once: content seeds from wing id (determinism), and each
+terminal owns its own pack identity (§ Per-terminal identity, a shipped
+pillar). You cannot have both "this is the d0 wing with its own look" and
+"terrain is a pure function of desk position". The seam blend already covers
+the local lie; widening the blend band is the cheap version of the want,
+re-seeding on arrangement is the version that eats the identity model.
+
 **Status.** Candidate depth-track slice; recorded, not scheduled (Harry,
 2026-07-31). Sequencing lives in `PLAN.md` § Open decisions. Related: the
 stray-`*` painter question was the same conformance surface seen from the
 leak side — RESOLVED 2026-08-02 (the `☼` sun, a pack-list gap, not an
 engine leak; `landOmit` filtering held — STATE.md has the ruling).
+Verdicts 2026-08-06: conditions bus (clock → light → wind → weather on one
+channel) **PURSUE**, first test = force one joined terminal to dusk, the
+neighbour follows within a frame; wind phase **PURSUE** (confirmed defect);
+far-layer parallax **NEEDS-CHECK**; biome-as-desk-position **KILLED** by the
+ruling above.
 
 ---
 
@@ -704,3 +750,73 @@ whether this is already effectively delivered before building.
 
 **Status.** Loose one-function tweak, parked. Verify against
 `src/terminal/beingIntents.ts` (watch_edge) first — it may be moot.
+
+---
+
+## Terminals of different sizes — a big one with small ones hung off its edge
+
+*Captured 2026-08-06 (Harry, unprompted): "different size terminals which can
+join together — a bigger terminal with four smaller ones joined on its left
+side, with a unique continuous environment."*
+
+Today every terminal is the same window size and the desk reads as a row of
+identical tiles. Harry's picture is an **arrangement with a shape**: one large
+terminal as the anchor, smaller ones hung off its edge, still one continuous
+environment. That is three separate changes, and they are not the same size.
+
+### 1 — Different WIDTHS already work (nearly free)
+
+`land.ts` derives its integer scale from window HEIGHT only
+(`scale = max(1, floor(screen.height / contentH))`, `src/render/levels/land.ts:446`)
+and the camera scrolls horizontally. Two terminals of equal height but
+different widths therefore share a glyph scale and a ground row already; the
+wider one simply shows more horizon. `computeSnapTarget` snaps `y` to the
+neighbour's `y` regardless of width, so the join maths is untouched.
+
+### 2 — Different HEIGHTS need scale decoupled from height (small, load-bearing)
+
+Height drives the integer scale AND vertical centring, so a taller neighbour
+gets bigger glyphs and a lower ground row: the join looks broken. The fix is
+one change with a good independent reason — **lock a desk-wide cell scale and
+anchor the ground line to a fixed offset from the window TOP instead of
+centring it.** Then a taller window shows more sky above and more underground
+below rather than a magnified copy of the same land, and the desk reads as one
+world seen through differently-sized apertures instead of N zoomed views.
+(`docs/PRD-snapping-terminals.md` § 6 already names "lock land scale across
+terminals" as the mitigation; this is that, made concrete.)
+
+### 3 — Four small ones on one edge: multi-seam edges, and it stops being a landscape
+
+`openSides`/`neighbourOf` (`desktop/src/topology.ts`) assume **one neighbour
+per side** (`joins.find`), and `computeJoins` requires aligned tops. Four
+windows stacked along the big one's left edge means several joins on one edge
+at different vertical offsets — new machinery: per-seam vertical bands, and a
+crossing being picking the seam whose band contains its own ground row.
+
+The design consequence is the interesting part. Four stacked neighbours cannot
+all share one ground line, so this is not a landscape join at all: the tall
+terminal becomes a **hall or shaft**, and each small terminal is a **storey**
+opening onto it at its own floor. That dissolves the PRD's "no vertical joins"
+non-goal without giving up side-on legibility, because you never join two
+ground lines at mismatched heights — you join a small land's ground line to a
+*floor* inside the tall one.
+
+Determinism survives if the tall land generates a deterministic **ladder of
+candidate floor rows** (seeded, like the surface field), and snapping quantises
+the small window's `y` to the nearest candidate. Arrangement then *selects*
+which floors become doors; it never invents geometry.
+
+### The argument against
+
+The desk's whole vocabulary is landscape: sky band, horizon relief, buried
+underground. A four-storey shaft standing next to a horizon mixes landscape
+and building on one desk, and each stacked storey brings its own sky band —
+sky appearing at mid-elevation beside a hall interior is the "mixing palettes
+reads as broken" failure at the layout level. The risk here is aesthetic, not
+technical, and it will not be settled by making the joins work.
+
+**Status.** (1) and (2) PURSUE, small, and (2) unblocks everything else.
+(3) PARKED on one precondition: an eyeball of a tall terminal with two
+neighbours at different rows that reads as one place rather than two broken
+lands. Sits alongside `docs/PRD-snapping-terminals.md` T3 (join-edge craft),
+which is where the glyph treatment for a floor-into-hall join would live.
