@@ -41,6 +41,9 @@ export const MONUMENT_BODY = ['╔═╗', '║▪║', '║ ║', '║▪║', 
 export const MONUMENT_CROWN = '☼';
 export const MONUMENT_DOOR = '▯';
 
+/** #19 slice 2 ore glyph — exported for smoke-land-ore + smoke-glyph-coverage. */
+export const ORE_GLYPH = '◆';
+
 /** #19 slice 2 constellation figures — [dx, dy] offsets; point 0 is the
  *  bright anchor (`✦`), the rest dim (`·`). Arrangements of the existing
  *  star roles, so blank-sky packs stay blank by construction. Exported for
@@ -566,6 +569,25 @@ export function composeLand(
       set(x - 1, y, '≡', 'relic');
       labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name, kind: 'buried' });
     });
+
+  // Ore veins (#19 slice 2): short diagonal glints through stone/bedrock.
+  // The role guard at stamp time is the whole placement rule — a vein cell
+  // only lands where stone or bedrock already is, so caverns (role 'sky' /
+  // 'cavern'), topsoil, the shaft and relics are excluded by construction.
+  // Sparse by count cap: 2–4 veins × 2–4 cells.
+  const veinCount = 2 + rng.range(0, 3);
+  for (let v = 0; v < veinCount; v++) {
+    let vx = rng.range(2, cols - 2);
+    let vy = groundLine + topsoilD + 1 + rng.range(0, Math.max(1, UNDER_H - topsoilD - 2));
+    const vdx = rng.next() < 0.5 ? -1 : 1;
+    const len = 2 + rng.range(0, 3);
+    for (let c = 0; c < len; c++) {
+      const r = role[vy]?.[vx];
+      if (r === 'stone' || r === 'bedrock') set(vx, vy, ORE_GLYPH, 'ore');
+      vx += vdx;
+      vy += 1;
+    }
+  }
 
   // --- Beings walk the surface; player @ near centre -----------------------
   for (let k = 0; k < 5; k++) {
