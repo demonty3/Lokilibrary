@@ -33,6 +33,14 @@ const HALL_H = 24;
 const POSTER_W = 46;
 const POSTER_H = 14;
 
+// Land polish #19 slice 2: the mastered-game monument — real architecture
+// (cap course, window slits, block body, ground-level door) instead of the
+// old bare column. 3 wide × 7 tall + crown: still the tallest structure
+// class. Exported for smoke-land-monument + smoke-glyph-coverage.
+export const MONUMENT_BODY = ['╔═╗', '║▪║', '║ ║', '║▪║', '▐█▌', '▐█▌', '▐█▌'] as const;
+export const MONUMENT_CROWN = '☼';
+export const MONUMENT_DOOR = '▯';
+
 export type EngagementState = 'loved' | 'recent' | 'mastered' | 'dusty' | 'abandoned';
 
 export interface LandGame {
@@ -481,8 +489,12 @@ export function composeLand(
     if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall
     if (inJoinBuffer(x)) return; // structure-free seam buffer
     if (p.state === 'mastered') {
-      for (let h = 1; h <= 6; h++) put(x - 1, gy - h, h === 6 ? ' ║ ' : '▐█▌', 'monument');
-      set(x, gy - 7, '☼', 'sun');
+      // #19 slice 2: architecture rows top→bottom, door punched into the
+      // bottom-centre cell, crown on its OWN role (a pack's sun-omit no
+      // longer blanks it — gameboy-dmg omits monumentCrown explicitly).
+      MONUMENT_BODY.forEach((row, i) => put(x - 1, gy - MONUMENT_BODY.length + i, row, 'monument'));
+      set(x, gy - 1, MONUMENT_DOOR, 'door');
+      set(x, gy - MONUMENT_BODY.length - 1, MONUMENT_CROWN, 'monumentCrown');
     } else if (p.state === 'loved') {
       put(x - 2, gy - 3, '▗▄▄▄▖', 'roof');
       put(x - 2, gy - 2, '▌▓≡▓▐', 'shelf');
