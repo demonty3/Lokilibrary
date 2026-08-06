@@ -595,9 +595,14 @@ export function composeLand(
   }
 
   // --- Beings walk the surface; player @ near centre -----------------------
+  // Built world wins over decorative scatter: draw x from the rng exactly as
+  // before (determinism of later draws depends on the call sequence, not on
+  // whether the stamp lands), but only stamp onto an empty ('sky') cell — a
+  // being never overwrites a structure (monument door, house glyphs, ...).
   for (let k = 0; k < 5; k++) {
     const x = rng.range(6, cols - 6);
-    set(x, surfaceY(x) - 1, rng.pick(BEINGS), 'being');
+    const by = surfaceY(x) - 1;
+    if (role[by]?.[x] === 'sky') set(x, by, rng.pick(BEINGS), 'being');
   }
   if (opts.withPlayer !== false) {
     const px = Math.floor(cols / 2);
@@ -612,8 +617,10 @@ export function composeLand(
     if (hallSpan && x >= hallSpan[0] && x <= hallSpan[1]) continue; // not inside the hall
     if (inJoinBuffer(x)) continue; // no trees in the seam buffer
     const gy = surfaceY(x);
-    set(x, gy - 1, '♣', 'foliage');
-    set(x, gy - 2, '♣', 'foliage');
+    // Built world wins over decorative scatter: stamp each ♣ only onto an
+    // empty ('sky') cell, per-cell — a tree never overwrites a structure.
+    if (role[gy - 1]?.[x] === 'sky') set(x, gy - 1, '♣', 'foliage');
+    if (role[gy - 2]?.[x] === 'sky') set(x, gy - 2, '♣', 'foliage');
   }
 
   // Sign posts (#19 slice 2): a small standing post beside each surface
