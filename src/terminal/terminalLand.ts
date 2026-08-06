@@ -291,6 +291,10 @@ declare global {
       debugPlace(id: string, x: number, dir: 1 | -1, hold?: boolean): boolean;
       /** e2e only — live depth-cue readback (glow alphas + sway offsets). */
       debugDepth(): { monument: number | null; sun: number | null; foliageX: number[] };
+      /** e2e only — throttle readback: the state the desk believes it is in
+       *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
+       *  checkable from outside the renderer without this. */
+      debugThrottle(): { state: string; started: boolean; maxFPS: number };
       /** e2e only — live liveliness readback. `dx`/`dy` are the DRAWN
        *  sub-cell offsets in local px (sprite minus ground truth), not the
        *  model x, so bob/gait/lean/beat can be asserted on screen. */
@@ -1705,6 +1709,11 @@ export async function mountTerminalLand(
       b.nextIntentAt = elapsedS + 30; // hold course long enough to cross
       return true;
     },
+    debugThrottle: () => ({
+      state: throttleState,
+      started: app.ticker.started,
+      maxFPS: app.ticker.maxFPS,
+    }),
     debugBeings: () =>
       [...beings.values()].map((b) => ({
         id: b.id,

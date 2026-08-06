@@ -25,9 +25,13 @@
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import * as path from 'path';
-import { getSociety, getTerminals, setSociety, setTerminals } from './config';
+import { getMode, getSociety, getTerminals, setMode, setSociety, setTerminals, type Mode } from './config';
+import { enterWallpaper, exitWallpaper } from './wallpaper';
+import { startThrottleController, stopThrottleController } from './wallpaper/throttle';
+import { broadcast } from './broadcast';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
 import { registerWindow } from './broadcast';
+
 
 // Sized so two terminals tile side-by-side on a 1440-wide display with
 // margin — a half-offscreen window invites macOS to shuffle its neighbours,
@@ -253,10 +257,65 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   broadcastTopology(); // a restored desk can boot already-joined
   persistTerminals();
 
+  // ── Wallpaper mode, desk-wide ───────────────────────────────────────────
+  // The DESK is the unit, not the window: one mode for all N terminals. A
+  // per-window mode is a promise peek cannot keep (peek is one boolean, so a
+  // desk with two wallpapered terminals and one windowed one has no defined
+  // peek), so config.mode stays the single app-wide scalar it already is.
+  //
+  // Terminals enter with bounds:'keep' — their snapped 640x520 IS the
+  // arrangement, and covering the display would destroy the very thing being
+  // made ambient. Nothing re-snaps on the way in or out, because nothing
+  // moved: joins are bounds-pure, so they are invariant across the
+  // round-trip (smoke-desk-wallpaper asserts exactly that).
+  let deskMode: Mode = 'window';
+
+  function displayFor(win: BrowserWindow): Electron.Display {
+    return screen.getDisplayMatching(win.getBounds());
+  }
+
+  function enterAll(): void {
+    for (const t of terminals.values()) {
+      if (!t.win.isDestroyed()) {
+        enterWallpaper(t.win, displayFor(t.win), { bounds: 'keep', clickThrough: true });
+      }
+    }
+  }
+
+  function exitAll(): void {
+    for (const t of terminals.values()) {
+      if (!t.win.isDestroyed()) exitWallpaper(t.win);
+    }
+  }
+
+  function applyDeskMode(mode: Mode): void {
+    if (mode === deskMode) return; // the tray checkbox auto-fire guard
+    deskMode = mode;
+    if (mode === 'wallpaper') {
+      enterAll();
+      // ONE controller for the whole desk: the macOS idle ladder ignores the
+      // window argument entirely, so there is nothing per-window to own.
+      startThrottleController(null, {
+        display: screen.getPrimaryDisplay(),
+        onStateChange: (state, isInitial) => {
+          broadcast('throttle:state-change', { state, isInitial });
+        },
+      });
+    } else {
+      stopThrottleController();
+      broadcast('throttle:state-change', { state: 'full', isInitial: true });
+      exitAll();
+    }
+    setMode(mode);
+    rebuildTray();
+    broadcast('wallpaper:modeChanged', mode);
+    // eslint-disable-next-line no-console
+    console.log(`[terminals] desk mode → ${mode} (${terminals.size} windows)`);
+  }
+
   // ── Tray: "New terminal" onto the next unused wing ──────────────────────
   // Terminals mode never reaches main.ts's createTray() (the early return),
-  // so this is the mode's only tray. Plain action items — main.ts's
-  // checkbox/radio auto-fire hazard doesn't apply here.
+  // so this is the mode's only tray.
   let tray: Tray | null = null;
   let nextIndex =
     1 + [...terminals.keys()].reduce((m, id) => Math.max(m, Number(/^t(\d+)$/.exec(id)?.[1] ?? '0')), 0);
@@ -289,6 +348,26 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
           click: () => void spawnNext(),
         },
         { type: 'separator' },
+        // CHECKBOX, not radio: main.ts:161-172 records the v0.6 hazard where
+        // a radio group fires its own click on rebuild. applyDeskMode's
+        // same-mode guard is the second belt.
+        {
+          label: 'Window mode',
+          type: 'checkbox',
+          checked: deskMode === 'window',
+          click: () => applyDeskMode('window'),
+        },
+        {
+          label: 'Wallpaper mode',
+          type: 'checkbox',
+          checked: deskMode === 'wallpaper',
+          click: () => applyDeskMode('wallpaper'),
+        },
+        // No Display submenu, deliberately: for a desk of individually
+        // positioned windows, picking a display means MOVING N windows to
+        // another monitor — an arrangement change, and adjacent to the PRD's
+        // "agents never move the user's windows".
+        { type: 'separator' },
         { label: 'Quit', click: () => app.quit() },
       ]),
     );
@@ -297,6 +376,29 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
   tray = new Tray(trayIcon());
   tray.setToolTip('lokilibrary — terminals');
   rebuildTray();
+
+  // Restore the persisted mode. Deferred to ready-to-show for the same
+  // reason main.ts defers it: entering before the first paint gives the
+  // desktop a window that has never drawn.
+  if (getMode() === 'wallpaper') {
+    let pending = terminals.size;
+    for (const t of terminals.values()) {
+      t.win.once('ready-to-show', () => {
+        if (--pending === 0) {
+          deskMode = 'window'; // so applyDeskMode's guard doesn't short-circuit
+          applyDeskMode('wallpaper');
+        }
+      });
+    }
+  }
+
+  // Blocker 11: the desk tray is a closure local, so main.ts's
+  // window-all-closed (which destroys ITS tray) never sees it.
+  app.on('before-quit', () => {
+    stopThrottleController();
+    tray?.destroy();
+    tray = null;
+  });
 
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
@@ -398,4 +500,22 @@ export function startTerminalsMode(count: number, rendererUrl: string): void {
 
   // Tray parity for the harness: the exact spawn path the tray item drives.
   ipcMain.handle('terminal:debugSpawn', () => spawnNext());
+
+  // Tray parity for the harness: the exact mode path the tray items drive.
+  // Also the e2e escape hatch — a wallpapered desk is click-through, so
+  // without this the tray is the ONLY way back and a headless run could
+  // strand itself behind the desktop.
+  ipcMain.handle('terminal:debugSetMode', (_e, mode: Mode) => {
+    applyDeskMode(mode);
+    return deskMode;
+  });
+  ipcMain.handle('terminal:debugDeskState', () => ({
+    mode: deskMode,
+    windows: [...terminals.values()].map((t) => ({
+      id: t.id,
+      bounds: t.win.isDestroyed() ? null : t.win.getBounds(),
+      alwaysOnTop: t.win.isDestroyed() ? null : t.win.isAlwaysOnTop(),
+    })),
+    joins: joins.map((j) => `${j.left}|${j.right}`),
+  }));
 }
