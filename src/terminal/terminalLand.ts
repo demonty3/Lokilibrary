@@ -43,11 +43,12 @@ import {
   hexToInt,
   waitForCozette,
 } from '../render/fonts';
-import { buildLandContainer } from '../render/levels/land';
+import { buildLandContainer, landRoleFill } from '../render/levels/land';
 import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '../render/mural';
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
+import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   maybeMark,
   markDisplayRow,
@@ -226,6 +227,8 @@ declare global {
       /** e2e only — the composed model's cell at (x,y): glyph + role
        *  provenance for on-screen sightings. */
       debugCellAt(x: number, y: number): { char: string; role: string } | null;
+      /** e2e only — wisp positions (cells) + alphas, for drift readback. */
+      debugClouds(): Array<{ x: number; alpha: number }>;
     };
   }
 }
@@ -465,6 +468,9 @@ export async function mountTerminalLand(
   const hideBakedLayers = (): void => {
     for (const t of scene.layers.label ?? []) t.visible = false;
     for (const t of scene.layers.being ?? []) t.visible = false;
+    // #19 slice 2: the drifting wisp layer owns the clouds on the terminal
+    // path — the baked static layer stays in the model for other surfaces.
+    for (const t of scene.layers.cloud ?? []) t.visible = false;
   };
   const buildSiteLabels = (): void => {
     for (const v of siteLabelViews) v.text.destroy();
@@ -478,6 +484,23 @@ export async function mountTerminalLand(
       text.alpha = 0;
       world.addChildAt(text, 1); // above the scene (index 0), below edges/beings
       return { site, text, alpha: 0 };
+    });
+  };
+  interface WispView { spec: WispSpec; text: BitmapText }
+  let wispViews: WispView[] = [];
+  const buildWisps = (): void => {
+    for (const w of wispViews) w.text.destroy();
+    wispViews = [];
+    if ((theme.landOmit ?? []).includes('cloud')) return; // a pack that deletes clouds gets no wisps either
+    wispViews = extractWisps(model, seed).map((spec) => {
+      const text = new BitmapText({
+        text: spec.text,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: landRoleFill(theme, 'cloud') },
+      });
+      text.y = spec.row * CH;
+      text.alpha = 0; // positioned + faded on the first tick
+      world.addChildAt(text, 1); // same plane as the label overlays
+      return { spec, text };
     });
   };
   let muralState: TerminalMuralState = 'idle';
@@ -506,6 +529,7 @@ export async function mountTerminalLand(
 
   hideBakedLayers();
   buildSiteLabels();
+  buildWisps();
   mountMural();
 
   /** Wings with no open terminal window — the closed-wing skyline (land
@@ -531,6 +555,7 @@ export async function mountTerminalLand(
     drawMarks(); // marks re-sit on the reshaped surface
     hideBakedLayers();
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
+    buildWisps(); // same — the composed clouds are new, so the wisps must be too
     mountMural(); // scene child was destroyed with sceneContainer; pixel cache makes this instant
     structureCols = structureColumns(model.role);
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
@@ -874,6 +899,15 @@ export async function mountTerminalLand(
     (scene.layers.foliage ?? []).forEach((t, i) => {
       t.x = i % 2 === 0 ? sway : -sway;
     });
+
+    // #19 slice 2: cloud drift — wall-clock so same-wing windows agree and a
+    // woken throttle snaps to where the sky has got to (no accumulator).
+    const skyT = Date.now() / 1000;
+    for (const w of wispViews) {
+      const xc = wispX(w.spec, skyT, model.width);
+      w.text.x = xc * CW;
+      w.text.alpha = wispAlpha(w.spec, xc) * 0.9;
+    }
 
     // Proximity labels: a site's name fades in only while a walker is near.
     // dt-driven (frozen under throttle); exiting/pending/absent beings don't
@@ -1254,6 +1288,11 @@ export async function mountTerminalLand(
     },
     debugCellAt: (x, y) =>
       model.char[y]?.[x] !== undefined ? { char: model.char[y][x], role: model.role[y][x] } : null,
+    debugClouds: () =>
+      wispViews.map((w) => ({
+        x: Math.round((w.text.x / CW) * 100) / 100,
+        alpha: Math.round(w.text.alpha * 1000) / 1000,
+      })),
   };
 
   return () => {
