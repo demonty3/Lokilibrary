@@ -12,6 +12,9 @@
  *  e2e-verified via __terminal.debugDepth() and __terminal.debugClock(). */
 import { makeChecker } from './lib/smoke.ts';
 import {
+  CLOCK_HELD,
+  HELD_SKY,
+  skyNow,
   foliageSway,
   GLOW_SUN_PERIOD_S,
   GLOW_SUN_RANGE,
@@ -224,5 +227,49 @@ for (const gap of [1.1, 61, 3607]) {
   check(`gap ${gap}s: two windows agree on the sky at one instant`,
     a.sun === b.sun && a.night === b.night, JSON.stringify({ a, b }));
 }
+
+// --- The hold. Harry's call after seeing it live: the clock drives presence
+// but not colour, and colour is a pack constant, so noon read as night with
+// the stars taken away. It stays built and verified but HELD until the
+// daylight-colour rung lands. These bars guard the hold itself — that it is
+// neutral, that it is total, and that the machinery underneath stays alive.
+check('the clock is held (flip CLOCK_HELD to ship it)', CLOCK_HELD);
+
+// Neutral: the held sky is the PRE-clock sky, everything the composer baked.
+// Anything less would be a visible change made by a feature we just withheld.
+check('held sky keeps the ☼ up', HELD_SKY.sun === 1);
+check('held sky keeps ☾ and the stars up', HELD_SKY.night === 1);
+check('held sky is deliberately OFF the daylight curve',
+  HELD_SKY.sun + HELD_SKY.night !== 1,
+  'on the curve sun+night=1, so every value trades the ☼ for the stars');
+// The reason it must be off the curve: the ☼ role also carries the ground
+// lamps, so the nearest on-curve hold (night) would darken furniture.
+let anyCurvePointNeutral = false;
+for (let h = 0; h < 24; h += 0.01) {
+  const p = skyPresence(daylight(h));
+  if (p.sun === HELD_SKY.sun && p.night === HELD_SKY.night) anyCurvePointNeutral = true;
+}
+check('no hour on the curve is neutral (the hold could not have been an hour)',
+  !anyCurvePointNeutral);
+
+// Total: while held, the real clock moves the sky at NO hour of the day.
+let heldStill = true;
+for (let h = 0; h < 24; h += 0.05) {
+  const s = skyNow(null, h);
+  if (s.sun !== HELD_SKY.sun || s.night !== HELD_SKY.night) heldStill = false;
+}
+check('held: the sky is identical at every real hour', heldStill);
+
+// …but not dead: a forced hour still runs the live curve, so the clock stays
+// demonstrable while held. This is the bar that fails if someone "simplifies"
+// the hold by deleting the machinery.
+check('forced midnight still runs the real curve', skyNow(0, 12).night === 1 && skyNow(0, 12).sun === 0,
+  JSON.stringify(skyNow(0, 12)));
+check('forced noon still runs the real curve', skyNow(12, 0).sun === 1 && skyNow(12, 0).night === 0,
+  JSON.stringify(skyNow(12, 0)));
+check('forced dawn still crossfades', skyNow(6.7, 0).sun > 0.05 && skyNow(6.7, 0).night > 0.05,
+  JSON.stringify(skyNow(6.7, 0)));
+check('a forced hour ignores the real one entirely',
+  JSON.stringify(skyNow(3, 11)) === JSON.stringify(skyNow(3, 23)));
 
 report();

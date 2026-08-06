@@ -1997,7 +1997,34 @@ daylight. Alphas-only was the right first rung — it respects packs owning
 colour — but a bright day needs the pack contract to gain a second sky
 register. That is now the top item on the ladder (IDEAS.md § Shared rules
 across terminals, "Daylight colour"), and it is an authoring-spec change, not
-a tweak. Harry's eyeball is the gate on whether the current state ships as-is.
+a tweak.
+
+**HELD 2026-08-06 — Harry's ruling after seeing it side by side.** The clock
+stays built, smoked and verified, but the desk holds a fixed sky until the
+daylight-colour rung lands. `CLOCK_HELD` in `src/terminal/ambient.ts` is the
+whole switch; flipping it turns the live clock back on.
+
+- **The hold is deliberately OFF the daylight curve.** There `sun + night = 1`,
+  so every value on it trades one body for the other — and holding at night
+  would drop the ☼, which (per the role caveat above) also carries the LAMPS
+  beside loved shelves, darkening ground furniture that has nothing to do with
+  the sky. `HELD_SKY = {sun: 1, night: 1}` is the PRE-clock sky: everything the
+  composer baked, present. Holding therefore changes nothing already eyeballed.
+  Smoked both ways — that no hour on the curve is neutral, and that the held
+  sky is identical at every real hour.
+- **A forced hour still runs the live curve** (`skyNow(forced, real)`), so the
+  clock stays demonstrable while held rather than rotting behind a flag. That
+  is its own bar in the smoke: it fails if someone "simplifies" the hold by
+  deleting the machinery. `debugClock` reports `held` so a reader can tell a
+  held sky from a computed one.
+- Verified live after the hold: unforced reads `held: true` with ☼ 0.99 / ☾ 1 /
+  ★ 1 (the pre-clock sky) at a real 23:12 whose curve says daylight 0; forced
+  noon still empties the night sky; forced midnight still darkens the ☼;
+  releasing the override returns to the held sky. Screenshot on file.
+
+Smoke is 81 assertions with the hold's own bars. Comparison artifact (the
+noon/midnight swap Harry ruled on):
+https://claude.ai/code/artifact/1545b0a8-cdfa-442d-b4fd-06000f81b13d
 
 Remaining rungs (daylight colour, then light direction and weather) are in
 IDEAS.md § Shared rules across terminals.

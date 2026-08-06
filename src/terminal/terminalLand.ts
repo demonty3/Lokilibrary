@@ -59,7 +59,7 @@ import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '.
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
-import { daylight, foliageSway, localHour, pulse, skyPresence, sunGlow } from './ambient';
+import { CLOCK_HELD, daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   launchNote,
@@ -296,7 +296,12 @@ declare global {
       /** e2e only — force the world-clock hour (0..24), null restores the real
        *  one. Returns what the sky did about it: midnight is otherwise only
        *  verifiable by waiting until midnight. */
-      debugClock(hour: number | null): { hour: number; overridden: boolean; daylight: number };
+      debugClock(hour: number | null): {
+        hour: number;
+        overridden: boolean;
+        daylight: number;
+        held: boolean;
+      };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
        *  checkable from outside the renderer without this. */
@@ -1248,9 +1253,11 @@ export async function mountTerminalLand(
     // World clock: which of the baked sky is out at this hour. Every window
     // derives it from the same wall clock, so the desk agrees with no broker
     // channel — and a terminal opened at midnight matches its neighbours the
-    // instant it mounts. `clockOverrideH` is the e2e hook (you cannot verify
-    // midnight by waiting for it).
-    const sky = skyPresence(daylight(clockOverrideH ?? localHour(nowMs)));
+    // instant it mounts. Currently HELD to a fixed sky (ambient.CLOCK_HELD)
+    // until the daylight-colour rung lands; a forced hour still runs the live
+    // curve, so `clockOverrideH` (the e2e hook — you cannot verify midnight by
+    // waiting for it) demonstrates the real clock either way.
+    const sky = skyNow(clockOverrideH, localHour(nowMs));
 
     // Tier-2 structure glow: monuments (and a hall, if one ever composes here)
     // pulse gently off elapsedS (deltaMS-accumulated), so they freeze cleanly
@@ -1782,7 +1789,11 @@ export async function mountTerminalLand(
       return {
         hour: Math.round(h * 1000) / 1000,
         overridden: hour !== null,
+        // What the curve SAYS at this hour…
         daylight: Math.round(daylight(h) * 1000) / 1000,
+        // …and whether the desk is currently acting on it. Held + unforced
+        // means the drawn sky is HELD_SKY, not this daylight.
+        held: CLOCK_HELD && hour === null,
       };
     },
     debugLabels: () =>

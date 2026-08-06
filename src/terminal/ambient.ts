@@ -131,3 +131,36 @@ export function daylight(hour: number): number {
 export function skyPresence(daylightLevel: number): { sun: number; night: number } {
   return { sun: daylightLevel, night: 1 - daylightLevel };
 }
+
+/**
+ * The clock is BUILT, VERIFIED and HELD (Harry's call, 2026-08-06, after
+ * seeing it on the joined desk). It drives presence but not colour, and colour
+ * is a pack constant, so noon read as "night with the stars taken away" rather
+ * than as daylight. Rather than ship a visibly wrong day, the desk holds a
+ * fixed sky until the daylight-colour rung lands; flipping this one constant
+ * turns the live clock back on.
+ */
+export const CLOCK_HELD = true;
+
+/**
+ * The sky held while `CLOCK_HELD` — everything the composer baked, present:
+ * exactly the pre-clock sky, so holding changes nothing anyone has already
+ * eyeballed.
+ *
+ * Deliberately NOT a point on the daylight curve. There `sun + night = 1`, so
+ * every value trades one body for the other: holding at night would drop the
+ * ☼ — and the ☼ role also carries the LAMPS beside loved shelves
+ * (`land.ts:581`), so it would darken furniture on the ground that has nothing
+ * to do with the sky. A neutral hold has to sit off the curve.
+ */
+export const HELD_SKY = { sun: 1, night: 1 } as const;
+
+/**
+ * The sky to draw right now. A forced hour (the e2e clock hook) always runs
+ * the live curve — the machinery stays exercised and demonstrable while it is
+ * held, which is what stops a held feature from quietly rotting.
+ */
+export function skyNow(forcedHour: number | null, realHour: number): { sun: number; night: number } {
+  if (forcedHour !== null) return skyPresence(daylight(forcedHour));
+  return CLOCK_HELD ? { ...HELD_SKY } : skyPresence(daylight(realHour));
+}
