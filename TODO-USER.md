@@ -13,13 +13,16 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-06** (land polish #19 slice 2 SHIPPED — monument
-architecture + door, constellations + cloud drift, ore veins, sign
-posts, closing the #19 programme item. Verified live on a
-`LOKILIBRARY_TERMINALS=2` desk; two live-found defects fixed along the
-way (a door-overwrite guard, and a constellation/mural-rect placement
-gap) — STATE.md has the full record. Eyeball item below awaits your
-judgement against the bars frozen 2026-08-05.)
+Last updated: **2026-08-06, evening** (land polish #19 slice 2 eyeball
+PASSED on all six bars — the #19 programme item is CLOSED. Bar 3 took
+two same-day fix rounds (wisp re-row past mural occlusion, then a speed
+re-dial — the first band was humanly invisible). Also this session: the
+terminals desk is now the DEFAULT desktop boot; the palace moved behind
+`LOKILIBRARY_TERMINALS=0`. Next candidates: static-beings liveliness,
+the launcher beat (the monument door role now exists as its landing
+spot).)
+Previously **2026-08-06** (slice 2 SHIPPED and first-watch judged: 5/6
+bars, drift visibility defect found and fixed same day.)
 Previously **2026-08-05** (land polish #19 slice 1 eyeball PASSED —
 "the shots look right" on all three shots: strata, skyline, DMG blank
 sky. Neither frozen kill condition fired; no tuning requested. The
@@ -69,53 +72,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 🔔 EYEBALL — land polish #19 slice 2
-**Status**: JUDGED 2026-08-06 — bars 1, 2, 4, 5, 6 PASSED (monument,
-constellations, ore, sign posts, DMG). Bar 3 (cloud drift) OPEN: Harry
-couldn't tell it was working. Diagnosis: the drift is mechanically live
-(CDP readback shows seeded-speed motion) but perceptually absent —
-every window wears a mural (#16), the mural's occlusion span covers
-~60% of the cloud rows, one of the two baked wisps is evicted outright
-where its row crosses the rect, and the survivor spends most of its
-slow crossing faded to zero. This does NOT fire the frozen kill (that
-was for drift drawing TOO MUCH attention); it is a visibility defect in
-the mural interaction. **FIX SHIPPED same day (`d21fc3b`)**: wisps
-re-row to the clearest sky row when their baked row is mostly blocked,
-and mural-evicted wisps are re-synthesized so every window keeps two
-(render-side only; mural golden untouched; smoke pinned at desk width
-80 where the defect actually reproduces — width 120 dilutes it).
-**Re-watch bar 3**: each window now shows a visible wisp (alpha 0.9)
-drifting at 2.4–6 cells/min while the window is visible. Known
-behaviour, not a bug: drift pauses when the app is fully covered
-(Chromium stops rAF — the accepted throttle pause).
-**What**: look at `docs/design-reviews/2026-08-06-land-polish-slice2/` —
-`desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
-`desk-dmg.png` (gameboy-dmg). Then watch the live desk for ~15 s and see
-if you notice the sky wisps drifting. Judge against these six bars
-(frozen 2026-08-05, before implementation):
-1. **Monument**: reads as built architecture with an entrance. (Kill:
-   noisier blob → revert to the column, rethink at mockup level.)
-2. **Constellations**: ≥1 figure reads as deliberate; sky NO busier.
-   (Kill: more cluttered → remove figures, keep scatter.)
-3. **Cloud drift**: noticeable in ~10 s, invisible at a glance. (Kill:
-   draws the eye from across the room → halve speed once; still pulls
-   focus → ship static.)
-4. **Ore**: "rock with veins", not confetti. (Kill: confetti → halve
-   count once; still confetti → pull the role.)
-5. **Sign posts**: site furniture; reveal feels unchanged. (Kill: stray
-   glyphs → omit everywhere.)
-6. **gameboy-dmg**: sky blank, crowns blank, judged bands unmoved, doors
-   present.
-
-**Heads-up on `desk-t1-d0.png` specifically**: on this particular
-default-library world, the monument's cap + first window-slit row sit
-inside the "stardew" mural's rect and are evicted by it (a pre-existing
-interaction with Murals #16, not something this slice introduced or
-scoped to fix — the door, the one locked invariant, is unaffected and
-visible). If bar 1 reads ambiguous from that shot alone, the fuller
-7-row structure (cap/slits/body/crown/door all intact) is visible on
-the desk's other wing — flag if you'd like a supplementary shot.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
@@ -183,6 +139,14 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL land polish #19 slice 2 — PASSED 2026-08-06, all six bars;
+  the #19 programme item is CLOSED.** Two rounds: bars 1/2/4/5/6 first
+  watch; bar 3 (drift) needed two same-day fixes — wisp re-row +
+  resynthesis past mural occlusion (`d21fc3b`), then a speed re-dial
+  0.04–0.10 → 0.25–0.45 cells/s because the first band was humanly
+  invisible (`905c3b6`). "yes that's much better — bar 3 passes." No
+  kill fired. Same session: plain desktop launch now boots the
+  terminals desk (`8ec7ee4`; palace = LOKILIBRARY_TERMINALS=0).
 - ✅ **EYEBALL land polish #19 slice 1 — PASSED 2026-08-05** ("the
   shots look right — eyeball passed on all three": strata material read,
   closed-wing skyline, DMG blank sky, judged against the bars frozen

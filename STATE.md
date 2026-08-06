@@ -219,8 +219,9 @@ caverns, signage) are the next slice.
 
 **Land polish #19 slice 2 SHIPPED 2026-08-06** (spec
 `docs/superpowers/specs/2026-08-05-land-polish-slice2-design.md`, plan
-`docs/superpowers/plans/2026-08-06-land-polish-slice2.md`; eyeball PENDING
-— TODO-USER has the item) — the four remaining #19 legs, closing the
+`docs/superpowers/plans/2026-08-06-land-polish-slice2.md`; eyeball PASSED
+2026-08-06, all six bars — see the closing paragraph below) — the four
+remaining #19 legs, closing the
 programme item. Architectural decision: **one deliberate compose-side
 upgrade + renderer-side cloud drift**, changing composed bytes ONCE (a
 re-roll like the raised-horizon pass), with two approaches explicitly
@@ -299,6 +300,29 @@ not confetti. KILL: confetti → halve count once; still confetti → pull
 the role. (5) Sign posts: site furniture; reveal feels unchanged. KILL:
 stray glyphs → omit everywhere. (6) gameboy-dmg: sky blank, crowns
 blank, judged bands unmoved, doors present.
+
+**#19 slice 2 eyeball PASSED 2026-08-06 — all six bars; the #19
+programme item is CLOSED.** Two rounds on the live desk. Round 1: bars
+1/2/4/5/6 passed; bar 3 (drift) failed as "not sure it's working" — NOT
+the frozen kill (that leg was for too-salient) but a visibility defect:
+every window wears a mural whose occlusion span covered ~60% of both
+cloud rows at desk widths (one seed wiped both wisps outright). Fixed
+render-side (`d21fc3b`): starved wisps re-row to the clearest free sky
+row; mural-evicted wisps re-synthesize from the canonical shapes so
+every window keeps two; smoke pinned at width 80 (width 120 dilutes the
+mural below the 0.5 threshold and would pass pre-fix code — geometry
+matters when pinning occlusion defects). Round 2 revealed the second
+half: the seeded speed band 0.04–0.10 cells/s (my dial) moved under a
+cell per 15 s — mechanically alive, humanly invisible; re-dialed to
+0.25–0.45 cells/s (`905c3b6`, a window crossing every ~3–5 min).
+Harry: "yes that's much better — bar 3 passes." No kill fired on any
+bar. **Same session, direction repair (`8ec7ee4`): a plain desktop
+launch now boots the terminals desk** (2 windows + broker) — Harry saw
+the palace boot and called it ("I thought we've moved past that");
+the palace stays one env var away (`LOKILIBRARY_TERMINALS=0`) as the
+reference implementation. Wallpaper mode + peek remain palace-only
+until the terminals-as-wallpaper migration item lands; the desk has its
+own tray. README launch instructions updated.
 
 **Murals #16 SHIPPED 2026-08-01, eyeball PASSED same day** ("looks good" on the live two-window desk + the DMG re-quantise) (spec
 `docs/superpowers/specs/2026-08-01-murals-on-land-design.md`, plan
