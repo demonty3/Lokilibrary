@@ -28,10 +28,54 @@ export interface WispSpec {
   readonly blocked: ReadonlyArray<readonly [number, number]>;
 }
 
+/** A wisp is starved when its row is mostly blocked — it spends the crossing
+ *  at alpha 0 (the bar-3 eyeball finding: every window wears a mural, and the
+ *  mural span dominated both baked cloud rows at desk widths). */
+const RE_ROW_THRESHOLD = 0.5;
+/** The composer's canonical wisp shapes — used to restore the intended count
+ *  when the mural evicts a baked run outright. */
+const WISP_SHAPES = ['~ ~~~~ ~', '~~ ~~~'] as const;
+/** The composer always bakes two wisps; the drifting sky keeps that many. */
+const WISP_COUNT = 2;
+
+function blockedSpansAt(model: LandModel, y: number): Array<readonly [number, number]> {
+  const blocked: Array<readonly [number, number]> = [];
+  let bs = -1;
+  for (let c = 0; c <= model.width; c++) {
+    const bad = c < model.width && !DRIFTABLE.has(model.role[y][c]);
+    if (bad && bs < 0) bs = c;
+    if (!bad && bs >= 0) { blocked.push([bs, c]); bs = -1; }
+  }
+  return blocked;
+}
+
+const blockedFraction = (spans: ReadonlyArray<readonly [number, number]>, width: number): number =>
+  spans.reduce((n, [s, e]) => n + (e - s), 0) / width;
+
+/** The clearest sky row not yet taken: lowest blocked fraction, ties to the
+ *  smallest row. Row 0 is never a candidate (the drag strip overlays it). */
+function clearestRow(model: LandModel, taken: ReadonlySet<number>): number {
+  let best = -1;
+  let bestFrac = Infinity;
+  for (let y = 1; y < model.height; y++) {
+    if (taken.has(y)) continue;
+    const f = blockedFraction(blockedSpansAt(model, y), model.width);
+    if (f < bestFrac) { bestFrac = f; best = y; }
+  }
+  return best;
+}
+
 /** The baked cloud runs, lifted: one WispSpec per contiguous cloud-role run,
- *  with per-wisp speed/phase from fnv1a over (seed, index). */
+ *  with per-wisp speed/phase from fnv1a over (seed, index). Two visibility
+ *  rescues (bar-3 eyeball fix, 2026-08-06), both render-side — the model is
+ *  untouched and static surfaces keep the baked clouds exactly:
+ *  - a wisp whose row is > RE_ROW_THRESHOLD blocked drifts on the clearest
+ *    free sky row instead (pre-fix it crossed at alpha 0);
+ *  - if the mural evicted baked runs outright (a real seed-41 outcome at
+ *    desk widths), canonical-shape wisps are synthesized on clear rows so
+ *    the sky keeps the composer's intended weather. */
 export function extractWisps(model: LandModel, seed: number): WispSpec[] {
-  const wisps: WispSpec[] = [];
+  const runs: Array<{ row: number; text: string }> = [];
   for (let y = 0; y < model.height; y++) {
     let x = 0;
     while (x < model.width) {
@@ -39,25 +83,31 @@ export function extractWisps(model: LandModel, seed: number): WispSpec[] {
       let end = x;
       while (end < model.width && model.role[y][end] === 'cloud') end++;
       const text = model.char[y].slice(x, end).join('');
-      const blocked: Array<readonly [number, number]> = [];
-      let bs = -1;
-      for (let c = 0; c <= model.width; c++) {
-        const bad = c < model.width && !DRIFTABLE.has(model.role[y][c]);
-        if (bad && bs < 0) bs = c;
-        if (!bad && bs >= 0) { blocked.push([bs, c]); bs = -1; }
-      }
-      const h = fnv1a32(`${seed}:wisp:${wisps.length}`);
-      wisps.push({
-        row: y,
-        text,
-        speed: 0.04 + (h % 61) / 1000, // 0.040..0.100 cells/s (2.4..6 cells/min)
-        phase: h % model.width,
-        blocked,
-      });
+      // A run the mural clipped to a stub no longer reads as a wisp —
+      // treat it as evicted and let synthesis restore the count.
+      if (text.length >= 3 && text.split('~').length - 1 >= 2) runs.push({ row: y, text });
       x = end;
     }
   }
-  return wisps;
+  while (runs.length < WISP_COUNT) runs.push({ row: -1, text: WISP_SHAPES[runs.length % WISP_SHAPES.length] });
+
+  const taken = new Set<number>();
+  return runs.map((run, i) => {
+    let row = run.row;
+    if (row < 0 || blockedFraction(blockedSpansAt(model, row), model.width) > RE_ROW_THRESHOLD) {
+      const clear = clearestRow(model, taken);
+      if (clear >= 0) row = clear;
+    }
+    taken.add(row);
+    const h = fnv1a32(`${seed}:wisp:${i}`);
+    return {
+      row,
+      text: run.text,
+      speed: 0.04 + (h % 61) / 1000, // 0.040..0.100 cells/s (2.4..6 cells/min)
+      phase: h % model.width,
+      blocked: blockedSpansAt(model, row),
+    };
+  });
 }
 
 /** Position at wall-clock second tSec: cells, in [-text.length, width),
