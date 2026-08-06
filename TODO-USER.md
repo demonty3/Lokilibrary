@@ -80,7 +80,15 @@ every window wears a mural (#16), the mural's occlusion span covers
 where its row crosses the rect, and the survivor spends most of its
 slow crossing faded to zero. This does NOT fire the frozen kill (that
 was for drift drawing TOO MUCH attention); it is a visibility defect in
-the mural interaction. Fix direction under discussion below.
+the mural interaction. **FIX SHIPPED same day (`d21fc3b`)**: wisps
+re-row to the clearest sky row when their baked row is mostly blocked,
+and mural-evicted wisps are re-synthesized so every window keeps two
+(render-side only; mural golden untouched; smoke pinned at desk width
+80 where the defect actually reproduces — width 120 dilutes it).
+**Re-watch bar 3**: each window now shows a visible wisp (alpha 0.9)
+drifting at 2.4–6 cells/min while the window is visible. Known
+behaviour, not a bug: drift pauses when the app is fully covered
+(Chromium stops rAF — the accepted throttle pause).
 **What**: look at `docs/design-reviews/2026-08-06-land-polish-slice2/` —
 `desk-t1-d0.png` (solo window), `desk-joined.png` (two-window desk),
 `desk-dmg.png` (gameboy-dmg). Then watch the live desk for ~15 s and see
