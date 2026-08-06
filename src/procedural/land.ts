@@ -116,6 +116,13 @@ export interface LandSite {
   /** The drawn text (≤7 chars). */
   readonly text: string;
   readonly kind: 'surface' | 'buried';
+  /** The game's full name — `text` is truncated for drawing, and the
+   *  launcher beat needs the real one for prose + Steam. */
+  readonly name: string;
+  /** Steam appid, when the game has one. Absent = not launchable (the
+   *  launcher beat builds no hotspot for it). Pure exported metadata:
+   *  no cell is written and no PRNG draw is taken for this field. */
+  readonly appid?: number;
 }
 
 export interface LandModel {
@@ -501,7 +508,13 @@ export function composeLand(
   }
 
   // --- Surface structures, keyed to engagement (bigger, more presence) -----
-  const labels: Array<{ x: number; y: number; text: string; kind: 'surface' | 'buried' }> = [];
+  const labels: Array<{
+    x: number;
+    y: number;
+    text: string;
+    kind: 'surface' | 'buried';
+    appid?: number;
+  }> = [];
   const surface = games.filter((p) => p.state !== 'abandoned');
   const slot = Math.floor(cols / (surface.length + 1));
 
@@ -549,7 +562,7 @@ export function composeLand(
     const x = slot * (i + 1) + rng.range(-2, 3);
     const gy = surfaceY(x);
     if (hallSpan && i === 0) {
-      labels.push({ x: hallCx, y: surfaceY(hallCx), text: p.name, kind: 'surface' }); // the hall stands here
+      labels.push({ x: hallCx, y: surfaceY(hallCx), text: p.name, kind: 'surface', appid: p.appid }); // the hall stands here
       return;
     }
     if (hallSpan && x >= hallSpan[0] - 3 && x <= hallSpan[1] + 3) return; // don't draw into the hall
@@ -574,7 +587,7 @@ export function composeLand(
       set(x, gy - 1, '⌂', 'cottage');
       set(x + 1, gy - 1, '♣', 'foliage');
     }
-    labels.push({ x, y: gy, text: p.name, kind: 'surface' });
+    labels.push({ x, y: gy, text: p.name, kind: 'surface', appid: p.appid });
   });
 
   // --- A descent shaft into the caverns ------------------------------------
@@ -591,7 +604,7 @@ export function composeLand(
       const x = slot * (2 + i * 2) + rng.range(0, 6);
       const y = Math.max(groundLine + 3, groundLine + UNDER_H - 2 - rng.range(0, 3));
       set(x - 1, y, '≡', 'relic');
-      labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name, kind: 'buried' });
+      labels.push({ x, y: Math.min(y + 1, rows - 1), text: p.name, kind: 'buried', appid: p.appid });
     });
 
   // Ore veins (#19 slice 2): short diagonal glints through stone/bedrock.
@@ -665,7 +678,7 @@ export function composeLand(
   // label is exported on `model.sites` so a renderer can manage visibility
   // (the terminal land's proximity reveal) without re-deriving placement.
   const sites: LandSite[] = [];
-  for (const { x, y, text, kind } of labels) {
+  for (const { x, y, text, kind, appid } of labels) {
     const s = text.slice(0, 7);
     const start = x - Math.floor(s.length / 2);
     let ly = y;
@@ -679,7 +692,7 @@ export function composeLand(
     }
     for (let i = -1; i <= s.length; i++) set(start + i, ly, ' ', 'sky');
     for (let i = 0; i < s.length; i++) set(start + i, ly, s[i], 'label');
-    sites.push({ x, y: ly, text: s, kind });
+    sites.push({ x, y: ly, text: s, kind, name: text, appid });
   }
 
   // --- Skyline of closed wings (land polish #19 slice 1) -------------------

@@ -301,6 +301,73 @@ the role. (5) Sign posts: site furniture; reveal feels unchanged. KILL:
 stray glyphs → omit everywhere. (6) gameboy-dmg: sky blank, crowns
 blank, judged bands unmoved, doors present.
 
+**Launcher beat SHIPPED 2026-08-06 (eyeball PENDING)** — the T2-remainder
+item deferred since 2026-07-17; the `door` role (#19 slice 2) now has
+behaviour. Spec: `docs/superpowers/specs/2026-08-06-launcher-beat-design.md`
+(Harry's three direction calls frozen in it before any code). **The desk's
+first user input**: it had no player, no keyboard handler and no pointer
+handler until this slice. Shape: **click any site → the door lights → the
+nearest being walks to it → Steam fires → they step through and are gone
+until you come back**. Architecture: renderer-side only. `src/procedural/`
+gains ONE additive metadata field (`LandSite.name` + `.appid` — a truncated
+7-char display string cannot address Steam); grid parity proven against the
+pre-change composer (char/role/surface/mural/shade/poster + every site's
+x/y/text/kind byte-identical across 4 seeds × 4 option sets), so the
+`smoke-land-mural` golden re-freeze is a PAYLOAD change, not a re-roll — the
+golden hashes the whole model on purpose and the re-freeze comment says so.
+New: `src/terminal/launchTargets.ts` (pure hotspot geometry + `doorColumn`),
+`errand` BeingIntent (in the union, NEVER scored by `pickIntent` and never
+reached by `resumeIntent` — smoke-enforced over 10k draws, so the world can
+never launch a game on its own), launch vocab in `marks.ts`,
+`recordLaunch`/`recordReturn` in `terminalMemory.ts`. Zero new AI calls (the
+palace's version force-fires Tier-2; this deliberately does not) — the
+CLAUDE.md runtime-AI ledger is unchanged. Rules that fell out: the errand
+walks to the monument door, or to the clicked site when the wing's slice has
+no `mastered` game (not every land has a monument); Steam fires at
+`ERRAND_CAP_S` 2.5 s whether or not the runner arrived, but **the walk
+continues and they still step through the door** (Steam's own cold start is
+5-20 s, so the world finishes its beat while the game loads); a land with
+nobody home degrades to a plain launch; one runner at a time. **Away time is
+WALL CLOCK, not `elapsedS`** — found live, not by review: a being is away
+precisely while the game holds the screen and this window is occluded, and an
+occluded Chromium window throttles or stops rAF *and* Pixi clamps `deltaMS`
+to 100 ms, so a backgrounded desk accrues elapsed time ~10× slower than the
+wall; measured in `elapsedS` the 20 s floor had not expired after 24 s of
+wall time and the 30-min ceiling could have taken most of a day. **The return
+signal is attention, not process state**, and the spec says so plainly: macOS
+has no game-exit signal available here (the throttle's fullscreen probe is
+Win32-only and its IPC only ever reaches the palace's `mainWindow`), so a
+runner re-emerges on the first focus/pointer event past a 20 s floor, and
+unconditionally at a 30-min ceiling. A real exit signal drops straight into
+that one call site. New smoke `smoke-launch-targets` (37 assertions),
+**mutant-checked three ways** (appid-less sites included → red; hit-test row
+band removed → red; `errand` added to the scoring ladder → red). Full
+64-smoke sweep + both typecheck legs green. New e2e tooling:
+`scripts/e2e/term-drive.mjs` (the launch-desktop-app skill's driver targets
+the palace's `mainWindow`; the desk's windows are separate CDP targets), with
+real `Input.dispatchMouseEvent` support — a synthetic `PointerEvent`'s
+`offsetX` is not the page's own, and the hover affordance only tested
+honestly under real input. VERIFIED ON SCREEN (macOS desk, window frontmost —
+a throttled window passes vacuously): real mouse click on a site → errand
+created for the nearest being → launch fired (`ok:true surface:electron`) →
+runner continued walking → stepped through at the door → `away` →
+mark at the door column carrying the game's name → return on the LATE poke
+only (early poke inside the floor correctly did nothing, and 19 s of no
+attention correctly did nothing); a second real click during a live errand
+was ignored (errand still named the first game); hover pinned the hovered
+site's label to alpha 1 with `cursor:pointer`; joined desk unchanged
+(`knits.glowStale 0`, mural `ready`, right edge open). Shots:
+`docs/design-reviews/2026-08-06-launcher-beat/`. **Frozen eyeball bars (six,
+in the spec, frozen before implementation)**: discoverability, the beat
+reads as sending someone, stepping through reads as entering, absence reads
+as "someone is out", the return reads as a payoff, nothing regressed. **Known
+and NOT fixed (pre-existing, seen in both shots): the marginalia reveal's
+caption box has no opaque backing, so a caption whose mark sits under a mural
+renders over the mural's frame and is harder to read.** It is not
+launcher-specific (the second shot's colliding caption is an ordinary
+`at_edge` mark), but the launcher makes it reproducible on demand, because
+every launch mark lands on the same door column.
+
 **#19 slice 2 eyeball PASSED 2026-08-06 — all six bars; the #19
 programme item is CLOSED.** Two rounds on the live desk. Round 1: bars
 1/2/4/5/6 passed; bar 3 (drift) failed as "not sure it's working" — NOT

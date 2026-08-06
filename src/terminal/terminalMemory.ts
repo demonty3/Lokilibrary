@@ -73,6 +73,63 @@ export function recordMark(
   }
 }
 
+/** The launcher beat: the runner reached the door and the game fired.
+ *  Palace parity — cell.ts's bookshelf launch writes importance 6 too.
+ *  `game_launched` is an existing schema-v3 ObservationSource token; no new
+ *  AI call rides this row (the arrival-driven Tier-1 pump drains the queue
+ *  on the walker's own cadence, unchanged). */
+export const LAUNCH_IMPORTANCE = 6;
+/** Coming back out of the door — the arrival class. */
+export const RETURN_IMPORTANCE = ARRIVAL_IMPORTANCE;
+
+export function recordLaunch(
+  writer: MemoryWriter,
+  args: {
+    agentId: string;
+    name: string;
+    appid: number;
+    col: number;
+    row: number;
+    whenMs: number;
+  },
+): string | null {
+  try {
+    return writer.recordPerception(
+      args.agentId,
+      {
+        kind: 'game_launched',
+        subject: `${args.name} (${args.appid})`,
+        at: { x: args.col, y: args.row },
+        when: args.whenMs,
+      },
+      LAUNCH_IMPORTANCE,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** The runner steps back out of the door when you return to the desk. */
+export function recordReturn(
+  writer: MemoryWriter,
+  args: { agentId: string; name: string; col: number; row: number; whenMs: number },
+): string | null {
+  try {
+    return writer.recordPerception(
+      args.agentId,
+      {
+        kind: 'terminal_arrival',
+        subject: `back from ${args.name}`,
+        at: { x: args.col, y: args.row },
+        when: args.whenMs,
+      },
+      RETURN_IMPORTANCE,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export function recordArrival(
   writer: MemoryWriter,
   args: { agentId: string; wing: string; col: number; row: number; whenMs: number },

@@ -193,6 +193,26 @@ const VOCAB: Record<string, Record<MarkContextKind, Lines>> = {
   },
 };
 
+/** Launcher-beat notes: what a runner leaves at the door on the way in.
+ *  Its own table because a launch is not one of the ambient contexts — it
+ *  always leaves a trace (maybeMark's odds + cooldown are bypassed), and
+ *  the line names the game. `{game}` is the only slot. In-voice per being,
+ *  same rule as VOCAB above. */
+const LAUNCH_VOCAB: Record<string, readonly string[]> = {
+  loki: ['gone into {game}. back when it lets me.', 'the door was open. {game} was on the other side.'],
+  archivist: ['entered {game}. session logged, duration unknown.', 'departed into {game}. the desk continues without me.'],
+  cat: ['went in after {game}. do not wait up.', '{game} had a warm doorway. obviously.'],
+  visitor: ['ducked into {game}. borrowed the door.', 'off to {game}. left the map on the step.'],
+  ghost: ['"{game} was played here before. it is being played again."', 'a cold shape passed into {game}.'],
+};
+
+/** A note for a launch runner. Unknown ids fall back to loki (the
+ *  DEFAULT_MARK_STYLE philosophy, as in noteFor). */
+export function launchNote(agentId: string, game: string, rand: () => number): string {
+  const lines = LAUNCH_VOCAB[agentId] ?? LAUNCH_VOCAB.loki;
+  return lines[Math.floor(rand() * lines.length)].replace('{game}', game);
+}
+
 /** A note line for (being, context). Unknown ids fall back to the loki
  *  table (the DEFAULT_MARK_STYLE philosophy). With a non-empty thought
  *  and a thoughted template available, ~half the picks fold the mind's

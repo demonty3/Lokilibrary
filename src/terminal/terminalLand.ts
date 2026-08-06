@@ -50,8 +50,10 @@ import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
+  launchNote,
   maybeMark,
   markDisplayRow,
+  MARK_DEDUPE_COLS,
   noteFor,
   pickReveal,
   MARK_RENDER_CAP,
@@ -62,6 +64,13 @@ import {
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
 import { captionFor } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
+import {
+  doorColumn,
+  hitLaunchTarget,
+  launchTargets,
+  type LaunchTarget,
+} from './launchTargets';
+import { launchGame } from '../agents/launch';
 import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
@@ -101,7 +110,13 @@ import type { AgentRuntimeState } from '../state/agentRuntime';
 import { mulberry32, type Prng } from '../procedural/prng';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
 import { cellIdFor, libraryIdFor } from '../agents/memory/schema';
-import { recordArrival, recordCrossing, recordMark } from './terminalMemory';
+import {
+  recordArrival,
+  recordCrossing,
+  recordLaunch,
+  recordMark,
+  recordReturn,
+} from './terminalMemory';
 
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
@@ -151,6 +166,25 @@ const KNIT_SPAN = 6; // columns the sweep travels inward from the seam
 /** Tier-2 polish: the sweep carries a trail; the seam ground brightens. */
 const KNIT_TRAIL = ['█', '▓', '▒'] as const; // head → tail
 const KNIT_GLOW_S = 0.9; // ground-brightening outlives the sweep a beat
+/** Launcher beat (docs/superpowers/specs/2026-08-06-launcher-beat-design.md):
+ *  click a site → the door lights, the nearest being runs the errand, Steam
+ *  fires when they arrive. */
+const ERRAND_CAP_S = 2.5; // fire anyway past this — a launcher may not make you wait
+const THROUGH_S = 0.35; // fade through the door
+const RETURN_S = 0.45; // fade back out of it
+// Away time is WALL CLOCK, not the ticker's elapsedS — the same reason cloud
+// drift is (see the wisp loop). A being is away precisely while the game has
+// the screen and this window is occluded, and an occluded Chromium window
+// throttles or stops rAF; worse, Pixi clamps deltaMS to 100 ms, so a 1 Hz
+// throttled ticker accrues elapsed time ~10× slower than the wall. Measured in
+// elapsedS, the floor would expire long after you were back and the ceiling
+// could take most of a day. Verified live 2026-08-06: on a backgrounded desk
+// the floor had not expired after 24 s of wall time.
+const AWAY_FLOOR_MS = 20_000; // no re-emergence before this (a stray mouse move must not yank them back)
+const AWAY_CEIL_MS = 30 * 60_000; // …and never later than this, attention or not
+/** Door pulse while an errand is live (the click's acknowledgement). */
+const DOOR_PULSE_HZ = 2;
+const DOOR_PULSE_RANGE: [number, number] = [0.45, 1];
 
 interface Being {
   id: string;
@@ -181,13 +215,28 @@ interface Being {
   mind: AgentRuntimeState;
   /** Land personality (beingIntents.ts LAND_PERSONAS). Cached at spawn. */
   persona: LandPersona;
+  /** Launcher beat: fading through the door (elapsedS at the step). */
+  throughSince: number | null;
+  /** Launcher beat: out playing. Absent from the land entirely — not drawn,
+   *  no walking, no wear, no crossings, holds no label open. */
+  away: { game: string; col: number; sinceMs: number } | null;
+  /** Launcher beat: fading back out of the door. */
+  returningSince: number | null;
 }
 
 export interface TerminalLandState {
   terminalId: string;
   wing: string;
   edges: { left: boolean; right: boolean };
-  beings: Array<{ id: string; x: number; dir: number; intent: string; present: boolean }>;
+  beings: Array<{
+    id: string;
+    x: number;
+    dir: number;
+    intent: string;
+    present: boolean;
+    /** Launcher beat: out playing (invisible, walks nothing, crosses nothing). */
+    away: boolean;
+  }>;
   /** e2e ground truth for the join juice: live sweep count, total fired, and
    *  live glow glyphs sitting off the current ground line. `glowStale` must
    *  always read 0 — a mid-knit recompose used to strand them mid-air. */
@@ -229,6 +278,24 @@ declare global {
       debugCellAt(x: number, y: number): { char: string; role: string } | null;
       /** e2e only — wisp positions (cells) + alphas, for drift readback. */
       debugClouds(): Array<{ x: number; alpha: number }>;
+      /** e2e only — launcher-beat readback: the clickable sites, the door
+       *  column, the live errand, who is away, and the last launch fired. */
+      debugLaunch(): {
+        /** `px`/`py` are the site centre in CANVAS CSS PIXELS — the harness
+         *  drives real mouse input (Input.dispatchMouseEvent), which needs
+         *  screen coords, and this is the same transform the pointer handler
+         *  inverts. */
+        targets: Array<{ x: number; y: number; px: number; py: number; name: string; appid: number }>;
+        doorX: number | null;
+        /** Site column the pointer is currently over (the affordance's state). */
+        hoverX: number | null;
+        errand: { agentId: string; targetX: number; name: string } | null;
+        away: string[];
+        last: { name: string; appid: number; agentId: string | null; ok: boolean; surface: string } | null;
+      };
+      /** e2e only — click a cell (the pointer path's own hit-test), so the
+       *  harness drives the beat exactly as a mouse would. True = it hit. */
+      debugClick(x: number, y: number): boolean;
     };
   }
 }
@@ -538,6 +605,13 @@ export async function mountTerminalLand(
    *  preview, which has no broker). */
   let closedWings: string[] = [];
 
+  // Launcher beat geometry — the clickable sites and the door the errand
+  // walks to. Both are pure functions of the CURRENT model, so a join
+  // recompose re-derives them (a moved door with a stale column would send
+  // the runner into a hillside).
+  let launchHotspots: LaunchTarget[] = launchTargets(model);
+  let doorX: number | null = doorColumn(model.role);
+
   const recompose = (join: { left?: number; right?: number } | null): void => {
     model = composeLand(seed, games, {
       ...composeOpts,
@@ -558,6 +632,8 @@ export async function mountTerminalLand(
     buildWisps(); // same — the composed clouds are new, so the wisps must be too
     mountMural(); // scene child was destroyed with sceneContainer; pixel cache makes this instant
     structureCols = structureColumns(model.role);
+    launchHotspots = launchTargets(model);
+    doorX = doorColumn(model.role);
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
     // than on the next tick — the recompose is the event that invalidated
     // them, and a throttled or paused renderer may not tick for a long time.
@@ -741,6 +817,9 @@ export async function mountTerminalLand(
       pendingArrivalMark: entering,
       mind: reconstructMind(id, Math.round(x), surfaceRow),
       persona,
+      throughSince: null,
+      away: null,
+      returningSince: null,
     };
     beings.set(id, being);
     return being;
@@ -764,6 +843,191 @@ export async function mountTerminalLand(
     world.addChild(spark);
     sparks.push({ text: spark, bornAt: elapsedS });
   };
+
+  // ── The launcher beat ──────────────────────────────────────────────────
+  // Click a site → the door lights, the nearest being turns and walks to it,
+  // Steam fires when they arrive (or at ERRAND_CAP_S, whichever is first).
+  // The runner then steps THROUGH the door and is away until you come back
+  // to the desk. Spec: docs/superpowers/specs/2026-08-06-launcher-beat-design.md.
+  //
+  // The errand is user-driven by construction: `pickIntent` never scores the
+  // `errand` kind, so the world can never launch a game on its own.
+
+  /** The live errand, cleared the moment Steam fires (one runner per window;
+   *  a second click before that is ignored). */
+  let errand: {
+    target: LaunchTarget;
+    targetX: number;
+    agentId: string;
+    startedS: number;
+    /** Steam already fired (the cap expired mid-walk) — the runner keeps
+     *  walking and still steps through the door properly. */
+    fired: boolean;
+  } | null = null;
+  /** Hovered site column — pins that label open and flips the cursor. */
+  let hoverX: number | null = null;
+  /** e2e readback for the beat (debugLaunch). */
+  let lastLaunch: { name: string; appid: number; agentId: string | null; ok: boolean; surface: string } | null = null;
+
+  /** A being who could run an errand right now: here, visible, not already
+   *  mid-handoff, mid-door or out playing. */
+  const canRun = (b: Being): boolean =>
+    b.mind.present &&
+    !b.pending &&
+    b.exitingSince === null &&
+    b.throughSince === null &&
+    b.away === null &&
+    b.returningSince === null;
+
+  /** Nearest eligible being to the goal column, or null on an empty land. */
+  const pickRunner = (goalX: number): Being | null => {
+    let best: Being | null = null;
+    let bestD = Infinity;
+    for (const b of beings.values()) {
+      if (!canRun(b)) continue;
+      const d = Math.abs(b.x - goalX);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    return best;
+  };
+
+  /** Fire Steam, and write the launch to the memory stream. `runner` is null
+   *  only on a land with nobody home — the beat degrades to a plain launch
+   *  (no memory row: an observation belongs to whoever had it). The MARK is
+   *  not written here: it belongs at the door, so stepThrough owns it. */
+  const fireLaunch = (runner: Being | null, target: LaunchTarget, col: number): void => {
+    void launchGame({ appid: target.appid, name: target.name }).then((ev) => {
+      lastLaunch = {
+        name: target.name,
+        appid: target.appid,
+        agentId: runner?.id ?? null,
+        ok: ev.ok,
+        surface: ev.surface,
+      };
+      // eslint-disable-next-line no-console
+      console.log(
+        `[land] launch ${ev.surface} appid=${target.appid} ok=${ev.ok} name="${target.name}" runner=${runner?.id ?? 'none'}`,
+      );
+    });
+    if (!runner) return;
+    recordLaunch(memory, {
+      agentId: runner.id,
+      name: target.name,
+      appid: target.appid,
+      col,
+      row: model.surface[col] ?? 0,
+      whenMs: Date.now(),
+    });
+  };
+
+  /** The runner goes in: a mark at the door, then the fade through it. A
+   *  launch ALWAYS leaves a mark (maybeMark's odds + cooldown are for ambient
+   *  punctuation; this is an event). An existing mark at the door is replaced
+   *  rather than stacked — the dedupe rule, applied by hand. */
+  const stepThrough = (b: Being, target: LaunchTarget): void => {
+    const col = Math.min(model.width - 1, Math.max(0, Math.round(b.x)));
+    for (let i = marks.length - 1; i >= 0; i--) {
+      if (Math.abs(marks[i].col - col) <= MARK_DEDUPE_COLS) {
+        marks[i].text.destroy();
+        marks.splice(i, 1);
+      }
+    }
+    const note = launchNote(b.id, target.name, rng);
+    markLastAt.set(b.id, elapsedS);
+    recordMark(memory, { agentId: b.id, note, col, row: model.surface[col] });
+    addMarkView(b.id, note, col);
+    b.throughSince = elapsedS;
+  };
+
+  /** Click landed on a site: light the door, send someone. */
+  const beginErrand = (target: LaunchTarget): void => {
+    if (errand) return; // one runner at a time; resolves when Steam fires
+    // The door is where the beat lands — but a wing's slice need not contain
+    // a `mastered` game, so a land without a monument sends the runner into
+    // the game's own structure instead.
+    const goalX = doorX ?? target.x;
+    const runner = pickRunner(goalX);
+    if (!runner) {
+      fireLaunch(null, target, goalX);
+      return;
+    }
+    runner.intent = { kind: 'errand', targetX: goalX };
+    runner.pausedUntil = 0; // no hesitation beat — they were asked to go
+    runner.nextIntentAt = Infinity; // no re-pick until the errand resolves
+    errand = { target, targetX: goalX, agentId: runner.id, startedS: elapsedS, fired: false };
+  };
+
+  /** The runner reached the door: fire if the cap hasn't already, then in
+   *  they go. */
+  const completeErrand = (b: Being): void => {
+    if (!errand) return;
+    const { target, fired } = errand;
+    errand = null;
+    if (!fired) fireLaunch(b, target, Math.round(b.x));
+    stepThrough(b, target);
+  };
+
+  /** Out of the door, back onto the land. */
+  const returnFromAway = (b: Being): void => {
+    if (!b.away) return;
+    const col = Math.min(model.width - 1, Math.max(0, b.away.col));
+    recordReturn(memory, {
+      agentId: b.id,
+      name: b.away.game,
+      col,
+      row: model.surface[col] ?? 0,
+      whenMs: Date.now(),
+    });
+    b.away = null;
+    b.x = col;
+    b.lastCol = col;
+    b.returningSince = elapsedS;
+    b.text.visible = true;
+    b.text.alpha = 0;
+    b.intent = { kind: 'rest' };
+    b.pausedUntil = elapsedS + RETURN_S;
+    b.nextIntentAt = elapsedS + RETURN_S + 1;
+  };
+
+  /** Attention on this window — the return signal. There is no game-exit
+   *  signal available on macOS (the throttle's fullscreen probe is Win32-only
+   *  and never reaches terminal windows), so the beat uses "you came back to
+   *  the desk" instead, floored so a stray mouse move right after the click
+   *  cannot yank anyone back. The spec records this honestly; a real exit
+   *  signal drops straight in here. */
+  const onAttention = (): void => {
+    for (const b of beings.values()) {
+      if (b.away && Date.now() - b.away.sinceMs >= AWAY_FLOOR_MS) returnFromAway(b);
+    }
+  };
+
+  // Pointer input — the desk's first. Cell space comes from the SAME
+  // transform the world is drawn with (never a second copy of the maths).
+  const cellAt = (e: PointerEvent): { x: number; y: number } => ({
+    x: Math.floor((e.offsetX - world.x) / (CW * WORLD_SCALE)),
+    y: Math.floor((e.offsetY - world.y) / (CH * WORLD_SCALE)),
+  });
+  const onPointerMove = (e: PointerEvent): void => {
+    const c = cellAt(e);
+    const hit = hitLaunchTarget(launchHotspots, c.x, c.y);
+    hoverX = hit ? hit.x : null;
+    app.canvas.style.cursor = hit ? 'pointer' : 'default';
+    onAttention();
+  };
+  const onPointerDown = (e: PointerEvent): void => {
+    if (e.button !== 0) return;
+    const c = cellAt(e);
+    const hit = hitLaunchTarget(launchHotspots, c.x, c.y);
+    if (hit) beginErrand(hit);
+    else onAttention();
+  };
+  const onWindowFocus = (): void => onAttention();
+  app.canvas.addEventListener('pointermove', onPointerMove);
+  app.canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('focus', onWindowFocus);
 
   /** The fuse beat: on a fresh join, a bright block runs inward from the seam
    *  along the (now continuous) ground, fading as it goes. Both windows play
@@ -858,7 +1122,9 @@ export async function mountTerminalLand(
     if (elapsedS >= nearReportAt) {
       nearReportAt = elapsedS + NEAR_EDGE_REPORT_S;
       const near = nearEdgeSummary(
-        [...beings.values()].filter((b) => !b.pending && b.mind.present).map((b) => ({ id: b.id, x: b.x })),
+        [...beings.values()]
+          .filter((b) => !b.pending && b.mind.present && b.away === null)
+          .map((b) => ({ id: b.id, x: b.x })),
         model.width,
         edges,
       );
@@ -893,6 +1159,16 @@ export async function mountTerminalLand(
     const sunAlpha = glow(GLOW_SUN_PERIOD_S, GLOW_SUN_RANGE);
     for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
 
+    // Launcher beat: while an errand is live the door PULSES — the click is
+    // acknowledged in the world within a frame, whatever Steam does later.
+    // Otherwise it sits at full alpha, exactly as composed.
+    const doorAlpha = errand
+      ? DOOR_PULSE_RANGE[0] +
+        (DOOR_PULSE_RANGE[1] - DOOR_PULSE_RANGE[0]) *
+          (0.5 - 0.5 * Math.cos(elapsedS * DOOR_PULSE_HZ * 2 * Math.PI))
+      : 1;
+    for (const t of scene.layers.door ?? []) t.alpha = doorAlpha;
+
     // Tier-2 foliage sway: sub-cell x offsets, parity planes counter-phased
     // (glyphs move BETWEEN cells — never snap-to-cell).
     const sway = Math.sin(elapsedS * SWAY_HZ * 2 * Math.PI) * SWAY_PX;
@@ -913,10 +1189,13 @@ export async function mountTerminalLand(
     // dt-driven (frozen under throttle); exiting/pending/absent beings don't
     // hold a label open.
     const walkerXs = [...beings.values()]
-      .filter((b) => b.mind.present && b.exitingSince === null && !b.pending)
+      .filter((b) => b.mind.present && b.exitingSince === null && !b.pending && b.away === null)
       .map((b) => b.x);
     for (const v of siteLabelViews) {
-      v.alpha = stepLabelAlpha(v.alpha, siteLabelTarget(v.site, walkerXs), dt);
+      // Launcher beat: a hovered site pins its own label open — that pin plus
+      // the pointer cursor IS the affordance (no new chrome).
+      const target = hoverX !== null && v.site.x === hoverX ? 1 : siteLabelTarget(v.site, walkerXs);
+      v.alpha = stepLabelAlpha(v.alpha, target, dt);
       v.text.alpha = easeLabelAlpha(v.alpha);
     }
 
@@ -966,8 +1245,66 @@ export async function mountTerminalLand(
       anchorKnitGlow(k);
     }
 
+    // Launcher beat: the cap. A launcher may not make you wait, so Steam
+    // fires at ERRAND_CAP_S whether or not the runner has arrived — but the
+    // WALK continues, and they still step through the door when they get
+    // there (Steam's own cold start is 5-20 s, so the world finishes its beat
+    // while the game loads). Handled HERE, not in the runner's own branch, so
+    // a runner who goes absent (Visitor's cycle, Ghost's apparitions) or
+    // vanishes mid-errand can never wedge it: the launch fires anyway, it
+    // just fires with nobody to walk it.
+    if (errand) {
+      const runner = beings.get(errand.agentId);
+      if (!runner || !canRun(runner)) {
+        // Gone or gone absent mid-errand (completeErrand clears `errand`
+        // BEFORE the through-door fade, so this is never the arrival path).
+        const { target, targetX, fired } = errand;
+        errand = null;
+        if (!fired) fireLaunch(null, target, targetX);
+      } else if (!errand.fired && elapsedS - errand.startedS >= ERRAND_CAP_S) {
+        errand.fired = true;
+        fireLaunch(runner, errand.target, Math.round(runner.x));
+      }
+    }
+
     const beingCols: number[] = []; // present beings' columns (reveal proximity)
     for (const b of beings.values()) {
+      // Launcher beat: out playing. Absent from the land — nothing below
+      // runs for them, so they hold no label, wear no path and cross no
+      // seam. They come back on attention (onAttention), or at the ceiling
+      // if this desk is never touched again.
+      if (b.away !== null) {
+        if (Date.now() - b.away.sinceMs >= AWAY_CEIL_MS) returnFromAway(b);
+        continue;
+      }
+      // Stepping THROUGH the door: fade out where they stand, then go away.
+      if (b.throughSince !== null) {
+        const p = (elapsedS - b.throughSince) / THROUGH_S;
+        if (p >= 1) {
+          b.throughSince = null;
+          b.away = { game: lastLaunch?.name ?? '', col: Math.round(b.x), sinceMs: Date.now() };
+          b.text.visible = false;
+          b.text.alpha = 1; // reset for the return fade
+          continue;
+        }
+        b.text.alpha = 1 - p;
+        b.text.x = Math.round(b.x * CW);
+        b.text.y = surfaceLocalY(b.x);
+        continue;
+      }
+      // …and back out of it.
+      if (b.returningSince !== null) {
+        const p = (elapsedS - b.returningSince) / RETURN_S;
+        if (p >= 1) {
+          b.returningSince = null;
+          b.text.alpha = 1;
+        } else {
+          b.text.alpha = p;
+          b.text.x = Math.round(b.x * CW);
+          b.text.y = surfaceLocalY(b.x);
+          continue;
+        }
+      }
       // Exit juice: slide one cell past the edge while fading, then go.
       if (b.exitingSince !== null) {
         const p = (elapsedS - b.exitingSince) / EXIT_S;
@@ -1077,6 +1414,17 @@ export async function mountTerminalLand(
             b.dir = b.x < it.targetX ? 1 : -1;
             vel = b.dir * b.speed;
           } // else linger at the structure: stand, keep bobbing
+        } else if (it.kind === 'errand') {
+          // Walks like approach, but the arrival FIRES: Steam on the last
+          // step, or at the cap if they were too far to make it in time (a
+          // launcher may not make you wait — the cap fires and they step
+          // through from wherever they stand).
+          if (Math.abs(b.x - it.targetX) <= APPROACH_NEAR) {
+            completeErrand(b);
+            continue;
+          }
+          b.dir = b.x < it.targetX ? 1 : -1;
+          vel = b.dir * b.speed;
         } else if (it.kind === 'watch_edge') {
           if (!edges[it.side]) {
             b.nextIntentAt = elapsedS; // edge closed under us — re-pick next frame
@@ -1217,6 +1565,7 @@ export async function mountTerminalLand(
         dir: b.dir,
         intent: b.intent.kind,
         present: b.mind.present,
+        away: b.away !== null,
       })),
       knits: {
         live: knits.length,
@@ -1293,6 +1642,29 @@ export async function mountTerminalLand(
         x: Math.round((w.text.x / CW) * 100) / 100,
         alpha: Math.round(w.text.alpha * 1000) / 1000,
       })),
+    debugLaunch: () => ({
+      targets: launchHotspots.map((t) => ({
+        x: t.x,
+        y: t.y,
+        px: Math.round(world.x + (t.x + 0.5) * CW * WORLD_SCALE),
+        py: Math.round(world.y + (t.y + 0.5) * CH * WORLD_SCALE),
+        name: t.name,
+        appid: t.appid,
+      })),
+      doorX,
+      hoverX,
+      errand: errand
+        ? { agentId: errand.agentId, targetX: errand.targetX, name: errand.target.name }
+        : null,
+      away: [...beings.values()].filter((b) => b.away !== null).map((b) => b.id),
+      last: lastLaunch,
+    }),
+    debugClick: (x, y) => {
+      const hit = hitLaunchTarget(launchHotspots, x, y);
+      if (!hit) return false;
+      beginErrand(hit);
+      return true;
+    },
   };
 
   return () => {
@@ -1301,6 +1673,9 @@ export async function mountTerminalLand(
     unsubEnter();
     unsubNeighbour();
     app.ticker.remove(tick);
+    app.canvas.removeEventListener('pointermove', onPointerMove);
+    app.canvas.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('focus', onWindowFocus);
     delete window.__terminal;
     if (glowFilter) {
       world.filters = [];

@@ -13,7 +13,19 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-06, evening** (land polish #19 slice 2 eyeball
+Last updated: **2026-08-06, late** (the LAUNCHER BEAT shipped — click any
+site on a land, the door lights, the nearest being walks to it, Steam fires,
+they step through and are gone until you come back to the desk. Verified on
+screen with real mouse input; **six frozen eyeball bars await your watch** —
+see `docs/superpowers/specs/2026-08-06-launcher-beat-design.md` and the shots
+in `docs/design-reviews/2026-08-06-launcher-beat/`. To try it: launch the
+desk and click a game's name or its structure on either window. Steam is not
+installed on this Mac, so the world half is what you are judging; the launch
+itself is proven by its log line + memory row. One pre-existing wart you will
+see: a reveal caption whose mark sits under a mural draws over the mural
+frame and is harder to read — not introduced here, but the launcher lands
+every launch mark on the same door column, so it recurs.)
+Previously **2026-08-06, evening** (land polish #19 slice 2 eyeball
 PASSED on all six bars — the #19 programme item is CLOSED. Bar 3 took
 two same-day fix rounds (wisp re-row past mural occlusion, then a speed
 re-dial — the first band was humanly invisible). Also this session: the

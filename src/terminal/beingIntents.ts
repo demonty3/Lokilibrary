@@ -33,7 +33,12 @@ export type BeingIntent =
   | { kind: 'wander'; dir: 1 | -1 }
   | { kind: 'rest' }
   | { kind: 'approach'; targetX: number }
-  | { kind: 'watch_edge'; side: 'left' | 'right' };
+  | { kind: 'watch_edge'; side: 'left' | 'right' }
+  /** The launcher beat: the user clicked a site, and this being is running
+   *  the errand to the door. USER-DRIVEN ONLY — `pickIntent` never scores
+   *  it and `resumeIntent` never decays to it (both smoke-enforced), so the
+   *  world can never launch a game on its own. Walks like `approach`. */
+  | { kind: 'errand'; targetX: number };
 
 export type BeingIntentKind = BeingIntent['kind'];
 

@@ -27,10 +27,20 @@ check('no mural roles without opts.mural',
 // golden: no-mural compose output re-frozen 2026-08-06 (#19 slice 2 land
 // re-roll) — a change here means the mural-off path is no longer
 // byte-identical.
+//
+// RE-FROZEN AGAIN 2026-08-06 (launcher beat): this hash covers the WHOLE
+// model payload, and `LandSite` gained the launcher's `name` + `appid`
+// metadata. NO drawn cell moved — char/role/surface/mural/shade/poster and
+// every site's x/y/text/kind were diffed against the pre-change composer and
+// came back identical. The hash still hashes everything on purpose (a gate
+// that hashed only the grid would miss real payload regressions).
 const NO_MURAL_GOLDEN: Record<string, string> = {
-  seed7: '6fe56cde',
-  seed41: '1b1ab10c',
-  join: '6fe56cde',
+  seed7: 'be491659',
+  seed41: 'f28e33d7',
+  // NB (pre-existing): seed 7's right edge already sits at the shared seam
+  // height, so a right join is a no-op for THIS seed — same hash as seed7 by
+  // coincidence, not by a broken join. Other seeds do move.
+  join: 'be491659',
 };
 check('no-mural golden: seed 7', hash(off) === NO_MURAL_GOLDEN.seed7, hash(off));
 check('no-mural golden: seed 41',
