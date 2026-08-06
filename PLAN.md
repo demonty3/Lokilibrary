@@ -73,7 +73,7 @@ murals / #19, not a separate item.
 | T0 — two-terminal joined-world spike | SHIPPED (join moment 2026-07-16; human beats passed 07-17) |
 | T1 — frameless windows, registry, persistence | SHIPPED (desk persistence, tray, chains 2026-07-16) |
 | T2 — one society, real runtime | SHIPPED 2026-07-17 (T2 society migration) |
-| T2 remainder | Launcher beat SHIPPED 2026-08-06 (eyeball pending); still OPEN: Tier-2/topology reflection (→T4) |
+| T2 remainder | Launcher beat SHIPPED + eyeball PASSED 2026-08-06 (all six bars); still OPEN: Tier-2/topology reflection (→T4) |
 | T3 — terminal identity + chrome | OPEN (parked, not rejected; glyph-chrome craft resurfaces here) |
 | T4 — topology → reflection | OPEN |
 | T5 — orchestration v0 (Depth-3 gated) | OPEN |

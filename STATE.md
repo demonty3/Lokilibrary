@@ -301,7 +301,12 @@ the role. (5) Sign posts: site furniture; reveal feels unchanged. KILL:
 stray glyphs → omit everywhere. (6) gameboy-dmg: sky blank, crowns
 blank, judged bands unmoved, doors present.
 
-**Launcher beat SHIPPED 2026-08-06 (eyeball PENDING)** — the T2-remainder
+**Launcher beat SHIPPED 2026-08-06, eyeball PASSED same day — all six bars,
+no kill fired, no dial spent.** Harry watched it live on the two-window desk
+("bars 1-6 all pass"): the hover affordance read, the click read as sending
+someone, the step through the door read as entering, the absence read as
+someone being out, the return-with-a-note read as a payoff, and nothing
+regressed. The T2-remainder
 item deferred since 2026-07-17; the `door` role (#19 slice 2) now has
 behaviour. Spec: `docs/superpowers/specs/2026-08-06-launcher-beat-design.md`
 (Harry's three direction calls frozen in it before any code). **The desk's
