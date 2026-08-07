@@ -92,9 +92,11 @@ Force the hour from either terminal window's devtools:
 `__terminal.debugClock(12)` / `(6.5)` / `(0)`, and `(null)` to restore.
 **The six bars, frozen 2026-08-07 before implementation** (spec:
 `docs/superpowers/specs/2026-08-07-hour-without-colour-design.md`):
-1. Noon reads as **day** — sun high, lamps out. *Kill: still reads as "night
-   with a sun added" → position cannot carry this, and the day/night palette
-   register is the only path left. Don't dial; stop.*
+1. ✅ **PASSED 2026-08-07** — Harry: "bar 1 passes, noon reads as day." The
+   kill did not fire. **This is the fork the slice existed to resolve: the
+   world can say "day" by position and state alone, with no colour.** Both
+   daylight-colour axes therefore drop from "the only path left" to an
+   optional expressive axis for pack authors (IDEAS.md).
 2. Midnight reads as **night** — moon up, lamps lit, sun gone. *Kill: lamps
    read as decoration → drop the lamp leg, keep the arc.*
 3. Dawn is a **climb** (sweep 4 → 9). *Kill: jumps between rows or slides
