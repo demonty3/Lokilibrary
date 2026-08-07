@@ -43,29 +43,87 @@ export interface ArcSpec {
   readonly blocked: ReadonlyArray<readonly [number, number]>;
 }
 
-/** Row spans in column `x` that a body may not pass over. */
-function blockedRowsAt(model: LandModel, x: number): Array<readonly [number, number]> {
+/** Row spans in column `x` that a body may not pass over. `self` is the body's
+ *  own role, which must count as passable: the composer stamps the ☼ INTO the
+ *  grid, so without this a body's own cell is in its own blocked set and it
+ *  fades itself to nothing at its peak — found on screen, where the sun sat at
+ *  alpha 0 at every hour while every smoke was green. */
+function blockedRowsAt(model: LandModel, x: number, self: LandRole): Array<readonly [number, number]> {
   const blocked: Array<readonly [number, number]> = [];
   let bs = -1;
   for (let y = 0; y <= model.height; y++) {
-    const bad = y < model.height && !PASSABLE.has(model.role[y][x]);
+    const role = y < model.height ? model.role[y][x] : null;
+    const bad = role !== null && role !== self && !PASSABLE.has(role);
     if (bad && bs < 0) bs = y;
     if (!bad && bs >= 0) { blocked.push([bs, y]); bs = -1; }
   }
   return blocked;
 }
 
-/** The arc a composed body will travel, or null if this land has no such body
- *  (a pack's landOmit deletes it, or the mural evicted it). */
-export function extractArc(model: LandModel, role: 'sun' | 'moon'): ArcSpec | null {
-  let col = -1;
-  let peakY = -1;
-  for (let y = 0; y < model.height && peakY < 0; y++)
+/** Where the composer put this body, or null if the mural evicted it. */
+function composedAt(model: LandModel, role: 'sun' | 'moon'): { col: number; peakY: number } | null {
+  for (let y = 0; y < model.height; y++)
     for (let x = 0; x < model.width; x++)
-      if (model.role[y][x] === role) { col = x; peakY = y; break; }
-  if (peakY < 0) return null;
-  const floorY = Math.min(...model.surface) - 1 - ARC_CLEARANCE;
-  return { col, peakY, floorY: Math.max(peakY, floorY), blocked: blockedRowsAt(model, col) };
+      if (model.role[y][x] === role) return { col: x, peakY: y };
+  return null;
+}
+
+/** Fraction of a column's travel band that a body could actually be seen in. */
+function clearFraction(model: LandModel, col: number, peakY: number, floorY: number, self: LandRole): number {
+  if (floorY <= peakY) return 0;
+  let clear = 0;
+  for (let y = peakY; y <= floorY; y++) {
+    const r = model.role[y][col];
+    if (r === self || PASSABLE.has(r)) clear++;
+  }
+  return clear / (floorY - peakY + 1);
+}
+
+/** A composed column is kept unless it is mostly obstructed — the seeded
+ *  placement is the pack's own, and moving a body that can already be seen
+ *  would churn the look for nothing. */
+const KEEP_COMPOSED_ABOVE = 0.6;
+
+/**
+ * The arc a body will travel. Never null for a land that has sky: if the
+ * composer's body was evicted, or its column is mostly wall, this picks the
+ * clearest column and the body is drawn there render-side.
+ *
+ * **Why this exists, measured over 60 seeds at real desk options: the mural
+ * evicts the ☼ outright in 42% of lands, and where one survives the median is
+ * visible over just 33% of its travel.** The mural composes last and clears its
+ * rect unconditionally ("the world always wins"), and at desk geometry it
+ * dominates the sky. An arc bound to the composed cell is therefore absent or
+ * hidden most of the time — the whole mechanism, silently missing.
+ *
+ * The fix is not novel here: the drifting wisps hit exactly this on 2026-08-06
+ * ("every window wears a mural whose occlusion span covered ~60% of both cloud
+ * rows; one seed wiped both wisps outright") and shipped the same answer — the
+ * terminal path hides the baked layer and re-renders the body itself, re-placed
+ * into clear sky. Deterministic: first-best column, no RNG, so joined windows
+ * on one wing agree without talking.
+ */
+export function extractArc(model: LandModel, role: 'sun' | 'moon'): ArcSpec | null {
+  if (model.height < 3 || model.width < 1) return null;
+  const composed = composedAt(model, role);
+  // A body the composer never placed still needs a peak. Mirror the composer's
+  // own convention (land.ts: the ☼ rides the top third of the sky, the ☾ starts
+  // at row 1 because the drag strip overlays row 0).
+  const peakY = composed?.peakY ?? (role === 'sun' ? 1 : 2);
+  const floorOf = (col: number): number => Math.max(peakY, model.surface[col] - 1 - ARC_CLEARANCE);
+
+  let col = composed?.col ?? -1;
+  if (col < 0 || clearFraction(model, col, peakY, floorOf(col), role) < KEEP_COMPOSED_ABOVE) {
+    let best = -1;
+    let bestScore = -1;
+    for (let x = 0; x < model.width; x++) {
+      const score = clearFraction(model, x, peakY, floorOf(x), role);
+      if (score > bestScore) { bestScore = score; best = x; }
+    }
+    if (best < 0 || bestScore <= 0) return null; // a land with no clear sky at all
+    col = best;
+  }
+  return { col, peakY, floorY: floorOf(col), blocked: blockedRowsAt(model, col, role) };
 }
 
 /**
@@ -84,13 +142,19 @@ export function arcY(spec: ArcSpec, high: number): number {
 
 /**
  * Occlusion alpha at drawn row `y`: 0 while the body overlaps a blocked span,
- * 1 in the clear, a linear 2-row skirt between — it fades approaching a mural
- * or a structure top and back in past it, never pops.
+ * half-lit where it abuts one, 1 a clear row away — it fades approaching a
+ * mural or a structure top and back in past it, never pops.
  *
- * The same shape as clouds.ts `wispAlpha` on the other axis. Deliberately a
- * sibling rather than a shared helper: that one is smoke-pinned over spans of
- * COLUMNS for a run of glyphs, this one is a single cell over ROWS, and
- * merging them would mean generalising a frozen function to earn eight lines.
+ * The shape comes from clouds.ts `wispAlpha` on the other axis, with one
+ * deliberate difference: there, gap 0 means fully faded, because a drifting
+ * wisp at gap 0 is a whole glyph run about to slide UNDER the mural and the
+ * skirt is about approach. A body is one cell and mostly at REST, so the same
+ * rule made a ☾ composed one row above a ridge invisible at every hour — seen
+ * on screen, at seed 113. Touching is half-lit; only overlapping is gone.
+ *
+ * Kept a sibling of wispAlpha rather than a shared helper for exactly this
+ * reason: they agree on the shape and disagree on the boundary, and merging
+ * them would mean parameterising a frozen function to earn eight lines.
  */
 export function arcAlpha(spec: ArcSpec, y: number): number {
   const y0 = y;
@@ -100,5 +164,5 @@ export function arcAlpha(spec: ArcSpec, y: number): number {
     if (y1 > s && y0 < e) return 0;
     gap = Math.min(gap, y0 >= e ? y0 - e : s - y1);
   }
-  return Math.min(1, gap / 2);
+  return Math.min(1, (gap + 1) / 2);
 }

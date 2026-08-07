@@ -84,7 +84,7 @@ import {
   type LaunchTarget,
 } from './launchTargets';
 import { launchGame } from '../agents/launch';
-import { composeLand, SAMPLE_LAND, type LandGame, type LandSite } from '../procedural/land';
+import { composeLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
   getTerminalTopology,
@@ -312,6 +312,10 @@ declare global {
         sunAlpha: number | null;
         moonAlpha: number | null;
         lampAlpha: number | null;
+        /** Column the body is DRAWN in — may differ from the composed one when
+         *  the mural swallowed that column (see skyArc.extractArc). */
+        sunCol: number | null;
+        moonCol: number | null;
       };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
@@ -474,13 +478,39 @@ export async function mountTerminalLand(
   let contentH = scene.contentH;
   world.addChildAt(sceneContainer, 0);
 
-  // The bodies' travel, read off the composed model once: which column each
-  // sits in, how high it reaches, how low it may go, and which rows of that
-  // column are already occupied. null = this land composed no such body — a
-  // pack's landOmit deleted it (gameboy-dmg's blank sky) or the mural evicted
-  // it — and the tick then leaves the layer exactly as composed.
-  let sunArc: ArcSpec | null = extractArc(model, 'sun');
-  let moonArc: ArcSpec | null = extractArc(model, 'moon');
+  // The arcing bodies. The terminal path DRAWS ITS OWN ☼ and ☾ (the baked
+  // layers are hidden in hideBakedLayers) for the same reason the wisps do:
+  // the mural composes last and clears its rect, so measured over 60 seeds at
+  // desk options it evicts the ☼ outright in 42% of lands and leaves the median
+  // survivor visible over just 33% of its travel. Bound to the composed cell,
+  // the arc would simply be missing most of the time. `extractArc` re-places a
+  // body into the clearest column when its own is mostly wall.
+  //
+  // null = the pack deleted this body (gameboy-dmg's blank sky) or the land has
+  // no clear sky at all; nothing is drawn and the tick skips it.
+  let sunView: { spec: ArcSpec; text: BitmapText } | null = null;
+  let moonView: { spec: ArcSpec; text: BitmapText } | null = null;
+  const buildBodies = (): void => {
+    for (const v of [sunView, moonView]) v?.text.destroy();
+    sunView = null;
+    moonView = null;
+    const omit = theme.landOmit ?? [];
+    for (const role of ['sun', 'moon'] as const) {
+      if (omit.includes(role)) continue; // a pack that deletes the body gets no arc
+      const spec = extractArc(model, role);
+      if (!spec) continue;
+      const text = new BitmapText({
+        text: role === 'sun' ? SUN_GLYPH : MOON_GLYPH,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: landRoleFill(theme, role) },
+      });
+      text.x = spec.col * CW;
+      text.alpha = 0; // positioned + faded on the first tick
+      world.addChildAt(text, 1); // same plane as the wisps and label overlays
+      const view = { spec, text };
+      if (role === 'sun') sunView = view;
+      else moonView = view;
+    }
+  };
 
   // Bottom anchor: dead space (if any) lives behind the sky, never below
   // the bedrock — the land sits on the window sill.
@@ -610,6 +640,11 @@ export async function mountTerminalLand(
     // #19 slice 2: the drifting wisp layer owns the clouds on the terminal
     // path — the baked static layer stays in the model for other surfaces.
     for (const t of scene.layers.cloud ?? []) t.visible = false;
+    // Same, for the arcing bodies: the terminal path draws its own ☼ and ☾ so
+    // they can be re-placed into clear sky when the mural evicts the composed
+    // ones (42% of lands at desk options). The baked layers stay in the model.
+    for (const t of scene.layers.sun ?? []) t.visible = false;
+    for (const t of scene.layers.moon ?? []) t.visible = false;
   };
   const buildSiteLabels = (): void => {
     for (const v of siteLabelViews) v.text.destroy();
@@ -669,6 +704,7 @@ export async function mountTerminalLand(
   hideBakedLayers();
   buildSiteLabels();
   buildWisps();
+  buildBodies();
   mountMural();
 
   /** Wings with no open terminal window — the closed-wing skyline (land
@@ -696,17 +732,16 @@ export async function mountTerminalLand(
     sceneContainer = scene.container;
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
-    // A join reshapes the terrain, so the floor of the arc and the rows blocked
-    // in each body's column both move. Re-read them from the NEW model, or the
-    // sun keeps arcing to the old land's horizon.
-    sunArc = extractArc(model, 'sun');
-    moonArc = extractArc(model, 'moon');
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
     drawMarks(); // marks re-sit on the reshaped surface
     hideBakedLayers();
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
     buildWisps(); // same — the composed clouds are new, so the wisps must be too
+    // A join reshapes the terrain and moves the mural, so both the arc's floor
+    // and the clearest column change. Rebuild, or the ☼ keeps arcing to the old
+    // land's horizon in a column the new mural may have swallowed.
+    buildBodies();
     mountMural(); // scene child was destroyed with sceneContainer; pixel cache makes this instant
     structureCols = structureColumns(model.role);
     launchHotspots = launchTargets(model);
@@ -1304,20 +1339,18 @@ export async function mountTerminalLand(
     // `.y` on the layer, sub-cell, exactly as sway drives `.x`: the body climbs
     // BETWEEN rows. Occlusion reuses the wisp rule — fade approaching a mural
     // or a structure top, never pop, the world always wins.
-    const sunY = sunArc ? arcY(sunArc, sky.day) : 0;
-    const sunAlpha = sunGlow(skyT) * sky.sun * (sunArc ? arcAlpha(sunArc, sunY) : 1);
-    for (const t of scene.layers.sun ?? []) {
-      t.alpha = sunAlpha;
-      if (sunArc) t.y = (sunY - sunArc.peakY) * CH;
+    if (sunView) {
+      const y = arcY(sunView.spec, sky.day);
+      sunView.text.y = y * CH;
+      sunView.text.alpha = sunGlow(skyT) * sky.sun * arcAlpha(sunView.spec, y);
     }
     // ☾ and the stars are the same truth seen from the other side. The
     // composer bakes them into every sky; until the clock existed they simply
     // sat there at noon alongside the sun.
-    const moonY = moonArc ? arcY(moonArc, sky.night) : 0;
-    const moonAlpha = sky.night * (moonArc ? arcAlpha(moonArc, moonY) : 1);
-    for (const t of scene.layers.moon ?? []) {
-      t.alpha = moonAlpha;
-      if (moonArc) t.y = (moonY - moonArc.peakY) * CH;
+    if (moonView) {
+      const y = arcY(moonView.spec, sky.night);
+      moonView.text.y = y * CH;
+      moonView.text.alpha = sky.night * arcAlpha(moonView.spec, y);
     }
     for (const t of scene.layers.star ?? []) t.alpha = sky.night;
     for (const t of scene.layers.starBright ?? []) t.alpha = sky.night;
@@ -1843,16 +1876,16 @@ export async function mountTerminalLand(
     },
     debugSky: () => {
       const r3 = (n: number): number => Math.round(n * 1000) / 1000;
-      const sunT = scene.layers.sun?.[0];
-      const moonT = scene.layers.moon?.[0];
       return {
-        // Drawn ROW, reconstructed from the layer's sub-cell offset plus the
-        // composed peak — the arc's observable.
-        sunY: sunArc && sunT ? r3(sunArc.peakY + sunT.y / CH) : null,
-        moonY: moonArc && moonT ? r3(moonArc.peakY + moonT.y / CH) : null,
-        sunAlpha: sunT ? r3(sunT.alpha) : null,
-        moonAlpha: moonT ? r3(moonT.alpha) : null,
+        // Drawn ROW — the arc's observable. Read off the render-side body, not
+        // the baked layer, which the terminal path hides.
+        sunY: sunView ? r3(sunView.text.y / CH) : null,
+        moonY: moonView ? r3(moonView.text.y / CH) : null,
+        sunAlpha: sunView ? r3(sunView.text.alpha) : null,
+        moonAlpha: moonView ? r3(moonView.text.alpha) : null,
         lampAlpha: scene.layers.lamp?.[0] ? r3(scene.layers.lamp[0].alpha) : null,
+        sunCol: sunView ? sunView.spec.col : null,
+        moonCol: moonView ? moonView.spec.col : null,
       };
     },
     debugLabels: () =>

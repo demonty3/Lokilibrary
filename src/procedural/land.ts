@@ -238,6 +238,12 @@ const MURAL_NAME_MAX = 16;
  *  Cozette atlas, never swap to it. Enumerated in smoke-glyph-coverage.mts. */
 export const MOON_GLYPH = '☾';
 
+/** The one sun, and the shelf lamp that split off it — same glyph, two roles.
+ *  U+263C, atlas-verified; enumerated in smoke-glyph-coverage.mts. Exported
+ *  since 2026-08-07 because the terminal path draws its OWN arcing ☼ and must
+ *  not diverge from the composer's. */
+export const SUN_GLYPH = '☼';
+
 /** Star probability for a sky row: densest at the zenith, quadratically
  *  fading to 0 by the ridge line — the inverse shape of skyDitherDensity.
  *  PURE — the smokeable band function. */
@@ -365,7 +371,7 @@ export function composeLand(
     }
   }
   const sunX = skyRng.range(8, cols - 12);
-  set(sunX, skyRng.range(0, Math.max(1, Math.floor(SKY_H / 3))), '☼', 'sun');
+  set(sunX, skyRng.range(0, Math.max(1, Math.floor(SKY_H / 3))), SUN_GLYPH, 'sun');
   // Moon row starts at 1: the terminal drag strip overlays most of row 0.
   const moonY = skyRng.range(1, Math.max(2, Math.floor(SKY_H / 4) + 1));
   let moonX = skyRng.range(2, cols - 2);
@@ -582,7 +588,7 @@ export function composeLand(
       // The shelf lamp. Its OWN role since 2026-08-07 (the monumentCrown split
       // is the same move): it must light at night while the sky's ☼ sets, and
       // sharing a role meant sharing a render layer and therefore one alpha.
-      set(x + 4, gy - 1, '☼', 'lamp');
+      set(x + 4, gy - 1, SUN_GLYPH, 'lamp');
     } else if (p.state === 'recent') {
       put(x - 1, gy - 2, '▟▙', 'roof');
       put(x - 1, gy - 1, '⌂', 'cottage');
