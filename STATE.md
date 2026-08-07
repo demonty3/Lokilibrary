@@ -170,6 +170,71 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
+**The hour without colour SHIPPED 2026-08-07 — CODE-COMPLETE, eyeball PENDING.**
+The world clock, held since 2026-08-06, is RELEASED. What released it is not the
+sky's colour: that rung was specced (`2026-08-07-daylight-colour-design.md`,
+bars frozen `fd260df`), built to three tasks, and **killed at calibration the
+same day** (`e97a458`) — beings are drawn at `surface - 1`, a SKY cell, so the
+sky is the contrast denominator for nearly everything, the corpus clears the
+frozen `BEING_MIN_CONTRAST 3.0` by only 8%, that budget is gone by a mix of
+~0.06 where midnight→noon separation is 1.03 (invisible), and visible daylight
+needs ~0.3. At mix 0.5, 209/210 role×theme pairs fall below baseline and the
+site LABELS hit 1.08:1. Implementation reverted to `git stash@{0}`; the
+glow-filter trap it found (a lit sky inside the bloom's `THRESHOLD 0.2` input
+blooms the whole band) is worth reviving for any successor. **Harry's
+correction the same day rescued the idea at a different scope**: the engine is
+per-pack slots and every style-pack bar is per-theme, so the *strength* should
+be a slot — re-measured, **7 of 10 packs clear separation ≥ 1.5 while holding
+every bar** (catppuccin cyan 2.40, amber-crt orange 1.88, phosphor fgDim 1.79,
+night-drive green 1.78, tokyo-night cyan 1.71, cozy-autumn orange 1.71,
+ibm-3270 magenta 1.53); solarized and gruvbox bind on a being accent already at
+~2.98, and DMG has no sky. That is PARKED as slice 2 in IDEAS.md — it sequences
+*after* this because `DEFAULT_THEME_ID` is solarized-dark, one of the three.
+
+Shape of what shipped: **position and state, never colour** — the ☼ climbs to
+its peak at noon and sinks toward the horizon at dawn and dusk, the ☾
+counter-arcs, and the shelf lamps light through the night. Contrast-neutral by
+construction. Spec: `docs/superpowers/specs/2026-08-07-hour-without-colour-design.md`
+(six bars frozen before code). Leg 1, the only model change: the shelf lamp
+splits out of `sun` into its own `lamp` role (the `monumentCrown` split three
+days earlier is the same move) — `set()` takes no RNG draw, so no stream moved,
+proven by the other 67 smokes staying green while only `smoke-land-mural`'s
+whole-model golden saw it (a PAYLOAD re-freeze). gameboy-dmg takes `lamp` in
+`landOmit`. New `src/terminal/skyArc.ts` (pure, Pixi-free, the `clouds.ts`
+posture) + `smoke-sky-arc` (157 assertions), mutant-checked six ways — five died,
+and **the sixth earned its keep by NOT dying**: narrowing `PASSABLE` stayed
+green because every occlusion bar used a synthetic `blocked` and nothing checked
+what the model actually puts in one.
+
+**Three defects were found ON SCREEN with every smoke green**, which is the
+record worth keeping: (1) the body occluded ITSELF — the composer stamps the ☼
+into the grid, so its own cell was in its own blocked set and it sat at alpha 0
+at every hour; (2) the arc floor used `min(surface)`, the land's HIGHEST point,
+so one tall hill collapsed travel to zero; (3) **measured over 60 seeds at real
+desk options, the mural evicts the ☼ outright in 42% of lands and the median
+survivor is visible over just 33% of its travel** — the mural composes last and
+clears its rect, and at desk geometry it dominates the sky, so an arc bound to
+the composed cell is simply missing most of the time. The terminal path now
+hides the baked sun/moon layers and draws its own, re-placed into the clearest
+column — the same answer the drifting wisps shipped for the same cause on
+2026-08-06. Two smoke lessons: the suite composed `{width, height}` while the
+product composes `skyH/surfaceBand/underH/mural`, so it reproduced none of
+these; and "visible over most of its travel" was the wrong measure, since the
+bottom of the arc is dawn and dusk where the body is faded out anyway.
+
+VERIFIED ON SCREEN (macOS, two-window desk, frontmost — **the first three
+attempts were vacuous**: a shell round-trip between the `debugClock` call and
+the `debugSky` read let the window fall behind, and macOS suspends rAF outright
+on an occluded window, so only the in-page sequenced run counts). t1: sun
+1→10, moon 2→12, counter-arcing. t2: noon sun at peak alpha 0.999 / moon 0 /
+**lamp 0**; midnight sun 0 / moon 1 / **lamp 0.632**. Both windows agree in
+phase on the real clock with no broker. gameboy-dmg relaunch (`?theme=`): every
+body null at both hours. Nothing regressed — mural `ready`, knits
+`glowStale 0`, 12 marks, monument pulsing, stars correctly gone at noon. New
+`__terminal.debugSky()`. 69 smokes, both typecheck legs and the desktop build
+green. Shots: `docs/design-reviews/2026-08-07-hour-without-colour/` — **context
+only; a still cannot show an arc, so bars 1-5 are a live watch.**
+
 **Land polish #19 slice 1 SHIPPED 2026-08-02, eyeball PASSED 2026-08-05**
 ("the shots look right — eyeball passed on all three": strata, skyline,
 and the DMG blank sky judged against the pre-frozen bars; neither kill

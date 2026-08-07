@@ -83,6 +83,35 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — the hour without colour (world clock released)
+**Status**: SHIPPED 2026-08-07, code-complete, all gates green, verified on
+screen numerically. **Blocked on your live watch** — a still cannot show an arc,
+so five of the six bars are a watch, not a screenshot.
+**What to do**: the desk is the default boot (`npm run dev` + the desktop app).
+Force the hour from either terminal window's devtools:
+`__terminal.debugClock(12)` / `(6.5)` / `(0)`, and `(null)` to restore.
+**The six bars, frozen 2026-08-07 before implementation** (spec:
+`docs/superpowers/specs/2026-08-07-hour-without-colour-design.md`):
+1. Noon reads as **day** — sun high, lamps out. *Kill: still reads as "night
+   with a sun added" → position cannot carry this, and the day/night palette
+   register is the only path left. Don't dial; stop.*
+2. Midnight reads as **night** — moon up, lamps lit, sun gone. *Kill: lamps
+   read as decoration → drop the lamp leg, keep the arc.*
+3. Dawn is a **climb** (sweep 4 → 9). *Kill: jumps between rows or slides
+   mechanically → ease once; still mechanical → ship high/low, no travel.*
+4. **Nothing became harder to read.** *Kill: anything degraded → a leg is
+   touching colour when it must not.*
+5. **The world still wins** — no body draws over a mural, structure or being.
+6. **gameboy-dmg untouched** — blank sky at every hour. (Already confirmed
+   numerically: every body null at noon and midnight.)
+**Context shots** (not evidence for 1–5):
+`docs/design-reviews/2026-08-07-hour-without-colour/`.
+**Note**: this is the SECOND mechanism for this rung. Giving the sky a colour
+was specced, built and killed at calibration the same day — beings are drawn
+against the sky, so it is the contrast denominator, and the corpus clears the
+frozen 3.0 floor by only 8%. Per-pack daylight colour survives as a separate
+idea (7/10 packs can afford it) and is captured in IDEAS.md as slice 2.
+
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
 (desktop commit `7926a64`); the sleep→reflect→morning-banner chain has never
