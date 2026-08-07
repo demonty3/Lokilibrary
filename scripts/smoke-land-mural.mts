@@ -34,13 +34,20 @@ check('no mural roles without opts.mural',
 // every site's x/y/text/kind were diffed against the pre-change composer and
 // came back identical. The hash still hashes everything on purpose (a gate
 // that hashed only the grid would miss real payload regressions).
+// RE-FROZEN AGAIN 2026-08-07 (hour-without-colour, leg 1): the shelf lamp's
+// role byte changed from 'sun' to 'lamp' so the sky body and the ground light
+// can take OPPOSITE alphas with the hour. A PAYLOAD change, not a re-roll —
+// `set()` consumes no RNG, so no draw moved, and the proof is that the other
+// 67 smokes stayed green through it (monument geometry, constellations, ore,
+// signposts, sites, wear, marks all assert positions and none moved). Only
+// this gate, which hashes the whole model including roles, sees it.
 const NO_MURAL_GOLDEN: Record<string, string> = {
-  seed7: 'be491659',
-  seed41: 'f28e33d7',
+  seed7: 'bbfd0f01',
+  seed41: 'c7c807b1',
   // NB (pre-existing): seed 7's right edge already sits at the shared seam
   // height, so a right join is a no-op for THIS seed — same hash as seed7 by
   // coincidence, not by a broken join. Other seeds do move.
-  join: 'be491659',
+  join: 'bbfd0f01',
 };
 check('no-mural golden: seed 7', hash(off) === NO_MURAL_GOLDEN.seed7, hash(off));
 check('no-mural golden: seed 41',

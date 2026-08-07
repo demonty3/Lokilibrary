@@ -12,8 +12,6 @@
  *  e2e-verified via __terminal.debugDepth() and __terminal.debugClock(). */
 import { makeChecker } from './lib/smoke.ts';
 import {
-  CLOCK_HELD,
-  HELD_SKY,
   skyNow,
   foliageSway,
   GLOW_SUN_PERIOD_S,
@@ -228,41 +226,33 @@ for (const gap of [1.1, 61, 3607]) {
     a.sun === b.sun && a.night === b.night, JSON.stringify({ a, b }));
 }
 
-// --- The hold. Harry's call after seeing it live: the clock drives presence
-// but not colour, and colour is a pack constant, so noon read as night with
-// the stars taken away. It stays built and verified but HELD until the
-// daylight-colour rung lands. These bars guard the hold itself — that it is
-// neutral, that it is total, and that the machinery underneath stays alive.
-check('the clock is held (flip CLOCK_HELD to ship it)', CLOCK_HELD);
-
-// Neutral: the held sky is the PRE-clock sky, everything the composer baked.
-// Anything less would be a visible change made by a feature we just withheld.
-check('held sky keeps the ☼ up', HELD_SKY.sun === 1);
-check('held sky keeps ☾ and the stars up', HELD_SKY.night === 1);
-check('held sky is deliberately OFF the daylight curve',
-  HELD_SKY.sun + HELD_SKY.night !== 1,
-  'on the curve sun+night=1, so every value trades the ☼ for the stars');
-// The reason it must be off the curve: the ☼ role also carries the ground
-// lamps, so the nearest on-curve hold (night) would darken furniture.
-let anyCurvePointNeutral = false;
-for (let h = 0; h < 24; h += 0.01) {
-  const p = skyPresence(daylight(h));
-  if (p.sun === HELD_SKY.sun && p.night === HELD_SKY.night) anyCurvePointNeutral = true;
-}
-check('no hour on the curve is neutral (the hold could not have been an hour)',
-  !anyCurvePointNeutral);
-
-// Total: while held, the real clock moves the sky at NO hour of the day.
-let heldStill = true;
+// --- The clock is LIVE (the hold came off 2026-08-07 with the arc, NOT with
+// the sky's colour — that mechanism was killed at calibration). The bar the
+// hold used to assert, "the sky is identical at every real hour", is inverted
+// here on purpose: it is the exact mutant of the shipped behaviour, so a silent
+// re-hold cannot pass.
+let movedSomewhere = false;
+const at0 = skyNow(null, 0);
 for (let h = 0; h < 24; h += 0.05) {
   const s = skyNow(null, h);
-  if (s.sun !== HELD_SKY.sun || s.night !== HELD_SKY.night) heldStill = false;
+  if (s.sun !== at0.sun || s.night !== at0.night) movedSomewhere = true;
 }
-check('held: the sky is identical at every real hour', heldStill);
+check('the clock is live: the real hour moves the sky', movedSomewhere);
+check('the real clock reaches full day', skyNow(null, 12).sun === 1, JSON.stringify(skyNow(null, 12)));
+check('the real clock reaches full night', skyNow(null, 0).night === 1, JSON.stringify(skyNow(null, 0)));
 
-// …but not dead: a forced hour still runs the live curve, so the clock stays
-// demonstrable while held. This is the bar that fails if someone "simplifies"
-// the hold by deleting the machinery.
+// `day` rides the ARC and is reported separately from `sun`, which drives the
+// ☼'s own presence. They are equal today; the bar is that both exist, so the
+// arc can never silently inherit a presence curve if that curve stops being
+// the identity.
+check('skyNow reports the daylight level for the arc',
+  skyNow(12, 0).day === 1 && skyNow(0, 12).day === 0,
+  JSON.stringify([skyNow(12, 0), skyNow(0, 12)]));
+check('day and night are complements at every hour',
+  Array.from({ length: 240 }, (_, i) => skyNow(null, i / 10)).every((s) => Math.abs(s.day + s.night - 1) < 1e-12));
+
+// A forced hour runs the same curve as a real one — the e2e hook is the only
+// way to see midnight without waiting for it, so it must not be a special case.
 check('forced midnight still runs the real curve', skyNow(0, 12).night === 1 && skyNow(0, 12).sun === 0,
   JSON.stringify(skyNow(0, 12)));
 check('forced noon still runs the real curve', skyNow(12, 0).sun === 1 && skyNow(12, 0).night === 0,

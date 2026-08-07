@@ -117,6 +117,7 @@ export const ROLE_KEY: Record<LandRole, keyof Theme['palette']> = {
   starBright: 'fg',
   hall: 'violet',
   sun: 'yellow',
+  lamp: 'yellow', // same look as the ☼ it split from; the role exists so the two can take opposite alphas
   moon: 'fg', // NOT fgBright — the brightest register is the beings' reserved contract
   cloud: 'fgDim',
   ridge: 'fgDim',

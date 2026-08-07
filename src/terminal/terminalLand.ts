@@ -59,7 +59,8 @@ import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '.
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
-import { CLOCK_HELD, daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
+import { daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
+import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
 import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import {
   launchNote,
@@ -300,7 +301,17 @@ declare global {
         hour: number;
         overridden: boolean;
         daylight: number;
-        held: boolean;
+      };
+      /** e2e only — what the sky ACTUALLY drew, one frame after debugClock.
+       *  A still cannot show an arc and a screenshot cannot tell a climbing
+       *  sun from a composed one, so the bars need the numbers. Rows are
+       *  fractional: the bodies move between cells, never snap to them. */
+      debugSky(): {
+        sunY: number | null;
+        moonY: number | null;
+        sunAlpha: number | null;
+        moonAlpha: number | null;
+        lampAlpha: number | null;
       };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
@@ -462,6 +473,14 @@ export async function mountTerminalLand(
   let sceneContainer = scene.container;
   let contentH = scene.contentH;
   world.addChildAt(sceneContainer, 0);
+
+  // The bodies' travel, read off the composed model once: which column each
+  // sits in, how high it reaches, how low it may go, and which rows of that
+  // column are already occupied. null = this land composed no such body — a
+  // pack's landOmit deleted it (gameboy-dmg's blank sky) or the mural evicted
+  // it — and the tick then leaves the layer exactly as composed.
+  let sunArc: ArcSpec | null = extractArc(model, 'sun');
+  let moonArc: ArcSpec | null = extractArc(model, 'moon');
 
   // Bottom anchor: dead space (if any) lives behind the sky, never below
   // the bedrock — the land sits on the window sill.
@@ -677,6 +696,11 @@ export async function mountTerminalLand(
     sceneContainer = scene.container;
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
+    // A join reshapes the terrain, so the floor of the arc and the rows blocked
+    // in each body's column both move. Re-read them from the NEW model, or the
+    // sun keeps arcing to the old land's horizon.
+    sunArc = extractArc(model, 'sun');
+    moonArc = extractArc(model, 'moon');
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
     drawMarks(); // marks re-sit on the reshaped surface
@@ -1271,14 +1295,37 @@ export async function mountTerminalLand(
     // as two different suns over one landscape. Same pulse shape, other clock.
     // The pulse is now the ☼'s BREATH and the clock its ENVELOPE — at night it
     // still breathes, at zero.
-    const sunAlpha = sunGlow(skyT) * sky.sun;
-    for (const t of scene.layers.sun ?? []) t.alpha = sunAlpha;
+    // The ARC (hour without colour, 2026-08-07): the ☼ climbs to its composed
+    // row at noon and sinks toward the horizon at dawn and dusk, the ☾ does the
+    // opposite. Position and alpha only — a lit SKY was the obvious way to say
+    // "day" and it died at calibration, because beings stand at `surface - 1`
+    // and are therefore seen against the sky. Moving a glyph costs no contrast.
+    //
+    // `.y` on the layer, sub-cell, exactly as sway drives `.x`: the body climbs
+    // BETWEEN rows. Occlusion reuses the wisp rule — fade approaching a mural
+    // or a structure top, never pop, the world always wins.
+    const sunY = sunArc ? arcY(sunArc, sky.day) : 0;
+    const sunAlpha = sunGlow(skyT) * sky.sun * (sunArc ? arcAlpha(sunArc, sunY) : 1);
+    for (const t of scene.layers.sun ?? []) {
+      t.alpha = sunAlpha;
+      if (sunArc) t.y = (sunY - sunArc.peakY) * CH;
+    }
     // ☾ and the stars are the same truth seen from the other side. The
     // composer bakes them into every sky; until the clock existed they simply
     // sat there at noon alongside the sun.
-    for (const t of scene.layers.moon ?? []) t.alpha = sky.night;
+    const moonY = moonArc ? arcY(moonArc, sky.night) : 0;
+    const moonAlpha = sky.night * (moonArc ? arcAlpha(moonArc, moonY) : 1);
+    for (const t of scene.layers.moon ?? []) {
+      t.alpha = moonAlpha;
+      if (moonArc) t.y = (moonY - moonArc.peakY) * CH;
+    }
     for (const t of scene.layers.star ?? []) t.alpha = sky.night;
     for (const t of scene.layers.starBright ?? []) t.alpha = sky.night;
+    // The shelf lamp — the whole reason `lamp` split out of `sun`. It is a
+    // LIGHT, so it runs opposite the body that used to share its role: lit
+    // through the night, out by noon, keeping the ☼'s pulse as its breath.
+    const lampAlpha = sunGlow(skyT) * sky.night;
+    for (const t of scene.layers.lamp ?? []) t.alpha = lampAlpha;
 
     // Launcher beat: while an errand is live the door PULSES — the click is
     // acknowledged in the world within a frame, whatever Steam does later.
@@ -1789,11 +1836,23 @@ export async function mountTerminalLand(
       return {
         hour: Math.round(h * 1000) / 1000,
         overridden: hour !== null,
-        // What the curve SAYS at this hour…
+        // What the curve SAYS at this hour. What the sky DID about it is
+        // debugSky(), one frame later.
         daylight: Math.round(daylight(h) * 1000) / 1000,
-        // …and whether the desk is currently acting on it. Held + unforced
-        // means the drawn sky is HELD_SKY, not this daylight.
-        held: CLOCK_HELD && hour === null,
+      };
+    },
+    debugSky: () => {
+      const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+      const sunT = scene.layers.sun?.[0];
+      const moonT = scene.layers.moon?.[0];
+      return {
+        // Drawn ROW, reconstructed from the layer's sub-cell offset plus the
+        // composed peak — the arc's observable.
+        sunY: sunArc && sunT ? r3(sunArc.peakY + sunT.y / CH) : null,
+        moonY: moonArc && moonT ? r3(moonArc.peakY + moonT.y / CH) : null,
+        sunAlpha: sunT ? r3(sunT.alpha) : null,
+        moonAlpha: moonT ? r3(moonT.alpha) : null,
+        lampAlpha: scene.layers.lamp?.[0] ? r3(scene.layers.lamp[0].alpha) : null,
       };
     },
     debugLabels: () =>

@@ -76,6 +76,7 @@ export type LandRole =
   | 'skyDither'
   | 'hall'
   | 'sun'
+  | 'lamp'        // the ☼ beside a loved game's shelf — split out of 'sun' 2026-08-07 so the sky body and the ground light can move OPPOSITE ways with the hour
   | 'moon'
   | 'cloud'
   | 'ridge'
@@ -578,7 +579,10 @@ export function composeLand(
       put(x - 2, gy - 3, '▗▄▄▄▖', 'roof');
       put(x - 2, gy - 2, '▌▓≡▓▐', 'shelf');
       put(x - 2, gy - 1, '▌▓≡▓▐', 'shelf');
-      set(x + 4, gy - 1, '☼', 'sun');
+      // The shelf lamp. Its OWN role since 2026-08-07 (the monumentCrown split
+      // is the same move): it must light at night while the sky's ☼ sets, and
+      // sharing a role meant sharing a render layer and therefore one alpha.
+      set(x + 4, gy - 1, '☼', 'lamp');
     } else if (p.state === 'recent') {
       put(x - 1, gy - 2, '▟▙', 'roof');
       put(x - 1, gy - 1, '⌂', 'cottage');

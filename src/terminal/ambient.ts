@@ -133,34 +133,25 @@ export function skyPresence(daylightLevel: number): { sun: number; night: number
 }
 
 /**
- * The clock is BUILT, VERIFIED and HELD (Harry's call, 2026-08-06, after
- * seeing it on the joined desk). It drives presence but not colour, and colour
- * is a pack constant, so noon read as "night with the stars taken away" rather
- * than as daylight. Rather than ship a visibly wrong day, the desk holds a
- * fixed sky until the daylight-colour rung lands; flipping this one constant
- * turns the live clock back on.
- */
-export const CLOCK_HELD = true;
-
-/**
- * The sky held while `CLOCK_HELD` — everything the composer baked, present:
- * exactly the pre-clock sky, so holding changes nothing anyone has already
- * eyeballed.
+ * The sky to draw right now — presence, plus the level the ARC rides.
  *
- * Deliberately NOT a point on the daylight curve. There `sun + night = 1`, so
- * every value trades one body for the other: holding at night would drop the
- * ☼ — and the ☼ role also carries the LAMPS beside loved shelves
- * (`land.ts:581`), so it would darken furniture on the ground that has nothing
- * to do with the sky. A neutral hold has to sit off the curve.
+ * The clock was held from 2026-08-06 to 2026-08-07 (Harry's call after seeing
+ * it live): it moved presence and nothing else, so noon read as "night with the
+ * stars taken away". `CLOCK_HELD` and `HELD_SKY` are gone because the thing they
+ * were waiting for landed — though not the thing anyone expected. Giving the
+ * sky a COLOUR was specced, built and killed at calibration the same day: a
+ * being is drawn at `surface - 1`, a sky cell, so the sky is the contrast
+ * denominator for nearly everything on screen and the corpus clears the frozen
+ * 3.0 being floor by only 8%. What released the hold instead is the hour told
+ * by POSITION and STATE (src/terminal/skyArc.ts): the ☼ climbs and sets, the ☾
+ * counter-arcs, the shelf lamps light at night. None of that spends contrast.
+ *
+ * `day` is returned rather than left for the caller to re-derive from `sun`.
+ * They are numerically equal today, and that is exactly the coupling worth
+ * refusing: `sun` means "how much ☼ is out", so the day a presence curve stops
+ * being the identity, the arc would silently follow it.
  */
-export const HELD_SKY = { sun: 1, night: 1 } as const;
-
-/**
- * The sky to draw right now. A forced hour (the e2e clock hook) always runs
- * the live curve — the machinery stays exercised and demonstrable while it is
- * held, which is what stops a held feature from quietly rotting.
- */
-export function skyNow(forcedHour: number | null, realHour: number): { sun: number; night: number } {
-  if (forcedHour !== null) return skyPresence(daylight(forcedHour));
-  return CLOCK_HELD ? { ...HELD_SKY } : skyPresence(daylight(realHour));
+export function skyNow(forcedHour: number | null, realHour: number): { sun: number; night: number; day: number } {
+  const day = daylight(forcedHour ?? realHour);
+  return { ...skyPresence(day), day };
 }
