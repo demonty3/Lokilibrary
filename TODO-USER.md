@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-06, late** (the LAUNCHER BEAT shipped AND its eyeball
+Last updated: **2026-08-07** (the HOUR WITHOUT COLOUR shipped and its eyeball
+PASSED the same day — all six bars, no kill, no dial. The world clock is off
+hold: the desk's sun climbs and sets, its moon counter-arcs, its lamps light at
+night. Daylight COLOUR is not needed for the hour to read and is now an optional
+pack-authoring axis; the two measured axes and their kills are in IDEAS.md.)
+Previously **2026-08-06, late** (the LAUNCHER BEAT shipped AND its eyeball
 PASSED the same day — all six bars, no kill fired, no dial spent. Click any
 site on a land, the door lights, the nearest being walks to it, Steam fires,
 they step through and are gone until you come back to the desk. Nothing is
@@ -83,37 +88,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — the hour without colour (world clock released)
-**Status**: SHIPPED 2026-08-07, code-complete, all gates green, verified on
-screen numerically. **Blocked on your live watch** — a still cannot show an arc,
-so five of the six bars are a watch, not a screenshot.
-**What to do**: the desk is the default boot (`npm run dev` + the desktop app).
-Force the hour from either terminal window's devtools:
-`__terminal.debugClock(12)` / `(6.5)` / `(0)`, and `(null)` to restore.
-**The six bars, frozen 2026-08-07 before implementation** (spec:
-`docs/superpowers/specs/2026-08-07-hour-without-colour-design.md`):
-1. ✅ **PASSED 2026-08-07** — Harry: "bar 1 passes, noon reads as day." The
-   kill did not fire. **This is the fork the slice existed to resolve: the
-   world can say "day" by position and state alone, with no colour.** Both
-   daylight-colour axes therefore drop from "the only path left" to an
-   optional expressive axis for pack authors (IDEAS.md).
-2. Midnight reads as **night** — moon up, lamps lit, sun gone. *Kill: lamps
-   read as decoration → drop the lamp leg, keep the arc.*
-3. Dawn is a **climb** (sweep 4 → 9). *Kill: jumps between rows or slides
-   mechanically → ease once; still mechanical → ship high/low, no travel.*
-4. **Nothing became harder to read.** *Kill: anything degraded → a leg is
-   touching colour when it must not.*
-5. **The world still wins** — no body draws over a mural, structure or being.
-6. **gameboy-dmg untouched** — blank sky at every hour. (Already confirmed
-   numerically: every body null at noon and midnight.)
-**Context shots** (not evidence for 1–5):
-`docs/design-reviews/2026-08-07-hour-without-colour/`.
-**Note**: this is the SECOND mechanism for this rung. Giving the sky a colour
-was specced, built and killed at calibration the same day — beings are drawn
-against the sky, so it is the contrast denominator, and the corpus clears the
-frozen 3.0 floor by only 8%. Per-pack daylight colour survives as a separate
-idea (7/10 packs can afford it) and is captured in IDEAS.md as slice 2.
-
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
 (desktop commit `7926a64`); the sleep→reflect→morning-banner chain has never
@@ -179,6 +153,19 @@ session if convenient:
 ---
 
 ## Done / skipped (kept for posterity until next slice prunes)
+
+- ✅ **EYEBALL the hour without colour — PASSED 2026-08-07, all six bars.**
+  Harry's live watch on the two-window desk: bar 1 first ("bar 1 passes, noon
+  reads as day"), then "bars 2-6 all pass". No kill fired on any bar, no dial
+  spent. **The world clock is released and the rung is CLOSED.** The pass
+  settles the fork the slice existed to resolve: this world tells the hour by
+  POSITION and STATE — the ☼ climbing and setting, the ☾ counter-arcing, the
+  shelf lamps lit at night — with no colour at all. Two earlier mechanisms died
+  getting here (presence-only, judged 2026-08-06; sky colour, killed at
+  calibration 2026-08-07), and the answer was cheaper than either.
+  Consequence: both daylight-colour axes become an OPTIONAL expressive axis for
+  pack authors rather than the only path left — captured in IDEAS.md with their
+  own tests and kills, nothing scheduled.
 
 - ✅ **EYEBALL land polish #19 slice 2 — PASSED 2026-08-06, all six bars;
   the #19 programme item is CLOSED.** Two rounds: bars 1/2/4/5/6 first

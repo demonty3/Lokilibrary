@@ -170,7 +170,7 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
-**The hour without colour SHIPPED 2026-08-07 — BAR 1 PASSED same day ("bar 1 passes, noon reads as day"); bars 2-6 still to watch.** That pass settles the fork the slice existed to resolve: **this world can say "day" by position and state alone, with no colour at all.** Both daylight-colour axes (per-pack luminance lift, 7/10; constant-luminance hue, which rescues solarized) therefore stop being the only path left and become an optional expressive axis for pack authors — captured in IDEAS.md, sequenced behind the remaining bars.
+**The hour without colour SHIPPED 2026-08-07, eyeball PASSED same day — all six bars ("bar 1 passes, noon reads as day", then "bars 2-6 all pass"), no kill fired, no dial spent. The rung is CLOSED and the world clock is RELEASED.** That pass settles the fork the slice existed to resolve: **this world can say "day" by position and state alone, with no colour at all.** Both daylight-colour axes (per-pack luminance lift, 7/10; constant-luminance hue, which rescues solarized) therefore stop being the only path left and become an optional expressive axis for pack authors — captured in IDEAS.md with their own first tests and kills, nothing scheduled.
 The world clock, held since 2026-08-06, is RELEASED. What released it is not the
 sky's colour: that rung was specced (`2026-08-07-daylight-colour-design.md`,
 bars frozen `fd260df`), built to three tasks, and **killed at calibration the
