@@ -88,6 +88,18 @@ export interface Theme {
    *  Roles in LAND_OMIT_LOCKED (src/render/levels/land.ts) can never be
    *  omitted; at most OMIT_MAX roles (conformance-smoked). */
   landOmit?: readonly LandRole[];
+  /** Style-pack daylight slot: the palette key the sky lifts TOWARD at noon.
+   *  The world clock (src/terminal/ambient.ts) mixes bg → this key, so a pack
+   *  expresses daylight in its own dialect — amber-crt's `blue` is amber, so
+   *  its noon is an amber sky. An existing key, never a new colour, so the
+   *  one-palette rule stays structural (see ThemeRole above).
+   *
+   *  Absent = 'blue' (every palette has one). **`null` opts out**: the sky
+   *  holds its `bg` at every hour. That is legal *omission* of a shared truth,
+   *  not contradiction of one — the same doctrine as landOmit — and it is what
+   *  keeps gameboy-dmg's judged blank LCD sky fixed, since `sky` sits in
+   *  LAND_OMIT_LOCKED and landOmit cannot reach it. */
+  daySky?: PaletteKey | null;
 }
 
 /** Normalised fx list — the renderer and the conformance smoke both read fx

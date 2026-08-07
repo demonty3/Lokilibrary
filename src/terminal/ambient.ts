@@ -133,34 +133,44 @@ export function skyPresence(daylightLevel: number): { sun: number; night: number
 }
 
 /**
- * The clock is BUILT, VERIFIED and HELD (Harry's call, 2026-08-06, after
- * seeing it on the joined desk). It drives presence but not colour, and colour
- * is a pack constant, so noon read as "night with the stars taken away" rather
- * than as daylight. Rather than ship a visibly wrong day, the desk holds a
- * fixed sky until the daylight-colour rung lands; flipping this one constant
- * turns the live clock back on.
- */
-export const CLOCK_HELD = true;
-
-/**
- * The sky held while `CLOCK_HELD` — everything the composer baked, present:
- * exactly the pre-clock sky, so holding changes nothing anyone has already
- * eyeballed.
+ * How far the sky is mixed from the pack's `bg` toward its `daySky` key at this
+ * daylight level — the colour half of the clock, and the rung that let the hold
+ * come off.
  *
- * Deliberately NOT a point on the daylight curve. There `sun + night = 1`, so
- * every value trades one body for the other: holding at night would drop the
- * ☼ — and the ☼ role also carries the LAMPS beside loved shelves
- * (`land.ts:581`), so it would darken furniture on the ground that has nothing
- * to do with the sky. A neutral hold has to sit off the curve.
+ * A CEILING rather than a free dial, and the reason is arithmetic rather than
+ * taste: `terminalLand.ts` draws a being at `(model.surface[x] - 1)`, one row
+ * ABOVE the ground, which is a sky cell. Every being on the desk is seen
+ * against the sky, so the sky's colour is the denominator of the being-salience
+ * contract — `BEING_MIN_CONTRAST` in scripts/smoke-style-pack.mts, calibrated
+ * against `bg` and frozen. Lifting the sky past this point makes beings harder
+ * to find at noon than at midnight, which is eyeball bar 4's kill condition.
+ *
+ * The mix stays linear on top of `daylight()`, which is already smoothstepped —
+ * a second ease would flatten the middle of the day into a plateau.
  */
-export const HELD_SKY = { sun: 1, night: 1 } as const;
+export const DAY_SKY_MIX = 0.5;
+
+export function daySkyMix(daylightLevel: number): number {
+  return DAY_SKY_MIX * Math.min(1, Math.max(0, daylightLevel));
+}
 
 /**
- * The sky to draw right now. A forced hour (the e2e clock hook) always runs
- * the live curve — the machinery stays exercised and demonstrable while it is
- * held, which is what stops a held feature from quietly rotting.
+ * The sky to draw right now — presence AND the level that drives colour.
+ *
+ * The clock shipped 2026-08-06 and was HELD the same day: it moved presence but
+ * not colour, colour was a pack constant, and noon read as "night with the
+ * stars taken away". `CLOCK_HELD` / `HELD_SKY` are gone because the thing they
+ * were waiting for is here — `daySkyMix` above, plus `skyInkOf` in
+ * src/render/levels/land.ts. A hold whose precondition has landed is dead
+ * surface, not a safety net.
+ *
+ * `day` is returned rather than re-derived by the caller from `sun`. They are
+ * numerically equal today (skyPresence passes the level straight through), and
+ * that is exactly the coupling worth refusing: `sun` means "how much ☼ is out"
+ * and also lights the ground LAMPS that share the role, so the day a presence
+ * curve stops being the identity the sky's colour would silently follow it.
  */
-export function skyNow(forcedHour: number | null, realHour: number): { sun: number; night: number } {
-  if (forcedHour !== null) return skyPresence(daylight(forcedHour));
-  return CLOCK_HELD ? { ...HELD_SKY } : skyPresence(daylight(realHour));
+export function skyNow(forcedHour: number | null, realHour: number): { sun: number; night: number; day: number } {
+  const day = daylight(forcedHour ?? realHour);
+  return { ...skyPresence(day), day };
 }

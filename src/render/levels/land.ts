@@ -47,8 +47,14 @@ function shadeOf(hex: string, f: number): number {
  *  atmospheric-perspective primitive (t=0 pure ink, t=1 vanishes into hexB).
  *  Both ends come from the ACTIVE theme, so setTheme hot-swap re-fades. */
 export function mixToward(hexA: string, hexB: string, t: number): number {
-  const a = hexToInt(hexA);
-  const b = hexToInt(hexB);
+  return mixTowardInt(hexToInt(hexA), hexToInt(hexB), t);
+}
+
+/** The same mix over already-packed colours — the sky's ink is computed, not
+ *  looked up, so it has no hex string to hand back. `t = 0` returns `a`
+ *  exactly (Math.round of an unchanged channel), which is what makes midnight
+ *  byte-identical to the pre-daylight desk. */
+export function mixTowardInt(a: number, b: number, t: number): number {
   const ch = (shift: number): number => {
     const ca = (a >> shift) & 0xff;
     const cb = (b >> shift) & 0xff;
@@ -57,10 +63,35 @@ export function mixToward(hexA: string, hexB: string, t: number): number {
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }
 
+/** The palette key a pack lifts its sky toward when `daySky` is absent. Every
+ *  palette has a `blue`; a pack whose blue fights its identity names another
+ *  (phosphor) or opts out with null (gameboy-dmg). Exported for the smoke. */
+export const DAY_SKY_DEFAULT: keyof Theme['palette'] = 'blue';
+
+/**
+ * The sky's ink at mix `t` — `t = 0` is the pack's own `bg` exactly, `t = 1`
+ * its `daySky` key. **Ambient owns the clock, land owns the palette**: the
+ * caller passes `daySkyMix(daylight(hour))` (src/terminal/ambient.ts), so this
+ * module never learns what time it is and stays reachable from the V0 preview
+ * and the palace, neither of which has a clock.
+ *
+ * This is what the atmospheric-perspective fades below aim at, and what the
+ * sky backdrop is tinted with — one function so the two can never disagree
+ * about what colour the sky is.
+ */
+export function skyInkOf(theme: Theme, t: number): number {
+  const bg = hexToInt(theme.palette.bg);
+  if (theme.daySky === null) return bg; // legal omission — the sky never lifts
+  return mixTowardInt(bg, hexToInt(theme.palette[theme.daySky ?? DAY_SKY_DEFAULT]), t);
+}
+
 /** Atmospheric perspective (Tier 2): how far each DISTANT role's ink is
- *  pulled toward the sky (bg) colour — farther planes lose contrast.
- *  Palette maths only (mixToward), no new palette entries, so the
- *  one-theme-per-scene rule stays structural. Exported for the smoke. */
+ *  pulled toward the SKY — farther planes lose contrast. The target used to be
+ *  a synonym for `bg`; since the daylight rung it is `skyInkOf`, because a fade
+ *  aimed at a dark constant while the sky brightens *inverts* the cue — the
+ *  farthest plane would gain contrast with distance at noon. Palette maths
+ *  only, no new palette entries, so the one-theme-per-scene rule stays
+ *  structural. Exported for the smoke. */
 export const FAR_FADE: Partial<Record<LandRole, number>> = {
   ridgeFar: 0.72,
   ridge: 0.45,
@@ -228,12 +259,17 @@ export function landRoleGlyph(theme: Theme, r: LandRole): string | null {
  *  1.0, gate-enforced) make step 3 byte-identical to the unstepped fill, so
  *  the frozen being-salience bars keep measuring the true maximum. Pure —
  *  exported for the smoke. */
-export function landRoleFill(theme: Theme, r: LandRole, step?: number): number {
+export function landRoleFill(theme: Theme, r: LandRole, step?: number, skyInk?: number): number {
   const fade = FAR_FADE[r];
   const demote = GROUND_DEMOTE[r];
+  // Absent skyInk = the pack's own bg = the midnight sky, which is what every
+  // caller meant before the daylight rung existed. That default is why the
+  // frozen style-pack bars keep measuring the same numbers (the opts.mural /
+  // opts.skyline absent-is-byte-identical pattern).
+  const sky = skyInk ?? hexToInt(theme.palette.bg);
   const base =
     fade !== undefined
-      ? mixToward(theme.palette[ROLE_KEY[r]], theme.palette.bg, fade)
+      ? mixTowardInt(hexToInt(theme.palette[ROLE_KEY[r]]), sky, fade)
       : demote !== undefined
         ? shadeOf(theme.palette[ROLE_KEY[r]], demote)
         : hexToInt(theme.palette[ROLE_KEY[r]]);
@@ -248,6 +284,18 @@ export function landRoleFill(theme: Theme, r: LandRole, step?: number): number {
  *  (glow / sway / wear) without rebuilding the scene. */
 export function buildLandContainer(theme: Theme, model: LandModel): {
   container: Container;
+  /** The flat fills behind every glyph — ground body + sky. Returned so a
+   *  caller can re-parent it OUT of a filtered container: the desk's `glow`
+   *  fx is a bright-pass bloom (`src/render/fx/glow.ts`, THRESHOLD 0.2) built
+   *  on the assumption that the only bright thing in its input is glyph ink,
+   *  and a sky lit toward noon clears that threshold across the whole band.
+   *  Left in place it is byte-identical to the pre-daylight panel. */
+  backdrop: Container;
+  /** The sky fill. Its `.tint` IS the hour — see skyInkOf. */
+  sky: Graphics;
+  /** Layers that recede into the sky, with the step needed to recolour them
+   *  when it moves. Empty for a pack that omits every FAR_FADE role. */
+  farLayers: { bt: BitmapText; role: LandRole; step?: number }[];
   contentW: number;
   contentH: number;
   layers: Partial<Record<LandRole, BitmapText[]>>;
@@ -256,10 +304,27 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
   const contentW = model.width * COZETTE_CELL_WIDTH;
   const contentH = model.height * COZETTE_CELL_HEIGHT;
 
-  // A bg panel so terrain reads against its own ground (blends with the stage
-  // bg when they share a theme; gives the land a body either way).
+  // The ground body, so terrain reads against its own ground. This keeps the
+  // pack's `bg` at every hour: every style-pack salience bar is a contrast
+  // ratio against bg, and only the SKY is allowed to move (see skyInkOf).
   const bg = new Graphics().rect(0, 0, contentW, contentH).fill(hexToInt(theme.palette.bg));
-  container.addChild(bg);
+
+  // The sky, drawn per COLUMN down to that column's own ground row. One flat
+  // rect at the topmost ground row would leave the pack's bg showing over every
+  // valley — dark holes exactly where the relief is most legible. Filled white
+  // ONCE and coloured through `.tint`, so an hour costs one property write
+  // rather than a rebuild, and it freezes cleanly under the wallpaper throttle.
+  const sky = new Graphics();
+  for (let x = 0; x < model.width; x++) {
+    const groundRow = Math.max(0, Math.min(model.height, model.surface[x] ?? 0));
+    if (groundRow > 0) sky.rect(x * COZETTE_CELL_WIDTH, 0, COZETTE_CELL_WIDTH, groundRow * COZETTE_CELL_HEIGHT);
+  }
+  sky.fill(0xffffff);
+  sky.tint = skyInkOf(theme, 0); // midnight — byte-identical to the pre-clock desk
+
+  const backdrop = new Container();
+  backdrop.addChild(bg, sky);
+  container.addChild(backdrop);
 
   // Which roles actually appear — one tinted BitmapText each. The same scan
   // records each role's row extent (min/max y), the ramp's step source.
@@ -273,7 +338,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
       if (e === undefined) rowExtent[r] = { min: y, max: y };
       else e.max = y; // y ascends, so first sight fixed min
     }
-  roles.delete('sky'); // background, never drawn
+  roles.delete('sky'); // no glyph layer — the sky is the backdrop fill above
   for (const r of themeOmitRoles(theme)) roles.delete(r); // style-pack slot 5
 
   // Style-pack slot 4 step: vertical position within the role's own band,
@@ -301,12 +366,28 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     return rows.join('\n');
   };
   const layers: Partial<Record<LandRole, BitmapText[]>> = {};
-  const addLayer = (r: LandRole, text: string, fill: number) => {
+  // Layers whose ink recedes INTO the sky (FAR_FADE). The sky's colour moves
+  // with the hour, so these have to be re-tinted as it does — they are baked
+  // white and carry their colour entirely in `.tint`, because tint MULTIPLIES
+  // the baked fill and so could never reach an arbitrary new colour from a
+  // pre-tinted layer. White × colour = colour, so the mounted scene is
+  // byte-identical to the pre-daylight one.
+  //
+  // The ramp step rides along rather than being inferred from the array index:
+  // addLayer drops empty layers, so index ≠ step the moment a ramp step happens
+  // to be unused in a given land.
+  const farLayers: { bt: BitmapText; role: LandRole; step?: number }[] = [];
+  const addLayer = (r: LandRole, text: string, fill: number, step?: number) => {
     if (!text.trim()) return;
+    const far = FAR_FADE[r] !== undefined;
     const bt = new BitmapText({
       text,
-      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill },
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: far ? 0xffffff : fill },
     });
+    if (far) {
+      bt.tint = fill;
+      farLayers.push({ bt, role: r, step });
+    }
     container.addChild(bt);
     (layers[r] ??= []).push(bt);
   };
@@ -324,6 +405,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
           r,
           layerFor((x, y) => model.role[y][x] === r && shadeGrid[y][x] === s, glyph),
           landRoleFill(theme, r, s),
+          s,
         );
       }
     } else if (rampRoles.has(r)) {
@@ -334,6 +416,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
           r,
           layerFor((x, y) => model.role[y][x] === r && rampStep(r, y) === s, glyph),
           landRoleFill(theme, r, s),
+          s,
         );
       }
     } else {
@@ -349,7 +432,7 @@ export function buildLandContainer(theme: Theme, model: LandModel): {
     }
   }
 
-  return { container, contentW, contentH, layers };
+  return { container, backdrop, sky, farLayers, contentW, contentH, layers };
 }
 
 export interface MountLandOptions {

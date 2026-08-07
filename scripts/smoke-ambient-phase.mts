@@ -12,8 +12,7 @@
  *  e2e-verified via __terminal.debugDepth() and __terminal.debugClock(). */
 import { makeChecker } from './lib/smoke.ts';
 import {
-  CLOCK_HELD,
-  HELD_SKY,
+  daySkyMix,
   skyNow,
   foliageSway,
   GLOW_SUN_PERIOD_S,
@@ -228,41 +227,43 @@ for (const gap of [1.1, 61, 3607]) {
     a.sun === b.sun && a.night === b.night, JSON.stringify({ a, b }));
 }
 
-// --- The hold. Harry's call after seeing it live: the clock drives presence
-// but not colour, and colour is a pack constant, so noon read as night with
-// the stars taken away. It stays built and verified but HELD until the
-// daylight-colour rung lands. These bars guard the hold itself — that it is
-// neutral, that it is total, and that the machinery underneath stays alive.
-check('the clock is held (flip CLOCK_HELD to ship it)', CLOCK_HELD);
-
-// Neutral: the held sky is the PRE-clock sky, everything the composer baked.
-// Anything less would be a visible change made by a feature we just withheld.
-check('held sky keeps the ☼ up', HELD_SKY.sun === 1);
-check('held sky keeps ☾ and the stars up', HELD_SKY.night === 1);
-check('held sky is deliberately OFF the daylight curve',
-  HELD_SKY.sun + HELD_SKY.night !== 1,
-  'on the curve sun+night=1, so every value trades the ☼ for the stars');
-// The reason it must be off the curve: the ☼ role also carries the ground
-// lamps, so the nearest on-curve hold (night) would darken furniture.
-let anyCurvePointNeutral = false;
-for (let h = 0; h < 24; h += 0.01) {
-  const p = skyPresence(daylight(h));
-  if (p.sun === HELD_SKY.sun && p.night === HELD_SKY.night) anyCurvePointNeutral = true;
-}
-check('no hour on the curve is neutral (the hold could not have been an hour)',
-  !anyCurvePointNeutral);
-
-// Total: while held, the real clock moves the sky at NO hour of the day.
-let heldStill = true;
+// --- The clock is LIVE (the hold came off 2026-08-07 with the daylight-colour
+// rung; CLOCK_HELD / HELD_SKY are gone). The bar that used to say "the sky is
+// identical at every real hour" is inverted here on purpose: it is the exact
+// mutant of the shipped behaviour, so a re-hold cannot pass unnoticed.
+let movedSomewhere = false;
 for (let h = 0; h < 24; h += 0.05) {
   const s = skyNow(null, h);
-  if (s.sun !== HELD_SKY.sun || s.night !== HELD_SKY.night) heldStill = false;
+  if (s.sun !== skyNow(null, 0).sun || s.night !== skyNow(null, 0).night) movedSomewhere = true;
 }
-check('held: the sky is identical at every real hour', heldStill);
+check('the clock is live: the real hour moves the sky', movedSomewhere);
+check('the real clock reaches full day', skyNow(null, 12).sun === 1, JSON.stringify(skyNow(null, 12)));
+check('the real clock reaches full night', skyNow(null, 0).night === 1, JSON.stringify(skyNow(null, 0)));
 
-// …but not dead: a forced hour still runs the live curve, so the clock stays
-// demonstrable while held. This is the bar that fails if someone "simplifies"
-// the hold by deleting the machinery.
+// `day` drives COLOUR and is reported separately from `sun`, which drives the
+// ☼'s presence AND the ground lamps sharing its role. They are equal today;
+// the bar is that both exist, so the colour cannot silently inherit a presence
+// curve if that curve ever stops being the identity.
+check('skyNow reports the daylight level for colour', skyNow(12, 0).day === 1 && skyNow(0, 12).day === 0,
+  JSON.stringify([skyNow(12, 0), skyNow(0, 12)]));
+
+// --- The daylight MIX (the colour half). Absolute two-sided bounds, written
+// as literals rather than in terms of DAY_SKY_MIX: a bar phrased in the
+// constant it guards moves with the mutant and stays green (the BREATH_PX
+// lesson). The tight bound on this constant is the being-contrast bar in
+// scripts/smoke-style-pack.mts — beings are drawn one row ABOVE the ground,
+// which is a sky cell, so the sky's colour is the salience denominator.
+check('midnight sky is unmixed — bar 2 is arithmetic, not taste', daySkyMix(0) === 0, String(daySkyMix(0)));
+check('the mix never exceeds the frozen 0.5 ceiling', daySkyMix(1) <= 0.5, String(daySkyMix(1)));
+check('the mix is not decorative — noon reaches at least 0.2', daySkyMix(1) >= 0.2, String(daySkyMix(1)));
+check('the mix is clamped below 0', daySkyMix(-3) === 0, String(daySkyMix(-3)));
+check('the mix is clamped above 1', daySkyMix(9) === daySkyMix(1), String(daySkyMix(9)));
+let mixMonotone = true;
+for (let d = 0; d < 1; d += 0.01) if (daySkyMix(d + 0.01) < daySkyMix(d)) mixMonotone = false;
+check('the mix rises with daylight, never dips', mixMonotone);
+
+// A forced hour runs the same curve as a real one — the e2e hook is the only
+// way to see midnight without waiting for it, so it must not be a special case.
 check('forced midnight still runs the real curve', skyNow(0, 12).night === 1 && skyNow(0, 12).sun === 0,
   JSON.stringify(skyNow(0, 12)));
 check('forced noon still runs the real curve', skyNow(12, 0).sun === 1 && skyNow(12, 0).night === 0,
