@@ -37,12 +37,24 @@ export async function loadMuralPixels(appid: number): Promise<{ data: Uint8Clamp
   return entry;
 }
 
+/** Label on the mural's backing Graphics, so a caller that only holds the
+ *  container can find the one child whose colour is the sky's. */
+export const MURAL_BACKING = 'mural-backing';
+
 /** ≤1 backing + 13 key layers (one BitmapText per palette key used) — never
  *  per-cell objects. Local glyph space; caller positions at the model rect. */
 export function buildQuantizedMural(cells: readonly MuralCell[], w: number, h: number, theme: Theme): Container {
   const c = new Container();
-  c.addChild(new Graphics().rect(0, 0, w * COZETTE_CELL_WIDTH, h * COZETTE_CELL_HEIGHT)
-    .fill(hexToInt(theme.palette.bg)));
+  // The backing hides the sky behind the artwork, so it has to BE the sky —
+  // the mural composes into the sky band, and a backing pinned to `bg` while
+  // the sky lifts toward noon turns the mural into a hard-edged dark box that
+  // is simply absent at midnight. Baked white and coloured by tint (the
+  // farLayers idiom), so the caller can follow the hour without a rebuild; the
+  // initial value is `bg`, which is the midnight sky on every pack.
+  const backing = new Graphics().rect(0, 0, w * COZETTE_CELL_WIDTH, h * COZETTE_CELL_HEIGHT).fill(0xffffff);
+  backing.tint = hexToInt(theme.palette.bg);
+  backing.label = MURAL_BACKING; // the terminal path finds it to retint
+  c.addChild(backing);
   // One text block per palette key: same layerFor idiom as buildLandContainer.
   const keys = [...new Set(cells.map((cl) => cl.key).filter((k): k is NonNullable<typeof k> => k !== null))];
   for (const key of keys) {

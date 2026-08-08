@@ -36,6 +36,13 @@
  *   - landOmit: real, never-LAND_OMIT_LOCKED roles, no duplicates, at most
  *     OMIT_MAX — omission is a dialect choice (a blank DMG sky, a stroke-
  *     only scope), not a licence to empty the scene.
+ *   - daySky (the daylight register): three authored stops, `night` pinned to
+ *     bg exactly. **Every contrast bar above re-runs against the sky the pack
+ *     actually draws, at every hour it can reach.** The sky used to be a
+ *     synonym for bg because it was never drawn; since it moves, it is the
+ *     contrast denominator for beings, labels and far planes. A global version
+ *     of this mechanism died at calibration in 2026-08; the bar now tells a
+ *     PACK AUTHOR what their machine can afford, before the screen does.
  */
 
 import { readFileSync } from 'node:fs';
@@ -45,7 +52,7 @@ import { makeChecker } from './lib/smoke.ts';
 import { THEMES, THEME_IDS } from '../src/themes/index.ts';
 import { BEING_ROLE_KEYS, ROLE_DEFAULTS } from '../src/themes/roles.ts';
 import { THEME_FX, themeFxList, type Theme, type ThemePalette } from '../src/themes/types.ts';
-import { landRoleFill, LAND_GLYPH_LOCKED, LAND_OMIT_LOCKED, LAND_RAMP_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
+import { FAR_FADE, landRoleFill, skyInkOf, LAND_GLYPH_LOCKED, LAND_OMIT_LOCKED, LAND_RAMP_LOCKED, ROLE_KEY } from '../src/render/levels/land.ts';
 import type { LandRole } from '../src/procedural/land.ts';
 
 const args = process.argv.slice(2);
@@ -107,7 +114,7 @@ const OMIT_MAX = 12;
 
 const VALID_ROLES = new Set(Object.keys(ROLE_KEY));
 const VALID_THEME_ROLES = new Set(Object.keys(ROLE_DEFAULTS));
-const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx', 'landRamp', 'landOmit']);
+const TOP_LEVEL = new Set(['id', 'name', 'palette', 'roles', 'landGlyphs', 'fx', 'landRamp', 'landOmit', 'daySky']);
 
 const ids = onlyId ? [onlyId] : [...THEME_IDS];
 check('registry lockstep: THEME_IDS == Object.keys(THEMES)',
@@ -155,11 +162,64 @@ for (const id of ids) {
   const bgLum = lumOfHex(pal.bg);
   check(`${tag} dark ground: relLum(bg) ${bgLum.toFixed(3)} < ${BG_LUM_MAX}`, bgLum < BG_LUM_MAX);
 
+  // --- every hour the pack can reach ----------------------------------------
+  // The daylight register (docs/superpowers/specs/2026-08-08-daylight-sky-
+  // register-design.md) lets a pack author its own night/twilight/day sky, so
+  // the DRAWN sky is no longer a synonym for bg. Everything measured against a
+  // sky below is therefore measured against all of them.
+  //
+  // SAMPLED, not checked at the three authored stops, and the reason is
+  // arithmetic: contrast against a fixed ink is NOT monotone in the sky's
+  // luminance — it collapses to 1.0 where the two match and rises on both sides
+  // — so an interior hour can be worse than either endpoint. Sampling the curve
+  // and asserting the WORST is strictly stronger than checking the stops, and
+  // keeps the assertion count flat.
+  //
+  // A pack with no daySky yields one sky, its own bg, at every sample: the
+  // numbers below are then byte-identical to the pre-register ones.
+  const skies = Array.from({ length: 101 }, (_, i) => {
+    const at = i / 100;
+    const ink = skyInkOf(t, at);
+    return { at, ink, lum: lumOfInt(ink) };
+  });
+  type Sky = (typeof skies)[number];
+  /** The sampled hour that minimises `f`. Ties keep the earliest (midnight),
+   *  which is the only hour an un-authored pack has. */
+  const worstSky = (f: (s: Sky) => number): Sky =>
+    skies.reduce((w, s) => (f(s) < f(w) ? s : w), skies[0]);
+  /** A role's contrast against its OWN denominator at sky `s`: far planes
+   *  recede into the sky and move with it; everything else is seen against the
+   *  ground body, which stays `bg` at every hour. */
+  const roleContrastAt = (role: LandRole, step: number | undefined, s: Sky): number =>
+    FAR_FADE[role] !== undefined
+      ? contrast(lumOfInt(landRoleFill(t, role, step, s.ink)), s.lum)
+      : contrast(lumOfInt(landRoleFill(t, role, step)), bgLum);
+
+  // 2b · the sky stays dark at every hour — the same frozen ceiling, applied to
+  //      the surface that now moves. This is what stops a pack authoring a
+  //      white noon; for an un-authored pack it restates check 2.
+  const brightest = skies.reduce((w, s) => (s.lum > w.lum ? s : w), skies[0]);
+  check(`${tag} dark sky at every hour: peak relLum ${brightest.lum.toFixed(3)} (day ${brightest.at.toFixed(2)}) < ${BG_LUM_MAX}`,
+    brightest.lum < BG_LUM_MAX);
+
   // 3 · register ordering
   const C = (hex: string): number => contrast(lumOfHex(hex), bgLum);
   check(`${tag} register order: fgBright > fg > fgDim (vs bg)`,
     C(pal.fgBright) > C(pal.fg) && C(pal.fg) > C(pal.fgDim),
     `fgBright ${C(pal.fgBright).toFixed(2)} fg ${C(pal.fg).toFixed(2)} fgDim ${C(pal.fgDim).toFixed(2)}`);
+
+  // 3b · …and it must still rank against the SKY at every hour. The site labels
+  //      carrying the game names ride these registers and are drawn in the sky
+  //      band, so a sky that drifts between two of them is what "the labels
+  //      became illegible" looks like arithmetically — it hit 1.08:1 on the
+  //      mechanism that died.
+  const orderBreak = skies.find((s) => {
+    const c = (hex: string): number => contrast(lumOfHex(hex), s.lum);
+    return !(c(pal.fgBright) > c(pal.fg) && c(pal.fg) > c(pal.fgDim));
+  });
+  check(`${tag} register order holds against the sky at every hour`,
+    orderBreak === undefined,
+    orderBreak ? `breaks at day ${orderBreak.at.toFixed(2)}` : '');
 
   // 4 · beings out-shout the terrain (real renderer maths via landRoleFill).
   //     Still sound under landRamp: factors are darken-only (last exactly
@@ -174,10 +234,17 @@ for (const id of ids) {
   const groundMax = Math.max(...groundFills.map(([, c]) => c));
   const beingKeys = [...new Set([...BEING_ROLE_KEYS, 'fgBright' as const])];
   for (const k of beingKeys) {
-    const c = contrast(lumOfHex(pal[k]), bgLum);
+    // The being's denominator is the SKY, not bg: terminalLand draws a being at
+    // `model.surface[x] - 1`, one row ABOVE the ground, which is a sky cell.
+    // The ground registers keep bg, which is *their* denominator — so the bar
+    // still asks the question it was calibrated to ask ("is the being louder
+    // against its background than the terrain is against its own?"), now at the
+    // worst hour rather than only at midnight.
+    const w = worstSky((s) => contrast(lumOfHex(pal[k]), s.lum));
+    const c = contrast(lumOfHex(pal[k]), w.lum);
     check(`${tag} being accent '${k}' clears the ground registers`,
       c >= groundMax * BEING_CLEAR && c >= BEING_MIN_CONTRAST,
-      `${k} ${c.toFixed(2)} vs ground max ${groundMax.toFixed(2)} (need ≥${(groundMax * BEING_CLEAR).toFixed(2)} and ≥${BEING_MIN_CONTRAST})`);
+      `${k} ${c.toFixed(2)} at day ${w.at.toFixed(2)} vs ground max ${groundMax.toFixed(2)} (need ≥${(groundMax * BEING_CLEAR).toFixed(2)} and ≥${BEING_MIN_CONTRAST})`);
   }
 
   // 5 · glyph dialect
@@ -238,10 +305,13 @@ for (const id of ids) {
       }
     }
     for (const role of rampRoles) {
-      const c = contrast(lumOfInt(landRoleFill(t, role, 0)), bgLum);
+      // Worst hour, not just midnight: a ramped FAR_FADE role recedes into the
+      // live sky, so its dimmest band is dimmest at some particular hour.
+      const w = worstSky((s) => roleContrastAt(role, 0, s));
+      const c = roleContrastAt(role, 0, w);
       check(`${tag} landRamp '${role}' step-0 band stays visible`,
         c >= RAMP_STEP0_MIN,
-        `${c.toFixed(2)} vs bar ${RAMP_STEP0_MIN}`);
+        `${c.toFixed(2)} at day ${w.at.toFixed(2)} vs bar ${RAMP_STEP0_MIN}`);
     }
   }
 
@@ -264,6 +334,37 @@ for (const id of ids) {
     }
   }
 
+  // 10 · daySky (the daylight register): shape, and the midnight contract.
+  //      The contrast consequences are already gated above — every bar that
+  //      measures against a sky ran across the whole curve. What is left here
+  //      is that the pack declared something well-formed, and that its night
+  //      is its bg, which is what makes midnight byte-identical to the
+  //      pre-register desk. A pack that declares nothing is opting out, which
+  //      is legal omission (the landOmit doctrine) and needs no check.
+  const daySky = t.daySky;
+  if (daySky !== undefined) {
+    const keysOk = JSON.stringify(Object.keys(daySky).sort()) ===
+      JSON.stringify(['day', 'night', 'twilight']);
+    check(`${tag} daySky has exactly night/twilight/day`, keysOk, Object.keys(daySky).join(','));
+    const stops = ['night', 'twilight', 'day'] as const;
+    const stopsHexOk = stops.every((k) => /^#[0-9a-f]{6}$/i.test(daySky[k] ?? ''));
+    check(`${tag} every daySky value is #rrggbb`, stopsHexOk,
+      stops.map((k) => `${k}=${daySky[k]}`).join(' '));
+    check(`${tag} daySky.night IS palette.bg (midnight is unchanged)`,
+      daySky.night.toLowerCase() === pal.bg.toLowerCase(),
+      `night ${daySky.night} vs bg ${pal.bg}`);
+    // Through the renderer's own function, not the JSON: this is the property
+    // the byte-identity bar actually depends on.
+    check(`${tag} skyInkOf(theme, 0) is exactly bg`,
+      skyInkOf(t, 0) === parseInt(pal.bg.slice(1), 16),
+      `${skyInkOf(t, 0).toString(16)} vs ${pal.bg}`);
+    // The register has to be worth drawing. Not a calibrated threshold — a
+    // pack whose noon is its midnight has authored nothing and should say so
+    // by omitting the slot instead.
+    check(`${tag} daySky.day differs from night (or omit the slot)`,
+      daySky.day.toLowerCase() !== daySky.night.toLowerCase());
+  }
+
   if (wantValues) {
     // eslint-disable-next-line no-console
     console.log(`  ${tag} relLum(bg)=${bgLum.toFixed(4)}  ` +
@@ -281,6 +382,21 @@ for (const id of ids) {
         const c3 = contrast(lumOfInt(landRoleFill(t, r, 3)), bgLum);
         return `${r}=${c0.toFixed(2)}/${c3.toFixed(2)}`;
       }).join(' ')}`);
+    }
+    if (daySky !== undefined) {
+      // The authoring loop: how bright the pack's noon got, and how close the
+      // binding being accent came to the floor it must not cross.
+      const worst = beingKeys
+        .map((k) => {
+          const w = worstSky((s) => contrast(lumOfHex(pal[k]), s.lum));
+          return { k, c: contrast(lumOfHex(pal[k]), w.lum), at: w.at };
+        })
+        .reduce((a, b) => (b.c < a.c ? b : a));
+      // eslint-disable-next-line no-console
+      console.log(`  ${tag} daySky: relLum ${bgLum.toFixed(4)} → ${brightest.lum.toFixed(4)} ` +
+        `(×${(brightest.lum / bgLum).toFixed(1)} at day ${brightest.at.toFixed(2)}); ` +
+        `binding accent ${worst.k} ${worst.c.toFixed(3)} vs floor ` +
+        `${Math.max(groundMax * BEING_CLEAR, BEING_MIN_CONTRAST).toFixed(3)}`);
     }
     if (omit !== undefined && Array.isArray(omit) && omit.length > 0) {
       // eslint-disable-next-line no-console

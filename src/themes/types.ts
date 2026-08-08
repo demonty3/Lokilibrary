@@ -88,6 +88,40 @@ export interface Theme {
    *  Roles in LAND_OMIT_LOCKED (src/render/levels/land.ts) can never be
    *  omitted; at most OMIT_MAX roles (conformance-smoked). */
   landOmit?: readonly LandRole[];
+  /** Style-pack daylight slot: the sky the pack shows at each end of the day,
+   *  AUTHORED rather than computed. The world clock
+   *  (`daylight()` in src/terminal/ambient.ts) interpolates night → twilight →
+   *  day, so a pack expresses the hour in its own dialect — one machine
+   *  brightens toward noon, another rotates hue at the same luminance, and a
+   *  third does both.
+   *
+   *  Authored and not derived because a formula cannot answer the question
+   *  that matters: the maximal hue rotation for solarized-dark is a dark red,
+   *  which reads as sunset rather than midday. A person looking at the screen
+   *  decides that; an engine cannot.
+   *
+   *  `night` MUST equal `palette.bg` exactly (conformance-smoked), which is
+   *  what makes midnight byte-identical to the pre-daylight desk. The other
+   *  two are free, up to what the frozen salience bars admit — every one of
+   *  them re-runs against all three skies, so a pack whose noon costs more
+   *  legibility than it owns fails the gate rather than the eyeball.
+   *
+   *  **Absent = the sky never moves**, which is legal *omission* of a shared
+   *  truth rather than contradiction of one (the landOmit doctrine): some
+   *  machines show the time of day, some don't. There is deliberately no
+   *  global strength dial — an earlier attempt at one was killed at
+   *  calibration, and the pack is now its own ceiling. */
+  daySky?: DaySky;
+}
+
+/** The three authored stops of a pack's day. Interpolated on the daylight
+ *  level, so `twilight` shows at dawn AND dusk — `daylight()` is symmetric and
+ *  the desk is a stylised world, not an observatory. */
+export interface DaySky {
+  /** Must equal `palette.bg` exactly — see Theme.daySky. */
+  readonly night: string;
+  readonly twilight: string;
+  readonly day: string;
 }
 
 /** Normalised fx list — the renderer and the conformance smoke both read fx

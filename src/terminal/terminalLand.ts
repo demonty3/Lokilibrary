@@ -54,8 +54,8 @@ import {
   hexToInt,
   waitForCozette,
 } from '../render/fonts';
-import { buildLandContainer, landRoleFill } from '../render/levels/land';
-import { loadMuralPixels, buildQuantizedMural, type TerminalMuralState } from '../render/mural';
+import { buildLandContainer, landRoleFill, skyInkOf } from '../render/levels/land';
+import { loadMuralPixels, buildQuantizedMural, MURAL_BACKING, type TerminalMuralState } from '../render/mural';
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
@@ -143,6 +143,12 @@ const WORLD_SCALE = 2;
  *  go to the sky (skyH 5 → 11 at 640×520). Terrace Join's precondition. */
 const UNDER_H = 4;
 const SURFACE_BAND = 4;
+/** Cells the sky overhangs the land's edges by. `cols` floors, so the land is
+ *  636 px in a 640 px window and `world.x = 2` leaves a bg sliver down each
+ *  side — invisible while the sky is bg, a dark line at noon, and 4 px of it at
+ *  a join, which is the one place the desk claims the ground is continuous.
+ *  One cell (12 screen px) covers it with room for any rounding. */
+const SKY_BLEED_CELLS = 1;
 /** Cohort defs keyed by id — resolved once, read by addBeing + the tick. */
 const COHORT_BY_ID = new Map(COHORT.map((d) => [d.id, d]));
 /** Intent re-pick window (min + seeded extra, seconds). */
@@ -316,6 +322,13 @@ declare global {
          *  the mural swallowed that column (see skyArc.extractArc). */
         sunCol: number | null;
         moonCol: number | null;
+        /** DRAWN sky colour, packed rgb — the daylight register's observable.
+         *  A screenshot cannot tell a lit sky from a pack with a lighter bg. */
+        skyInk: number;
+        /** DRAWN tint of one far plane, or null if this land composed none.
+         *  Proves the far planes recede into the CURRENT sky rather than into a
+         *  dark constant — the noon depth-inversion this rung had to avoid. */
+        farInk: number | null;
       };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
@@ -473,10 +486,30 @@ export async function mountTerminalLand(
     app.stage.addChild(scan);
   }
 
-  let scene = buildLandContainer(theme, model);
+  // The backdrop (ground body + daylight sky) hangs OUTSIDE `world`, and
+  // therefore outside the glow filter. A bright-pass bloom exists to halo glyph
+  // INK — glow.ts's own words, "dim texture never blooms" — and a sky lit
+  // toward noon clears its THRESHOLD 0.2 across the entire band, so a glow pack
+  // would bloom its whole sky. `world` has no camera (scale fixed at mount, x/y
+  // moved only by layoutWorld), so mirroring the transform is the whole cost of
+  // getting the sky out of the filter's input. A no-op on every shipped pack:
+  // amber-crt is the only one with `glow` and its bg tops out at 0.078.
+  const backdropHost = new Container();
+  backdropHost.scale.set(WORLD_SCALE);
+
+  let scene = buildLandContainer(theme, model, { skyBleed: SKY_BLEED_CELLS });
   let sceneContainer = scene.container;
   let contentH = scene.contentH;
   world.addChildAt(sceneContainer, 0);
+  app.stage.addChildAt(backdropHost, 0); // behind `world`; scanlines stay above both
+  backdropHost.addChild(scene.backdrop);
+
+  /** Last sky ink pushed to the scene, so a tick that changes nothing writes
+   *  nothing. -1 is the "no scene has been coloured yet" sentinel and cannot
+   *  collide with a real packed colour — a recompose resets to it, because the
+   *  fresh scene is baked at midnight and would otherwise sit at midnight
+   *  colours all afternoon behind an unchanged gate. */
+  let lastSkyInk = -1;
 
   // The arcing bodies. The terminal path DRAWS ITS OWN ☼ and ☾ (the baked
   // layers are hidden in hideBakedLayers) for the same reason the wisps do:
@@ -517,6 +550,8 @@ export async function mountTerminalLand(
   const layoutWorld = (): void => {
     world.x = Math.floor((app.screen.width - model.width * CW * WORLD_SCALE) / 2);
     world.y = app.screen.height - contentH * WORLD_SCALE;
+    backdropHost.x = world.x;
+    backdropHost.y = world.y;
   };
   layoutWorld();
 
@@ -678,6 +713,9 @@ export async function mountTerminalLand(
     });
   };
   let muralState: TerminalMuralState = 'idle';
+  /** The mural's backing, once one has loaded — sky, so it follows the hour.
+   *  Cleared on recompose: the mural is a child of the scene and dies with it. */
+  let muralBacking: Graphics | null = null;
   const mountMural = (): void => {
     const spec = model.mural;
     if (!spec) { muralState = 'idle'; return; }
@@ -692,6 +730,12 @@ export async function mountTerminalLand(
         mc.x = spec.x * CW;
         mc.y = spec.y * CH;
         host.addChild(mc); // child of the scene → dies with it on recompose
+        // The mural composes INTO the sky band, so its backing is sky: it is
+        // tracked here and re-tinted with everything else. Resolving late (a
+        // CDN fetch) it can miss the tick that set the hour, so it takes the
+        // current sky immediately rather than waiting for the next change.
+        muralBacking = mc.getChildByLabel(MURAL_BACKING) as Graphics | null;
+        if (muralBacking && lastSkyInk !== -1) muralBacking.tint = lastSkyInk;
         muralState = 'ready';
       })
       .catch((err: unknown) => {
@@ -727,11 +771,18 @@ export async function mountTerminalLand(
       ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
     });
     world.removeChild(sceneContainer);
+    // The backdrop was re-parented out of sceneContainer at mount, so the
+    // children sweep below cannot reach it — destroy it by hand or every join
+    // leaks a full-scene Graphics pair.
+    scene.backdrop.destroy({ children: true });
     sceneContainer.destroy({ children: true });
-    scene = buildLandContainer(theme, model);
+    scene = buildLandContainer(theme, model, { skyBleed: SKY_BLEED_CELLS });
     sceneContainer = scene.container;
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
+    backdropHost.addChild(scene.backdrop);
+    muralBacking = null; // died with the old scene; mountMural re-registers it
+    lastSkyInk = -1; // the new scene is baked at midnight; re-colour it this tick
     layoutWorld();
     refreshWear(); // worn columns survive a join recompose
     drawMarks(); // marks re-sit on the reshaped surface
@@ -1309,14 +1360,27 @@ export async function mountTerminalLand(
     const nowMs = Date.now();
     const skyT = nowMs / 1000;
 
-    // World clock: which of the baked sky is out at this hour. Every window
-    // derives it from the same wall clock, so the desk agrees with no broker
-    // channel — and a terminal opened at midnight matches its neighbours the
-    // instant it mounts. Currently HELD to a fixed sky (ambient.CLOCK_HELD)
-    // until the daylight-colour rung lands; a forced hour still runs the live
-    // curve, so `clockOverrideH` (the e2e hook — you cannot verify midnight by
-    // waiting for it) demonstrates the real clock either way.
+    // World clock: which of the baked sky is out at this hour, and how far
+    // through its own day the pack's sky has moved. Every window derives it
+    // from the same wall clock, so the desk agrees with NO broker channel — a
+    // terminal opened at midnight matches its neighbours the instant it mounts.
+    // `clockOverrideH` is the e2e hook: you cannot verify midnight by waiting.
     const sky = skyNow(clockOverrideH, localHour(nowMs));
+
+    // The colour half of the clock (the daylight sky register). Two things take
+    // it and must take the SAME value, or the world disagrees with its own sky:
+    // the backdrop's tint, and the far planes that recede into it — a fade
+    // aimed at a dark constant while the sky brightens inverts the depth cue,
+    // so at noon the farthest ridge would read as the sharpest thing on the
+    // horizon. A pack with no `daySky` returns its bg at every hour, so this
+    // whole block is a no-op on the seven un-authored packs.
+    const skyInk = skyInkOf(theme, sky.day);
+    if (skyInk !== lastSkyInk) {
+      lastSkyInk = skyInk;
+      scene.sky.tint = skyInk;
+      for (const f of scene.farLayers) f.bt.tint = landRoleFill(theme, f.role, f.step, skyInk);
+      if (muralBacking && !muralBacking.destroyed) muralBacking.tint = skyInk;
+    }
 
     // Tier-2 structure glow: monuments (and a hall, if one ever composes here)
     // pulse gently off elapsedS (deltaMS-accumulated), so they freeze cleanly
@@ -1886,6 +1950,8 @@ export async function mountTerminalLand(
         lampAlpha: scene.layers.lamp?.[0] ? r3(scene.layers.lamp[0].alpha) : null,
         sunCol: sunView ? sunView.spec.col : null,
         moonCol: moonView ? moonView.spec.col : null,
+        skyInk: scene.sky.tint as number,
+        farInk: (scene.farLayers[0]?.bt.tint as number | undefined) ?? null,
       };
     },
     debugLabels: () =>
