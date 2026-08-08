@@ -2254,6 +2254,43 @@ now **FIXED — see the entry below.**
 
 ---
 
+**Two-pack seam spike 2026-08-08 — CONFIRMED with a constraint; T3's identity
+half is viable.** Full write-up + the four shots:
+`docs/design-reviews/2026-08-08-two-pack-seam.md`. No engine work — a throwaway
+per-wing pack map in `TerminalApp.tsx`, reverted; the tree is unchanged.
+
+Ran before T3's plumbing because per-terminal packs collides with CLAUDE.md's
+standing "one theme palette per scene" rule, and building the config/spawn-URL
+path first would have meant learning the answer after paying for it.
+
+Four pairings, all against `phosphor`, joined, same hour: `amber-crt` (1.2× sky
+luminance) fine, `catppuccin-mocha` (4.7×) fine, **`gruvbox-dark` (7.1×) fine**,
+`gameboy-dmg` (9.9×) **broken**. The frozen kill fired on exactly one — and
+**brightness is not what fired it**. `gruvbox-dark` was run specifically to
+separate the variables, prediction recorded before the capture: nearly as bright
+as DMG, but it omits nothing, and it passes. DMG's `landOmit` deletes star /
+starBright / moon / cloud / sun / lamp and five more, so at the seam one side
+carries a starfield and a moon and the other an empty field, at the same
+instant, in one continuous space. **Shared content is the discriminator.**
+
+Doctrine refined in `IDEAS.md` § Shared rules across terminals (seam clause):
+the omit permission holds for a pack seen ALONE; **at a join, omitting a shared
+truth IS contradicting it.**
+
+Measured rather than judged: **terrain is continuous across a two-pack seam** —
+`t1` col 52 crust at row 16, `t2` col 0 crust at row 16, each window computing
+`landSeamBoundary` independently with no broker. Joins/knits/crossings are
+palette-blind (`edges.right true`, `knits.fired 1`, `glowStale 0`, beings in
+`neighbours.right`).
+
+**Design change the spike bought before any code:** the plan proposed assigning
+packs by `fnv1a` over wing id. That is now wrong — adjacent packs must agree on
+which sky roles exist, and that is gate-expressible (the style-pack smoke
+already reads every pack's `landOmit`). Where exactly the line sits between "a
+visible tonal step" and "broken" stays Harry's call on the running desk.
+
+---
+
 **The being lift 2026-08-08 — KILLED at calibration; the demote shipped in its
 place.** Spec + bars frozen before code:
 `docs/superpowers/specs/2026-08-08-being-lift-design.md`.

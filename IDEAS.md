@@ -682,6 +682,21 @@ sky beside a midnight neighbour breaks the join). No world clock exists today
 — the sky is static ambience — so the first buildable rung is a world clock
 that packs render through their own vocabulary.
 
+> **Seam clause, added 2026-08-08 from the two-pack seam spike**
+> (`docs/design-reviews/2026-08-08-two-pack-seam.md`). The omit permission
+> above holds for a pack seen ALONE. **At a join, omitting a shared truth IS
+> contradicting it** — both halves are visible in one field at one instant, so
+> "there are stars" and "there are no stars" are asserted about the same sky
+> simultaneously. Measured four pairings against `phosphor`: `amber-crt`
+> (1.2× sky luminance), `catppuccin-mocha` (4.7×) and `gruvbox-dark` (7.1×)
+> all read fine; `gameboy-dmg` (9.9×, and the only one with a `landOmit`)
+> read broken. `gruvbox-dark` was run specifically to separate brightness from
+> omission, prediction recorded first — it is nearly as bright as DMG and
+> passes, so **shared content is the discriminator, not brightness.**
+> Consequence for T3: pack assignment must be omission-aware, not a free hash
+> over wing id. Terrain continuity is unaffected — `landSeamBoundary` matched
+> to the row across a two-pack seam with no broker.
+
 ### The conditions-vs-content ladder (added 2026-08-06)
 
 *Harry, same day as § Terminals of different sizes: "the setting should be
