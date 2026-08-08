@@ -2192,6 +2192,74 @@ IDEAS.md § Shared rules across terminals.
 
 ---
 
+**Anatomy pass 2026-08-08 — the mural CUT, the reveal unframed.** Harry:
+"the terminal aesthetic is a bit busy", then sharpened it — *"I'm not sure
+what that big block in the centre is, as well as the d(number) things"*. So
+the complaint was **naming, not density**. An annotated component breakdown
+was built from the shipped source (Cozette + phosphor + real crops) and
+marked up:
+https://claude.ai/code/artifact/01ec38fa-92fe-4313-a48a-efc1c6e68876
+
+The marks came back **16 reads / 1 too-loud / 1 cut, and nothing at all under
+"can't name it" or "needs a name"** — including `wings`, the `d(number)`
+skyline that prompted the question. That is the finding: the components were
+legible once named, so no renaming or density work was warranted, and the
+tidy collapsed to two items.
+
+- **`mural: false`** (`terminalLand.ts` composeOpts). The composer keeps the
+  entire mural path — every mural smoke still drives it with `mural: true`,
+  and the branch the desk now takes is the one `smoke-land-mural.mts` already
+  pins with a golden hash — so this is one word, reversible. Immediate
+  consequence, visible in the shots: the sky is whole. The mural cleared its
+  own rect last and unconditionally, which is why it *evicted the ☼ outright
+  in 42% of lands* (`skyArc.ts:92-97`); both windows now carry a full
+  starfield with the ☾ up. **Cost, recorded rather than argued away:** the
+  land loses its per-game recognition surface (CLAUDE.md's "oh I own that"
+  beat). Game names survive on the proximity labels, and the play-state
+  ladder still encodes the relationship — but the artwork is gone, and if the
+  beat is missed, the one word comes back.
+- **The marginalia reveal no longer flashes.** Harry: *"I like the idea but I
+  don't like how the message flashes up on the screen."* It did: 0.4 s of
+  LINEAR ramp to full opacity, inside a `╔═╗` box, forced topmost. The box is
+  also the shape CLAUDE.md rules out ("no floating speech bubbles") — a
+  boxed pop-up is a chatbot surface, and the notes are meant to be marginalia.
+  Now: unframed text (`wrapNote`, split out of `captionFor` so the palace
+  cell's framed found-note box is byte-identical), a soft backing that rides
+  the same envelope at 0.88× (which also closes the logged caption-backing
+  defect), and `revealAlpha` — smoothstepped in and out over 1.4 s to a peak
+  of 0.74, never full.
+
+The ease is the fix, so the ease is what is locked. `smoke-t2-marks.mts` is
+54 assertions (was 43), and **linear is a live negative control**: the onset
+bar asserts the envelope covers <5% of its travel in the first 10% of the
+fade, where linear covers exactly 10%. Mutation-checked three ways — reverting
+the ease, the duration, or the peak each fails a distinct named bar.
+
+**Verified on the running two-window desk, not just in smoke.** New e2e hook
+`__terminal.debugReveal()` (the `debugClouds` pattern) sampled two complete
+reveals at ~100 ms: onset 0.003 at 3.5% of the fade where linear predicts
+0.027, peak exactly 0.740, backing exactly 0.651 = 0.740 × 0.88, `framed`
+false throughout, total dwell 6.78 s = 1.4 + 4 + 1.4. A foliage glyph under
+the backing measures (51, 67, 55) against a predicted green of 52.7 while the
+same role outside the rect stays (76, 151, 91) — so the backing dims rather
+than punches out, as intended. All 69 smoke files green; typecheck clean.
+
+**Not done, deliberately:** no bars were frozen before this one. It was a
+directly-instructed two-line tidy off a marked-up inventory, not a
+speculative slice, and bars written after the shots exist are not bars.
+Harry's on-screen look is the gate.
+
+The standing colour finding from the same pass is recorded but **unacted**:
+`ROLE_KEY` spends all four being-reserved palette keys on terrain
+(orange → topsoil/roof/cottage/shaft, magenta → relic, cyan → monument,
+violet → hall/deep), so the salience contract that guarantees a being
+out-reads its furniture has a hole exactly where the product now lives. It
+predates the reservation by five weeks (`ff60632` vs `b293c96`) and
+`smoke-salience.mts` only enforces it against the palace's tile bibles and
+scatter. Nothing was marked "too loud" over it, so it waits.
+
+---
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

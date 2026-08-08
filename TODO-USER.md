@@ -13,7 +13,14 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-08** (the DAYLIGHT SKY REGISTER shipped and its eyeball
+Last updated: **2026-08-08, evening** (the ANATOMY PASS: the desk's components were
+inventoried into a marked-up page, and the marks came back 16 reads / 1 too-loud /
+1 cut with NOTHING under "can't name it" — so "busy" was a naming problem that the
+inventory itself solved, and the tidy collapsed to two changes. The mural is cut
+(one word, reversible; the sky is whole again and the ☾ is up in both windows) and
+the marginalia note no longer flashes (unframed, eased over 1.4 s to 0.74, soft
+backing). Both measured on the running desk. One eyeball open, below.)
+Previously **2026-08-08** (the DAYLIGHT SKY REGISTER shipped and its eyeball
 PASSED the same day — all six bars, and bar 1's KILL INVERTED: the hue axis was
 specced as the fallback for packs that could not afford to brighten, and judged
 side by side it is the STRONGER axis for telling time. A pack now authors its own
@@ -94,6 +101,41 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — the anatomy pass: mural cut + the reveal unframed
+**Status**: shipped 2026-08-08, measured on the running two-window desk;
+your look is the gate. Both changes came straight off your marks.
+**What to look at**, on a booted desk (`bash .claude/skills/launch-desktop-app/scripts/launch.sh`):
+1. **The sky, with the mural gone.** It used to clear its own rect last and
+   unconditionally — it was evicting the ☼ outright in 42% of lands. Both
+   windows should now carry a whole starfield with the ☾ up.
+2. **What the cut costs.** The land no longer shows any game *artwork* — the
+   Steam CDN recognition surface, CLAUDE.md's "oh I own that" beat. Names
+   survive on the proximity labels and the play-state ladder still encodes
+   the relationship. If you miss the beat, say so: it is one word
+   (`mural: false` in terminalLand.ts composeOpts) and it comes straight back.
+3. **A note surfacing.** Wait for a being to walk past a mark. It should
+   *emerge* over about a second and a half rather than appear — unframed
+   text on a soft backing, never reaching full brightness. If it still reads
+   as a pop-up, the dial is `REVEAL_FADE_S` / `REVEAL_PEAK_ALPHA` in
+   `src/terminal/marks.ts`; if it reads as *too faint to notice*, that is the
+   opposite failure and worth saying, because the fix is the same two numbers
+   in the other direction.
+**Not blocking anything**; nothing downstream waits on it.
+
+### 🔔 DECIDE — the reserved-accent hole (recorded, unacted)
+**Status**: found during the anatomy pass, deliberately not acted on — you
+marked nothing "too loud" over it. `src/themes/roles.ts` reserves four palette
+keys so beings always out-read furniture; `src/render/levels/land.ts` ROLE_KEY
+spends **all four on terrain** (orange → topsoil/roof/cottage/shaft, magenta →
+relic, cyan → monument, violet → hall/deep). The reservation is smoke-enforced
+only against the palace's tile bibles and scatter, and the land composer
+predates it by five weeks.
+**Why it might matter to you**: the pending **being-liveliness eyeball** below
+has "KILL: they read as noise" as its bar 5. If beings share a hue with the
+topsoil they stand on, that bar can fail for a reason unrelated to the
+liveliness code.
+**Your call**: fix the hue hierarchy first, or judge liveliness as-is.
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`

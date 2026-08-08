@@ -34,8 +34,33 @@ export const MARK_CHANCE: Record<MarkContextKind, number> = {
 /** Reveal: a passing being unfurls a mark's note (ambient, wallpaper-first). */
 export const REVEAL_RADIUS_COLS = 1.5;
 export const REVEAL_COOLDOWN_S = 60;
-export const REVEAL_FADE_S = 0.4;
+/** Harry, 2026-08-08: the note "flashes up on the screen". It did — 0.4 s of
+ *  LINEAR ramp to full opacity is a UI toast, not something surfacing in a
+ *  world. Slowed 3.5x and eased at both ends (below), so it emerges. */
+export const REVEAL_FADE_S = 1.4;
 export const REVEAL_HOLD_S = 4;
+/** Peak opacity. Marginalia is found, not announced — it never reaches full. */
+export const REVEAL_PEAK_ALPHA = 0.74;
+
+/**
+ * The reveal's opacity envelope at `t` seconds since it opened: eased in,
+ * held, eased out, then 0 forever. Pure — the wear.ts posture, so the shape
+ * is smokeable without PIXI (scripts/smoke-t2-marks.mts).
+ *
+ * Smoothstep rather than linear at both ends: a linear ramp has a corner at
+ * each end, and the corner at t=0 is exactly what reads as a flash — the eye
+ * catches the sudden onset of change, not the brightness.
+ */
+export function revealAlpha(t: number): number {
+  const total = REVEAL_FADE_S + REVEAL_HOLD_S + REVEAL_FADE_S;
+  if (t <= 0 || t >= total) return 0;
+  const raw = t < REVEAL_FADE_S
+    ? t / REVEAL_FADE_S
+    : t < REVEAL_FADE_S + REVEAL_HOLD_S
+      ? 1
+      : (total - t) / REVEAL_FADE_S;
+  return REVEAL_PEAK_ALPHA * raw * raw * (3 - 2 * raw); // smoothstep
+}
 
 /** FNV-1a of the agent id (the seamCooldownMs pattern in behavior.ts) —
  *  NOT the injected rand, so the stagger neither perturbs the rng

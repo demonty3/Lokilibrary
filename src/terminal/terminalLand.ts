@@ -70,12 +70,11 @@ import {
   noteFor,
   pickReveal,
   MARK_RENDER_CAP,
-  REVEAL_FADE_S,
-  REVEAL_HOLD_S,
+  revealAlpha,
   type MarkContextKind,
 } from './marks';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
-import { captionFor } from '../render/noteBox';
+import { wrapNote } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
 import {
   doorColumn,
@@ -359,6 +358,17 @@ declare global {
       debugCellAt(x: number, y: number): { char: string; role: string } | null;
       /** e2e only — wisp positions (cells) + alphas, for drift readback. */
       debugClouds(): Array<{ x: number; alpha: number }>;
+      /** e2e only — the marginalia reveal's live render state. The smoke
+       *  proves revealAlpha's SHAPE; this proves the shape reaches the
+       *  screen (and that the backing tracks the text). */
+      debugReveal(): {
+        open: boolean;
+        tS: number;
+        alpha: number;
+        backAlpha: number;
+        framed: boolean;
+        lines: number;
+      } | null;
       /** e2e only — launcher-beat readback: the clickable sites, the door
        *  column, the live errand, who is away, and the last launch fired. */
       debugLaunch(): {
@@ -452,7 +462,12 @@ export async function mountTerminalLand(
     { length: 5 },
     (_, i) => SAMPLE_LAND[(rot + i) % SAMPLE_LAND.length],
   );
-  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: true };
+  // `mural: false` — Harry's anatomy pass, 2026-08-08: the mural was the one
+  // component marked CUT. The composer keeps the whole mural path (every
+  // mural smoke still drives it with `mural: true`, and the no-mural branch it
+  // now takes is the one smoke-land-mural.mts already pins with a golden
+  // hash); the desk simply stops asking for one. Reversible by this word.
+  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: false };
   let model = composeLand(seed, games, composeOpts);
 
   // Persistent transform container; the land SCENE is a swappable child so a
@@ -640,7 +655,8 @@ export async function mountTerminalLand(
 
   // ── Marginalia: the reveal (being-proximity, ambient) ──────────────────
   // One slot per land: a passing being unfurls the nearest eligible note
-  // in a captionFor box — fade in, hold, fade out on elapsedS (freezes
+  // as unframed text over a soft backing — eased in, held, eased out on
+  // elapsedS via marks.ts revealAlpha (freezes
   // under throttle). While the slot is occupied, passes don't queue.
   const CAPTION_MAX_W = 24;
   let reveal: { mark: MarkView; startedAtS: number } | null = null;
@@ -648,7 +664,14 @@ export async function mountTerminalLand(
     text: '',
     style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fg) },
   });
+  // Unframed backing, NOT a box: enough ground to read against, no border to
+  // read as a bubble. Also closes the logged caption-backing defect — a note
+  // used to draw straight over whatever was behind it.
+  const CAPTION_PAD = 2;
+  const captionBack = new Graphics();
   caption.visible = false;
+  captionBack.visible = false;
+  world.addChild(captionBack);
   world.addChild(caption);
 
   // ── Proximity labels (raised-horizon slice, 2026-07-30) ────────────────
@@ -1767,27 +1790,36 @@ export async function mountTerminalLand(
         const mark = marks[idx];
         reveal = { mark, startedAtS: elapsedS };
         mark.lastRevealAtS = elapsedS;
-        caption.text = captionFor(mark.note, CAPTION_MAX_W);
+        caption.text = wrapNote(mark.note, CAPTION_MAX_W).join('\n');
         caption.x = Math.max(0, Math.min(model.width * CW - caption.width, Math.round(mark.col * CW - caption.width / 2)));
         caption.y = markDisplayRow(model.surface, mark.col) * CH - caption.height - CH;
+        captionBack.clear();
+        captionBack
+          .rect(caption.x - CAPTION_PAD, caption.y - CAPTION_PAD,
+                caption.width + CAPTION_PAD * 2, caption.height + CAPTION_PAD * 2)
+          .fill(hexToInt(theme.palette.bg));
         caption.alpha = 0;
+        captionBack.alpha = 0;
         caption.visible = true;
-        world.addChild(caption); // re-append → topmost over runtime-added texts
+        captionBack.visible = true;
+        world.addChild(captionBack); // re-append as a PAIR → backing stays under
+        world.addChild(caption);     // its text and both stay topmost
       }
     } else if (!marks.includes(reveal.mark)) {
       // Evicted by the render cap mid-reveal: close the caption safely.
       caption.visible = false;
+      captionBack.visible = false;
       reveal = null;
     } else {
       const t = elapsedS - reveal.startedAtS;
-      const total = REVEAL_FADE_S + REVEAL_HOLD_S + REVEAL_FADE_S;
-      caption.alpha = t < REVEAL_FADE_S
-        ? t / REVEAL_FADE_S
-        : t < REVEAL_FADE_S + REVEAL_HOLD_S
-          ? 1
-          : Math.max(0, (total - t) / REVEAL_FADE_S);
-      if (t >= total) {
+      const a = revealAlpha(t);
+      caption.alpha = a;
+      // The backing rides the same envelope but never fully opaque, so the
+      // world stays faintly visible through it rather than being punched out.
+      captionBack.alpha = a * 0.88;
+      if (a === 0) {
         caption.visible = false;
+        captionBack.visible = false;
         reveal = null;
       }
     }
@@ -1975,6 +2007,20 @@ export async function mountTerminalLand(
       recordMark(memory, { agentId, note, col: c, row: model.surface[c] });
       addMarkView(agentId, note, c);
       return marks.some((m) => m.col === c);
+    },
+    debugReveal: () => {
+      if (!reveal) return null;
+      const r3 = (n: number) => Math.round(n * 1000) / 1000;
+      return {
+        open: caption.visible,
+        tS: r3(elapsedS - reveal.startedAtS),
+        alpha: r3(caption.alpha),
+        backAlpha: r3(captionBack.alpha),
+        // The box is what read as a speech bubble; assert its absence directly
+        // rather than inferring it from the glyph count.
+        framed: /[╔╗╚╝║═]/.test(caption.text),
+        lines: caption.text.split('\n').length,
+      };
     },
     debugCellAt: (x, y) =>
       model.char[y]?.[x] !== undefined ? { char: model.char[y][x], role: model.role[y][x] } : null,

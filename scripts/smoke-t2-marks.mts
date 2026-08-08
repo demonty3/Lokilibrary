@@ -5,11 +5,13 @@
  *   - vocab totality (every being × context) + {thought} garnish + fallback
  *   - surface-row re-derivation against a ramped (joined) model
  *   - pickReveal: proximity radius, per-mark cooldown, none-eligible → null
+ *   - revealAlpha: the eased opacity envelope, with linear as a negative control
  */
 import { makeChecker } from './lib/smoke.ts';
 import {
   MARK_CHANCE, MARK_DEDUPE_COLS, markCooldownS, maybeMark, noteFor,
   markDisplayRow, pickReveal, REVEAL_COOLDOWN_S, REVEAL_RADIUS_COLS,
+  REVEAL_FADE_S, REVEAL_HOLD_S, REVEAL_PEAK_ALPHA, revealAlpha,
   type MarkContextKind,
 } from '../src/terminal/marks.ts';
 import { composeLand, SAMPLE_LAND } from '../src/procedural/land.ts';
@@ -63,5 +65,41 @@ check('reveal cooldown holds', pickReveal([m(10, 100 - REVEAL_COOLDOWN_S + 1)], 
 check('reveal cooldown expires', pickReveal([m(10, 100 - REVEAL_COOLDOWN_S - 1)], [10], 100) === 0);
 check('first eligible wins', pickReveal([m(50), m(10)], [10, 50], 100) === 0);
 check('no marks → null', pickReveal([], [10], 100) === null);
+
+// 6 · the reveal envelope (2026-08-08 — Harry: the note "flashes up")
+// The shape is the fix, so the shape is what gets locked. Bar 4 is the one
+// that carries the complaint: a LINEAR ramp is what read as a flash, and it
+// is the obvious "simplification" of this function, so it is asserted as a
+// live negative control rather than left to a comment.
+const TOTAL = REVEAL_FADE_S + REVEAL_HOLD_S + REVEAL_FADE_S;
+const at = (t: number) => revealAlpha(t);
+
+check('closed before it opens', at(-1) === 0 && at(0) === 0);
+check('closed after it ends', at(TOTAL) === 0 && at(TOTAL + 5) === 0);
+check('never fully opaque', REVEAL_PEAK_ALPHA < 1
+  && Array.from({ length: 400 }, (_, i) => at((i / 399) * TOTAL)).every((a) => a <= REVEAL_PEAK_ALPHA + 1e-9));
+check('holds at peak mid-dwell', Math.abs(at(REVEAL_FADE_S + REVEAL_HOLD_S / 2) - REVEAL_PEAK_ALPHA) < 1e-9);
+
+const rising = Array.from({ length: 60 }, (_, i) => at(((i + 1) / 61) * REVEAL_FADE_S));
+const falling = Array.from({ length: 60 }, (_, i) => at(TOTAL - ((i + 1) / 61) * REVEAL_FADE_S));
+check('monotone in', rising.every((v, i) => i === 0 || v > rising[i - 1]));
+check('monotone out', falling.every((v, i) => i === 0 || v > falling[i - 1]));
+check('symmetric ends', rising.every((v, i) => Math.abs(v - falling[i]) < 1e-9));
+
+// Bar 4 — no corner at onset. Over the first 10% of the fade a smoothstep
+// covers <3% of its travel; a linear ramp covers exactly 10%. Asserting BOTH
+// sides keeps this a real bar: it fails if the ease is removed, and it fails
+// if someone eases so hard the note never arrives.
+const onset = at(REVEAL_FADE_S * 0.1) / REVEAL_PEAK_ALPHA;
+check('eased onset, not linear', onset < 0.05, `onset ${onset.toFixed(4)} (linear would be 0.1000)`);
+check('onset still moves', onset > 0.002, `onset ${onset.toFixed(4)}`);
+
+// Continuity: no visible step at 60 fps anywhere in the envelope.
+const frames = Array.from({ length: 1200 }, (_, i) => at((i / 1199) * TOTAL));
+const biggestStep = Math.max(...frames.slice(1).map((v, i) => Math.abs(v - frames[i])));
+check('continuous at 60 fps', biggestStep < 0.02, `largest per-frame step ${biggestStep.toFixed(4)}`);
+
+// The slow-down is the point; guard the magnitude, not just the shape.
+check('fade is unhurried', REVEAL_FADE_S >= 1.2, `REVEAL_FADE_S=${REVEAL_FADE_S}`);
 
 report();

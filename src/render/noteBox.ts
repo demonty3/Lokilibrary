@@ -7,6 +7,19 @@
  *  Shared module (marginalia-on-land slice): the cell's found-note box
  *  and the land's reveal caption speak one frame dialect. */
 export function captionFor(text: string, maxWidth: number): string {
+  const lines = wrapNote(text, maxWidth);
+  const boxWidth = Math.max(...lines.map((l) => l.length));
+  const bar = '═'.repeat(boxWidth + 2);
+  const body = lines.map((l) => `║ ${l.padEnd(boxWidth)} ║`).join('\n');
+  return `╔${bar}╗\n${body}\n╚${bar}╝`;
+}
+
+/** The wrap alone, without the frame. Split out for the land's reveal, which
+ *  deliberately wears NO frame — a boxed note reading as a speech bubble is the
+ *  chatbot surface CLAUDE.md rules out, and the land's notes are marginalia.
+ *  The cell's found-note box keeps the frame (its salience dialect), so this
+ *  is the shared half and `captionFor` above is unchanged in output. */
+export function wrapNote(text: string, maxWidth: number): string[] {
   const capped = text.length > 90 ? `${text.slice(0, 89)}…` : text;
   const width = Math.max(4, maxWidth);
   const words = capped.split(' ');
@@ -39,8 +52,5 @@ export function captionFor(text: string, maxWidth: number): string {
     }
   }
   lines.push(line);
-  const boxWidth = Math.max(...lines.map((l) => l.length));
-  const bar = '═'.repeat(boxWidth + 2);
-  const body = lines.map((l) => `║ ${l.padEnd(boxWidth)} ║`).join('\n');
-  return `╔${bar}╗\n${body}\n╚${bar}╝`;
+  return lines;
 }
