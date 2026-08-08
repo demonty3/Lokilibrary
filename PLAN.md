@@ -74,7 +74,7 @@ murals / #19, not a separate item.
 | T1 — frameless windows, registry, persistence | SHIPPED (desk persistence, tray, chains 2026-07-16) |
 | T2 — one society, real runtime | SHIPPED 2026-07-17 (T2 society migration) |
 | T2 remainder | Launcher beat SHIPPED + eyeball PASSED 2026-08-06 (all six bars); still OPEN: Tier-2/topology reflection (→T4) |
-| T3 — terminal identity + chrome | OPEN (parked, not rejected; glyph-chrome craft resurfaces here) |
+| T3 — terminal identity + chrome | **Slice 1 (per-terminal packs) SHIPPED 2026-08-08** — eyeball open. The seam half (knit, hermite blend, edge swap) shipped long ago; what was missing was identity, and every window wore `phosphor`. Preceded by the two-pack seam spike (`docs/design-reviews/2026-08-08-two-pack-seam.md`), which CONFIRMED the shape and added the constraint. **Still OPEN: slice 2** — the world-rendered status row (who's here + engagement) and the PRD's "frame glyphs part like undergrowth" edge treatment |
 | T4 — topology → reflection | OPEN |
 | T5 — orchestration v0 (Depth-3 gated) | OPEN |
 | Terminals-as-wallpaper | **SHIPPED + eyeball PASSED 2026-08-06** (all six bars, no dial spent) — desk wallpaper mode + desk-wide peek; spec `docs/superpowers/specs/2026-08-06-terminals-as-wallpaper-design.md` |

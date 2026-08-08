@@ -2254,6 +2254,65 @@ now **FIXED — see the entry below.**
 
 ---
 
+**T3 slice 1 SHIPPED 2026-08-08 — per-terminal packs; the ten authored packs
+reach the product.** Eyeball open. Before this,
+`TerminalApp.tsx:16` hard-coded `phosphor` for every window and the spawn URL
+never carried a theme, so five style slots, a 370-assertion gate, two cold-run
+stranger packs and a published blueprint were invisible on the shipped surface:
+every terminal looked identical.
+
+New `src/terminal/packAssignment.ts` (pure, Pixi-free — the `skyArc.ts` /
+`clouds.ts` posture). **Assignment is renderer-side and derived from the wing
+id**, which is why the slice needs no config field, no IPC and no desktop
+change at all: a wing already seeds its own terrain from its id
+(`terminalLand.ts:440`), so "same wing → same land" and "same wing → same pack"
+are one idea, the choice survives quit/relaunch for free, and a window opened
+at any moment matches what its neighbours already assume. `?theme=` still
+overrides — that is how an omitting pack is reached deliberately.
+
+**The pool is derived, not listed**: every pack compatible with `phosphor`,
+that pack first, so a new pack joins the rotation by existing and an omitting
+one stays out without anyone remembering. `d0`→phosphor (pinned: every judged
+shot, the README GIF and the daylight authoring use it, so first boot keeps the
+look the project has been eyeballed on), then `d1`→solarized-dark,
+`d2`→gruvbox-dark, `d3`→catppuccin-mocha, `d4`→tokyo-night, `d5`→ibm-3270.
+
+**The compatibility rule is the spike's constraint, deliberately stated
+stricter than its evidence**: packs share a desk only if their `landOmit` sets
+are identical. The measured finding is about SKY content specifically; whole-set
+equality would also exclude a pack omitting only ground furniture. No shipped
+pack distinguishes the two — `gameboy-dmg` is the only pack with any omission
+at all — and the strict form needs no sky/ground taxonomy to maintain. Recorded
+so a future ground-only omitter relaxes it with evidence in hand.
+
+New `smoke-pack-assignment` (24 assertions), **mutant-checked two ways**:
+dropping the compatibility filter → three checks red including "the rule
+bites"; a constant assignment → three red including "the desk actually VARIES".
+The gate deliberately asserts the pool is a *proper* subset, so a regression
+that silently admitted everything cannot pass. 70 smokes and both typecheck legs
+green.
+
+VERIFIED ON SCREEN (macOS, joined two-window desk, frontmost): `d0` phosphor
+(`skyInk 0x0a0a0a`) beside `d1` solarized-dark (`0x002b36`) — **and both windows
+agree on the HOUR** (`moonAlpha 1`, `sunAlpha 0`), which is the daylight
+register's bar 6 restated correctly: windows conform on the hour, not on the
+ink. That bar was originally verified with identical themes and this slice
+breaks ink-equality by construction, legally. Join intact across the
+differently-packed seam (`edges` open both sides, `knits.fired 1`,
+`glowStale 0`); terrain continuous — t1 col 52 crust at row 16, t2 col 0 crust
+at row 16; beings visible across (`neighbours.right` carries three). Shot:
+`t3-slice1.png`.
+
+**No bars were frozen for this slice, and they are not being written now.** It
+implements a shape whose bars were frozen and judged in the spike below; bars
+invented after the shots exist are not bars (the anatomy pass set that
+precedent). Harry's look is the gate. Observed and NOT introduced by this
+slice: a marginalia caption can draw over the closed-wing skyline marks in the
+sky band — both live there, and the reveal's soft backing does not fully clear
+the wing ids.
+
+---
+
 **Two-pack seam spike 2026-08-08 — CONFIRMED with a constraint; T3's identity
 half is viable.** Full write-up + the four shots:
 `docs/design-reviews/2026-08-08-two-pack-seam.md`. No engine work — a throwaway

@@ -9,16 +9,19 @@
 
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { getById } from '../themes';
+import { deskPackFor } from './packAssignment';
 import { mountTerminalLand } from './terminalLand';
-
-/** Terminals default to the phosphor palette (the near-black saturated
- *  look); ?theme= overrides for side-by-side comparisons. */
-const TERMINAL_THEME = 'phosphor';
 
 const params = new URLSearchParams(window.location.search);
 const TERMINAL_ID = params.get('terminal') ?? 't1';
 const WING = params.get('wing') ?? 'd0';
-const THEME_ID = params.get('theme') ?? TERMINAL_THEME;
+/** T3 slice 1: the pack comes from the WING, so terminals on one desk differ
+ *  and the ten authored packs reach the product. `d0` still gets `phosphor`,
+ *  so first boot looks like every judged shot. `?theme=` overrides, for
+ *  side-by-side comparisons and for choosing a pack deliberately (that is how
+ *  an omitting pack like gameboy-dmg is reached — it is excluded from the
+ *  multi-window pool on purpose; see packAssignment.ts). */
+const THEME_ID = params.get('theme') ?? deskPackFor(WING);
 
 /** Frameless windows need an explicit OS drag region. A thin glyph strip at
  *  the very top doubles as the title and the drag handle; the world (and any

@@ -13,7 +13,8 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-08, night** (the RESERVED-ACCENT FIX: the ramp-step lift was KILLED at calibration — a being is already at channel maximum, so it cannot be brightened — and the same separation shipped on the furniture instead: `cottage` + `monument` join `GROUND_DEMOTE` at the already-shipped 0.6, with `landRoleFill` capping rather than multiplying so no frozen ramp bar moved. Proven live: the vacated cell now changes by 76/255 where it changed by 2 before. One eyeball open, below.)
+Last updated: **2026-08-08, late** (T3 SLICE 1: every terminal now derives its style pack from its wing, so the ten authored packs are finally visible in the product — d0 phosphor, d1 solarized-dark, d2 gruvbox-dark, and so on. Preceded by a spike that CONFIRMED the shape and found the one constraint: gameboy-dmg omits eleven sky roles and reads broken at a seam, so it is excluded from the auto-assigned pool. Two eyeballs open, below.)
+Previously **2026-08-08, night** (the RESERVED-ACCENT FIX: the ramp-step lift was KILLED at calibration — a being is already at channel maximum, so it cannot be brightened — and the same separation shipped on the furniture instead: `cottage` + `monument` join `GROUND_DEMOTE` at the already-shipped 0.6, with `landRoleFill` capping rather than multiplying so no frozen ramp bar moved. Proven live: the vacated cell now changes by 76/255 where it changed by 2 before. One eyeball open, below.)
 Previously **2026-08-08, evening** (the ANATOMY PASS: the desk's components were
 inventoried into a marked-up page, and the marks came back 16 reads / 1 too-loud /
 1 cut with NOTHING under "can't name it" — so "busy" was a naming problem that the
@@ -123,6 +124,32 @@ your look is the gate. Both changes came straight off your marks.
    opposite failure and worth saying, because the fix is the same two numbers
    in the other direction.
 **Not blocking anything**; nothing downstream waits on it.
+
+### 👁 EYEBALL — T3 slice 1: every terminal now wears a different pack
+**Status**: shipped 2026-08-08, verified on the joined two-window desk. This is
+the slice that makes the ten authored packs visible in the product — until now
+every window booted `phosphor` and the whole style-pack system was dev-only.
+
+**What to look at**, on a booted desk
+(`bash .claude/skills/launch-desktop-app/scripts/launch.sh`):
+1. **The joined seam.** `d0` is phosphor (near-black) and `d1` is
+   solarized-dark (teal). Terrain runs straight through; only the palette
+   changes. Does it read as one world seen through two machines, or as a
+   window that failed to load? The spike says the former, but the spike is my
+   eye, not yours — this is the judgement that matters.
+2. **Spawn a third and fourth terminal** from the tray. `d2` is gruvbox-dark,
+   `d3` catppuccin-mocha, `d4` tokyo-night, `d5` ibm-3270. Four or five
+   different machines on one desk is the thing T3 exists for; it may also be
+   too much. If it is, say so — the fix is a smaller pool, one line.
+3. **`d0` is still phosphor on first boot**, deliberately, so nothing you have
+   already judged moved.
+
+**What is deliberately NOT in the pool**: `gameboy-dmg`. It deletes stars,
+moon, clouds and eight more roles, so at a seam one side has a starfield and
+the other an empty field — measured as the one broken pairing of four. Reach it
+explicitly with `?theme=gameboy-dmg`; it just never gets auto-assigned beside a
+neighbour.
+**Not blocking anything.**
 
 ### 👁 EYEBALL — the reserved-accent fix: two furniture roles got darker
 **Status**: shipped 2026-08-08. You asked for the ramp-step lift; it was
