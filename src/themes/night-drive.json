@@ -22,5 +22,10 @@
     "topsoil": "≡",
     "foliage": "Ψ"
   },
-  "fx": "scanlines"
+  "fx": "scanlines",
+  "daySky": {
+    "night":    "#150d26",
+    "twilight": "#43033a",
+    "day":      "#003248"
+  }
 }

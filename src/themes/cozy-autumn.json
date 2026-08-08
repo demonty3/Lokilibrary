@@ -20,5 +20,10 @@
     "foliage": "♣",
     "topsoil": "▞",
     "stone": "▓"
+  },
+  "daySky": {
+    "night":    "#1a1410",
+    "twilight": "#480d06",
+    "day":      "#07334b"
   }
 }

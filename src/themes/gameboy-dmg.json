@@ -33,5 +33,10 @@
     "shaft": "▌",
     "foliage": "▙",
     "ridge": "▄"
+  },
+  "daySky": {
+    "night":    "#0f380f",
+    "twilight": "#083e00",
+    "day":      "#014400"
   }
 }

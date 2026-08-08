@@ -24,5 +24,10 @@
   "fx": [
     "glow",
     "scanlines"
-  ]
+  ],
+  "daySky": {
+    "night":    "#140a00",
+    "twilight": "#421600",
+    "day":      "#532f00"
+  }
 }
