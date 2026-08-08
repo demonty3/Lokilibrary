@@ -212,6 +212,27 @@ half of bars 3/4/5, and bar 1 on the re-cut phosphor.
 The blueprint's authoring guidance was written the other way round (brightness
 first) and has been corrected to lead with hue.
 
+**All ten packs swept 2026-08-08 (`51bacc1`): nine have a day, `ibm-3270`
+omits and cannot do otherwise.** The spread is the point — `gruvbox-dark` ×1.0
+(its `bg` is neutral grey, so its entire day is hue, iso-luminant to 1%),
+`solarized-dark` ×1.2, `gameboy-dmg` ×1.4, `tokyo-night` ×3.8, `cozy-autumn`
+×3.9, `phosphor` ×4.5, `night-drive` ×4.7, `catppuccin-mocha` ×6.4, `amber-crt`
+×10.6. **`ibm-3270` is a measured negative rather than a preference**: its
+ceiling is relLum 0.0028 over a `bg` of 0.0017, and the best colour reachable in
+*any* hue direction has chroma 3.1–7.4 — the one above noise is a blue nowhere
+near its monochrome amber. Nothing to author; omission is what the doctrine is
+for. **Two defects the gate is blind to by construction, both found by
+looking**: gruvbox's first cut peaked at midnight (its dusk sat 22% *below* its
+own night — legible, gate-green and wrong), and gameboy-dmg's first cut at ×2.0
+inverted the pack's figure/ground so the horizon flattened on a machine whose
+judged identity is a dark blank field. Both re-cut. A contrast gate cannot see
+"the sky got darker toward noon" or "the sky is now the brightest thing";
+those need an eye and a plausibility check. Contact sheet:
+`docs/design-reviews/2026-08-08-daylight-sky-register/all-packs-noon.png`.
+`amber-crt` is where the glow-filter fix pays off visibly — its noon clears
+`THRESHOLD 0.2`, so the whole sky would have bloomed before the backdrop moved
+outside the filter.
+
 Harry: *"make the background a separate environment which changes colour with
 the time of day relative to the style of the terminal."* The first two clauses
 were already answered (a drawn sky layer sat unbuilt in `git stash@{0}`; the
