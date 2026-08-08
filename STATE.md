@@ -183,7 +183,7 @@ before ("a hue rotation cannot make noon brighter, and brighter may be
 irreducible to what day means"). Two explanations survive and this test does not
 separate them: a brightness change may read as a *display* artifact where a hue
 change reads as a *world* event, or a sky-plausible hue may simply beat one that
-isn't. Both predicted the same fix, so **phosphor was re-cut (`c3ea…`) with its
+isn't. Both predicted the same fix, so **phosphor was re-cut (`15cdf4c`) with its
 luminance held at exactly ×4.3 and only the hue rotated, 154° → 185°** — cyan
 noon, amber dawn and dusk — which isolates the variable for the next eyeball.
 Bars 2–6 remain open. The blueprint's authoring guidance was written the other
