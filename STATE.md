@@ -170,6 +170,41 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
+**The daylight sky register SHIPPED 2026-08-08 (`d9244b5`), eyeball PENDING —
+the optional axis below stopped being optional the day after it was written.**
+Harry: *"make the background a separate environment which changes colour with
+the time of day relative to the style of the terminal."* The first two clauses
+were already answered (a drawn sky layer sat unbuilt in `git stash@{0}`; the
+`daylight()` curve had been live since the arc); the third was the mechanism.
+What died in August was **one global mix strength**, not per-pack colour. So a
+pack now AUTHORS three stops — `daySky: {night, twilight, day}` — and the clock
+interpolates them. `night` is pinned to `palette.bg` by the gate, so midnight is
+byte-identical; absent means the sky never moves, which is legal omission.
+Authored, not computed, because the maximal hue rotation for solarized-dark is a
+dark red that reads as sunset rather than midday — a person decides that.
+
+**The gate followed the denominator.** `smoke-style-pack.mts` measured
+everything against `bg`, which was only true because the sky was never drawn. It
+now re-runs the frozen bars against the sky the pack actually draws, **sampled
+across the whole daylight curve** — contrast against a fixed ink is not monotone
+in the sky's luminance, so an interior hour can be worse than either endpoint.
+`BEING_MIN_CONTRAST 3.0`, `BEING_CLEAR 0.85`, `BG_LUM_MAX 0.35`,
+`RAMP_STEP0_MIN 1.1` copied verbatim; nothing added, nothing retuned, and every
+un-authored pack's measured values diff byte-identical against the parent commit.
+340 assertions (was 305). Three packs authored, and the measured headroom splits
+exactly as the two-axis finding predicted: `phosphor` ×4.9 and
+`catppuccin-mocha` ×7.0 can brighten (lift axis), `solarized-dark` ×1.3 cannot
+and rotates hue instead (`#002b36` → `#0e2a55`, ΔE 24.6). Seven packs opt out.
+**Correction worth carrying: the desk boots `phosphor`, not `DEFAULT_THEME_ID`**
+(`TerminalApp.tsx:16`; the Electron shell blocks `?theme=` on desk windows), so
+the "solarized-dark is the out-of-the-box desk" line in IDEAS.md is true of the
+palace only. Two latent bugs fixed alongside: the backdrop sat inside the `glow`
+bright-pass filter (a lit sky would have bloomed the whole band on amber-crt),
+and the 2px `bg` sliver either side of a 636px land in a 640px window would have
+become 4px of dark line at a join. Spec + six frozen bars:
+`docs/superpowers/specs/2026-08-08-daylight-sky-register-design.md`; shots in
+`docs/design-reviews/2026-08-08-daylight-sky-register/`.
+
 **The hour without colour SHIPPED 2026-08-07, eyeball PASSED same day — all six bars ("bar 1 passes, noon reads as day", then "bars 2-6 all pass"), no kill fired, no dial spent. The rung is CLOSED and the world clock is RELEASED.** That pass settles the fork the slice existed to resolve: **this world can say "day" by position and state alone, with no colour at all.** Both daylight-colour axes (per-pack luminance lift, 7/10; constant-luminance hue, which rescues solarized) therefore stop being the only path left and become an optional expressive axis for pack authors — captured in IDEAS.md with their own first tests and kills, nothing scheduled.
 The world clock, held since 2026-08-06, is RELEASED. What released it is not the
 sky's colour: that rung was specced (`2026-08-07-daylight-colour-design.md`,

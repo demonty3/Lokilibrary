@@ -150,6 +150,40 @@ over the glow, so `["glow", "scanlines"]` is the full CRT read.
   colour blends toward `bg`. Omitting them is also how a strict limited-
   palette pack (DMG-family) purges blended intermediates from its read.
 
+**Daylight rules** (`daySky` — the slot that gives your machine a day):
+
+```jsonc
+"daySky": { "night": "#0a0a0a", "twilight": "#0c1c11", "day": "#0e2216" }
+```
+
+- Three stops, interpolated on the world clock. `twilight` shows at **both**
+  dawn and dusk — the daylight curve is symmetric.
+- **`night` MUST equal your `palette.bg` exactly.** Gate-enforced. Midnight is
+  then byte-identical to a pack with no daylight at all, so the slot can only
+  ever add.
+- **Omit the slot entirely and your sky never moves.** That is a legal
+  dialect choice, exactly like `landOmit`: some machines show the time of day,
+  some don't. Seven of the ten shipped packs currently omit it.
+- **Every contrast bar above re-runs against your sky, at every hour it can
+  reach** — not just the three you wrote. The sky is the contrast denominator
+  for beings (drawn one row above the ground, a sky cell), for the site labels
+  carrying the game names, and for the far planes. A noon your pack cannot
+  afford fails the smoke; it does not fail on screen.
+- **Find your ceiling before you author.** Run
+  `npx tsx scripts/smoke-style-pack.mts <pack-id> --values` — the `daySky` line
+  reports how far your sky moved and how close the binding being accent came to
+  its floor. Author, run, adjust.
+- **Two axes, and most packs can only afford one.** Measured on the ten-pack
+  corpus: near-black packs have luminance headroom and can genuinely brighten
+  (phosphor ×4.9, catppuccin-mocha ×7.0); saturated dark packs have almost none
+  (solarized-dark ×1.3) and must instead **rotate hue at near-constant
+  luminance**, which every bar is blind to because WCAG contrast is a function
+  of luminance alone. Check which kind you are before deciding what your noon
+  looks like.
+- Stay in your own dialect. A phosphor CRT's day is a warmer green tube, not a
+  blue sky — its `blue` is a real `#4f8cff` and would put a blue sky over a
+  green world.
+
 There is also an advanced `roles` slot (per-theme remapping of semantic roles
 like `being.loki` to different palette KEYS, see `src/themes/roles.ts`). The
 defaults are usually right; only touch it if a specific being's colour fights

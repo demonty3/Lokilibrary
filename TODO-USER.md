@@ -88,6 +88,45 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — the daylight sky register (six bars)
+**Status**: shipped `d9244b5`, gates green (340 style-pack assertions, full
+smoke sweep, both typecheck legs, desktop build). **Not yet judged by you.**
+**What it is**: the sky is now its own drawn layer whose colour a PACK authors
+(three stops: night / twilight / day) and the world clock interpolates. Three
+packs authored — `phosphor` (what the desk boots), `catppuccin-mocha` (the
+lift axis), `solarized-dark` (the hue axis); the other seven opt out and are
+byte-identical to before.
+**Shots**: `docs/design-reviews/2026-08-08-daylight-sky-register/`
+(`midnight/dawn/noon/dusk.png` = phosphor, the boot pack;
+`solarized-midnight/dawn/noon.png` = the hue axis).
+**To drive it live**: launch the desk, then per window
+`__terminal.debugClock(h)` — 0 = midnight, 6.8 = dawn, 12 = noon, 17.2 = dusk
+(`null` restores the real hour). `__terminal.debugSky()` reports the drawn
+`skyInk`.
+
+The six bars, frozen in the spec before implementation
+(`docs/superpowers/specs/2026-08-08-daylight-sky-register-design.md`):
+
+1. **Noon reads as a different hour, not a different colour scheme** — on
+   phosphor and solarized-dark. **KILL (inherited verbatim from IDEAS.md):** if
+   the hue shift reads as "someone recoloured my terminal" rather than "it is a
+   different hour", the hue axis is decoration — it gets dropped, and daylight
+   colour rests on the luminance axis at 7/10 packs, leaving solarized-dark
+   colourless. That cost was accepted in advance.
+2. **Midnight is byte-identical to today.** (Measured: the drawn sky at forced
+   00:00 is exactly `#0a0a0a`, phosphor's own `bg`. Your call is whether
+   anything *else* moved.)
+3. **The beings still own the screen at noon**, at wallpaper distance.
+4. **The game labels are still legible at noon** — the recognition surface;
+   this is what hit 1.08:1 and killed the previous attempt.
+5. **The far ridges still recede at noon** — atmospheric perspective survives.
+6. **Two joined terminals agree, with no seam line.** (Measured: identical
+   `skyInk` in both windows with no broker, and the sky row across the join is
+   one uniform colour. Your call is whether it reads clean.)
+
+**If a bar fails**: say which. Bars 3–5 are dial-able within what the gate
+allows; bar 1 failing on solarized-dark fires the recorded kill.
+
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
 (desktop commit `7926a64`); the sleep→reflect→morning-banner chain has never

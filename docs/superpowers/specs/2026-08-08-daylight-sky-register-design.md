@@ -169,6 +169,40 @@ break both determinism and bar 2.
 6. **Two joined terminals agree, with no seam line.** Same sky with no broker
    (both derive from the wall clock), and no stripe at the join at any hour.
 
+## Amendments during the build (appended, nothing above edited)
+
+Two things the spec got wrong or under-specified. Both make the work **stricter**
+than frozen; neither relaxes a bar. Recorded here rather than by editing the
+text above, per the never-soften-after-observation rule.
+
+### A · The gate samples the whole curve, not the three stops
+
+Direction call 5 said the bars "re-run against each of the three authored
+skies". That has a hole, and it is arithmetic: **contrast against a fixed ink is
+not monotone in the sky's luminance.** It collapses to 1.0 where the two match
+and rises on both sides, so an interior hour can be worse than either endpoint —
+a pack could author a legal night and a legal noon with an illegal 4pm between
+them. The gate therefore samples `day` at 101 points, evaluates each bar across
+all of them, and asserts the worst. Strictly stronger than the frozen wording.
+
+### B · The desk boots `phosphor`, not `DEFAULT_THEME_ID`
+
+The spec (and the plan) called `solarized-dark` "the default and the README
+desk". That is true of the **palace**; the terminals desk hard-codes
+`TERMINAL_THEME = 'phosphor'` (`src/terminal/TerminalApp.tsx:16`), and the
+Electron shell blocks `?theme=` navigation on desk windows (the `will-navigate`
+guard in `desktop/src/terminals.ts`). So as specced, the pack Harry actually
+boots would have shown **no daylight at all**.
+
+`phosphor` is therefore authored as a third pack. Measured headroom put it on
+the lift axis (max sky relLum 0.0147 vs bg 0.0030 — ×4.86), which matches
+IDEAS.md's 7/10 finding, and its skies stay monochrome green because that is the
+machine: for a phosphor CRT, "day" is the tube warmed up.
+
+**Bar 1 gains phosphor as a subject; it does not lose solarized-dark.** The
+kill condition is about the hue axis and solarized-dark is still that axis's
+subject — adding the boot pack makes the bar cover more, not less.
+
 ## Out of scope
 
 - The other seven packs. Three are authored here — `solarized-dark` (hue),

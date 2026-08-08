@@ -15,5 +15,10 @@
     "blue":      "#4f8cff",
     "cyan":      "#2de2e6",
     "green":     "#3dff8c"
+  },
+  "daySky": {
+    "night":    "#0a0a0a",
+    "twilight": "#0c1c11",
+    "day":      "#0e2216"
   }
 }
