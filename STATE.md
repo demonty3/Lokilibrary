@@ -170,9 +170,13 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
-**The daylight sky register SHIPPED 2026-08-08 (`d9244b5`), and BAR 1 PASSED
-the same day with its kill INVERTED — the optional axis below stopped being
-optional the day after it was written.** Harry, on the side-by-side: *"solarized
+**The daylight sky register SHIPPED 2026-08-08 (`d9244b5`), EYEBALL PASSED all
+six bars the same day, and the rung is CLOSED — with bar 1's kill INVERTED. The
+optional axis below stopped being optional the day after it was written.**
+Harry's close: *"bars 3-5 pass, ship it"*, after passing bar 1 on the
+side-by-side and accepting the re-cut phosphor on its four-hour frame. Bars 2
+and 6 were settled by measurement rather than by eye. No dial was left
+outstanding. Harry, on the side-by-side: *"solarized
 looks way better because it actually looks like a time of day."* The frozen kill
 was that a hue shift with no brightness change would read as a recolour rather
 than an hour; it did the opposite. **Solarized moves ×1.2 in luminance —

@@ -13,7 +13,14 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-07** (the HOUR WITHOUT COLOUR shipped and its eyeball
+Last updated: **2026-08-08** (the DAYLIGHT SKY REGISTER shipped and its eyeball
+PASSED the same day — all six bars, and bar 1's KILL INVERTED: the hue axis was
+specced as the fallback for packs that could not afford to brighten, and judged
+side by side it is the STRONGER axis for telling time. A pack now authors its own
+night/twilight/day sky; `night` is pinned to `bg` so midnight is byte-identical,
+and a pack that declares nothing never moves. Three packs authored, seven opt
+out. Correction carried: the desk boots `phosphor`, not `DEFAULT_THEME_ID`.)
+Previously **2026-08-07** (the HOUR WITHOUT COLOUR shipped and its eyeball
 PASSED the same day — all six bars, no kill, no dial. The world clock is off
 hold: the desk's sun climbs and sets, its moon counter-arcs, its lamps light at
 night. Daylight COLOUR is not needed for the hour to read and is now an optional
@@ -88,88 +95,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — the daylight sky register (bar 1 PASSED, bars 2–6 open)
-**Status**: shipped `d9244b5`, gates green (340 style-pack assertions, full
-smoke sweep, both typecheck legs, desktop build).
-
-**Bar 1 PASSED 2026-08-08 on solarized-dark, and the kill INVERTED.** Harry, on
-the side-by-side: *"solarized looks way better because it actually looks like a
-time of day."* The frozen kill was that a hue shift with no brightness change
-would read as a recolour rather than an hour — it did the opposite. Solarized
-moves ×1.2 in luminance and reads as time; phosphor's first cut moved ×4.3 in
-pure green and read less like one. **Hue is the stronger axis, not the
-fallback.** Phosphor was re-cut on that finding with its luminance held at
-exactly ×4.3 and only the hue rotated (154° → 185°: cyan noon, amber dawn and
-dusk), which isolates the variable — so **the open question on phosphor is
-whether the re-cut now reads as an hour too**. Comparison page:
-https://claude.ai/code/artifact/54d98334-ea21-4180-86ba-aff84bc8fa4d
-
-**Bars 2–6 ran 2026-08-08. Every measurable component passes; what is left for
-your eye is the taste half of 3/4/5, and bar 1 on the re-cut phosphor.**
-
-- **Bar 2 — PASSED, measured, nothing left to judge.** The V0 preview is static
-  (no beings, no clock, no animation), so a pixel diff there is meaningful where
-  a live-desk diff is not. Pre-slice build (`37c7a92`) vs current, seed
-  `0xca11ed`: **zero differing pixels, 1440×733, on both authored packs.** The
-  drawn-sky layer, the white-bake-plus-tint far layers, the mural backing and
-  the glow-filter re-parent all render identically when no clock drives them.
-  On the desk itself, forced 00:00 draws exactly `#0a0a0a` — phosphor's own bg.
-- **Bar 3 — numbers clear it; the glance is yours.** Quietest being against the
-  *drawn noon sky*: phosphor violet 4.71, catppuccin violet 3.69, solarized
-  orange 3.08 — all above the frozen 3.0 floor at every hour.
-- **Bar 4 — PASSED, and structurally rather than numerically.** A false alarm
-  worth recording: measuring the `label` role against the sky gave 1.53 on
-  catppuccin at noon, which looked like the 1.08:1 failure that killed the
-  previous mechanism. It is not. **Labels are ground-drawn — 0 of 109 label
-  cells sit in the sky band across four seeds at real desk geometry** — so their
-  denominator is the ground body, which the register never moves. Label contrast
-  is *invariant* across the day. What genuinely is drawn on the sky holds:
-  marginalia and captions measure 4.48–9.15 at every hour on every authored pack.
-- **Bar 5 — numbers clear it; the depth read is yours.** The ridge → ridgeFar
-  ordering holds at every hour on every authored pack (phosphor at noon:
-  1.48 → 1.20), because the far planes track the live sky.
-- **Bar 6 — PASSED, measured, nothing left to judge.** Three windows now, not
-  two: all three report identical `skyInk` **and** `farInk` at both extremes,
-  with no broker channel. Both joins are clean — 16 px across each seam is a
-  single colour at every sampled sky row, at midnight and at noon — and so are
-  the outer window edges where the 2 px sliver used to sit.
-**What it is**: the sky is now its own drawn layer whose colour a PACK authors
-(three stops: night / twilight / day) and the world clock interpolates. Three
-packs authored — `phosphor` (what the desk boots), `catppuccin-mocha` (the
-lift axis), `solarized-dark` (the hue axis); the other seven opt out and are
-byte-identical to before.
-**Shots**: `docs/design-reviews/2026-08-08-daylight-sky-register/`
-(`midnight/dawn/noon/dusk.png` = phosphor, the boot pack;
-`solarized-midnight/dawn/noon.png` = the hue axis).
-**To drive it live**: launch the desk, then per window
-`__terminal.debugClock(h)` — 0 = midnight, 6.8 = dawn, 12 = noon, 17.2 = dusk
-(`null` restores the real hour). `__terminal.debugSky()` reports the drawn
-`skyInk`.
-
-The six bars, frozen in the spec before implementation
-(`docs/superpowers/specs/2026-08-08-daylight-sky-register-design.md`):
-
-1. ~~**Noon reads as a different hour, not a different colour scheme**~~ —
-   **PASSED on solarized-dark; kill did not fire.** Still open on the re-cut
-   phosphor. *(Original wording, unedited: "KILL, inherited verbatim from
-   IDEAS.md: if the hue shift reads as 'someone recoloured my terminal' rather
-   than 'it is a different hour', the hue axis is decoration — it gets dropped,
-   and daylight colour rests on the luminance axis at 7/10 packs, leaving
-   solarized-dark colourless. That cost was accepted in advance.")*
-2. **Midnight is byte-identical to today.** (Measured: the drawn sky at forced
-   00:00 is exactly `#0a0a0a`, phosphor's own `bg`. Your call is whether
-   anything *else* moved.)
-3. **The beings still own the screen at noon**, at wallpaper distance.
-4. **The game labels are still legible at noon** — the recognition surface;
-   this is what hit 1.08:1 and killed the previous attempt.
-5. **The far ridges still recede at noon** — atmospheric perspective survives.
-6. **Two joined terminals agree, with no seam line.** (Measured: identical
-   `skyInk` in both windows with no broker, and the sky row across the join is
-   one uniform colour. Your call is whether it reads clean.)
-
-**If a bar fails**: say which. Bars 3–5 are dial-able within what the gate
-allows; bar 1 failing on solarized-dark fires the recorded kill.
-
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`
 (desktop commit `7926a64`); the sleep→reflect→morning-banner chain has never
@@ -235,6 +160,27 @@ session if convenient:
 ---
 
 ## Done / skipped (kept for posterity until next slice prunes)
+
+- ✅ **EYEBALL the daylight sky register — PASSED 2026-08-08, all six bars,
+  and bar 1's kill INVERTED.** Harry judged it in three passes. First the
+  side-by-side: *"solarized looks way better because it actually looks like a
+  time of day"* — which passed bar 1 on the hue axis and refuted the recorded
+  argument-against ("a hue rotation cannot make noon brighter, and brighter may
+  be irreducible to what day means"). Solarized moves ×1.2 in luminance and
+  reads as an hour; phosphor's first cut moved ×4.3 in pure green and read less
+  like one. **Hue is the stronger axis for telling time, not the fallback.**
+  Phosphor was then re-cut twice on that finding — hue rotated 154° → 179° at
+  held luminance, then the red channel to zero for 40% more chroma at no
+  brightness cost — and accepted on the four-hour frame. Bars 2 and 6 were
+  settled by measurement rather than eye (zero differing pixels against the
+  pre-slice build; three windows agreeing with no broker and clean joins);
+  bars 3–5 passed on Harry's watch: *"bars 3-5 pass, ship it"*.
+  **The rung is CLOSED and daylight colour is shipped.** One finding kept from
+  the bar-4 pass: labels are ground-drawn (0 of 109 label cells sit in the sky
+  band), so the recognition surface's contrast is invariant across the day —
+  the gate needs no label bar. Shots:
+  `docs/design-reviews/2026-08-08-daylight-sky-register/`.
+  Commits `d9244b5` → `316e3eb`.
 
 - ✅ **EYEBALL the hour without colour — PASSED 2026-08-07, all six bars.**
   Harry's live watch on the two-window desk: bar 1 first ("bar 1 passes, noon
