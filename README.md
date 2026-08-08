@@ -6,7 +6,9 @@
 ![Two terminal windows drift together, snap into one continuous land, and a being walks across the seam](docs/demo/join-moment.gif)
 
 *Two OS windows drift together, snap, the ground knits — and a being walks
-out of one window into the other. Each window is a wing of your library.*
+out of one window into the other. Each window is a wing of your library.
+Night lifts to noon underneath: the desk runs on your wall clock, and every
+window agrees on the hour without talking to the others.*
 
 Your library becomes an inhabitable place: a procedurally generated hall of
 glyph-built shelves, where every book is a game you own and a cohort of

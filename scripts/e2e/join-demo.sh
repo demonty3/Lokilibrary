@@ -4,6 +4,12 @@
 # across the seam. Captures the beat as a frame sequence and assembles an
 # animated artifact for the clone-and-run README.
 #
+# The world clock sweeps night → day underneath the whole beat (clock-sweep.mjs,
+# the daylight sky register), so the desk wakes up as the windows assemble. The
+# join stays the foreground action; daylight is what makes the world look alive
+# while it happens rather than staged. Set DEMO_NO_CLOCK=1 to capture the beat
+# against a fixed sky instead.
+#
 # Assembly degrades gracefully:
 #   ffmpeg          → docs/demo/join-moment.mp4 + .gif
 #   ImageMagick     → docs/demo/join-moment.gif
@@ -57,31 +63,51 @@ $DRIVE state >/dev/null   # hard-fail if the broker never came up
 sleep 5                   # fonts + beings settle
 
 # 3 · known APART layout, windows frontmost for clean captures
+# `pos` publishes the layout to the frame compositor (scripts/e2e/join-frames.py),
+# which pastes each window there instead of re-reading geometry per frame — the
+# geometry read costs 1.28s against 0.02s for a capture, and polling it is what
+# made the first cut of this GIF 1 fps.
+pos() { printf '%s %s %s %s' "$1" "$2" "$3" "$4" > "$FRAMES/.pos"; }
 $DRIVE move t1 60 200
 $DRIVE move t2 780 236
+pos 60 200 780 236
 osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "Electron") to true'
+# Park at night before the first frame: the sweep below starts at 03:30, and
+# without this frame 0 would show real-world afternoon and snap to night on
+# frame 1.
+[ "${DEMO_NO_CLOCK:-0}" = "1" ] || node scripts/e2e/clock-sweep.mjs 3.5 3.5 0 >/dev/null 2>&1 || true
 sleep 1
-$DRIVE shot "$OUT/join-1-apart.png"
+python3 scripts/e2e/join-shot.py "$OUT/join-1-apart.png"   # window-composited, never a region
 
-# 4 · frame capture loop (as fast as screencapture goes, ~4–6 fps)
+# 4 · frame capture loop. Composites each window's OWN bitmap onto a fixed
+#     neutral canvas — NOT a screen region. A region grab of two separated
+#     windows samples everything between and around them, which is how the
+#     2026-07 GIF shipped the maintainer's wallpaper, icons and folder names
+#     into a public README. See scripts/e2e/join-frames.py.
 touch "$FRAMES/.run"
-(
-  i=0
-  while [ -f "$FRAMES/.run" ]; do
-    screencapture -x -R"$RX,$RY,$RW,$RH" "$FRAMES/$(printf 'f%04d' "$i").png" 2>/dev/null || true
-    i=$((i+1))
-    sleep 0.05
-  done
-) &
+python3 scripts/e2e/join-frames.py "$FRAMES" "$RX" "$RY" "$RW" "$RH" &
 CAP_PID=$!
+
+# 4b · the day, running underneath. 03:30 is full night and 13:00 is full day
+# (ambient.daylight peaks either side of the 06:00 sunrise), so the sweep takes
+# the desk from stars-and-lamps to noon across the beat below. Backgrounded:
+# the join is the foreground action and must not wait on it.
+SWEEP_PID=""
+if [ "${DEMO_NO_CLOCK:-0}" != "1" ]; then
+  node scripts/e2e/clock-sweep.mjs 3.5 13 14 >/dev/null 2>&1 &
+  SWEEP_PID=$!
+fi
 
 # 5 · the beat: drift → snap (knit sweep) → crossing
 sleep 1
 $DRIVE move t2 748 224          # drift closer — still outside SNAP_PX
+pos 60 200 748 224
 sleep 1
 $DRIVE move t2 712 212          # inside range → snaps to (700,200); knit fires
+sleep 0.35                      # let the snap land before publishing where it landed
+pos 60 200 700 200
 sleep 2
-$DRIVE shot "$OUT/join-2-joined.png"
+python3 scripts/e2e/join-shot.py "$OUT/join-2-joined.png"
 BEING=$($DRIVE state | node -e '
   const s = JSON.parse(require("fs").readFileSync(0, "utf8"));
   const w = s.windows.t1;
@@ -95,11 +121,12 @@ sleep 1
 $DRIVE place t1 "$BEING" 500 1  # clamps to the right edge → exits next tick
 wait "$WAIT_PID"                # CROSSED: … t1 → t2
 sleep 2                         # entry juice + a few wander steps
-$DRIVE shot "$OUT/join-3-crossed.png"
+python3 scripts/e2e/join-shot.py "$OUT/join-3-crossed.png"
 
 # 6 · stop capture, assemble
 rm -f "$FRAMES/.run"
 wait "$CAP_PID" 2>/dev/null || true
+[ -n "$SWEEP_PID" ] && wait "$SWEEP_PID" 2>/dev/null || true
 COUNT=$(ls "$FRAMES"/f*.png 2>/dev/null | wc -l | tr -d ' ')
 echo "[demo] captured $COUNT frames"
 
