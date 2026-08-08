@@ -104,7 +104,35 @@ dusk), which isolates the variable — so **the open question on phosphor is
 whether the re-cut now reads as an hour too**. Comparison page:
 https://claude.ai/code/artifact/54d98334-ea21-4180-86ba-aff84bc8fa4d
 
-**Bars 2–6 remain open on both packs.**
+**Bars 2–6 ran 2026-08-08. Every measurable component passes; what is left for
+your eye is the taste half of 3/4/5, and bar 1 on the re-cut phosphor.**
+
+- **Bar 2 — PASSED, measured, nothing left to judge.** The V0 preview is static
+  (no beings, no clock, no animation), so a pixel diff there is meaningful where
+  a live-desk diff is not. Pre-slice build (`37c7a92`) vs current, seed
+  `0xca11ed`: **zero differing pixels, 1440×733, on both authored packs.** The
+  drawn-sky layer, the white-bake-plus-tint far layers, the mural backing and
+  the glow-filter re-parent all render identically when no clock drives them.
+  On the desk itself, forced 00:00 draws exactly `#0a0a0a` — phosphor's own bg.
+- **Bar 3 — numbers clear it; the glance is yours.** Quietest being against the
+  *drawn noon sky*: phosphor violet 4.71, catppuccin violet 3.69, solarized
+  orange 3.08 — all above the frozen 3.0 floor at every hour.
+- **Bar 4 — PASSED, and structurally rather than numerically.** A false alarm
+  worth recording: measuring the `label` role against the sky gave 1.53 on
+  catppuccin at noon, which looked like the 1.08:1 failure that killed the
+  previous mechanism. It is not. **Labels are ground-drawn — 0 of 109 label
+  cells sit in the sky band across four seeds at real desk geometry** — so their
+  denominator is the ground body, which the register never moves. Label contrast
+  is *invariant* across the day. What genuinely is drawn on the sky holds:
+  marginalia and captions measure 4.48–9.15 at every hour on every authored pack.
+- **Bar 5 — numbers clear it; the depth read is yours.** The ridge → ridgeFar
+  ordering holds at every hour on every authored pack (phosphor at noon:
+  1.48 → 1.20), because the far planes track the live sky.
+- **Bar 6 — PASSED, measured, nothing left to judge.** Three windows now, not
+  two: all three report identical `skyInk` **and** `farInk` at both extremes,
+  with no broker channel. Both joins are clean — 16 px across each seam is a
+  single colour at every sampled sky row, at midnight and at noon — and so are
+  the outer window edges where the 2 px sliver used to sit.
 **What it is**: the sky is now its own drawn layer whose colour a PACK authors
 (three stops: night / twilight / day) and the world clock interpolates. Three
 packs authored — `phosphor` (what the desk boots), `catppuccin-mocha` (the

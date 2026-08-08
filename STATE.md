@@ -186,8 +186,27 @@ change reads as a *world* event, or a sky-plausible hue may simply beat one that
 isn't. Both predicted the same fix, so **phosphor was re-cut (`15cdf4c`) with its
 luminance held at exactly ×4.3 and only the hue rotated, 154° → 185°** — cyan
 noon, amber dawn and dusk — which isolates the variable for the next eyeball.
-Bars 2–6 remain open. The blueprint's authoring guidance was written the other
-way round (brightness first) and has been corrected to lead with hue.
+**Bars 2–6 ran the same day; every measurable component passes.** Bar 2 is
+settled outright: the V0 preview is static, so a pixel diff there means
+something a live-desk diff cannot — pre-slice (`37c7a92`) vs current at seed
+`0xca11ed` is **zero differing pixels on both authored packs**, which covers the
+drawn-sky layer, the white-bake-plus-tint far layers, the mural backing and the
+glow-filter re-parent in one measurement. Bar 6 likewise: three windows agree on
+`skyInk` and `farInk` with no broker, and 16 px across each of the two joins is
+one colour at every sampled sky row. Bars 3/5 clear their floors at every hour
+(quietest being vs the drawn noon sky: solarized orange 3.08 against the frozen
+3.0; ridge → ridgeFar ordering preserved). **Bar 4 produced the one finding
+worth carrying:** measuring the `label` role against the sky gives 1.53 on
+catppuccin at noon, which looks exactly like the 1.08:1 collapse that killed the
+previous mechanism — and it is a false alarm. **Labels are ground-drawn (0 of
+109 label cells sit in the sky band across four seeds at real desk geometry),**
+so the recognition surface's denominator is the ground body, which the register
+never moves; label contrast is invariant across the day. Marginalia and captions
+*are* on the sky and hold at 4.48–9.15. What remains is taste only: the glance
+half of bars 3/4/5, and bar 1 on the re-cut phosphor.
+
+The blueprint's authoring guidance was written the other way round (brightness
+first) and has been corrected to lead with hue.
 
 Harry: *"make the background a separate environment which changes colour with
 the time of day relative to the style of the terminal."* The first two clauses
