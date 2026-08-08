@@ -13,7 +13,8 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-08, evening** (the ANATOMY PASS: the desk's components were
+Last updated: **2026-08-08, night** (the RESERVED-ACCENT FIX: the ramp-step lift was KILLED at calibration — a being is already at channel maximum, so it cannot be brightened — and the same separation shipped on the furniture instead: `cottage` + `monument` join `GROUND_DEMOTE` at the already-shipped 0.6, with `landRoleFill` capping rather than multiplying so no frozen ramp bar moved. Proven live: the vacated cell now changes by 76/255 where it changed by 2 before. One eyeball open, below.)
+Previously **2026-08-08, evening** (the ANATOMY PASS: the desk's components were
 inventoried into a marked-up page, and the marks came back 16 reads / 1 too-loud /
 1 cut with NOTHING under "can't name it" — so "busy" was a naming problem that the
 inventory itself solved, and the tidy collapsed to two changes. The mural is cut
@@ -123,19 +124,42 @@ your look is the gate. Both changes came straight off your marks.
    in the other direction.
 **Not blocking anything**; nothing downstream waits on it.
 
-### 🔔 DECIDE — the reserved-accent hole (recorded, unacted)
-**Status**: found during the anatomy pass, deliberately not acted on — you
-marked nothing "too loud" over it. `src/themes/roles.ts` reserves four palette
-keys so beings always out-read furniture; `src/render/levels/land.ts` ROLE_KEY
-spends **all four on terrain** (orange → topsoil/roof/cottage/shaft, magenta →
-relic, cyan → monument, violet → hall/deep). The reservation is smoke-enforced
-only against the palace's tile bibles and scatter, and the land composer
-predates it by five weeks.
-**Why it might matter to you**: the pending **being-liveliness eyeball** below
-has "KILL: they read as noise" as its bar 5. If beings share a hue with the
-topsoil they stand on, that bar can fail for a reason unrelated to the
-liveliness code.
-**Your call**: fix the hue hierarchy first, or judge liveliness as-is.
+### 👁 EYEBALL — the reserved-accent fix: two furniture roles got darker
+**Status**: shipped 2026-08-08. You asked for the ramp-step lift; it was
+**killed at calibration** and the same separation shipped on the other side.
+Spec: `docs/superpowers/specs/2026-08-08-being-lift-design.md`.
+
+**What was wrong.** A being drawn into a cell whose terrain shares its palette
+key rendered in that terrain's exact colour and vanished. Measured on the
+running desk: moving the cyan Visitor off the cyan monument changed the vacated
+cell by **2/255 per channel** — nothing. Two of five agents were affected
+(`cat` on cottages, `visitor` on monuments), in all ten packs.
+
+**Why not the lift you asked for.** A being cannot be made brighter — its
+accent is already at channel maximum in most packs (`night-drive` has no
+headroom on any of the three; `phosphor`, which the desk boots, has none on
+two). Pushing harder just clips: separation plateaus at 1.31 even at ×2.5,
+against a 1.5 bar. So the darkening went on the furniture instead, at 0.6 —
+the factor the lawn has worn since the salience campaign, not a new number.
+
+**What to look at**, on a booted desk
+(`bash .claude/skills/launch-desktop-app/scripts/launch.sh`):
+1. **A monument and a cottage.** Both are now noticeably darker. They should
+   still read as a tower and a building — muted, not sunken. This is terrain
+   that has been through judged eyeballs (gameboy-dmg's bands, cozy-autumn,
+   night-drive, amber-crt), so it is the one real cost of the fix.
+2. **An agent standing in a doorway or in front of a cottage.** It should now
+   be plainly there. The live check:
+   `node scripts/e2e/term-drive.mjs t2 '__terminal.debugPlace("visitor",41,1,true)'`
+   parks the Visitor in the monument on the right-hand window.
+3. **gameboy-dmg** (`?theme=gameboy-dmg`) — its judged strata bands must be
+   unmoved. Its ramp floor is provably untouched (the fix caps the ramp rather
+   than multiplying it), but the bright end of its cottage/monument did move.
+
+**If it reads as sunken**: the dial is the two entries in `GROUND_DEMOTE`
+(`src/render/levels/land.ts`). 0.5 and 0.78 are both measured — 0.78 fails the
+separation bar at 1.47, 0.5 passes with more margin.
+**Not blocking anything.**
 
 ### ⏳ Sleep mode on macOS — 11 idle minutes (was "verify 5B on Windows")
 **Status**: the macOS idle-throttle ladder landed via `powerMonitor`

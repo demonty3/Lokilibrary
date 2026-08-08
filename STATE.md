@@ -2249,14 +2249,71 @@ directly-instructed two-line tidy off a marked-up inventory, not a
 speculative slice, and bars written after the shots exist are not bars.
 Harry's on-screen look is the gate.
 
-The standing colour finding from the same pass is recorded but **unacted**:
-`ROLE_KEY` spends all four being-reserved palette keys on terrain
-(orange → topsoil/roof/cottage/shaft, magenta → relic, cyan → monument,
-violet → hall/deep), so the salience contract that guarantees a being
-out-reads its furniture has a hole exactly where the product now lives. It
-predates the reservation by five weeks (`ff60632` vs `b293c96`) and
-`smoke-salience.mts` only enforces it against the palace's tile bibles and
-scatter. Nothing was marked "too loud" over it, so it waits.
+The standing colour finding from the same pass was recorded and unacted; it is
+now **FIXED — see the entry below.**
+
+---
+
+**The being lift 2026-08-08 — KILLED at calibration; the demote shipped in its
+place.** Spec + bars frozen before code:
+`docs/superpowers/specs/2026-08-08-being-lift-design.md`.
+
+The anatomy pass's standing finding: `ROLE_KEY` spends being-reserved palette
+keys on terrain, so the salience contract has a hole where the product lives.
+**Two corrections to how that was recorded.** (1) The desk-real scope is
+**two** cohort members, not four: measured over all six wings at desk geometry,
+only `cat` (orange) and `visitor` (cyan) collide — `relic` is magenta but
+buried and `hall` is violet but the desk composes no hall. (2) The trigger is
+the being's **own cell** (`surface[x] - 1`), which only `cottage` (5.0% of
+columns) and `monument` (2.5%) can hold; `roof`/`topsoil`/`shaft` share the
+orange key but never occupy it, and the `fgDim` roles are the GHOST's key,
+whose dimness is a documented exception.
+
+**Proven on screen before anything was built**, by move-and-diff: taking the
+cyan Visitor off the cyan monument changed the vacated cell by **max 2/255 per
+channel** where the same being on clear ground changed 41. Not drawn faintly —
+not drawn.
+
+**A second hole in the same gate**: `smoke-salience.mts` asserted the
+reservation through `beingAccentRole(id)`, which `terminalLand.ts:983` uses
+only for ids outside the cohort (`def ? theme.palette[def.paletteKey] : …`).
+Every drawn being takes the first branch, so the gate was green for five weeks
+over a path production never runs — and the two disagree about which agent gets
+which colour. Lesson written up as
+[[a-gate-can-assert-through-the-fallback-branch]].
+
+**The lift died on arithmetic, not taste.** Bar A (≥1.5 separation) failed at
+every factor and *plateaued* — 1.27 at ×1.28, still 1.31 at ×2.5 — because the
+accents are already at or near channel maximum, so clamping eats the lift.
+`night-drive` has ×1.00 headroom on all three colliding accents; `phosphor`,
+the pack the desk boots, has none on two of three. **A being cannot be made
+brighter: it is already the brightest thing its palette can say in that hue** —
+which is what "beings own the loud register" bought.
+
+So the same separation went on the side with headroom. `cottage` and
+`monument` join `crust`/`foliage` in `GROUND_DEMOTE` at **0.6, the factor
+already shipped** — not a new constant. "One ramp step" (0.78) is measurably
+too small on *either* side (1.47 vs the 1.5 bar).
+
+**`landRoleFill` now CAPS rather than multiplies** where a role is both demoted
+and ramped: `min(f, demote)`. Found by the real gate after the calibration
+missed it (the sweep used default `GRADIENT_FACTORS` and `bg`; the product uses
+the pack's own factors and its drawn sky) — gameboy-dmg ramps both roles and
+compounding drove its step-0 band to 1.01 against the frozen
+`RAMP_STEP0_MIN 1.1`. **The bar was not touched.** Capping darkens only the
+BRIGHT end, where the collision is; `RAMP_STEP0_MIN` guards the DIM end, and
+DMG's step 0 stays `min(0.45, 0.6) = 0.45`, byte-identical. No-op for the two
+roles the demote already shipped for — `crust`/`foliage` are `LAND_RAMP_LOCKED`
+and never receive a step.
+
+Gate: `smoke-salience.mts` 21 → 28. The own-cell role set is **derived** by
+composing the desk's six wings at two widths (a new structure role joins for
+free), the hidden-layer exclusion is **parsed out of `hideBakedLayers()`** so
+un-hiding a layer re-arms the bar, and both derivations carry vacuity guards.
+Mutant-checked four ways, all red. **First test PASSED live** (frontmost
+window): the vacated cell now changes by **max 76/255**, against 2/255 before.
+69 smokes + all three typecheck legs green. **Harry's eyeball is open on the
+one cost: `cottage` and `monument` are darker in all ten packs.**
 
 ---
 

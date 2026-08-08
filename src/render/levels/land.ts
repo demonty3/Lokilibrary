@@ -112,10 +112,26 @@ export const FAR_FADE: Partial<Record<LandRole, number>> = {
 /** Ground demotion (ambient-salience bundle): crust + foliage keep their
  *  green HUE but drop ~two ramp steps so the lawn stops out-shouting the
  *  beings — the land-register half of the attention contract (the beings'
- *  accent half lands in terminalLand.ts). Exported for the smoke. */
+ *  accent half lands in terminalLand.ts). Exported for the smoke.
+ *
+ *  `cottage` and `monument` join them 2026-08-08 (spec 2026-08-08-being-lift):
+ *  ROLE_KEY spends reserved being accents on terrain, so a being drawn INTO
+ *  one of these cells renders in its exact colour and disappears — measured on
+ *  the running desk, moving the cyan Visitor off the cyan monument changed the
+ *  vacated cell by max 2/255 per channel. These are the only two roles a
+ *  being's own cell (`surface[x] - 1`) can hold that share a being key:
+ *  `roof`/`topsoil`/`shaft` are also orange but never occupy that cell, and
+ *  the fgDim roles are the GHOST's key, whose dimness is a documented
+ *  exception. The fix is on this side because a being has no headroom — its
+ *  accent is already at channel maximum in most packs (night-drive ×1.00 on
+ *  all three), so brightening it is arithmetically impossible; the lift was
+ *  killed at calibration. 0.6 is the factor already shipped above, not a new
+ *  constant, and it clears the frozen separation bar at 2.06 worst-case. */
 export const GROUND_DEMOTE: Partial<Record<LandRole, number>> = {
   crust: 0.6,
   foliage: 0.6,
+  cottage: 0.6,
+  monument: 0.6,
 };
 
 /** Strata material read (land polish #19 slice 1): the composer draws
@@ -280,7 +296,20 @@ export function landRoleFill(theme: Theme, r: LandRole, step?: number, skyInk?: 
         ? shadeOf(theme.palette[ROLE_KEY[r]], demote)
         : hexToInt(theme.palette[ROLE_KEY[r]]);
   if (step === undefined) return base;
-  return shadeOfInt(base, (theme.landRamp?.factors ?? GRADIENT_FACTORS)[step]);
+  const f = (theme.landRamp?.factors ?? GRADIENT_FACTORS)[step];
+  // A demoted role the pack ALSO ramps: CAP the ramp at the demote instead of
+  // multiplying by it. Compounding two darkenings drove gameboy-dmg's step-0
+  // band to 1.01 against the frozen RAMP_STEP0_MIN 1.1 — and it darkened the
+  // wrong end. The collision the demote exists to fix lives at the BRIGHT end
+  // (a being's flat accent against the role's brightest step); the dim end is
+  // what RAMP_STEP0_MIN guards. min() darkens only the former and leaves the
+  // pack's authored floor exactly where it authored it.
+  // No-op for everything shipped: `crust` and `foliage` are both in
+  // LAND_RAMP_LOCKED, so they are never handed a step and never reach here.
+  if (demote !== undefined && fade === undefined) {
+    return shadeOfInt(hexToInt(theme.palette[ROLE_KEY[r]]), Math.min(f, demote));
+  }
+  return shadeOfInt(base, f);
 }
 
 /** Build the stacked-by-role tinted container for a land model. Local glyph
