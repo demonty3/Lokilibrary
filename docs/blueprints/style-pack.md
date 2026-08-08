@@ -173,16 +173,23 @@ over the glow, so `["glow", "scanlines"]` is the full CRT read.
   `npx tsx scripts/smoke-style-pack.mts <pack-id> --values` — the `daySky` line
   reports how far your sky moved and how close the binding being accent came to
   its floor. Author, run, adjust.
-- **Two axes, and most packs can only afford one.** Measured on the ten-pack
-  corpus: near-black packs have luminance headroom and can genuinely brighten
-  (phosphor ×4.9, catppuccin-mocha ×7.0); saturated dark packs have almost none
-  (solarized-dark ×1.3) and must instead **rotate hue at near-constant
-  luminance**, which every bar is blind to because WCAG contrast is a function
-  of luminance alone. Check which kind you are before deciding what your noon
-  looks like.
-- Stay in your own dialect. A phosphor CRT's day is a warmer green tube, not a
-  blue sky — its `blue` is a real `#4f8cff` and would put a blue sky over a
-  green world.
+- **Lead with hue; treat brightness as the supporting axis.** This is a judged
+  finding, 2026-08-08, and it went against the prediction. Solarized-dark's noon
+  moves ×1.2 in luminance — essentially none — and reads as a different hour;
+  phosphor's first cut moved ×4.3 in pure green and read less like one. Two
+  candidate reasons, not separated: a brightness change may read as something
+  the *monitor* did while a hue change reads as something the *world* did, and
+  a sky-plausible hue (blue, cyan, amber) may simply beat one that isn't.
+  Either way, **decide what hue your sky travels through before you decide how
+  bright it gets.**
+- **Then check what brightness you can afford**, because it is bounded and hue
+  mostly isn't: WCAG contrast is a function of luminance alone, so a rotation at
+  fixed luminance leaves every bar above numerically unchanged. Measured
+  headroom on the corpus: phosphor ×4.9, catppuccin-mocha ×7.0,
+  solarized-dark ×1.3.
+- Stay in your own dialect, but read "dialect" as the *family*, not one hue. A
+  phosphor CRT can travel from amber to cyan and still be unmistakably one tube;
+  what it cannot do is put its literal `blue` (`#4f8cff`) over a green world.
 
 There is also an advanced `roles` slot (per-theme remapping of semantic roles
 like `being.loki` to different palette KEYS, see `src/themes/roles.ts`). The

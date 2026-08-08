@@ -88,9 +88,23 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — the daylight sky register (six bars)
+### 👁 EYEBALL — the daylight sky register (bar 1 PASSED, bars 2–6 open)
 **Status**: shipped `d9244b5`, gates green (340 style-pack assertions, full
-smoke sweep, both typecheck legs, desktop build). **Not yet judged by you.**
+smoke sweep, both typecheck legs, desktop build).
+
+**Bar 1 PASSED 2026-08-08 on solarized-dark, and the kill INVERTED.** Harry, on
+the side-by-side: *"solarized looks way better because it actually looks like a
+time of day."* The frozen kill was that a hue shift with no brightness change
+would read as a recolour rather than an hour — it did the opposite. Solarized
+moves ×1.2 in luminance and reads as time; phosphor's first cut moved ×4.3 in
+pure green and read less like one. **Hue is the stronger axis, not the
+fallback.** Phosphor was re-cut on that finding with its luminance held at
+exactly ×4.3 and only the hue rotated (154° → 185°: cyan noon, amber dawn and
+dusk), which isolates the variable — so **the open question on phosphor is
+whether the re-cut now reads as an hour too**. Comparison page:
+https://claude.ai/code/artifact/54d98334-ea21-4180-86ba-aff84bc8fa4d
+
+**Bars 2–6 remain open on both packs.**
 **What it is**: the sky is now its own drawn layer whose colour a PACK authors
 (three stops: night / twilight / day) and the world clock interpolates. Three
 packs authored — `phosphor` (what the desk boots), `catppuccin-mocha` (the
@@ -107,12 +121,13 @@ byte-identical to before.
 The six bars, frozen in the spec before implementation
 (`docs/superpowers/specs/2026-08-08-daylight-sky-register-design.md`):
 
-1. **Noon reads as a different hour, not a different colour scheme** — on
-   phosphor and solarized-dark. **KILL (inherited verbatim from IDEAS.md):** if
-   the hue shift reads as "someone recoloured my terminal" rather than "it is a
-   different hour", the hue axis is decoration — it gets dropped, and daylight
-   colour rests on the luminance axis at 7/10 packs, leaving solarized-dark
-   colourless. That cost was accepted in advance.
+1. ~~**Noon reads as a different hour, not a different colour scheme**~~ —
+   **PASSED on solarized-dark; kill did not fire.** Still open on the re-cut
+   phosphor. *(Original wording, unedited: "KILL, inherited verbatim from
+   IDEAS.md: if the hue shift reads as 'someone recoloured my terminal' rather
+   than 'it is a different hour', the hue axis is decoration — it gets dropped,
+   and daylight colour rests on the luminance axis at 7/10 packs, leaving
+   solarized-dark colourless. That cost was accepted in advance.")*
 2. **Midnight is byte-identical to today.** (Measured: the drawn sky at forced
    00:00 is exactly `#0a0a0a`, phosphor's own `bg`. Your call is whether
    anything *else* moved.)

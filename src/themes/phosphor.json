@@ -18,7 +18,7 @@
   },
   "daySky": {
     "night":    "#0a0a0a",
-    "twilight": "#0c1c11",
-    "day":      "#0e2216"
+    "twilight": "#201a08",
+    "day":      "#09221f"
   }
 }

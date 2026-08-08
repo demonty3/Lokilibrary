@@ -170,8 +170,25 @@ too — same role; confirmed blank on screen, flagged for the eyeball). The
 mural-frame-edge `*` sighting on a non-omitting theme is a legal
 `starBright` beside the frame's cleared rect — FEATURE.
 
-**The daylight sky register SHIPPED 2026-08-08 (`d9244b5`), eyeball PENDING —
-the optional axis below stopped being optional the day after it was written.**
+**The daylight sky register SHIPPED 2026-08-08 (`d9244b5`), and BAR 1 PASSED
+the same day with its kill INVERTED — the optional axis below stopped being
+optional the day after it was written.** Harry, on the side-by-side: *"solarized
+looks way better because it actually looks like a time of day."* The frozen kill
+was that a hue shift with no brightness change would read as a recolour rather
+than an hour; it did the opposite. **Solarized moves ×1.2 in luminance —
+essentially none — and reads as time; phosphor's first cut moved ×4.3 in pure
+green and read less like one. Hue is the stronger axis for telling time, not the
+fallback**, which refutes the argument-against recorded in IDEAS.md the day
+before ("a hue rotation cannot make noon brighter, and brighter may be
+irreducible to what day means"). Two explanations survive and this test does not
+separate them: a brightness change may read as a *display* artifact where a hue
+change reads as a *world* event, or a sky-plausible hue may simply beat one that
+isn't. Both predicted the same fix, so **phosphor was re-cut (`c3ea…`) with its
+luminance held at exactly ×4.3 and only the hue rotated, 154° → 185°** — cyan
+noon, amber dawn and dusk — which isolates the variable for the next eyeball.
+Bars 2–6 remain open. The blueprint's authoring guidance was written the other
+way round (brightness first) and has been corrected to lead with hue.
+
 Harry: *"make the background a separate environment which changes colour with
 the time of day relative to the style of the terminal."* The first two clauses
 were already answered (a drawn sky layer sat unbuilt in `git stash@{0}`; the
