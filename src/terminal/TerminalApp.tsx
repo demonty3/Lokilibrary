@@ -23,23 +23,18 @@ const WING = params.get('wing') ?? 'd0';
  *  multi-window pool on purpose; see packAssignment.ts). */
 const THEME_ID = params.get('theme') ?? deskPackFor(WING);
 
-/** Frameless windows need an explicit OS drag region. A thin glyph strip at
- *  the very top doubles as the title and the drag handle; the world (and any
- *  seam continuity) lives at the BOTTOM, untouched. */
+/** Frameless windows need an explicit OS drag region, and nothing else. T3
+ *  slice 2 moved the title into the world (terminalLand.ts's masthead — Cozette,
+ *  in this window's own pack), so the strip is now purely the drag handle:
+ *  no text, no band, no ink of its own. Its height is one masthead row, so the
+ *  row you see is the row you grab. The world (and any seam continuity) lives
+ *  at the BOTTOM, untouched. */
 const dragStrip = {
   position: 'fixed',
   top: 0,
   left: 0,
   right: 0,
-  height: 20,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  font: '12px monospace',
-  letterSpacing: '2px',
-  color: '#8a8a8a',
-  background: 'rgba(0,0,0,0.35)',
-  userSelect: 'none',
+  height: 26,
   zIndex: 1,
   WebkitAppRegion: 'drag',
 } as unknown as CSSProperties;
@@ -66,7 +61,7 @@ export function TerminalApp() {
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <div style={dragStrip}>{`┤ ${WING} ├`}</div>
+      <div style={dragStrip} />
       <div ref={host} style={{ position: 'fixed', inset: 0 }} />
     </div>
   );

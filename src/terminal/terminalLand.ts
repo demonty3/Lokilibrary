@@ -58,6 +58,26 @@ import { buildLandContainer, landRoleFill, skyInkOf } from '../render/levels/lan
 import { loadMuralPixels, buildQuantizedMural, MURAL_BACKING, type TerminalMuralState } from '../render/mural';
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
 import { knitGlowCell } from './knit';
+import {
+  holdingsRamp,
+  MAST_GAP_COLS,
+  MAST_PAD_COLS,
+  mastheadResidents,
+  wingLabel,
+} from './masthead';
+import {
+  EDGE_PART_S,
+  edgeSpan,
+  JAMB_H,
+  JAMB_ROW0,
+  jambAlpha,
+  jambGlyph,
+  partDone,
+  partEaseInv,
+  partFront,
+  restFront,
+  wallAlpha,
+} from './edgePart';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
 import { daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
 import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
@@ -387,6 +407,39 @@ declare global {
       /** e2e only — click a cell (the pointer path's own hit-test), so the
        *  harness drives the beat exactly as a mouse would. True = it hit. */
       debugClick(x: number, y: number): boolean;
+      /** e2e only — T3 slice 2. The masthead's live content and ink. A
+       *  screenshot cannot tell this window's `fg` from the old constant
+       *  grey, nor a backing sized to the ink from one sized to the window. */
+      debugMasthead(): {
+        label: string;
+        /** Cohort ids drawn right now — present, not away, COHORT order. */
+        residents: string[];
+        holdings: string;
+        /** DRAWN inks, packed rgb: the label's and each resident's. */
+        labelInk: number;
+        residentInks: number[];
+        /** Columns the backing covers, against the row's full width. Bar 3:
+         *  a band would make these equal. */
+        backCols: number;
+        cols: number;
+      };
+      /** e2e only — T3 slice 2. The parting frame, per side: the front's
+       *  position in rows from the ground line, and the DRAWN alpha of every
+       *  wall row (indexed by distance) plus every jamb row. The part is a
+       *  half-second event no still can hold. */
+      debugEdgeFrame(): Record<
+        'left' | 'right',
+        {
+          open: boolean;
+          parting: boolean;
+          front: number;
+          span: number;
+          /** Wall-row alphas, ordered by distance from the ground line. */
+          wall: number[];
+          jamb: number[];
+          jambGlyphs: string[];
+        }
+      >;
     };
   }
 }
@@ -475,6 +528,72 @@ export async function mountTerminalLand(
   const world = new Container();
   world.scale.set(WORLD_SCALE);
   app.stage.addChild(world);
+
+  // ── The masthead (T3 slice 2) ──────────────────────────────────────────
+  // The window's title row, in Cozette, in THIS window's pack — replacing the
+  // DOM strip's grey system-monospace-on-a-black-band, which was the one
+  // surface slice 1's per-terminal packs never reached. A stage SIBLING of
+  // `world`: it is chrome, so it must stay outside the glow filter (a bloomed
+  // status row is mush) and under the scanline field. Added here, before the
+  // fx block, so both of those hold by construction.
+  const masthead = new Container();
+  masthead.scale.set(WORLD_SCALE);
+  app.stage.addChild(masthead);
+  const mastBack = new Graphics();
+  masthead.addChild(mastBack);
+  const mastLabel = new BitmapText({
+    text: wingLabel(wing),
+    style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fg) },
+  });
+  mastLabel.x = MAST_PAD_COLS * CW;
+  masthead.addChild(mastLabel);
+  const mastHoldings = new BitmapText({
+    text: holdingsRamp(games),
+    style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgDim) },
+  });
+  masthead.addChild(mastHoldings);
+  /** One text per resident, in their own accent. Rebuilt only when the set
+   *  changes — `mastKey` is the gate, so a still desk writes nothing. */
+  let mastResidents: BitmapText[] = [];
+  let mastKey: string | null = null;
+  /** Columns the backing covers. Bar 3's observable: it must never approach
+   *  the row's full width — a band is the thing being removed. */
+  let mastBackCols = 0;
+
+  const drawMasthead = (ids: string[]): void => {
+    for (const t of mastResidents) t.destroy();
+    mastResidents = ids.map((id, i) => {
+      const def = COHORT_BY_ID.get(id);
+      const t = new BitmapText({
+        text: def?.glyph ?? 'V',
+        style: {
+          fontFamily: COZETTE_FONT_FAMILY,
+          fontSize: COZETTE_FONT_SIZE,
+          // The same expression addBeing uses, so the glyph in the row is the
+          // exact ink of the being standing on the ground below it.
+          fill: def
+            ? hexToInt(theme.palette[def.paletteKey])
+            : hexToInt(theme.palette[roleKey(theme, beingAccentRole(id), 'fgBright')]),
+        },
+      });
+      t.x = (MAST_PAD_COLS + wingLabel(wing).length + MAST_GAP_COLS + i * 2) * CW;
+      masthead.addChild(t);
+      return t;
+    });
+    const holdCols = mastHoldings.text.length;
+    mastHoldings.x = (model.width - MAST_PAD_COLS - holdCols) * CW;
+    // Backing behind the INK ONLY (the caption's unframed pattern): enough
+    // ground to stay legible against a noon sky, no border, no band.
+    const leftCols =
+      wingLabel(wing).length + (ids.length > 0 ? MAST_GAP_COLS + ids.length * 2 - 1 : 0);
+    mastBackCols = leftCols + holdCols;
+    mastBack.clear();
+    mastBack
+      .rect(MAST_PAD_COLS * CW - 1, -1, leftCols * CW + 2, CH + 2)
+      .rect(mastHoldings.x - 1, -1, holdCols * CW + 2, CH + 2)
+      .fill({ color: hexToInt(theme.palette.bg), alpha: 0.72 });
+  };
+  drawMasthead([]);
 
   // Style-pack fx slot (docs/blueprints/style-pack.md), read through
   // themeFxList so string and array forms behave identically.
@@ -567,6 +686,10 @@ export async function mountTerminalLand(
     world.y = app.screen.height - contentH * WORLD_SCALE;
     backdropHost.x = world.x;
     backdropHost.y = world.y;
+    // The masthead shares the land's column grid but not its bottom anchor —
+    // it sits on the window's top edge, where the DOM strip used to.
+    masthead.x = world.x;
+    masthead.y = 0;
   };
   layoutWorld();
 
@@ -845,22 +968,79 @@ export async function mountTerminalLand(
     neighbourNear: { left: neighbourNear.left.length, right: neighbourNear.right.length },
   });
 
-  // ── Edges: closed = wall; open = a bright threshold doorway ────────────
+  // ── Edges: closed = wall; open = a threshold the frame has parted around ─
   let edges = { left: false, right: false };
   const edgeLayer = new Container(); // child of world → local cell space
   world.addChild(edgeLayer);
   /** Pulsing open-edge markers, animated in tick(). */
   const thresholds: BitmapText[] = [];
+  /** T3 slice 2 — the parting frame (edgePart.ts). The wall is one text PER
+   *  ROW so a front travelling out from the ground line can light rows
+   *  independently; behind it a short jamb stands above the threshold. Both
+   *  sets exist on both sides at all times and the alphas decide which is
+   *  seen, so a topology message may rebuild them mid-part without a seam in
+   *  the animation. */
+  interface EdgeFrame {
+    /** Wall rows, indexed by land row; `dist` is that row's distance from the
+     *  ground line, precomputed because the surface moves under a recompose. */
+    wall: Array<{ text: BitmapText; dist: number }>;
+    /** Jamb rows, bottom (the bend) first. */
+    jamb: BitmapText[];
+    /** How far the front must travel to clear this column. */
+    span: number;
+    /** Live tween: null once the front has come to rest. */
+    part: { startedAtS: number; opening: boolean } | null;
+    /** The front's position last frame — the drawn state's ground truth. */
+    front: number;
+  }
+  const frames: Record<'left' | 'right', EdgeFrame> = {
+    left: { wall: [], jamb: [], span: 1, part: null, front: restFront(false, 1) },
+    right: { wall: [], jamb: [], span: 1, part: null, front: restFront(false, 1) },
+  };
 
   const drawEdges = (): void => {
     thresholds.length = 0;
     edgeLayer.removeChildren().forEach((c) => c.destroy());
     for (const side of ['left', 'right'] as const) {
+      const f = frames[side];
+      f.wall = [];
+      f.jamb = [];
       const edgeCol = side === 'left' ? 0 : model.width - 1;
       const surfaceRow = model.surface[edgeCol];
+      f.span = edgeSpan(model.height, surfaceRow);
+      if (f.part === null) f.front = restFront(edges[side], f.span);
+
+      // The wall — glyph for glyph what the single multi-line text used to
+      // write (▌/▐ at the ground line, a thin rule every fourth row, else
+      // ║), split per row so each can carry its own alpha.
+      const wallInk = hexToInt(theme.palette.fg);
+      for (let y = 0; y < model.height; y++) {
+        const text = new BitmapText({
+          text: y === surfaceRow ? (side === 'left' ? '▌' : '▐') : y % 4 === 2 ? '╎' : '║',
+          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: wallInk },
+        });
+        text.x = edgeCol * CW;
+        text.y = y * CH;
+        edgeLayer.addChild(text);
+        f.wall.push({ text, dist: Math.abs(y - surfaceRow) });
+      }
+      // The jamb — the frame left standing aside, in the wall's own ink so it
+      // reads as the wall parted rather than as a new element.
+      for (let j = 0; j < JAMB_H; j++) {
+        const row = surfaceRow - (JAMB_ROW0 + j);
+        if (row < 0) break;
+        const text = new BitmapText({
+          text: jambGlyph(side, j),
+          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: wallInk },
+        });
+        text.x = edgeCol * CW;
+        text.y = row * CH;
+        edgeLayer.addChild(text);
+        f.jamb.push(text);
+      }
+      // The doorway itself, at walking height — the existing land edge
+      // vocabulary (‹ ›), brightened + pulsing. Only when open.
       if (edges[side]) {
-        // Open: a doorway at the ground line, not a wall — the existing
-        // land edge vocabulary (‹ ›), brightened + pulsing.
         const mark = new BitmapText({
           text: side === 'left' ? '‹' : '›',
           style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
@@ -869,23 +1049,36 @@ export async function mountTerminalLand(
         mark.y = (surfaceRow - 1) * CH;
         edgeLayer.addChild(mark);
         thresholds.push(mark);
-      } else {
-        // Closed: a wall that visibly meets the land (fg, not fgDim — the
-        // old wall failed the glance test).
-        const lines: string[] = [];
-        for (let y = 0; y < model.height; y++) {
-          if (y === surfaceRow) lines.push(side === 'left' ? '▌' : '▐');
-          else lines.push(y % 4 === 2 ? '╎' : '║');
-        }
-        const wall = new BitmapText({
-          text: lines.join('\n'),
-          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fg) },
-        });
-        wall.x = edgeCol * CW;
-        wall.y = 0;
-        edgeLayer.addChild(wall);
       }
+      applyEdgeFront(side);
     }
+  };
+
+  /** Push a side's front onto its glyphs. Called every frame while a part
+   *  runs, and once per rebuild so a fresh frame is never drawn at the wrong
+   *  state for even one tick. */
+  const applyEdgeFront = (side: 'left' | 'right'): void => {
+    const f = frames[side];
+    for (const w of f.wall) w.text.alpha = wallAlpha(w.dist, f.front);
+    f.jamb.forEach((t, j) => {
+      t.alpha = jambAlpha(j, f.front);
+    });
+  };
+
+  /** Start the frame parting (or closing) on `side`. Mid-flight reversals
+   *  restart from the current front rather than snapping, so a window dragged
+   *  in and straight back out never flashes a whole wall. */
+  const startPart = (side: 'left' | 'right', opening: boolean): void => {
+    const f = frames[side];
+    const from0 = restFront(!opening, f.span);
+    const to = restFront(opening, f.span);
+    if (f.front === to) return;
+    // Enter the curve where the front already sits (partEaseInv), so the
+    // remaining travel keeps EDGE_PART_S's feel instead of snapping.
+    f.part = {
+      startedAtS: elapsedS - partEaseInv((f.front - from0) / (to - from0)) * EDGE_PART_S,
+      opening,
+    };
   };
 
   /** Cache key of the current scene inputs (join seeds + closed-wing set) —
@@ -918,6 +1111,11 @@ export async function mountTerminalLand(
       recompose(join.left === undefined && join.right === undefined ? null : join);
       if (edges.left && !prev.left) startKnit('left');
       if (edges.right && !prev.right) startKnit('right');
+    }
+    // The frame parts on the same transition the knit fires on, and closes
+    // again when a window is dragged away.
+    for (const side of ['left', 'right'] as const) {
+      if (edges[side] !== prev[side]) startPart(side, edges[side]);
     }
     drawEdges();
   };
@@ -1375,6 +1573,32 @@ export async function mountTerminalLand(
 
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
+
+    // Who is here. Change-gated on the id list, so the row is rebuilt when
+    // someone crosses a seam, goes away on an errand or fades out of
+    // presence — and at no other time.
+    const here = mastheadResidents(
+      [...beings.values()].map((b) => ({ id: b.id, present: b.mind.present, away: b.away !== null })),
+    );
+    const hereKey = here.join(',');
+    if (hereKey !== mastKey) {
+      mastKey = hereKey;
+      drawMasthead(here);
+    }
+
+    // The parting frame: advance any live front and repaint that side. At
+    // rest both sides are skipped entirely, so a joined desk pays nothing.
+    for (const side of ['left', 'right'] as const) {
+      const f = frames[side];
+      if (!f.part) continue;
+      const tS = elapsedS - f.part.startedAtS;
+      f.front = partFront(tS, f.span, f.part.opening);
+      if (partDone(tS)) {
+        f.front = restFront(f.part.opening, f.span);
+        f.part = null;
+      }
+      applyEdgeFront(side);
+    }
 
     // Wall clock, read once for every desk-global CONDITION in this tick (sun,
     // wind, sky drift): their whole job is to agree across windows that were
@@ -2051,6 +2275,43 @@ export async function mountTerminalLand(
       if (!hit) return false;
       beginErrand(hit);
       return true;
+    },
+    debugMasthead: () => ({
+      label: mastLabel.text,
+      residents: mastKey ? mastKey.split(',') : [],
+      holdings: mastHoldings.text,
+      labelInk: mastLabel.style.fill as number,
+      residentInks: mastResidents.map((t) => t.style.fill as number),
+      backCols: mastBackCols,
+      cols: model.width,
+    }),
+    debugEdgeFrame: () => {
+      const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+      const read = (side: 'left' | 'right'): {
+        open: boolean;
+        parting: boolean;
+        front: number;
+        span: number;
+        wall: number[];
+        jamb: number[];
+        jambGlyphs: string[];
+      } => {
+        const f = frames[side];
+        return {
+          open: edges[side],
+          parting: f.part !== null,
+          front: r3(f.front),
+          span: f.span,
+          // By DISTANCE from the ground line, not by row — the front's own
+          // axis, so "nearest the ground parts first" is readable directly.
+          wall: [...f.wall]
+            .sort((a, b) => a.dist - b.dist)
+            .map((w) => r3(w.text.alpha)),
+          jamb: f.jamb.map((t) => r3(t.alpha)),
+          jambGlyphs: f.jamb.map((t) => t.text),
+        };
+      };
+      return { left: read('left'), right: read('right') };
     },
   };
 

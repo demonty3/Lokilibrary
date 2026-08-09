@@ -2254,6 +2254,85 @@ now **FIXED — see the entry below.**
 
 ---
 
+**T3 slice 2 SHIPPED 2026-08-09 — the masthead and the parting frame; T3 is
+code-complete.** Eyeball open. Spec + frozen bars:
+`docs/superpowers/specs/2026-08-09-t3-slice2-design.md`. Two independent moves,
+either of which can be cut without the other.
+
+**The masthead.** The wing label was a DOM strip (`TerminalApp.tsx:29-45`) —
+`#8a8a8a` 12 px *system* monospace on a `rgba(0,0,0,0.35)` band, byte-identical
+in every window. Slice 1 gave each terminal its own palette and this sat above
+them in the same grey, in a font the world never uses, over a black band cutting
+across the pack's sky. It is now a Cozette row at `WORLD_SCALE`, a stage sibling
+of `world` (chrome: outside the glow filter, under the scanline field), reading
+`┤ d0 ├` + who is here + the wing's holdings. The DOM element stays, emptied, as
+the drag region a frameless window needs. New pure `src/terminal/masthead.ts`.
+
+The residents run is **who is HERE, not who lives here** — `mind.present` and
+`away` both gate it, in COHORT order so an arrival never reshuffles the glyphs
+already standing. Each glyph wears `theme.palette[def.paletteKey]`, the exact
+expression `addBeing` uses, so the row's `c` is the ground's `c`.
+
+**The holdings ramp changed after the shots, and that is the slice's one real
+finding.** Built as specified — the scale ladder's shade vocabulary
+(`▓▒░·`) plus a step for `mastered` — it failed on the desk: five adjacent
+dither cells at `fgDim` read as a patch of texture, not five measures. That is
+the **crust-legibility finding** (2026-08-01) resurfacing on a new surface. The
+reuse argument was weaker than it looked — the ladder's glyphs are read *beside
+a legend naming them*, and this row has no legend. Shipped as bar HEIGHTS
+`█▆▄▂▁`: same five ordered steps, no dither, orderable without a legend.
+Evidence at 5×: `t3-ramp1.png` (shade) beside `t3-ramp2.png` (heights), same folder. The
+smoke now guards it both ways — no `▓▒░` may re-enter, and the steps must stay
+monotone in height.
+
+**The parting frame.** `drawEdges` was binary: a full-height wall, then the wall
+*destroyed in one frame* and a `‹`/`›` placed at the ground. The join's craft was
+carried entirely by the ground (knit sweep, hermite blend); the thing actually in
+the way just vanished. The wall is now one text PER ROW, and a front travels
+outward from the ground line over `EDGE_PART_S = 0.45 s`, upward into the sky and
+downward into the strata, with a 3-row **jamb** lighting behind it — bottom glyph
+bent away from the opening (`╰` left, `╯` right). Across a seam the two windows
+draw `╯` `╰` over `›` `‹`: the frame has parted around the crossing. New pure
+`src/terminal/edgePart.ts` — one front covers both directions and both rest
+states, so the caller holds one number per side and no per-row state.
+
+New `smoke-edge-part` (45 assertions) + `smoke-masthead` (27), **both
+mutant-checked two ways**: restoring the old instant cut → 12 red including "one
+frame in, the wall is still substantially there"; a uniform crossfade → 9 red
+including "the front runs OUTWARD"; dropping the presence filter → 3 red;
+colliding two ramp steps → 2 red. 72 smokes and both typecheck legs green.
+
+VERIFIED ON SCREEN (macOS, joined two-window desk, frontmost). Shots in `docs/design-reviews/2026-08-09-t3-slice2/`:
+`t3-slice2b.png`, `t3-jamb.png` (9× NN), `t3-mast2.png`, and the before/after
+ramp pair.
+
+- **Bar 1** — t1 label ink `0xb8c4b8` = phosphor `fg`; t2 `0x839496` =
+  solarized-dark `fg`. Different, each its own pack's key; every resident ink
+  matched that pack's cohort accent exactly (Loki reads `0xff5fd2` in t1 and
+  `0xd33682` in t2 — one being, two packs).
+- **Bar 2** — forced crossing: before, t1 `[archivist, cat]` / t2 `[]`; after,
+  t1 `[archivist]` / t2 `[archivist, cat]`. Throughout, t2 carried
+  `visitor(absent)` on its land and NOT in its row.
+- **Bar 3** — backing 14 cols of 53 (26%), no border. The grey band is gone.
+- **Bar 4** — per-frame recording of a real re-join: first parting frame at
+  wall alpha **0.952** (not the old cut), still travelling at 0.10 s
+  (front 3.04) and 0.25 s (front 11.5), at rest 467 ms in. At every sampled
+  frame `wall@d0 ≤ wall@d4 ≤ wall@d10 ≤ wall@d16` — the front runs outward, it
+  is not a crossfade. The jamb lights only *behind* the front (0 → 0.081 →
+  0.415 → 0.6).
+- **Bar 5** — both open edges: every wall row 0, exactly 3 jamb rows lit
+  (0.6 / 0.45 / 0.3). Nothing on the seam column in the sky or the strata, so
+  the spike's measured terrain continuity is untouched.
+- **Bar 6** — both closed edges: every wall row 1, full height, no jamb.
+
+**Bar 7 is Harry's** and is not measurable here. Observed and NOT introduced by
+this slice: the caption-over-skyline defect (logged 2026-08-08) still fires.
+Also observed and NOT a defect: a being can appear in both windows' rows for a
+beat mid-handoff — the broker acks before despawn by design, and the roster
+reconciled exactly on every settled read.
+
+---
+
 **T3 slice 1 SHIPPED 2026-08-08 — per-terminal packs; the ten authored packs
 reach the product.** Eyeball open. Before this,
 `TerminalApp.tsx:16` hard-coded `phosphor` for every window and the spawn URL
