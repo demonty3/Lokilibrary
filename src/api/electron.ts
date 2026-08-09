@@ -70,6 +70,7 @@ export interface ElectronAPI {
   terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>;
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   getTerminalSociety(): Promise<Record<string, string>>;
+  getTerminalRoster(): Promise<Record<string, string>>;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
   terminalAgentExit(
     agentId: string,
@@ -382,6 +383,21 @@ export async function getTerminalSociety(): Promise<Record<string, string> | nul
     return await api.getTerminalSociety();
   } catch {
     return null;
+  }
+}
+
+/** T4 — agentId → terminalId, who is WHERE right now. Pulled only when a
+ *  Tier-2 reflection is about to fire (the broker's roster changes on every
+ *  crossing, so it is deliberately not on the change-gated topology
+ *  broadcast). `{}` when no broker is attached: the topology line then simply
+ *  omits its occupancy clause. */
+export async function getTerminalRoster(): Promise<Record<string, string>> {
+  const api = getElectronAPI();
+  if (!api || typeof api.getTerminalRoster !== 'function') return {};
+  try {
+    return await api.getTerminalRoster();
+  } catch {
+    return {};
   }
 }
 

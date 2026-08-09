@@ -742,6 +742,7 @@ export default {
         loreContext: body.loreContext,
         library: (body as { library?: string }).library,
         roomDims: (body as { roomDims?: { width: number; height: number } }).roomDims,
+        topology: (body as { topology?: string }).topology,
       });
 
       const startedAt = Date.now();

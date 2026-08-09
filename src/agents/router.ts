@@ -394,6 +394,10 @@ export interface RouteOptions {
    *  prompt's coordinate instruction. Callers that don't know their
    *  layout (sleep sweep) omit it → worker fallback. */
   roomDims?: { width: number; height: number };
+  /** T4 — the terminals desk as one line (`src/terminal/deskTopology.ts`).
+   *  Terminals surface only; the palace omits it and its reflect prompt is
+   *  byte-identical to the pre-T4 one. */
+  topology?: string;
 }
 
 export interface RouteResult {
@@ -638,6 +642,7 @@ export async function routeTier2(
     persona: memory.persona(def.id) ?? PERSONA_FALLBACK.get(def.id) ?? null,
     ...(opts.library && { library: opts.library }),
     ...(opts.roomDims && { roomDims: opts.roomDims }),
+    ...(opts.topology && { topology: opts.topology }),
     ...(recentLore.length > 0 && {
       recentLore: recentLore.map((l) => ({ text: l.text, source: l.source })),
     }),

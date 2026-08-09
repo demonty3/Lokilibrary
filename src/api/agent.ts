@@ -113,6 +113,11 @@ export interface ReflectInput {
    *  instruction. Absent → the worker's 24×16 fallback (the pre-pass
    *  hardcoded values). */
   roomDims?: { width: number; height: number };
+  /** T4 — the terminals desk as one line (`src/terminal/deskTopology.ts`):
+   *  which terminals are open, which are joined, who is where, and which
+   *  neighbour wings a `move_to` step may name. Sent only by the terminals
+   *  surface; the palace omits it and its prompt is unchanged. */
+  topology?: string;
 }
 
 export interface ReflectResult {

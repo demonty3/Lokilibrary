@@ -274,8 +274,24 @@ iteration here uses the Claude API.
   zero key-free. Caching: none (each call is a fresh perception).
   Fallback: the pure land intent engine; transport failure stamps the
   throttle and the walker never blocks. Telemetry: existing logTier1
-  rows. New runtime AI calls require an entry in this file documenting
-  cost model, caching strategy, and fallback before shipping.
+  rows. **T4 (2026-08-09) adds the SECOND desk-side runtime AI call:
+  Tier-2 reflection on the terminals desk** — trigger: a being's
+  `reflectionCounter` (accrued by the UNCHANGED routeTier1 at
+  importance 3 per seam arrival, and carried across seams by
+  `carriedFromMind`) crosses `REFLECTION_THRESHOLD = 150`, i.e. ~50
+  crossings; polled every 30 s by the throttle-gated pump in
+  `terminalLand.ts`; plus one forced pass per being per sleep session
+  (`reflectionMinIntervalMs: 0`, the palace's 5B semantics). Cost:
+  Sonnet, bounded by the router's UNCHANGED per-agent 1-per-real-hour
+  limit → ≤5 calls/hour on a fully-populated active desk, and in
+  practice far less because the threshold binds long before the limit
+  does; zero idle, zero key-free. Caching: none (each reflection is a
+  fresh synthesis over that agent's recent memories). Fallback:
+  `skipReason: 'rejected'`; the counter is already consumed so nothing
+  retries in a loop, and every call site drops the promise so the
+  walker never blocks. Telemetry: existing logTier2 rows. New runtime
+  AI calls require an entry in this file documenting cost model,
+  caching strategy, and fallback before shipping.
 - **Don't make local LLM the shipped default.** With BYO-key open source
   there is no "production", but the default config stays a frontier
   model: the Tier 1+2 quality ceiling on a 12GB-VRAM-class model is

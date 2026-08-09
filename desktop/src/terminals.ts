@@ -499,6 +499,14 @@ export function startTerminalsMode(
   // Society hydration: which cohort member lives on which wing.
   ipcMain.handle('terminal:getSociety', () => Object.fromEntries(homes));
 
+  // T4: who is WHERE right now (agentId → terminalId), for the topology line a
+  // Tier-2 reflection reads. Deliberately a PULL, not a field on the
+  // `terminal:topology` broadcast — that broadcast is change-gated on
+  // {joins, wings} to stay bounded, and the roster moves on every crossing.
+  // Reflections are rare (≤ 1 per agent per real hour), so pulling on demand
+  // costs nothing and leaves the hot path alone.
+  ipcMain.handle('terminal:getRoster', () => Object.fromEntries(roster));
+
   // Roster registration at spawn. First writer wins — a duplicate spawn of
   // a live agent id is refused (the renderer despawns its copy).
   ipcMain.handle('terminal:agentSpawn', (_e, payload: { agentId: string; terminalId: string }) => {

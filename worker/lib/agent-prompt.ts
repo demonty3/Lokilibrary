@@ -98,6 +98,11 @@ export interface ReflectPromptInput {
   library?: string;
   /** Live layout bounds (Task 5 producer); fallback = the pre-pass 24×16. */
   roomDims?: { width: number; height: number };
+  /** T4 — the terminals desk as one line (src/terminal/deskTopology.ts):
+   *  which terminals are open, which are joined, who is where. Terminals
+   *  surface only; omitted everywhere else, and omitting it reproduces the
+   *  pre-T4 prompt exactly. */
+  topology?: string;
   nowMs?: number;
 }
 
@@ -181,5 +186,11 @@ export function buildReflectPrompt(input: ReflectPromptInput): { system: string;
     for (const l of lore.slice(0, 6)) lines.push(`- (${l.source}) ${JSON.stringify(l.text)}`);
   }
   if (input.library) lines.push(`the library: ${input.library}`);
+  // T4 — the desk's shape (which terminals are open, which are joined, who is
+  // where). Only the terminals surface sends this; a caller that omits it gets
+  // a byte-identical prompt to the pre-T4 one. The line names ONLY wings with a
+  // window actually open, so the `move_to` target it offers can never be a
+  // place that does not exist.
+  if (input.topology) lines.push(input.topology);
   return { system, user: lines.join('\n') };
 }

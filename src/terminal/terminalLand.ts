@@ -107,6 +107,7 @@ import { composeLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type La
 import {
   getTerminalSociety,
   getTerminalTopology,
+  getTerminalRoster,
   getThrottleState,
   subscribeTerminalAgentEnter,
   subscribeTerminalNeighbourSummary,
@@ -142,7 +143,19 @@ import {
 import { roleKey } from '../themes/roles';
 import { COHORT, filterByTheme, type AgentDef } from '../agents/cohort';
 import { tickPresence } from '../agents/behavior';
-import { nullMemoryWriter, routeTier1, type MemoryWriter } from '../agents/router';
+import {
+  nullMemoryWriter,
+  REFLECTION_THRESHOLD,
+  routeTier1,
+  routeTier2,
+  type MemoryWriter,
+  type ReflectRouteResult,
+} from '../agents/router';
+import { deskTopology, deskTopologyLine, reachableWings } from './deskTopology';
+import {
+  mountMorningDispatch,
+  type MorningDispatchLine,
+} from '../render/overlays/morning-dispatch';
 import type { AgentRuntimeState } from '../state/agentRuntime';
 import { mulberry32, type Prng } from '../procedural/prng';
 import { bootstrapMemory, getCurrentMemoryWriter } from '../agents/memory/bootstrap';
@@ -427,6 +440,35 @@ declare global {
        *  position in rows from the ground line, and the DRAWN alpha of every
        *  wall row (indexed by distance) plus every jamb row. The part is a
        *  half-second event no still can hold. */
+      /** e2e only — T4. The desk line a reflection would read right now, plus
+       *  the resolved topology behind it. The organic trigger is ~50 seam
+       *  crossings, so the bars need to see the line without waiting for it. */
+      debugTopology(): Promise<{
+        line: string;
+        here: string;
+        joined: { left?: string; right?: string };
+        open: string[];
+        closed: string[];
+        occupancy: Array<{ wing: string; who: string[] }>;
+        reachable: string[];
+      }>;
+      /** e2e only — T4. One Tier-2 dispatch for `agentId`.
+       *  `'force'` (default) bypasses the threshold + rate-limit the way
+       *  debugWear/debugMark bypass theirs; `'plain'` goes through the REAL
+       *  gates, so the rate-limit can be observed refusing; `'night'` runs the
+       *  sleep pass and mounts the banner for real. Plan steps are returned
+       *  because "a plan can name the neighbour" is not checkable from a
+       *  step COUNT. */
+      debugReflect(agentId: string, mode?: 'force' | 'plain' | 'night'): Promise<{
+        dispatched: boolean;
+        skipReason?: string;
+        reflection?: string;
+        plan?: { text: string; steps: Array<{ kind: string; target?: string }> };
+        counter: number;
+        buffered: number;
+        bannerOpen: boolean;
+        bannerRect?: { x: number; y: number; w: number; h: number; screen: string; stage: string[]; ink: number | string };
+      }>;
       debugEdgeFrame(): Record<
         'left' | 'right',
         {
@@ -1091,6 +1133,7 @@ export async function mountTerminalLand(
     wings: Record<string, string>,
     allWings?: string[],
   ): void => {
+    lastTopology = { joins, wings, ...(allWings && { allWings }) };
     const prev = edges;
     edges = {
       left: joins.some((j) => j.right === terminalId),
@@ -1432,6 +1475,113 @@ export async function mountTerminalLand(
   //      click-through and 'accessory', so pointer AND focus are both dead;
   //      without this the 30-min ceiling is the only way an away being
   //      returns. Gated on !isInitial — see deskThrottle.ts.
+  // ── T4: Tier-2 reflection on the desk ──────────────────────────────────
+  // The desk has never dispatched Tier-2 (STATE.md's T2 entry: "DEFERRED:
+  // Tier-2 / topology reflection (T4 arc)") — but routeTier1 has been
+  // accruing `reflectionCounter` on every seam arrival all along, and
+  // carriedFromMind carries it ACROSS seams, so a being's counter measures
+  // its whole journey over the desk. This is the consumer.
+  //
+  // Gates are the ROUTER'S and are not touched here: threshold 150 (≈50
+  // arrivals at importance 3) and the per-agent one-per-real-hour limit. In
+  // practice the threshold binds long before the limit does.
+  /** The raw broker topology payload, kept so a reflection can describe the
+   *  desk. applyJoins only keeps the derived bits it renders from. */
+  let lastTopology: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] } = {
+    joins: [],
+    wings: {},
+  };
+  /** Reflections produced while asleep, drained by the wake banner. */
+  const nightDispatch: MorningDispatchLine[] = [];
+  let dispatchBanner: (() => void) | null = null;
+
+  /** Build the desk line for a reflection. Pulls the roster (who is WHERE)
+   *  at dispatch time — see the broker's `terminal:getRoster` comment. */
+  const topologyLine = async (): Promise<string> => {
+    const roster = await getTerminalRoster();
+    return deskTopologyLine(
+      deskTopology({
+        terminalId,
+        wing,
+        joins: lastTopology.joins,
+        wings: lastTopology.wings,
+        allWings: lastTopology.allWings,
+        roster,
+        names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
+      }),
+    );
+  };
+
+  /** One Tier-2 dispatch for `b`. Fire-and-forget by contract: every caller
+   *  drops the promise, so a slow or failed reflection can never stall the
+   *  ticker or the walker. `sleeping` bypasses the rate-limit — that is the
+   *  budget the limit was holding capacity for (the palace's 5B semantics). */
+  const reflectFor = async (
+    b: Being,
+    opts: { sleeping?: boolean; force?: boolean } = {},
+  ): Promise<ReflectRouteResult> => {
+    const def = COHORT_BY_ID.get(b.id);
+    if (!def) return { dispatched: false, skipReason: 'rejected' };
+    const result = await routeTier2(def, b.mind, Date.now(), {
+      memory,
+      topology: await topologyLine(),
+      ...(opts.sleeping && { reflectionMinIntervalMs: 0 }),
+      ...(opts.force && { force: true }),
+    });
+    if (result.dispatched && result.reflection) {
+      nightDispatch.push({
+        agentName: def.name,
+        text: result.reflection.text,
+        hadPlan: result.plan !== undefined && result.plan.stepCount > 0,
+      });
+    }
+    return result;
+  };
+
+  /** The mounted banner's on-screen rect, read off the stage. `mountMorning
+   *  Dispatch` hands back only a teardown, so this is how the harness sees
+   *  where it landed (and whether it landed on screen at all). */
+  const bannerRect = (): {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    screen: string;
+    stage: string[];
+    ink: number | string;
+  } => {
+    const top = app.stage.children[app.stage.children.length - 1];
+    const b = top?.getBounds();
+    return {
+      x: Math.round(b?.x ?? -1),
+      y: Math.round(b?.y ?? -1),
+      w: Math.round(b?.width ?? 0),
+      h: Math.round(b?.height ?? 0),
+      screen: `${app.screen.width}x${app.screen.height}`,
+      stage: app.stage.children.map(
+        (c, i) => `${i}:${c.constructor.name} vis=${c.visible} a=${c.alpha} r=${c.renderable}`,
+      ),
+      ink: (() => {
+        // Does the banner put INK on the canvas? Bounds prove it is in the
+        // scene graph; only the extracted pixels prove it is drawn.
+        try {
+          const px = app.renderer.extract.pixels(top).pixels as Uint8ClampedArray;
+          let lit = 0;
+          for (let i = 3; i < px.length; i += 4) if (px[i] > 8) lit++;
+          return lit;
+        } catch (e) {
+          return `extract failed: ${(e as Error).message}`;
+        }
+      })(),
+    };
+  };
+
+  /** Poll cadence for the threshold check. Slow on purpose: the counter it
+   *  watches moves a few points per seam crossing, so anything faster is
+   *  wasted work under a ticker that may be running at 1 Hz anyway. */
+  const REFLECT_POLL_S = 30;
+  let reflectPollAt = REFLECT_POLL_S;
+
   let throttleState: ThrottleState = 'full';
   const applyThrottle = (state: ThrottleState): void => {
     const t = tickerFor(state);
@@ -1450,7 +1600,24 @@ export async function mountTerminalLand(
   // desk" is better evidence of return than a stray mousemove.
   const unsubDeskAttention = subscribeDeskAttention(onAttention);
   const unsubThrottle = subscribeThrottle(({ state, isInitial }) => {
-    if (shouldFireAttention(throttleState, state, isInitial)) onAttention();
+    const waking = shouldFireAttention(throttleState, state, isInitial);
+    if (waking) onAttention();
+    // T4 — the night sweep and the morning dispatch hang off the SAME two
+    // transitions the launcher beat already uses, so "a real wake" means
+    // exactly what deskThrottle.ts already proved it means (never initial).
+    if (!isInitial && state === 'sleeping' && throttleState !== 'sleeping') {
+      // One pass per present being, rate-limit bypassed. Fire-and-forget.
+      for (const b of beings.values()) {
+        if (!b.mind.present || b.away) continue;
+        void reflectFor(b, { sleeping: true }).catch(() => undefined);
+      }
+    }
+    if (waking && nightDispatch.length > 0) {
+      dispatchBanner?.();
+      dispatchBanner = mountMorningDispatch({ app, theme, lines: nightDispatch.slice() });
+      // Drained, not kept: a second wake with nothing new must show nothing.
+      nightDispatch.length = 0;
+    }
     throttleState = state;
     applyThrottle(state);
   });
@@ -1573,6 +1740,19 @@ export async function mountTerminalLand(
 
     // Open-edge doorways breathe.
     for (const t of thresholds) t.alpha = 0.55 + 0.45 * Math.sin(elapsedS * 3);
+
+    // T4 — the reflection pump. Slow, throttle-gated (it rides elapsedS, so it
+    // freezes at 1 Hz and stops dead when paused, like everything else here).
+    // routeTier2 short-circuits below threshold and inside the rate-limit
+    // window, so this loop asserts nothing about either — it only asks.
+    if (elapsedS >= reflectPollAt) {
+      reflectPollAt = elapsedS + REFLECT_POLL_S;
+      for (const b of beings.values()) {
+        if (!b.mind.present || b.away) continue;
+        if (b.mind.reflectionCounter < REFLECTION_THRESHOLD) continue;
+        void reflectFor(b).catch(() => undefined);
+      }
+    }
 
     // Who is here. Change-gated on the id list, so the row is rebuilt when
     // someone crosses a seam, goes away on an errand or fades out of
@@ -2285,6 +2465,65 @@ export async function mountTerminalLand(
       backCols: mastBackCols,
       cols: model.width,
     }),
+    debugTopology: async () => {
+      const roster = await getTerminalRoster();
+      const t = deskTopology({
+        terminalId,
+        wing,
+        joins: lastTopology.joins,
+        wings: lastTopology.wings,
+        allWings: lastTopology.allWings,
+        roster,
+        names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
+      });
+      return { line: deskTopologyLine(t), ...t, reachable: reachableWings(t) };
+    },
+    debugReflect: async (agentId, mode = 'force') => {
+      const b = beings.get(agentId);
+      if (!b) {
+        // Not a dead end: called with an id nobody answers to, this is a FREE
+        // observer of the banner + buffer (no dispatch, no Sonnet call).
+        return {
+          dispatched: false,
+          skipReason: 'not_here',
+          counter: 0,
+          buffered: nightDispatch.length,
+          bannerOpen: dispatchBanner !== null,
+          ...(dispatchBanner && { bannerRect: bannerRect() }),
+        };
+      }
+      const night = mode === 'night';
+      const r = await reflectFor(
+        b,
+        night ? { sleeping: true } : mode === 'force' ? { force: true } : {},
+      );
+      if (night && nightDispatch.length > 0) {
+        dispatchBanner?.();
+        dispatchBanner = mountMorningDispatch({ app, theme, lines: nightDispatch.slice() });
+        nightDispatch.length = 0;
+      }
+      return {
+        dispatched: r.dispatched,
+        ...(r.skipReason && { skipReason: r.skipReason }),
+        ...(r.reflection && { reflection: r.reflection.text }),
+        ...(b.mind.activePlan && {
+          plan: {
+            text: b.mind.activePlan.text,
+            steps: b.mind.activePlan.steps.map((s) => ({
+              kind: s.kind,
+              ...(s.target && { target: s.target }),
+            })),
+          },
+        }),
+        counter: b.mind.reflectionCounter,
+        buffered: nightDispatch.length,
+        bannerOpen: dispatchBanner !== null,
+        // Where the banner actually landed. `bannerOpen` only says a teardown
+        // exists; a banner mounted off-screen or at zero size would still
+        // report open, so bar 7 needs the rect.
+        ...(dispatchBanner && { bannerRect: bannerRect() }),
+      };
+    },
     debugEdgeFrame: () => {
       const r3 = (n: number): number => Math.round(n * 1000) / 1000;
       const read = (side: 'left' | 'right'): {

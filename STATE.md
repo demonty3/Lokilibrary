@@ -2254,6 +2254,84 @@ now **FIXED — see the entry below.**
 
 ---
 
+**T4 SHIPPED 2026-08-09 — topology → reflection. The desk now has a Tier-2
+mind, and it knows the shape of the desk it lives on.** Spec + frozen bars:
+`docs/superpowers/specs/2026-08-09-t4-topology-reflection-design.md`.
+
+**The precondition the PRD did not know it had: the desk had never dispatched
+Tier-2 at all.** `routeTier2` had exactly three call sites, all on the palace
+cell surface; `src/terminal/` never referenced it and `activePlan` appears
+nowhere in the terminal path. So "rides existing reflection dispatch" was true
+of the router and false of the desk — T4 owned standing the pump up, not just
+the context. STATE.md's own T2 entry had recorded this ("DEFERRED: Tier-2 /
+topology reflection (T4 arc)"); it was found by reading, not by surprise.
+
+**The half already built and waiting:** `routeTier1` has been accruing
+`reflectionCounter` on every seam arrival all along (importance 3), and
+`carriedFromMind` carries it ACROSS seams — so a counter measures a being's
+whole journey over the desk, not one window's. Counters climbed; nothing
+consumed them. That also sets the natural cost: 150/3 = **~50 crossings** per
+organic dispatch, so the threshold binds long before the router's 1-per-hour
+limit ever does.
+
+New pure `src/terminal/deskTopology.ts` (the edgePart/masthead posture) renders
+the desk as one prompt line. **The roster is PULLED at dispatch time, not
+pushed** — a new `terminal:getRoster` invoke rather than a field on
+`terminal:topology`, because that broadcast is change-gated on `{joins, wings}`
+to stay bounded and the roster moves on every crossing. `topology?: string`
+threads ReflectInput → RouteOptions → `buildReflectPrompt`, beside `library`.
+
+**One vocabulary widened, deliberately:** a wing id is now a legal `move_to`
+target. No new verb, no change to the plan JSON. The line names ONLY wings with
+a window actually open, and only the joined neighbours are offered as walk
+targets — a being can only walk to a land it shares an edge with.
+
+New `smoke-desk-topology` (35 assertions), **mutant-checked two ways**:
+occupancy reading the local wing instead of the live roster → 5 red including
+the crossing discriminator; offering any wing as a walk target → 8 red
+including every closed wing. 73 smokes and all three typecheck legs green.
+
+VERIFIED ON SCREEN (macOS, joined two-window desk, Worker up, real Sonnet):
+
+- **Bars 1+2** — t1 reads "…yours shows d0. d1 joins you on the right…", t2 the
+  mirror ("d0 joins you on the left"); both agree on open/closed. Occupancy was
+  sampled **atomically against the broker roster 12 times while beings crossed:
+  0 mismatches**, roster moved during the window. (Sequential before/after reads
+  are useless here — the desk re-rosters every few seconds.)
+- **Bar 5, the PRD's own acceptance** — a forced reflection returned
+  `"the terminals beckon like warm spots."` with plan steps
+  `[{kind:"move_to", target:"d1"}, {kind:"inspect"}, {kind:"place_mark"}]`. The
+  model targeted the neighbour terminal using an existing whitelisted verb.
+- **Bar 4** — a `plain` call immediately after was refused by the router's own
+  gate (`skipReason: "below_threshold"`, counter consumed). `rate_limited` was
+  NOT observed live and is not claimed: reaching it needs counter ≥ 150, i.e.
+  ~50 staged crossings; that path is covered by the existing
+  `smoke-5a-reflection`, and the pump passes no threshold/interval override
+  except in the sleep pass.
+- **Bar 6** — every call site drops the promise; the desk kept rendering and
+  walking across dozens of dispatches.
+
+**Bar 7 is NOT confirmed and is the slice's open item.** The morning-dispatch
+banner mounts (`mountMorningDispatch` returns a teardown), sits at a valid
+on-screen rect (e.g. 132×52 at x 254, y 24 in a 640×520 window), **persists**
+(identical bounds + ink 1.2 s later, 4 stage children, visible/renderable/α=1),
+and `renderer.extract.pixels` counts 5.5k-20k opaque pixels tracking the text
+length. It never appeared in a capture. Ruled out: teardown-before-capture,
+a second Application (one canvas in the DOM), region-capture grabbing the wrong
+window (window-id capture agrees), and a frozen ticker (clouds advance). NOT
+ruled out: that the extract counts ALPHA rather than contrast, so a banner
+drawn in ink that does not read against the sky would look exactly like this.
+Next check is one line — extract RGB and compare luminance against `skyInk`.
+
+The buffer half of bar 7 IS confirmed: `buffered: 1` → after the night pass
+`buffered: 0`, so a second wake with nothing new shows nothing.
+
+**Session hygiene note:** repeated HMR reloads during verification make the
+desk's `__terminal` and the composited frame disagree in confusing ways; a
+`location.reload()` before any screenshot-based check is worth the 8 seconds.
+
+---
+
 **T3 slice 2 SHIPPED 2026-08-09 — the masthead and the parting frame; T3 is
 code-complete.** Eyeball open. Spec + frozen bars:
 `docs/superpowers/specs/2026-08-09-t3-slice2-design.md`. Two independent moves,

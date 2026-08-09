@@ -119,6 +119,9 @@ export interface ElectronAPI {
   /** T2 society — current agentId→home-wing map, for hydration on terminal
    *  mount (mirrors src/api/electron.ts). */
   getTerminalSociety(): Promise<Record<string, string>>;
+  /** T4 — current agentId→terminalId roster (who is WHERE right now), pulled
+   *  only when a Tier-2 reflection is about to fire. */
+  getTerminalRoster(): Promise<Record<string, string>>;
   /** Topology changes from the main-process broker (snap/un-snap). */
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
@@ -227,6 +230,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>,
   getTerminalSociety: () =>
     ipcRenderer.invoke('terminal:getSociety') as Promise<Record<string, string>>,
+  getTerminalRoster: () =>
+    ipcRenderer.invoke('terminal:getRoster') as Promise<Record<string, string>>,
   onTerminalTopology: (cb) => {
     const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);
