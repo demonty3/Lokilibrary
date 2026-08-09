@@ -2318,10 +2318,16 @@ on-screen rect (e.g. 132×52 at x 254, y 24 in a 640×520 window), **persists**
 and `renderer.extract.pixels` counts 5.5k-20k opaque pixels tracking the text
 length. It never appeared in a capture. Ruled out: teardown-before-capture,
 a second Application (one canvas in the DOM), region-capture grabbing the wrong
-window (window-id capture agrees), and a frozen ticker (clouds advance). NOT
-ruled out: that the extract counts ALPHA rather than contrast, so a banner
-drawn in ink that does not read against the sky would look exactly like this.
-Next check is one line — extract RGB and compare luminance against `skyInk`.
+window (window-id capture agrees), and a frozen ticker (clouds advance). The
+contrast hypothesis is dead too: the banner draws `fgBright` `#f2fff2` on
+phosphor's `#0a0a0a` sky, so it is near-white on near-black at maximum
+contrast. **So this is a suspected real defect, not a capture artifact.** The
+remaining suspects, cheapest first: the stage-order assumption (is the last
+`app.stage` child genuinely composited last in this app, given `world` carries
+a render group?), and whether the banner needs to live inside `world` rather
+than beside it on this surface. Nothing about it is load-bearing for the rest
+of T4 — the reflections, the topology line and the plan targeting are all
+independently verified — so it is a one-slice follow-up, not a blocker.
 
 The buffer half of bar 7 IS confirmed: `buffered: 1` → after the night pass
 `buffered: 0`, so a second wake with nothing new shows nothing.
