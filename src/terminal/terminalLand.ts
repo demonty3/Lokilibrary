@@ -154,6 +154,7 @@ import {
 import { deskTopology, deskTopologyLine, reachableWings } from './deskTopology';
 import {
   mountMorningDispatch,
+  type MorningDispatchHandle,
   type MorningDispatchLine,
 } from '../render/overlays/morning-dispatch';
 import type { AgentRuntimeState } from '../state/agentRuntime';
@@ -469,6 +470,19 @@ declare global {
         bannerOpen: boolean;
         bannerRect?: { x: number; y: number; w: number; h: number; screen: string; stage: string[]; ink: number | string };
       }>;
+      /** e2e only — T4 follow-up. Mount the morning-dispatch banner with
+       *  CANNED lines: bar 7 is a RENDER question, and routing it through a
+       *  real Sonnet dispatch made every look cost a call and a wait. Same
+       *  `mountMorningDispatch` the wake path calls. */
+      debugBanner(lines?: number): {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        screen: string;
+        stage: string[];
+        ink: number | string;
+      };
       debugEdgeFrame(): Record<
         'left' | 'right',
         {
@@ -1493,7 +1507,23 @@ export async function mountTerminalLand(
   };
   /** Reflections produced while asleep, drained by the wake banner. */
   const nightDispatch: MorningDispatchLine[] = [];
-  let dispatchBanner: (() => void) | null = null;
+  let dispatchBanner: MorningDispatchHandle | null = null;
+  /** Mount the wake banner and KEEP THE HANDLE HONEST: the overlay's own
+   *  auto-dismiss is internal, so `onDismiss` is the only thing that drops
+   *  our reference when the 30 s runs out. Without it `bannerOpen` stays
+   *  true forever after the first banner — which is what made T4's bar 7
+   *  read as a render defect. */
+  const showDispatch = (lines: MorningDispatchLine[]): void => {
+    dispatchBanner?.dismiss();
+    dispatchBanner = mountMorningDispatch({
+      app,
+      theme,
+      lines,
+      onDismiss: () => {
+        dispatchBanner = null;
+      },
+    });
+  };
 
   /** Build the desk line for a reflection. Pulls the roster (who is WHERE)
    *  at dispatch time — see the broker's `terminal:getRoster` comment. */
@@ -1538,9 +1568,14 @@ export async function mountTerminalLand(
     return result;
   };
 
-  /** The mounted banner's on-screen rect, read off the stage. `mountMorning
-   *  Dispatch` hands back only a teardown, so this is how the harness sees
-   *  where it landed (and whether it landed on screen at all). */
+  /** The mounted banner's on-screen rect, read off the OVERLAY'S OWN
+   *  container. It used to read `stage.children[last]` — which is the
+   *  banner only by luck: a `scanlines` pack (amber-crt) adds a stage child
+   *  above it, and once the 30 s auto-dismiss has fired the last child is
+   *  the masthead. That is exactly how T4's bar 7 came to report a
+   *  destroyed banner as present-with-ink at a plausible rect, and to be
+   *  written up as a render defect. Returns nulls when nothing is mounted
+   *  instead of measuring a bystander. */
   const bannerRect = (): {
     x: number;
     y: number;
@@ -1550,8 +1585,8 @@ export async function mountTerminalLand(
     stage: string[];
     ink: number | string;
   } => {
-    const top = app.stage.children[app.stage.children.length - 1];
-    const b = top?.getBounds();
+    const top = dispatchBanner?.view;
+    const b = top && !top.destroyed ? top.getBounds() : undefined;
     return {
       x: Math.round(b?.x ?? -1),
       y: Math.round(b?.y ?? -1),
@@ -1563,7 +1598,12 @@ export async function mountTerminalLand(
       ),
       ink: (() => {
         // Does the banner put INK on the canvas? Bounds prove it is in the
-        // scene graph; only the extracted pixels prove it is drawn.
+        // scene graph; only the extracted pixels prove it is drawn. NOTE
+        // this is an isolated re-render — it stays non-zero even when the
+        // composited frame never showed the banner, so it is evidence the
+        // overlay CAN draw, never that the user saw it. Only a capture
+        // settles that.
+        if (!top || top.destroyed) return 0;
         try {
           const px = app.renderer.extract.pixels(top).pixels as Uint8ClampedArray;
           let lit = 0;
@@ -1613,8 +1653,7 @@ export async function mountTerminalLand(
       }
     }
     if (waking && nightDispatch.length > 0) {
-      dispatchBanner?.();
-      dispatchBanner = mountMorningDispatch({ app, theme, lines: nightDispatch.slice() });
+      showDispatch(nightDispatch.slice());
       // Drained, not kept: a second wake with nothing new must show nothing.
       nightDispatch.length = 0;
     }
@@ -2498,8 +2537,7 @@ export async function mountTerminalLand(
         night ? { sleeping: true } : mode === 'force' ? { force: true } : {},
       );
       if (night && nightDispatch.length > 0) {
-        dispatchBanner?.();
-        dispatchBanner = mountMorningDispatch({ app, theme, lines: nightDispatch.slice() });
+        showDispatch(nightDispatch.slice());
         nightDispatch.length = 0;
       }
       return {
@@ -2523,6 +2561,16 @@ export async function mountTerminalLand(
         // report open, so bar 7 needs the rect.
         ...(dispatchBanner && { bannerRect: bannerRect() }),
       };
+    },
+    debugBanner: (lines = 2) => {
+      showDispatch(
+        Array.from({ length: Math.max(1, lines) }, (_, i) => ({
+          agentName: COHORT[i % COHORT.length].name,
+          text: 'the terminals beckon like warm spots',
+          hadPlan: i === 0,
+        })),
+      );
+      return bannerRect();
     },
     debugEdgeFrame: () => {
       const r3 = (n: number): number => Math.round(n * 1000) / 1000;

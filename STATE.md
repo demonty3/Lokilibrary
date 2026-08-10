@@ -2311,26 +2311,59 @@ VERIFIED ON SCREEN (macOS, joined two-window desk, Worker up, real Sonnet):
 - **Bar 6** — every call site drops the promise; the desk kept rendering and
   walking across dozens of dispatches.
 
-**Bar 7 is NOT confirmed and is the slice's open item.** The morning-dispatch
-banner mounts (`mountMorningDispatch` returns a teardown), sits at a valid
-on-screen rect (e.g. 132×52 at x 254, y 24 in a 640×520 window), **persists**
-(identical bounds + ink 1.2 s later, 4 stage children, visible/renderable/α=1),
-and `renderer.extract.pixels` counts 5.5k-20k opaque pixels tracking the text
-length. It never appeared in a capture. Ruled out: teardown-before-capture,
-a second Application (one canvas in the DOM), region-capture grabbing the wrong
-window (window-id capture agrees), and a frozen ticker (clouds advance). The
-contrast hypothesis is dead too: the banner draws `fgBright` `#f2fff2` on
-phosphor's `#0a0a0a` sky, so it is near-white on near-black at maximum
-contrast. **So this is a suspected real defect, not a capture artifact.** The
-remaining suspects, cheapest first: the stage-order assumption (is the last
-`app.stage` child genuinely composited last in this app, given `world` carries
-a render group?), and whether the banner needs to live inside `world` rather
-than beside it on this surface. Nothing about it is load-bearing for the rest
-of T4 — the reflections, the topology line and the plan targeting are all
-independently verified — so it is a one-slice follow-up, not a blocker.
+**Bar 7 is CONFIRMED (2026-08-10). There was never a render defect — the
+INSTRUMENT was measuring a bystander.** The banner had been auto-dismissed
+before every capture, and `bannerRect()` then silently measured whatever was
+left at the top of the stage.
 
-The buffer half of bar 7 IS confirmed: `buffered: 1` → after the night pass
-`buffered: 0`, so a second wake with nothing new shows nothing.
+Two faults, both in the measuring apparatus, both now fixed:
+
+1. `mountMorningDispatch` returned a bare teardown; its 30 s auto-dismiss
+   called that teardown INTERNALLY and never told the caller. So
+   `dispatchBanner` stayed non-null forever after the first banner and
+   `bannerOpen` reported `true` against a destroyed container.
+2. `bannerRect()` read `app.stage.children[last]` — the banner only by luck.
+   Once auto-dismissed, `last` is the **masthead**: a static overlay that
+   yields a plausible rect, identical bounds on every re-read ("persists"),
+   and real ink that tracks its own text length. On an `amber-crt` terminal
+   it would have measured the scanline field instead, always.
+
+Every symptom follows: the "valid rect" and the "5.5k-20k opaque pixels" were
+the masthead's; "identical bounds 1.2 s later" is what a static overlay does;
+and the capture was right all along — by then there was no banner to show.
+The contrast, stage-order, render-group and inside-`world` hypotheses were all
+chasing a phantom; none of them needed to be true.
+
+The fix: `mountMorningDispatch` now returns a `MorningDispatchHandle`
+(`{view, dismiss}`) plus an `onDismiss` callback, so the caller's handle dies
+with the banner and the probe measures the overlay's OWN container. `debugBanner(n)`
+mounts the banner from canned lines — bar 7 is a render question and routing
+it through a live Sonnet dispatch made every look cost a call and a wait.
+Third fix, unrelated to the phantom but real: the auto-dismiss counted
+`performance.now()` while its own comment claimed ticker time, so the 30 s
+burned down on a stopped/throttled ticker exactly as the comment warned a
+`setTimeout` would; it now accumulates `ticker.deltaMS`.
+
+VERIFIED ON SCREEN (macOS, joined two-window desk, fresh boot): the banner
+composites at 179,24 (282×65 in a 640×520 window) over the phosphor sky, all
+four lines legible — header, `Loki: …`, `↳ and made a plan`, `Archivist: …`.
+Held at `debugClock(12)` (daylight 1.0) it stays legible, so it needs no
+masthead-style backing: every shipped pack is dark-ground and phosphor's noon
+sky is still a dark teal. Independently reproduced in headless Chrome at
+dpr 1, so it is not a Retina or an Electron-surface effect. The instrument's
+own two-sided check: 30 s after mount it now reports `bannerOpen: false` with
+no rect, where before it reported `bannerOpen: true` with a 616×30 rect and
+ink 6000.
+
+The buffer half of bar 7 was already confirmed: `buffered: 1` → after the night
+pass `buffered: 0`, so a second wake with nothing new shows nothing.
+
+**Open, and a design call rather than a defect:** the banner draws at 1× while
+the whole desk draws at `WORLD_SCALE` (2×), so it is the only off-grid element
+on the surface — the masthead, the marginalia captions and the land are all on
+the 2× cell grid. Legible as-is; it just reads as pasted-on rather than as part
+of the terminal. Moving it to the grid needs column wrapping (a 42-char line
+fits 640 px at 2×, a two-sentence reflection does not).
 
 **Session hygiene note:** repeated HMR reloads during verification make the
 desk's `__terminal` and the composited frame disagree in confusing ways; a

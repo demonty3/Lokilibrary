@@ -48,20 +48,35 @@ export interface MountMorningDispatchOptions {
   lines: ReadonlyArray<MorningDispatchLine>;
   /** Auto-dismiss after this many ms. Default 30_000. */
   dismissAfterMs?: number;
+  /** Fired once when the banner goes away — by the auto-dismiss timer as
+   *  well as by an explicit `dismiss()`. A caller that holds the handle
+   *  MUST use this to drop it: the auto-dismiss is internal, so without it
+   *  the caller's handle outlives the banner and reports a destroyed
+   *  overlay as still open (T4 bar 7 was mis-measured for exactly this
+   *  reason — see `bannerRect` in terminalLand.ts). */
+  onDismiss?: () => void;
 }
 
-/** Mount the banner. Returns a teardown function the caller can use to
- *  dismiss early (e.g. if SLEEPING fires again before the auto-dismiss
- *  elapsed; rare, but the cleanup matters). The auto-dismiss timer also
- *  calls the teardown internally; calling teardown twice is safe.
+/** A mounted banner. `view` is the overlay's own container — held so a
+ *  caller can measure THE BANNER rather than guess at it from the stage
+ *  (the last stage child is not the banner: a `scanlines` pack adds one
+ *  after it, and after an auto-dismiss it is the masthead). */
+export interface MorningDispatchHandle {
+  readonly view: Container;
+  /** Dismiss early (e.g. SLEEPING fires again before the auto-dismiss
+   *  elapsed). Idempotent — the auto-dismiss timer calls this too. */
+  dismiss(): void;
+}
+
+/** Mount the banner.
  *
  *  Returns `null` when `lines.length === 0` — no point mounting an
- *  empty banner. Caller treats `null` as "nothing to show, no
- *  teardown needed."
+ *  empty banner. Caller treats `null` as "nothing to show, nothing
+ *  to dismiss."
  */
 export function mountMorningDispatch(
   opts: MountMorningDispatchOptions,
-): (() => void) | null {
+): MorningDispatchHandle | null {
   if (opts.lines.length === 0) return null;
   const dismissAfterMs = opts.dismissAfterMs ?? 30_000;
 
@@ -87,7 +102,6 @@ export function mountMorningDispatch(
   reposition();
   opts.app.renderer.on('resize', reposition);
 
-  const mountedAt = performance.now();
   let torndown = false;
   const teardown = (): void => {
     if (torndown) return;
@@ -95,22 +109,24 @@ export function mountMorningDispatch(
     opts.app.ticker.remove(autoDismissTick);
     opts.app.renderer.off('resize', reposition);
     container.destroy({ children: true });
+    opts.onDismiss?.();
   };
 
-  // Use the PIXI ticker for auto-dismiss timing rather than setTimeout
-  // — the ticker is stopped during SLEEPING/PAUSED so a setTimeout
-  // would auto-dismiss BEFORE the user actually saw the banner if
-  // they immediately re-entered sleep. PIXI ticker delta-time
-  // advances with actual rendering, so the 30s elapses against the
-  // user's visible time.
-  const autoDismissTick: TickerCallback<unknown> = () => {
-    if (performance.now() - mountedAt >= dismissAfterMs) {
-      teardown();
-    }
+  // Auto-dismiss on ACCUMULATED TICKER TIME, not on the wall clock — the
+  // ticker is stopped during SLEEPING and runs at 1 Hz when throttled, so
+  // a wall-clock deadline (`performance.now()`, or a setTimeout) burns the
+  // banner's 30 s while nothing is being painted: the desk can re-enter
+  // sleep on the same wake and the morning artifact expires unseen.
+  // Summing `deltaMS` spends the budget only against frames the user was
+  // actually shown.
+  let shownMs = 0;
+  const autoDismissTick: TickerCallback<unknown> = (ticker) => {
+    shownMs += ticker.deltaMS;
+    if (shownMs >= dismissAfterMs) teardown();
   };
   opts.app.ticker.add(autoDismissTick);
 
-  return teardown;
+  return { view: container, dismiss: teardown };
 }
 
 /** Pure text builder — extracted for the smoke. Given a list of agent
