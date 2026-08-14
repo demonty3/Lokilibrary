@@ -171,6 +171,13 @@ export function mountMorningDispatch(
  *  visibly owned by the agent line above it. */
 const WRAP_INDENT = '  ';
 
+/** The rules that cap the banner top and bottom. `RULE_MIN_COLS` is the
+ *  header at its shortest — a rule narrower than its own label would read as
+ *  a mistake, so it is the floor for a one-line dispatch. */
+const RULE = '─';
+const HEAD_LABEL = '── overnight ';
+const RULE_MIN_COLS = 15;
+
 /** Greedy word-wrap to `maxCols` columns, indenting continuations. A word
  *  longer than the whole width is hard-broken rather than allowed to
  *  overhang — on the grid an overhanging row is the one thing that reads
@@ -204,13 +211,14 @@ function wrapRow(row: string, maxCols: number): string[] {
 }
 
 /** Pure text builder — extracted for the smoke. Given a list of agent
- *  reflection lines, produce the multi-line banner text. Format:
+ *  reflection lines, produce the multi-line banner text. Format — the rules
+ *  span the widest row, so the dispatch reads as one panel:
  *
- *      ── overnight ──
+ *      ── overnight ───────────────────────────────────────────
  *      Loki: the player keeps returning to the Hades shelf
  *        ↳ and made a plan
  *      Archivist: someone has been near the south door tonight
- *      ──
+ *      ────────────────────────────────────────────────────────
  *
  *  `maxCols` wraps every row to that many columns (continuations indented
  *  by `WRAP_INDENT`). Omitted, rows run as long as the reflection does —
@@ -233,13 +241,12 @@ export function renderDispatch(
     return line.hadPlan ? [...rows, ...wrap('  ↳ and made a plan')] : rows;
   });
 
-  const head = wrap('── overnight ──');
   let shown = groups.length;
   if (maxRows !== undefined) {
-    // Budget is the window minus the header and the footer. At least one
-    // group always shows — a single over-long reflection is better spilled
-    // than swallowed.
-    const budget = maxRows - head.length - 1;
+    // Budget is the window minus the header and footer rules, one row each.
+    // At least one group always shows — a single over-long reflection is
+    // better spilled than swallowed.
+    const budget = maxRows - 2;
     let used = 0;
     shown = 0;
     for (const g of groups) {
@@ -248,8 +255,19 @@ export function renderDispatch(
       shown++;
     }
   }
+  const body = groups.slice(0, shown).flat();
   const dropped = groups.length - shown;
-  // Never a silent cap: the footer rule says what the budget cost.
-  const foot = wrap(dropped > 0 ? `── +${dropped} more ──` : '──');
-  return [...head, ...groups.slice(0, shown).flat(), ...foot].join('\n');
+
+  // The rules span the block, so they read as the top and bottom of one
+  // panel rather than as two stubs floating above and below it. Width is the
+  // widest row actually shown (never wider — every body row is already
+  // wrapped inside `maxCols`), floored so a one-line dispatch still gets a
+  // rule long enough to carry the label.
+  const width = Math.max(RULE_MIN_COLS, ...body.map((r) => r.length));
+  // Header opens at the left, footer closes at the right: the drop count is
+  // the one thing the footer has to say, so it sits where a reader lands.
+  const head = HEAD_LABEL + RULE.repeat(Math.max(0, width - HEAD_LABEL.length));
+  const footLabel = dropped > 0 ? ` +${dropped} more ──` : '';
+  const foot = RULE.repeat(Math.max(1, width - footLabel.length)) + footLabel;
+  return [head, ...body, foot].join('\n');
 }

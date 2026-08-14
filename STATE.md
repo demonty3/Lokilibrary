@@ -2373,15 +2373,24 @@ so it read as pasted on rather than as part of the terminal. Now:
   blank row between. Measured: x 24, y 52 — both exact multiples of the 12×26
   cell.
 - **Bounded** to the rows below `topRow`, dropping WHOLE agents (half a
-  reflection reads worse than an omitted one) and saying so in the footer rule:
-  `── +2 more ──`. This bound is the scale-up's own debt — the reflect prompt
-  caps a reflection at 140 chars, so a six-agent cohort is ~32 rows, which
-  fitted at 1× and would have run off the bottom at 2×.
+  reflection reads worse than an omitted one) and saying so in the footer rule.
+  This bound is the scale-up's own debt — the reflect prompt caps a reflection
+  at 140 chars, so a six-agent cohort is ~32 rows, which fitted at 1× and would
+  have run off the bottom at 2×.
+- **Ruled across the block**: header and footer span the widest row actually
+  shown, so the dispatch reads as one panel rather than as two stubs floating
+  above and below it. The header opens at the left (`── overnight ────…`), the
+  footer closes at the right (`────… +2 more ──`) — the drop count is the one
+  thing the footer has to say, so it sits where a reader lands. Width floors at
+  the header's own label length, so a one-line dispatch still gets a rule long
+  enough to carry it.
 
 `renderDispatch(lines, maxCols?, maxRows?)` carries all of it and stays pure;
-the palace passes neither and is untouched. Six new smokes in `smoke-5b-sleep`
-(43 assertions), **mutant-checked**: ignoring the row budget → 3 red including
-the whole-agents discriminator; capping silently (plain `──` footer) → 1 red.
+the palace passes neither for scale/wrap and is untouched apart from inheriting
+the spanning rules, which suit its centred block too. `smoke-5b-sleep` is at 44
+assertions, **mutant-checked three ways**: ignoring the row budget → 3 red
+including the whole-agents discriminator; capping silently → 1 red; sizing the
+rules off the last body row instead of the widest → 3 red.
 
 VERIFIED ON SCREEN, both terminals, both packs: four agents at a realistic
 reflection length sit entirely in the sky above the ground line; the six-agent

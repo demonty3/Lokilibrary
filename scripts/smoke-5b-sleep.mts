@@ -194,10 +194,17 @@ check('consume: returned array is readonly-friendly', Array.isArray(firstDrain) 
 // ---------------------------------------------------------------------------
 // 3. renderDispatch text builder
 
+// The rules span the widest row shown, so the dispatch reads as one panel
+// rather than as two stubs. `RULE_MIN` is the header at its shortest — the
+// floor for a banner whose content is narrower than its own label.
+const RULE_MIN = 15;
+const rule = (n: number): string => '─'.repeat(n);
+const head = (n: number): string => `── overnight ${rule(Math.max(0, n - 13))}`;
+
 const empty = renderDispatch([]);
 check(
-  'renderDispatch: empty lines → just the header + footer',
-  empty === '── overnight ──\n──',
+  'renderDispatch: empty lines → header + footer, both at the minimum width',
+  empty === `${head(RULE_MIN)}\n${rule(RULE_MIN)}`,
 );
 
 const one = renderDispatch([
@@ -205,7 +212,8 @@ const one = renderDispatch([
 ]);
 check(
   'renderDispatch: single line with plan suffix',
-  one === '── overnight ──\nLoki: the player keeps returning to the Hades shelf\n  ↳ and made a plan\n──',
+  one ===
+    `${head(51)}\nLoki: the player keeps returning to the Hades shelf\n  ↳ and made a plan\n${rule(51)}`,
 );
 
 const multi = renderDispatch([
@@ -214,7 +222,14 @@ const multi = renderDispatch([
 ]);
 check(
   'renderDispatch: multi-line, mixed hadPlan',
-  multi === '── overnight ──\nLoki: noticed the kitchen\nArchivist: someone has been near the south door\n  ↳ and made a plan\n──',
+  multi ===
+    `${head(47)}\nLoki: noticed the kitchen\nArchivist: someone has been near the south door\n  ↳ and made a plan\n${rule(47)}`,
+);
+check(
+  'renderDispatch: the rules span the WIDEST row, not the last one',
+  // 'Archivist: …' is 46; the last body row ('  ↳ …') is 19. A rule sized off
+  // the last row instead of the widest would come back 19.
+  multi.split("\n")[0].length === 47 && multi.split("\n").at(-1)!.length === 47,
 );
 
 // Whitespace normalisation
@@ -223,7 +238,7 @@ const messy = renderDispatch([
 ]);
 check(
   'renderDispatch: collapses whitespace in reflection text',
-  messy === '── overnight ──\nLoki: the player keeps returning\n──',
+  messy === `${head(32)}\nLoki: the player keeps returning\n${rule(32)}`,
 );
 
 // --- Grid wrapping (2026-08-14) --------------------------------------------
@@ -242,13 +257,17 @@ check(
   'renderDispatch(maxCols): continuations are indented, first lines are not',
   wrappedRows[1] === 'Loki: the player keeps' && wrappedRows[2] === '  returning to the Hades',
 );
+/** Body only — the rules are sized off the content, so comparing them across
+ *  two different wrap widths would compare the wrapping to itself. */
+const body = (s: string): string[] => s.split('\n').slice(1, -1);
 check(
   'renderDispatch(maxCols): wrapping preserves every word, in order',
-  wrappedRows.join(' ').replace(/\s+/g, ' ') ===
-    renderDispatch([
-      { agentName: 'Loki', text: 'the player keeps returning to the Hades shelf', hadPlan: true },
-    ])
-      .split('\n')
+  body(WRAPPED).join(' ').replace(/\s+/g, ' ') ===
+    body(
+      renderDispatch([
+        { agentName: 'Loki', text: 'the player keeps returning to the Hades shelf', hadPlan: true },
+      ]),
+    )
       .join(' ')
       .replace(/\s+/g, ' '),
 );
@@ -258,11 +277,11 @@ check(
 );
 // A word wider than the whole line is hard-broken — an overhanging row is the
 // one thing that reads as broken on a grid.
-const longWord = renderDispatch([{ agentName: 'L', text: 'x'.repeat(40), hadPlan: false }], 12)
+const longWord = renderDispatch([{ agentName: 'L', text: 'x'.repeat(40), hadPlan: false }], 20)
   .split('\n');
 check(
   'renderDispatch(maxCols): an over-wide word is hard-broken, never overhangs',
-  longWord.every((r) => r.length <= 12) &&
+  longWord.every((r) => r.length <= 20) &&
     // Broken across rows, but every character survives the break.
     longWord.join('').split('x').length - 1 === 40,
 );
@@ -287,7 +306,9 @@ check(
 );
 check(
   'renderDispatch(maxRows): the dropped count is stated, not silent',
-  budgeted[budgeted.length - 1] === '── +4 more ──',
+  // Closes at the RIGHT of the footer rule, mirroring the header's label.
+  budgeted[budgeted.length - 1].endsWith(' +4 more ──') &&
+    budgeted[budgeted.length - 1].length === budgeted[0].length,
 );
 check(
   'renderDispatch(maxRows): agents are dropped WHOLE — no half reflection',
@@ -296,8 +317,8 @@ check(
     budgeted.filter((r) => r === '  ↳ and made a plan').length === 2,
 );
 check(
-  'renderDispatch(maxRows): a budget nobody exceeds leaves the plain footer',
-  renderDispatch(SIX.slice(0, 1), 51, 12).split('\n').at(-1) === '──',
+  'renderDispatch(maxRows): a budget nobody exceeds leaves an unlabelled rule',
+  /^─+$/.test(renderDispatch(SIX.slice(0, 1), 51, 12).split('\n').at(-1)!),
 );
 check(
   'renderDispatch(maxRows): one over-long reflection spills rather than vanishing',
