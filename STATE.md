@@ -24,6 +24,17 @@ draw from the PRD's remaining column: T2-completion runtime (real
 cohort + LLM rails in terminal lands), T3 chrome remainder, T4
 topology→reflection, T5 orchestration, terminals-as-wallpaper.
 
+**Direction 2026-08-14 — single-surface focus.** Harry paused the web
+build as a per-slice build/verify target: he only actually lives with
+the Electron desk on the MacBook, and maintaining + testing two apps
+doubles the verification cost for one used surface. The desktop app
+(wallpaper, peek, launcher) is the sole active build-and-test surface;
+the web/share build stays in the tree as the future share surface but
+gets no per-slice verification, no bundle-size policing, and no new
+investment until unpaused. Slices verify via the launch-desktop-app
+skill (CDP-driven Electron) plus smokes; scripts/e2e harness runs that
+target the browser build are no longer a gate.
+
 **Style-pack surface SHIPPED + cold-tested 2026-07-31** (commit `6676111`).
 Themes now carry the three pack slots — 13-key palette, optional
 `landGlyphs` glyph dialect (render-side `landRoleGlyph` in
