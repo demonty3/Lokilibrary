@@ -107,6 +107,7 @@ import { composeLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type La
 import {
   getTerminalSociety,
   getTerminalTopology,
+  getTerminalOrchestration,
   getTerminalRoster,
   getThrottleState,
   subscribeTerminalAgentEnter,
@@ -116,6 +117,9 @@ import {
   subscribeDeskAttention,
   terminalAgentExit,
   terminalAgentSpawn,
+  terminalApplyProposal,
+  terminalDismissProposal,
+  terminalProposeTopology,
   terminalReportNearEdge,
   type TerminalJoin,
   type ThrottleState,
@@ -151,7 +155,8 @@ import {
   type MemoryWriter,
   type ReflectRouteResult,
 } from '../agents/router';
-import { deskTopology, deskTopologyLine, reachableWings } from './deskTopology';
+import { deskTopology, deskTopologyLine, reachableWings, type DeskTopology } from './deskTopology';
+import { extractProposalCandidate, proposalDispatchRows, proposalHitSpans } from './deskProposal';
 import {
   mountMorningDispatch,
   type MorningDispatchHandle,
@@ -447,7 +452,7 @@ declare global {
       /** e2e only — T4. The desk line a reflection would read right now, plus
        *  the resolved topology behind it. The organic trigger is ~50 seam
        *  crossings, so the bars need to see the line without waiting for it. */
-      debugTopology(): Promise<{
+      debugTopology(proposals?: boolean): Promise<{
         line: string;
         here: string;
         joined: { left?: string; right?: string };
@@ -485,6 +490,32 @@ declare global {
         screen: string;
         stage: string[];
         ink: number | string;
+      };
+      /** e2e only — T5. One sleeping+proposals reflection for `agentId`
+       *  (threshold force-bypassed — organic is ~50 crossings), reporting
+       *  the extracted candidate and the broker's verdict. */
+      debugSleepSweep(agentId: string): Promise<{
+        dispatched: boolean;
+        skipReason?: string;
+        proposal: { wing: string; accepted: boolean } | null;
+        pending: { wing: string; agentName: string } | null;
+      }>;
+      /** e2e only — T5. Submit a proposal for `wing` over the REAL IPC and
+       *  mount the banner if it was accepted — the render/tap surface
+       *  without a Sonnet call (the debugBanner posture). */
+      debugProposal(wing?: string): Promise<{
+        accepted: boolean;
+        reason: string | null;
+        pending: { wing: string; agentName: string } | null;
+        bannerOpen: boolean;
+        bannerRect?: { x: number; y: number; w: number; h: number; screen: string; stage: string[]; ink: number | string };
+      }>;
+      /** e2e only — T5. Drive the SAME code path a pointer tap on a
+       *  proposal bracket drives. */
+      debugTapProposal(which: 'apply' | 'dismiss'): {
+        tapped: boolean;
+        pending: { wing: string; agentName: string } | null;
+        bannerOpen: boolean;
       };
       debugEdgeFrame(): Record<
         'left' | 'right',
@@ -1474,6 +1505,10 @@ export async function mountTerminalLand(
   };
   const onPointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
+    // T5: the proposal brackets outrank the launch hotspots while a
+    // proposal banner is up — same input path, tested first.
+    const pHit = dispatchBanner?.proposalHit(e.offsetX, e.offsetY) ?? null;
+    if (pHit && tapProposal(pHit)) return;
     const c = cellAt(e);
     const hit = hitLaunchTarget(launchHotspots, c.x, c.y);
     if (hit) beginErrand(hit);
@@ -1510,13 +1545,17 @@ export async function mountTerminalLand(
   };
   /** Reflections produced while asleep, drained by the wake banner. */
   const nightDispatch: MorningDispatchLine[] = [];
+  /** T5 — the proposal THIS window won overnight, if any. Session-scoped
+   *  mirror of the broker's slot: set on an accepted candidate, cleared on
+   *  apply, dismiss (tap or timeout) and the next sleeping transition. */
+  let pendingProposal: { wing: string; agentName: string } | null = null;
   let dispatchBanner: MorningDispatchHandle | null = null;
   /** Mount the wake banner and KEEP THE HANDLE HONEST: the overlay's own
    *  auto-dismiss is internal, so `onDismiss` is the only thing that drops
    *  our reference when the 30 s runs out. Without it `bannerOpen` stays
    *  true forever after the first banner — which is what made T4's bar 7
    *  read as a render defect. */
-  const showDispatch = (lines: MorningDispatchLine[]): void => {
+  const showDispatch = (lines: MorningDispatchLine[], proposal?: { wing: string }): void => {
     dispatchBanner?.dismiss();
     dispatchBanner = mountMorningDispatch({
       app,
@@ -1527,27 +1566,50 @@ export async function mountTerminalLand(
       // at WORLD_SCALE, so it read as pasted on rather than as part of the
       // terminal. Row 2 leaves the masthead its row 0 plus a blank row.
       grid: { scale: WORLD_SCALE, topRow: BANNER_TOP_ROW },
+      ...(proposal && {
+        proposal: { rows: proposalDispatchRows(proposal.wing), hit: proposalHitSpans(proposal.wing) },
+      }),
       onDismiss: () => {
         dispatchBanner = null;
+        // The 30 s timeout IS a dismissal (Harry's call: a missed proposal
+        // evaporates). A tap clears pendingProposal FIRST, so this only
+        // fires the IPC for the timeout / implicit path.
+        if (pendingProposal) {
+          pendingProposal = null;
+          void terminalDismissProposal().catch(() => undefined);
+        }
       },
     });
   };
 
-  /** Build the desk line for a reflection. Pulls the roster (who is WHERE)
-   *  at dispatch time — see the broker's `terminal:getRoster` comment. */
-  const topologyLine = async (): Promise<string> => {
+  /** The desk as this window sees it, roster included. Pulled at dispatch
+   *  time — see the broker's `terminal:getRoster` comment. */
+  const deskSnapshot = async (): Promise<DeskTopology> => {
     const roster = await getTerminalRoster();
-    return deskTopologyLine(
-      deskTopology({
-        terminalId,
-        wing,
-        joins: lastTopology.joins,
-        wings: lastTopology.wings,
-        allWings: lastTopology.allWings,
-        roster,
-        names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
-      }),
-    );
+    return deskTopology({
+      terminalId,
+      wing,
+      joins: lastTopology.joins,
+      wings: lastTopology.wings,
+      allWings: lastTopology.allWings,
+      roster,
+      names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
+    });
+  };
+
+  /** T5 — one tap on a proposal bracket. Clears the local mirror BEFORE
+   *  dismissing the banner, so the banner's own onDismiss (the timeout /
+   *  implicit path) never double-fires the dismiss IPC. Apply's failure
+   *  modes (wing opened by hand overnight, no room) fizzle silently — the
+   *  quiet no-op the spec promises. */
+  const tapProposal = (which: 'apply' | 'dismiss'): boolean => {
+    if (!pendingProposal || !dispatchBanner) return false;
+    const wing = pendingProposal.wing;
+    pendingProposal = null;
+    if (which === 'apply') void terminalApplyProposal(wing).catch(() => undefined);
+    else void terminalDismissProposal().catch(() => undefined);
+    dispatchBanner.dismiss();
+    return true;
   };
 
   /** One Tier-2 dispatch for `b`. Fire-and-forget by contract: every caller
@@ -1556,13 +1618,14 @@ export async function mountTerminalLand(
    *  budget the limit was holding capacity for (the palace's 5B semantics). */
   const reflectFor = async (
     b: Being,
-    opts: { sleeping?: boolean; force?: boolean } = {},
-  ): Promise<ReflectRouteResult> => {
+    opts: { sleeping?: boolean; force?: boolean; proposals?: boolean } = {},
+  ): Promise<ReflectRouteResult & { proposal?: { wing: string; accepted: boolean } }> => {
     const def = COHORT_BY_ID.get(b.id);
     if (!def) return { dispatched: false, skipReason: 'rejected' };
+    const t = await deskSnapshot();
     const result = await routeTier2(def, b.mind, Date.now(), {
       memory,
-      topology: await topologyLine(),
+      topology: deskTopologyLine(t, { proposals: opts.proposals === true }),
       ...(opts.sleeping && { reflectionMinIntervalMs: 0 }),
       ...(opts.force && { force: true }),
     });
@@ -1572,6 +1635,24 @@ export async function mountTerminalLand(
         text: result.reflection.text,
         hadPlan: result.plan !== undefined && result.plan.stepCount > 0,
       });
+    }
+    // T5 — the proposal candidate rides the same dispatch: the plan the
+    // router just stored on the mind is the only place step TARGETS live
+    // (the route result carries {text, stepCount} only, on purpose). No
+    // candidate → nothing happens (empty-mailbox). Awaiting the broker's
+    // answer is safe: every production caller drops reflectFor's promise,
+    // so the ticker and the walker never see this round-trip.
+    if (result.dispatched && opts.proposals === true) {
+      const cand = extractProposalCandidate(b.mind.activePlan?.steps ?? [], t);
+      if (cand) {
+        try {
+          const r = await terminalProposeTopology(cand.wing, b.id);
+          if (r.accepted) pendingProposal = { wing: cand.wing, agentName: def.name };
+          return { ...result, proposal: { wing: cand.wing, accepted: r.accepted } };
+        } catch {
+          return { ...result, proposal: { wing: cand.wing, accepted: false } };
+        }
+      }
     }
     return result;
   };
@@ -1654,14 +1735,26 @@ export async function mountTerminalLand(
     // transitions the launcher beat already uses, so "a real wake" means
     // exactly what deskThrottle.ts already proved it means (never initial).
     if (!isInitial && state === 'sleeping' && throttleState !== 'sleeping') {
+      // A new night: last night's unclaimed proposal evaporated broker-side
+      // (the broker clears BEFORE broadcasting this transition), so the
+      // local mirror follows.
+      pendingProposal = null;
       // One pass per present being, rate-limit bypassed. Fire-and-forget.
-      for (const b of beings.values()) {
-        if (!b.mind.present || b.away) continue;
-        void reflectFor(b, { sleeping: true }).catch(() => undefined);
-      }
+      // T5: the opt-in is pulled ONCE per sweep, not per being — sweeps are
+      // rare and the answer cannot change mid-sweep in any way we honour.
+      void getTerminalOrchestration()
+        .then((proposals) => {
+          for (const b of beings.values()) {
+            if (!b.mind.present || b.away) continue;
+            void reflectFor(b, { sleeping: true, proposals }).catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
     }
-    if (waking && nightDispatch.length > 0) {
-      showDispatch(nightDispatch.slice());
+    if (waking && (nightDispatch.length > 0 || pendingProposal !== null)) {
+      // T5: a proposal mounts the banner even on a night with no narrated
+      // reflections — the proposal IS the dispatch.
+      showDispatch(nightDispatch.slice(), pendingProposal ?? undefined);
       // Drained, not kept: a second wake with nothing new must show nothing.
       nightDispatch.length = 0;
     }
@@ -2512,18 +2605,9 @@ export async function mountTerminalLand(
       backCols: mastBackCols,
       cols: model.width,
     }),
-    debugTopology: async () => {
-      const roster = await getTerminalRoster();
-      const t = deskTopology({
-        terminalId,
-        wing,
-        joins: lastTopology.joins,
-        wings: lastTopology.wings,
-        allWings: lastTopology.allWings,
-        roster,
-        names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
-      });
-      return { line: deskTopologyLine(t), ...t, reachable: reachableWings(t) };
+    debugTopology: async (proposals = false) => {
+      const t = await deskSnapshot();
+      return { line: deskTopologyLine(t, { proposals }), ...t, reachable: reachableWings(t) };
     },
     debugReflect: async (agentId, mode = 'force') => {
       const b = beings.get(agentId);
@@ -2580,6 +2664,36 @@ export async function mountTerminalLand(
       );
       return bannerRect();
     },
+    debugSleepSweep: async (agentId) => {
+      const b = beings.get(agentId);
+      if (!b) {
+        return { dispatched: false, skipReason: 'not_here', proposal: null, pending: pendingProposal };
+      }
+      const r = await reflectFor(b, { sleeping: true, proposals: true, force: true });
+      return {
+        dispatched: r.dispatched,
+        ...(r.skipReason && { skipReason: r.skipReason }),
+        proposal: r.proposal ?? null,
+        pending: pendingProposal,
+      };
+    },
+    debugProposal: async (wing = 'd5') => {
+      const r = await terminalProposeTopology(wing, 'debug');
+      if (r.accepted) pendingProposal = { wing, agentName: 'debug' };
+      if (pendingProposal) showDispatch(nightDispatch.slice(), pendingProposal);
+      return {
+        accepted: r.accepted,
+        reason: r.reason ?? null,
+        pending: pendingProposal,
+        bannerOpen: dispatchBanner !== null,
+        ...(dispatchBanner && { bannerRect: bannerRect() }),
+      };
+    },
+    debugTapProposal: (which) => ({
+      tapped: tapProposal(which),
+      pending: pendingProposal,
+      bannerOpen: dispatchBanner !== null,
+    }),
     debugEdgeFrame: () => {
       const r3 = (n: number): number => Math.round(n * 1000) / 1000;
       const read = (side: 'left' | 'right'): {

@@ -43,6 +43,9 @@ export interface Config {
   /** T2 society — agentId → home wing. Written by terminals.ts on every
    *  roster change; wings (not terminalIds) are the stable identity. */
   society?: Record<string, string>;
+  /** T5 Depth-3 opt-in — overnight topology proposals. Absent/false = off
+   *  (the default); only an explicit `true` survives a round-trip. */
+  orchestration?: boolean;
 }
 
 function isTerminalSlot(v: unknown): v is TerminalSlot {
@@ -82,6 +85,7 @@ function readConfig(): Config {
       displayId: typeof cfg.displayId === 'number' ? cfg.displayId : undefined,
       ...(terminals.length > 0 ? { terminals } : {}),
       ...(society ? { society } : {}),
+      ...(cfg.orchestration === true ? { orchestration: true } : {}),
     };
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -125,6 +129,17 @@ export function setTerminals(slots: TerminalSlot[] | undefined): void {
   const cfg = readConfig();
   if (!slots || slots.length === 0) delete cfg.terminals;
   else cfg.terminals = slots;
+  writeConfig(cfg);
+}
+
+export function getOrchestration(): boolean {
+  return readConfig().orchestration === true;
+}
+
+export function setOrchestration(on: boolean): void {
+  const cfg = readConfig();
+  if (!on) delete cfg.orchestration;
+  else cfg.orchestration = true;
   writeConfig(cfg);
 }
 

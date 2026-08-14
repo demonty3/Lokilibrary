@@ -122,6 +122,15 @@ export interface ElectronAPI {
   /** T4 — current agentId→terminalId roster (who is WHERE right now), pulled
    *  only when a Tier-2 reflection is about to fire. */
   getTerminalRoster(): Promise<Record<string, string>>;
+  /** T5 — is the Depth-3 overnight-proposal opt-in on? Pulled once per
+   *  night sweep. */
+  getTerminalOrchestration(): Promise<boolean>;
+  /** T5 — submit a night-sweep proposal candidate. First writer wins. */
+  terminalProposeTopology(wing: string, agentId: string): Promise<{ accepted: boolean; reason?: string }>;
+  /** T5 — apply the accepted proposal (this window must own it). */
+  terminalApplyProposal(wing: string): Promise<{ applied: boolean; reason?: string; terminalId?: string }>;
+  /** T5 — dismiss the accepted proposal (tap or banner timeout). */
+  terminalDismissProposal(): Promise<boolean>;
   /** Topology changes from the main-process broker (snap/un-snap). */
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
@@ -232,6 +241,14 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('terminal:getSociety') as Promise<Record<string, string>>,
   getTerminalRoster: () =>
     ipcRenderer.invoke('terminal:getRoster') as Promise<Record<string, string>>,
+  getTerminalOrchestration: () =>
+    ipcRenderer.invoke('terminal:getOrchestration') as Promise<boolean>,
+  terminalProposeTopology: (wing, agentId) =>
+    ipcRenderer.invoke('terminal:proposeTopology', { wing, agentId }) as Promise<{ accepted: boolean; reason?: string }>,
+  terminalApplyProposal: (wing) =>
+    ipcRenderer.invoke('terminal:applyProposal', { wing }) as Promise<{ applied: boolean; reason?: string; terminalId?: string }>,
+  terminalDismissProposal: () =>
+    ipcRenderer.invoke('terminal:dismissProposal') as Promise<boolean>,
   onTerminalTopology: (cb) => {
     const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);

@@ -15,7 +15,8 @@ const { check, report } = makeChecker('smoke t3-desk');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lokilib-desk-'));
 mockElectronModule({ app: { getPath: () => tmpDir } });
-const { getTerminals, setTerminals, setMode, getMode } = await import('../desktop/src/config.ts');
+const { getTerminals, setTerminals, setMode, getMode, getOrchestration, setOrchestration, setSociety, getSociety } =
+  await import('../desktop/src/config.ts');
 
 check('fresh config → undefined', getTerminals() === undefined);
 
@@ -44,5 +45,29 @@ setTerminals(undefined);
 check('clear → undefined', getTerminals() === undefined);
 setTerminals([]);
 check('empty array → undefined', getTerminals() === undefined);
+
+// ── T5 orchestration flag: default-off + the read-modify-write hazard ────
+check('fresh config is opted OUT', getOrchestration() === false);
+setTerminals(desk);
+setSociety({ loki: 'd0' });
+setOrchestration(true);
+check('opt-in round-trips', getOrchestration() === true);
+check('setOrchestration preserves terminals', JSON.stringify(getTerminals()) === JSON.stringify(desk));
+check('setOrchestration preserves society', getSociety()?.loki === 'd0');
+check('setOrchestration preserves mode', getMode() === 'window');
+setMode('wallpaper');
+setSociety({ loki: 'd1' });
+setTerminals(desk);
+check('the OTHER setters preserve orchestration (the erasure hazard)', getOrchestration() === true);
+setOrchestration(false);
+check('opting back out round-trips', getOrchestration() === false);
+check('…and the field is DELETED, not stored false',
+  !('orchestration' in (JSON.parse(fs.readFileSync(path.join(tmpDir, 'config.json'), 'utf8')) as Record<string, unknown>)));
+// A hand-edited truthy-but-not-true value must not opt anyone in.
+fs.writeFileSync(
+  path.join(tmpDir, 'config.json'),
+  JSON.stringify({ mode: 'window', orchestration: 'yes' }),
+);
+check('only an explicit true opts in', getOrchestration() === false);
 
 report();

@@ -98,8 +98,13 @@ function list(items: readonly string[]): string {
  * The desk, as one line for the reflect prompt's user block. Empty string when
  * this window stands alone with nothing to say about a desk — a lone terminal
  * gets today's prompt, unchanged.
+ *
+ * T5: `{proposals: true}` (opted-in desks, sleep pass only) appends ONE
+ * clause naming the CLOSED wings as legal proposal targets — the deliberate
+ * Depth-3 whitelist widening. Default off; a caller passing nothing gets a
+ * byte-identical line to T4's (smoke-t5-proposal asserts string equality).
  */
-export function deskTopologyLine(t: DeskTopology): string {
+export function deskTopologyLine(t: DeskTopology, opts: { proposals?: boolean } = {}): string {
   const parts: string[] = [];
 
   const others = t.open.filter((w) => w !== t.here);
@@ -134,6 +139,14 @@ export function deskTopologyLine(t: DeskTopology): string {
   if (reachable.length > 0) {
     parts.push(
       `you can walk to ${list(reachable)} through an open edge — name one as a move_to target to plan a crossing`,
+    );
+  }
+
+  if (opts.proposals && t.closed.length > 0) {
+    parts.push(
+      `if the desk should grow, you may propose opening ONE closed wing — name ${
+        t.closed.length === 1 ? t.closed[0] : `one of ${list(t.closed)}`
+      } as a move_to target and the morning will ask whether to open it`,
     );
   }
 

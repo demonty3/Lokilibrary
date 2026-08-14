@@ -26,10 +26,11 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
-import { getMode, getSociety, getTerminals, setMode, setSociety, setTerminals, type Mode } from './config';
+import { getMode, getOrchestration, getSociety, getTerminals, setMode, setOrchestration, setSociety, setTerminals, type Mode } from './config';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
-import { startThrottleController, stopThrottleController } from './wallpaper/throttle';
+import { startThrottleController, stopThrottleController, type ThrottleState } from './wallpaper/throttle';
 import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
+import { proposalSpawnBounds, validateProposal } from './proposalPlacement';
 import { broadcast, registerWindow } from './broadcast';
 
 /** Peek hotkey label for the tray item. main.ts owns the registration (it
@@ -279,6 +280,20 @@ export function startTerminalsMode(
   // round-trip (smoke-desk-wallpaper asserts exactly that).
   let deskMode: Mode = 'window';
 
+  // ── T5 — the desk's one overnight proposal ──────────────────────────────
+  // Session-scoped, NEVER persisted: a missed proposal evaporates and a
+  // restart forgets it. Cleared on every transition INTO sleeping (a new
+  // night), on apply, and on dismiss. First writer wins, like agentSpawn.
+  let proposal: { wing: string; terminalId: string; agentId: string } | null = null;
+
+  const onThrottleState = (state: ThrottleState, isInitial: boolean): void => {
+    // Clear BEFORE broadcasting — the broadcast is what triggers the
+    // renderers' night sweep, so tonight's candidates must find the slot
+    // free rather than blocked by last night's unclaimed proposal.
+    if (state === 'sleeping') proposal = null;
+    broadcast('throttle:state-change', { state, isInitial });
+  };
+
   function displayFor(win: BrowserWindow): Electron.Display {
     return screen.getDisplayMatching(win.getBounds());
   }
@@ -348,9 +363,7 @@ export function startTerminalsMode(
       enterAll();
       startThrottleController(null, {
         display: screen.getPrimaryDisplay(),
-        onStateChange: (state, isInitial) => {
-          broadcast('throttle:state-change', { state, isInitial });
-        },
+        onStateChange: onThrottleState,
       });
     }
     rebuildTray();
@@ -377,9 +390,7 @@ export function startTerminalsMode(
       // window argument entirely, so there is nothing per-window to own.
       startThrottleController(null, {
         display: screen.getPrimaryDisplay(),
-        onStateChange: (state, isInitial) => {
-          broadcast('throttle:state-change', { state, isInitial });
-        },
+        onStateChange: onThrottleState,
       });
     } else {
       stopThrottleController();
@@ -454,6 +465,19 @@ export function startTerminalsMode(
               } as MenuItemConstructorOptions,
             ]
           : []),
+        // T5 Depth-3 opt-in: overnight the society may propose ONE new
+        // terminal, surfaced in the morning banner. Checkbox (not radio, the
+        // same v0.6 hazard); the handler reads fresh config, not a captured
+        // boolean, so a rebuilt menu can't flip a stale value.
+        {
+          label: 'Overnight proposals',
+          type: 'checkbox',
+          checked: getOrchestration(),
+          click: () => {
+            setOrchestration(!getOrchestration());
+            rebuildTray();
+          },
+        },
         // No Display submenu, deliberately: for a desk of individually
         // positioned windows, picking a display means MOVING N windows to
         // another monitor — an arrangement change, and adjacent to the PRD's
@@ -506,6 +530,74 @@ export function startTerminalsMode(
   // Reflections are rare (≤ 1 per agent per real hour), so pulling on demand
   // costs nothing and leaves the hot path alone.
   ipcMain.handle('terminal:getRoster', () => Object.fromEntries(roster));
+
+  // ── T5 — proposal IPC ─────────────────────────────────────────────────────
+  // The sender is resolved from the webContents, never trusted from the
+  // payload: only the window that WON the proposal may apply or dismiss it.
+
+  function terminalOf(sender: Electron.WebContents): Terminal | undefined {
+    return [...terminals.values()].find((t) => !t.win.isDestroyed() && t.win.webContents === sender);
+  }
+
+  // The renderer's night sweep asks once per sweep whether the desk is
+  // opted in (a pull, like getRoster — sweeps are rare, config is tiny).
+  ipcMain.handle('terminal:getOrchestration', () => getOrchestration());
+
+  ipcMain.handle('terminal:proposeTopology', (e, payload: { wing: string; agentId: string }) => {
+    const t = terminalOf(e.sender);
+    if (!t) return { accepted: false, reason: 'unknown_sender' };
+    const verdict = validateProposal(
+      {
+        optIn: getOrchestration(),
+        openWings: Object.values(wingsMap()),
+        allWings: WINGS,
+        accepted: proposal?.wing ?? null,
+      },
+      payload.wing,
+    );
+    if (verdict !== 'ok') return { accepted: false, reason: verdict };
+    proposal = { wing: payload.wing, terminalId: t.id, agentId: payload.agentId };
+    // eslint-disable-next-line no-console
+    console.log(`[terminals] proposal accepted: ${payload.wing} (via ${t.id}, ${payload.agentId})`);
+    return { accepted: true };
+  });
+
+  ipcMain.handle('terminal:applyProposal', (e, payload: { wing: string }) => {
+    const t = terminalOf(e.sender);
+    if (!t || !proposal || proposal.terminalId !== t.id || proposal.wing !== payload.wing) {
+      return { applied: false, reason: 'not_owner' };
+    }
+    // Re-validate: the tray may have opened the wing by hand overnight.
+    if (Object.values(wingsMap()).includes(proposal.wing)) {
+      proposal = null;
+      return { applied: false, reason: 'wing_open' };
+    }
+    // Placement never moves an existing window: proposalSpawnBounds only
+    // ever answers "where does the NEW one go", flush against the anchor's
+    // join chain on its own display's work area. No room → quiet no-op.
+    const pos = proposalSpawnBounds(
+      boundsOf(t),
+      allBounds().filter((b) => b.id !== t.id),
+      displayFor(t.win).workArea,
+    );
+    const wing = proposal.wing;
+    proposal = null;
+    if (!pos) return { applied: false, reason: 'no_room' };
+    const id = `t${nextIndex++}`;
+    spawnTerminal(id, wing, pos.x, pos.y);
+    broadcastTopology(); // exact abutment ⇒ computeJoins reports the join here
+    persistTerminals();
+    rebuildTray();
+    // eslint-disable-next-line no-console
+    console.log(`[terminals] proposal applied: ${id} onto ${wing} at (${pos.x}, ${pos.y})`);
+    return { applied: true, terminalId: id };
+  });
+
+  ipcMain.handle('terminal:dismissProposal', (e) => {
+    const t = terminalOf(e.sender);
+    if (t && proposal?.terminalId === t.id) proposal = null;
+    return true;
+  });
 
   // Roster registration at spawn. First writer wins — a duplicate spawn of
   // a live agent id is refused (the renderer despawns its copy).
@@ -612,6 +704,12 @@ export function startTerminalsMode(
     toggleDeskPeek();
     return deskPeeking;
   });
+  // T5: ground truth for the proposal session (e2e asserts accept/clear).
+  ipcMain.handle('terminal:debugProposalState', () => ({
+    proposal,
+    orchestration: getOrchestration(),
+  }));
+
   ipcMain.handle('terminal:debugDeskState', () => ({
     mode: deskMode,
     peeking: deskPeeking,

@@ -68,6 +68,19 @@ export interface MountMorningDispatchOptions {
    *  in the same columns and rows as the land, the masthead and the
    *  marginalia; the palace omits it and keeps the 1x overlay. */
   grid?: { scale: number; topRow: number };
+  /** T5 — the desk's overnight proposal block, appended above the foot rule.
+   *  The rows and their bracket hit spans come from ONE pure source
+   *  (deskProposal.ts), passed in so this overlay stays desk-agnostic and
+   *  the palace path (no `proposal`) stays byte-identical. The container
+   *  stays non-interactive; the desk's own pointer handler asks
+   *  `proposalHit` instead (the launcher-hotspot pattern). */
+  proposal?: {
+    rows: readonly string[];
+    hit: {
+      apply: { row: number; c0: number; c1: number };
+      dismiss: { row: number; c0: number; c1: number };
+    };
+  };
 }
 
 /** A mounted banner. `view` is the overlay's own container — held so a
@@ -79,26 +92,40 @@ export interface MorningDispatchHandle {
   /** Dismiss early (e.g. SLEEPING fires again before the auto-dismiss
    *  elapsed). Idempotent — the auto-dismiss timer calls this too. */
   dismiss(): void;
+  /** T5 — which proposal bracket (if any) a canvas-space point lands on.
+   *  Always null without a mounted proposal block. */
+  proposalHit(globalX: number, globalY: number): 'apply' | 'dismiss' | null;
 }
 
 /** Mount the banner.
  *
  *  Returns `null` when `lines.length === 0` — no point mounting an
  *  empty banner. Caller treats `null` as "nothing to show, nothing
- *  to dismiss."
+ *  to dismiss." T5: a `proposal` mounts even with zero lines — the
+ *  proposal IS the dispatch on a night with nothing narrated.
  */
 export function mountMorningDispatch(
   opts: MountMorningDispatchOptions,
 ): MorningDispatchHandle | null {
-  if (opts.lines.length === 0) return null;
+  if (opts.lines.length === 0 && !opts.proposal) return null;
   const dismissAfterMs = opts.dismissAfterMs ?? 30_000;
 
   const container = new Container();
   container.eventMode = 'none';
   opts.app.stage.addChild(container);
 
+  /** Grid row (within the banner text) of the proposal block's first row,
+   *  or null when no proposal is mounted. Re-derived on every re-render —
+   *  wrapping can move it. */
+  let proposalRow0: number | null = null;
+  const compose = (maxCols?: number, maxRows?: number): string => {
+    const r = renderDispatchProposal(opts.lines, opts.proposal?.rows ?? [], maxCols, maxRows);
+    proposalRow0 = r.proposalRow0;
+    return r.text;
+  };
+
   const text = new BitmapText({
-    text: renderDispatch(opts.lines),
+    text: compose(),
     style: {
       fontFamily: COZETTE_FONT_FAMILY,
       fontSize: COZETTE_FONT_SIZE,
@@ -126,11 +153,7 @@ export function mountMorningDispatch(
       // which would run off the bottom — at 1x the same banner fitted, so
       // this bound is the scale-up's own debt.
       const rows = Math.floor(opts.app.screen.height / cell.h) - grid.topRow - GRID_MARGIN_ROWS;
-      text.text = renderDispatch(
-        opts.lines,
-        Math.max(1, cols - 2 * GRID_MARGIN_COLS),
-        Math.max(3, rows),
-      );
+      text.text = compose(Math.max(1, cols - 2 * GRID_MARGIN_COLS), Math.max(3, rows));
     }
     const x = (opts.app.screen.width - text.width * (grid?.scale ?? 1)) / 2;
     container.x = grid ? Math.max(0, Math.round(x / cell.w) * cell.w) : Math.floor(x);
@@ -163,7 +186,18 @@ export function mountMorningDispatch(
   };
   opts.app.ticker.add(autoDismissTick);
 
-  return { view: container, dismiss: teardown };
+  const proposalHit = (globalX: number, globalY: number): 'apply' | 'dismiss' | null => {
+    if (!opts.proposal || proposalRow0 === null || torndown) return null;
+    const col = Math.floor((globalX - container.x) / cell.w);
+    const row = Math.floor((globalY - container.y) / cell.h);
+    for (const which of ['apply', 'dismiss'] as const) {
+      const s = opts.proposal.hit[which];
+      if (row === proposalRow0 + s.row && col >= s.c0 && col < s.c1) return which;
+    }
+    return null;
+  };
+
+  return { view: container, dismiss: teardown, proposalHit };
 }
 
 /** Continuation indent for a wrapped row — the same two columns the
@@ -270,4 +304,39 @@ export function renderDispatch(
   const footLabel = dropped > 0 ? ` +${dropped} more ──` : '';
   const foot = RULE.repeat(Math.max(1, width - footLabel.length)) + footLabel;
   return [head, ...body, foot].join('\n');
+}
+
+/** T5 — `renderDispatch` plus a proposal block above the foot rule, one
+ *  blank row of air between them. Pure, extracted for the smoke; with no
+ *  proposal rows it IS `renderDispatch` (byte-identical — the palace bar).
+ *  Returns the block's first row index so the mounted banner's hit-test and
+ *  the drawn glyphs share one geometry. The row budget hands the proposal
+ *  its rows first — the proposal is the one actionable thing on the banner,
+ *  so it is never the part that gets dropped. */
+export function renderDispatchProposal(
+  lines: ReadonlyArray<MorningDispatchLine>,
+  proposalRows: readonly string[],
+  maxCols?: number,
+  maxRows?: number,
+): { text: string; proposalRow0: number | null } {
+  if (proposalRows.length === 0) {
+    return { text: renderDispatch(lines, maxCols, maxRows), proposalRow0: null };
+  }
+  const base = renderDispatch(
+    lines,
+    maxCols,
+    maxRows === undefined ? undefined : maxRows - proposalRows.length - 1,
+  );
+  const rows = base.split('\n');
+  const head = rows.shift() ?? '';
+  const foot = rows.pop() ?? '';
+  // The panel's rules stretch to enclose the proposal too — a row poking
+  // past the frame is the one thing that reads as broken.
+  const width = Math.max(head.length, foot.length, ...proposalRows.map((r) => r.length));
+  const headW = head + RULE.repeat(Math.max(0, width - head.length));
+  const footW = RULE.repeat(Math.max(0, width - foot.length)) + foot;
+  return {
+    text: [headW, ...rows, '', ...proposalRows, footW].join('\n'),
+    proposalRow0: 1 + rows.length + 1,
+  };
 }

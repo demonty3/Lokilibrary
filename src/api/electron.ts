@@ -71,6 +71,10 @@ export interface ElectronAPI {
   onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   getTerminalSociety(): Promise<Record<string, string>>;
   getTerminalRoster(): Promise<Record<string, string>>;
+  getTerminalOrchestration(): Promise<boolean>;
+  terminalProposeTopology(wing: string, agentId: string): Promise<{ accepted: boolean; reason?: string }>;
+  terminalApplyProposal(wing: string): Promise<{ applied: boolean; reason?: string; terminalId?: string }>;
+  terminalDismissProposal(): Promise<boolean>;
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
   terminalAgentExit(
     agentId: string,
@@ -398,6 +402,57 @@ export async function getTerminalRoster(): Promise<Record<string, string>> {
     return await api.getTerminalRoster();
   } catch {
     return {};
+  }
+}
+
+/** T5 — is the Depth-3 overnight-proposal opt-in on? False without a
+ *  broker: an opted-out (or web) surface never proposes. */
+export async function getTerminalOrchestration(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api || typeof api.getTerminalOrchestration !== 'function') return false;
+  try {
+    return await api.getTerminalOrchestration();
+  } catch {
+    return false;
+  }
+}
+
+/** T5 — submit a night-sweep proposal candidate. Broker-less surfaces get a
+ *  quiet rejection, so callers never branch on availability. */
+export async function terminalProposeTopology(
+  wing: string,
+  agentId: string,
+): Promise<{ accepted: boolean; reason?: string }> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalProposeTopology !== 'function') return { accepted: false, reason: 'no_broker' };
+  try {
+    return await api.terminalProposeTopology(wing, agentId);
+  } catch {
+    return { accepted: false, reason: 'no_broker' };
+  }
+}
+
+/** T5 — apply the accepted proposal (spawns the new terminal, joined). */
+export async function terminalApplyProposal(
+  wing: string,
+): Promise<{ applied: boolean; reason?: string; terminalId?: string }> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalApplyProposal !== 'function') return { applied: false, reason: 'no_broker' };
+  try {
+    return await api.terminalApplyProposal(wing);
+  } catch {
+    return { applied: false, reason: 'no_broker' };
+  }
+}
+
+/** T5 — dismiss the accepted proposal (tap or banner timeout). */
+export async function terminalDismissProposal(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (!api || typeof api.terminalDismissProposal !== 'function') return false;
+  try {
+    return await api.terminalDismissProposal();
+  } catch {
+    return false;
   }
 }
 

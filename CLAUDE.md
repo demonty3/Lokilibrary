@@ -289,7 +289,13 @@ iteration here uses the Claude API.
   fresh synthesis over that agent's recent memories). Fallback:
   `skipReason: 'rejected'`; the counter is already consumed so nothing
   retries in a loop, and every call site drops the promise so the
-  walker never blocks. Telemetry: existing logTier2 rows. New runtime
+  walker never blocks. Telemetry: existing logTier2 rows. **T5
+  (2026-08-14, orchestration v0) adds ZERO runtime AI calls** — the
+  overnight topology proposal rides the T4 sleep pass: an opted-in
+  desk's sleeping reflections see one extra clause on the topology
+  line (a few dozen tokens), and the candidate is extracted from the
+  plan the router already stored. Opted-out (the default) is
+  byte-identical to T4. New runtime
   AI calls require an entry in this file documenting cost model,
   caching strategy, and fallback before shipping.
 - **Don't make local LLM the shipped default.** With BYO-key open source

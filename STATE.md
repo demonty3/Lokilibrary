@@ -2658,6 +2658,77 @@ one cost: `cottage` and `monument` are darker in all ten packs.**
 
 ---
 
+**T5 SHIPPED 2026-08-15 — orchestration v0, Depth-3 gated. The desk may ask
+for one room a night, and only if you said it could.** Spec + eight frozen
+bars (frozen before code):
+`docs/superpowers/specs/2026-08-14-t5-orchestration-design.md`. Shape:
+opt-in only (`orchestration` config boolean, default OFF, tray checkbox
+"Overnight proposals"); an opted-in desk's SLEEP-PASS reflections see one
+extra clause on the T4 topology line naming the CLOSED wings as legal
+`move_to` targets; a plan step naming a closed wing becomes the night's one
+proposal candidate (extracted from `activePlan` — **zero new AI calls**, the
+CLAUDE.md ledger says so); main is the authority (first-writer-wins over
+`terminal:proposeTopology`, session cleared on sleep/apply/dismiss, never
+persisted); the winning window's morning banner grows the desk's FIRST
+interactive element — `the night asks: a terminal onto d4?` over
+`[ open it ]   [ let it pass ]`, hit-tested through the existing pointer
+path (launcher-hotspot pattern; the Pixi container stays
+`eventMode:'none'`); apply spawns through the EXISTING `spawnTerminal` at
+exact abutment with the anchor's join chain (`proposalSpawnBounds`, pure) so
+`computeJoins` reports the join mechanically; **no `setBounds` on any
+pre-existing window anywhere on the path**; a missed banner evaporates
+(Harry's call: 30 s timeout = dismissal, no tray fallback, banner taps
+only). New pure modules `src/terminal/deskProposal.ts` +
+`desktop/src/proposalPlacement.ts`; new IPC
+`terminal:getOrchestration/proposeTopology/applyProposal/dismissProposal` +
+`terminal:debugProposalState`; new hooks `debugSleepSweep` /
+`debugProposal` / `debugTapProposal`, `debugTopology(proposals?)`. Smokes:
+`smoke-t5-proposal` (37), `smoke-t5-placement` (16), `smoke-t5-broker` (27,
+real broker under the mocked-electron harness); `smoke-t3-desk` grew the
+orchestration erasure-hazard checks; full 76-smoke sweep + all three
+typecheck legs green; `smoke-5b-sleep` and `smoke-desk-topology` pass
+UNTOUCHED (the palace/opted-out byte-identity proofs).
+
+VERIFIED ON SCREEN (macOS desk, CDP + REAL `Input.dispatchMouseEvent`
+taps): opted-out — prompt line byte-free of the clause, broker rejects
+`opted_out`, no banner; opted-in — five REAL Sonnet sleep-pass dispatches;
+banner mounts on wake shape with the proposal panel (shot:
+`docs/design-reviews/2026-08-14-t5-orchestration/desk-t1-proposal-banner.png`);
+a real tap on `[ let it pass ]` cleared the broker session and closed the
+banner with the desk unchanged; a real tap on `[ open it ]` spawned `t3`
+onto d2 at exact abutment (700,160), `computeJoins` reported `t1|t3`, the
+anchor's bounds stayed byte-identical, and beings then CROSSED into the
+applied window on their own cadence (roster showed loki in t3; shot:
+`desk-t3-d2-applied.png`) — the acceptance's "watch agents explore". The
+30 s timeout observed evaporating a live proposal (session null after).
+
+**Three live findings worth carrying.** (1) **Sonnet writes wing targets as
+noun phrases** — the first real plan came back `target: "d0 terminal"`, so
+the exact-match extractor would have missed every real proposal while all
+smokes stayed green; extraction now matches a closed wing as its own WORD
+(`\bd3\b`), which still only surfaces a wing the plan actually named
+(brain: match-llm-emitted-ids-by-word-not-equality). (2) **Organic
+proposal rate is LOW**: five real dispatches, zero closed-wing targets —
+plans stay inside the open desk. Legal per the bars (empty nights are
+correct, nothing is invented), and the spec's argument-against predicted
+exactly this content weakness; if Harry wants a livelier night, the dial is
+the clause's wording, never the gates. (3) **On the MacBook's 1440-wide
+display a joined pair leaves NO room for a third 640px window** — apply
+from a 2-chain is a truthful `no_room` no-op; a proposal can only ever
+apply on a LONE terminal on this display. The machinery is display-honest;
+the product consequence (T5 is near-inert on the sole active surface unless
+a window is closed first) is Harry's to weigh.
+
+**Not verified live, deliberately:** the broker-side session clear on the
+transition INTO 'sleeping' (one line in the throttle callback; wallpaper
+mode + 10 min real idle to reach — same precedent as T4, whose bar 7 also
+bypassed real sleep) — the renderer-side mirror of the same clear IS
+exercised by `debugSleepSweep`. Eyeball bar 8 (the shy-question taste bar)
+is Harry's, on the running desk. Test-session config was restored:
+opted-out, default t1/t2 pair.
+
+---
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

@@ -13,7 +13,15 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-08, late** (T3 SLICE 1: every terminal now derives its style pack from its wing, so the ten authored packs are finally visible in the product — d0 phosphor, d1 solarized-dark, d2 gruvbox-dark, and so on. Preceded by a spike that CONFIRMED the shape and found the one constraint: gameboy-dmg omits eleven sky roles and reads broken at a seam, so it is excluded from the auto-assigned pool. Two eyeballs open, below.)
+Last updated: **2026-08-15** (T5 ORCHESTRATION V0: the snapping-terminals
+ladder's last slice. Opt-in only — a tray checkbox, default off. Overnight,
+an opted-in desk's sleep-pass reflections may name ONE closed wing; the
+morning banner asks `the night asks: a terminal onto d4?` over two bracket
+taps, and `[ open it ]` spawns the window adjacent and already joined —
+verified with real mouse input, beings crossed into the applied window.
+Zero new AI calls; opted-out desks are byte-identical to T4. One eyeball
+open, below — plus two product findings worth your read.)
+Previously **2026-08-08, late** (T3 SLICE 1: every terminal now derives its style pack from its wing, so the ten authored packs are finally visible in the product — d0 phosphor, d1 solarized-dark, d2 gruvbox-dark, and so on. Preceded by a spike that CONFIRMED the shape and found the one constraint: gameboy-dmg omits eleven sky roles and reads broken at a seam, so it is excluded from the auto-assigned pool. Two eyeballs open, below.)
 Previously **2026-08-08, night** (the RESERVED-ACCENT FIX: the ramp-step lift was KILLED at calibration — a being is already at channel maximum, so it cannot be brightened — and the same separation shipped on the furniture instead: `cottage` + `monument` join `GROUND_DEMOTE` at the already-shipped 0.6, with `landRoleFill` capping rather than multiplying so no frozen ramp bar moved. Proven live: the vacated cell now changes by 76/255 where it changed by 2 before. One eyeball open, below.)
 Previously **2026-08-08, evening** (the ANATOMY PASS: the desk's components were
 inventoried into a marked-up page, and the marks came back 16 reads / 1 too-loud /
@@ -103,6 +111,33 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — T5: the desk may ask for one room a night (bar 8, taste)
+**Status**: shipped 2026-08-15, verified end-to-end on the live desk with
+real mouse taps (STATE.md has the record); bars 1–7 measured, bar 8 is
+yours. The frozen bar, verbatim from the spec: *waking to a proposal reads
+as the desk asking a small, shy question — one line, two quiet bracket
+taps, gone in 30 seconds — not a notification demanding a decision;
+applying feels like the desk growing a room. KILL: it reads as a dialog
+box, or the new window's arrival reads as a popup rather than an opening.*
+**What to look at**, on a booted desk:
+1. Tray → tick **"Overnight proposals"** (it defaults OFF; untick it after
+   if you don't want it live).
+2. The organic path needs a real overnight (wallpaper mode + a sleep/wake
+   cycle) and Sonnet only *sometimes* names a closed wing — five live
+   dispatches produced zero, which is legal (empty nights are correct) but
+   means you may wake to nothing. For a guaranteed look, the shot
+   `docs/design-reviews/2026-08-14-t5-orchestration/desk-t1-proposal-banner.png`
+   is exactly what the wake banner shows, and
+   `desk-t3-d2-applied.png` is the applied window.
+3. **Two product findings to weigh** (not defects): on the MacBook's
+   1440-wide screen a joined pair leaves no room for a third window, so a
+   proposal can only ever APPLY when a single terminal is open — T5 is
+   near-inert on this display unless you close a window first; and the
+   organic proposal rate is low because plans stay inside the open desk.
+   If you want livelier nights, the dial is the clause's wording in
+   `deskTopologyLine` (`src/terminal/deskTopology.ts`), never the gates.
+**Not blocking anything**; T5 was the ladder's last open slice.
 
 ### 👁 EYEBALL — the anatomy pass: mural cut + the reveal unframed
 **Status**: shipped 2026-08-08, measured on the running two-window desk;
