@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); path=$(printf '%s' \"$input\" | jq -r '.tool_input.file_path // \"\"'); case \"$path\" in */src/procedural/*|src/procedural/*) if printf '%s' \"$input\" | jq -r '.tool_input.new_string // .tool_input.content // \"\"' | grep -q 'Math\\.random'; then echo 'Blocked: Math.random() is banned in src/procedural/ — use mulberry32(seed) from src/procedural/prng.ts (determinism contract, CLAUDE.md).' >&2; exit 2; fi;; esac; exit 0",
+            "statusMessage": "Checking determinism contract"
+          },
+          {
+            "type": "command",
+            "command": "input=$(cat); path=$(printf '%s' \"$input\" | jq -r '.tool_input.file_path // \"\"'); body=$(printf '%s' \"$input\" | jq -r '.tool_input.new_string // .tool_input.content // \"\"'); case \"$path\" in *.dev.vars) exit 0;; esac; if printf '%s' \"$body\" | grep -q 'sk-ant-'; then echo 'Blocked: literal Anthropic key material (sk-ant-...) must never be written into the repo — keys live only in worker/.dev.vars (gitignored).' >&2; exit 2; fi; case \"$path\" in */Lokilibrary/src/*|src/*) if printf '%s' \"$body\" | grep -Eq 'ANTHROPIC_API_KEY|STEAM_WEB_API_KEY|PIXELLAB_API_KEY|ELEVENLABS_API_KEY|TWITCH_CLIENT'; then echo 'Blocked: API-key references are banned in src/ (the frontend bundle ships publicly). All AI/Steam calls go through the Worker; keys live in worker/.dev.vars (CLAUDE.md).' >&2; exit 2; fi;; esac; exit 0",
+            "statusMessage": "Checking key-leak guard"
+          }
+        ]
+      }
+    ]
+  }
+}
