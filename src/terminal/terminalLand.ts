@@ -172,6 +172,9 @@ import {
 // ── T0 spike knobs ─────────────────────────────────────────────────────────
 /** Integer up-scale — 1× Cozette fails the glance test in a 640px window. */
 const WORLD_SCALE = 2;
+/** Row the wake banner's first line sits on. The masthead owns row 0, so 2
+ *  leaves one blank row between the window's title row and the dispatch. */
+const BANNER_TOP_ROW = 2;
 /** Raised horizon (2026-07-30): a tight 4-row underground; the reclaimed rows
  *  go to the sky (skyH 5 → 11 at 640×520). Terrace Join's precondition. */
 const UNDER_H = 4;
@@ -474,7 +477,7 @@ declare global {
        *  CANNED lines: bar 7 is a RENDER question, and routing it through a
        *  real Sonnet dispatch made every look cost a call and a wait. Same
        *  `mountMorningDispatch` the wake path calls. */
-      debugBanner(lines?: number): {
+      debugBanner(lines?: number, text?: string): {
         x: number;
         y: number;
         w: number;
@@ -1519,6 +1522,11 @@ export async function mountTerminalLand(
       app,
       theme,
       lines,
+      // On the desk's own cell grid: the banner was the one surface still
+      // drawn at 1x while the land, the masthead and the marginalia are all
+      // at WORLD_SCALE, so it read as pasted on rather than as part of the
+      // terminal. Row 2 leaves the masthead its row 0 plus a blank row.
+      grid: { scale: WORLD_SCALE, topRow: BANNER_TOP_ROW },
       onDismiss: () => {
         dispatchBanner = null;
       },
@@ -2562,11 +2570,11 @@ export async function mountTerminalLand(
         ...(dispatchBanner && { bannerRect: bannerRect() }),
       };
     },
-    debugBanner: (lines = 2) => {
+    debugBanner: (lines = 2, text = 'the terminals beckon like warm spots') => {
       showDispatch(
         Array.from({ length: Math.max(1, lines) }, (_, i) => ({
           agentName: COHORT[i % COHORT.length].name,
-          text: 'the terminals beckon like warm spots',
+          text,
           hadPlan: i === 0,
         })),
       );

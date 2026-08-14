@@ -226,6 +226,88 @@ check(
   messy === '── overnight ──\nLoki: the player keeps returning\n──',
 );
 
+// --- Grid wrapping (2026-08-14) --------------------------------------------
+// The desk draws the banner at WORLD_SCALE on its cell grid, so a reflection
+// longer than the window's column count MUST wrap rather than overhang.
+const WRAPPED = renderDispatch(
+  [{ agentName: 'Loki', text: 'the player keeps returning to the Hades shelf', hadPlan: true }],
+  24,
+);
+const wrappedRows = WRAPPED.split('\n');
+check(
+  'renderDispatch(maxCols): no row exceeds the column budget',
+  wrappedRows.every((r) => r.length <= 24),
+);
+check(
+  'renderDispatch(maxCols): continuations are indented, first lines are not',
+  wrappedRows[1] === 'Loki: the player keeps' && wrappedRows[2] === '  returning to the Hades',
+);
+check(
+  'renderDispatch(maxCols): wrapping preserves every word, in order',
+  wrappedRows.join(' ').replace(/\s+/g, ' ') ===
+    renderDispatch([
+      { agentName: 'Loki', text: 'the player keeps returning to the Hades shelf', hadPlan: true },
+    ])
+      .split('\n')
+      .join(' ')
+      .replace(/\s+/g, ' '),
+);
+check(
+  'renderDispatch(maxCols): the plan decoration survives wrapping',
+  wrappedRows.includes('  ↳ and made a plan'),
+);
+// A word wider than the whole line is hard-broken — an overhanging row is the
+// one thing that reads as broken on a grid.
+const longWord = renderDispatch([{ agentName: 'L', text: 'x'.repeat(40), hadPlan: false }], 12)
+  .split('\n');
+check(
+  'renderDispatch(maxCols): an over-wide word is hard-broken, never overhangs',
+  longWord.every((r) => r.length <= 12) &&
+    // Broken across rows, but every character survives the break.
+    longWord.join('').split('x').length - 1 === 40,
+);
+check(
+  'renderDispatch: omitting maxCols leaves rows unwrapped (palace path)',
+  renderDispatch([{ agentName: 'Loki', text: 'y'.repeat(80), hadPlan: false }]).split('\n')[1]
+    .length === 86,
+);
+
+// --- Row budget (2026-08-14) -----------------------------------------------
+// At 2x a full cohort of 140-char reflections is ~32 rows and would run off
+// the bottom of a 640x520 window. The budget drops WHOLE agents and says so.
+const SIX = Array.from({ length: 6 }, (_, i) => ({
+  agentName: `Agent${i}`,
+  text: 'z'.repeat(140),
+  hadPlan: true,
+}));
+const budgeted = renderDispatch(SIX, 51, 12).split('\n');
+check(
+  'renderDispatch(maxRows): never exceeds the row budget',
+  budgeted.length <= 12,
+);
+check(
+  'renderDispatch(maxRows): the dropped count is stated, not silent',
+  budgeted[budgeted.length - 1] === '── +4 more ──',
+);
+check(
+  'renderDispatch(maxRows): agents are dropped WHOLE — no half reflection',
+  // Two agents shown ⇒ exactly two "AgentN:" openers and two plan rows.
+  budgeted.filter((r) => /^Agent\d:/.test(r)).length === 2 &&
+    budgeted.filter((r) => r === '  ↳ and made a plan').length === 2,
+);
+check(
+  'renderDispatch(maxRows): a budget nobody exceeds leaves the plain footer',
+  renderDispatch(SIX.slice(0, 1), 51, 12).split('\n').at(-1) === '──',
+);
+check(
+  'renderDispatch(maxRows): one over-long reflection spills rather than vanishing',
+  renderDispatch(SIX.slice(0, 1), 51, 3).split('\n').filter((r) => /^Agent0:/.test(r)).length === 1,
+);
+check(
+  'renderDispatch: omitting maxRows drops nothing (palace path)',
+  renderDispatch(SIX, 51).split('\n').filter((r) => /^Agent\d:/.test(r)).length === 6,
+);
+
 // --- macOS/Linux idle-only throttle ladder (consolidation 2026-06) ----------
 // Mirror of computeIdleThrottleState in desktop/src/wallpaper/throttle.ts (same
 // electron-import reason as the SLEEPING mirror above: can't import it under

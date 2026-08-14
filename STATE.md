@@ -2358,12 +2358,41 @@ ink 6000.
 The buffer half of bar 7 was already confirmed: `buffered: 1` → after the night
 pass `buffered: 0`, so a second wake with nothing new shows nothing.
 
-**Open, and a design call rather than a defect:** the banner draws at 1× while
-the whole desk draws at `WORLD_SCALE` (2×), so it is the only off-grid element
-on the surface — the masthead, the marginalia captions and the land are all on
-the 2× cell grid. Legible as-is; it just reads as pasted-on rather than as part
-of the terminal. Moving it to the grid needs column wrapping (a 42-char line
-fits 640 px at 2×, a two-sentence reflection does not).
+**The banner is ON THE GRID (2026-08-14).** It was the only surface still drawn
+at 1× while the land, the masthead and the marginalia are all at `WORLD_SCALE`,
+so it read as pasted on rather than as part of the terminal. Now:
+
+- **Scaled** by setting `container.scale` to an integer (the masthead's own
+  pattern) rather than raising `fontSize` — the baked Cozette atlas stays
+  pixel-exact instead of being resampled.
+- **Wrapped** to the columns that fit, with continuations indented two
+  columns — the same two the `↳` decoration already sits at, so a reflection
+  that runs on stays visibly owned by its agent line. An over-wide single word
+  is hard-broken; on a grid an overhanging row is the thing that reads broken.
+- **Snapped** to a cell origin at row 2, leaving the masthead its row 0 and one
+  blank row between. Measured: x 24, y 52 — both exact multiples of the 12×26
+  cell.
+- **Bounded** to the rows below `topRow`, dropping WHOLE agents (half a
+  reflection reads worse than an omitted one) and saying so in the footer rule:
+  `── +2 more ──`. This bound is the scale-up's own debt — the reflect prompt
+  caps a reflection at 140 chars, so a six-agent cohort is ~32 rows, which
+  fitted at 1× and would have run off the bottom at 2×.
+
+`renderDispatch(lines, maxCols?, maxRows?)` carries all of it and stays pure;
+the palace passes neither and is untouched. Six new smokes in `smoke-5b-sleep`
+(43 assertions), **mutant-checked**: ignoring the row budget → 3 red including
+the whole-agents discriminator; capping silently (plain `──` footer) → 1 red.
+
+VERIFIED ON SCREEN, both terminals, both packs: four agents at a realistic
+reflection length sit entirely in the sky above the ground line; the six-agent
+worst case stops inside the window and states `+2 more`.
+
+**Second way to get a false negative here, hit during this very verification:**
+an unfocused terminal window stops compositing, so `screencapture -l` returns a
+frame from before the banner mounted — and the desk's own beings stop moving in
+it too, which is how to tell. `osascript -e 'tell application "Electron" to
+activate'` first, and confirm a being's `x` actually changes between two
+`state()` reads before believing any capture.
 
 **Session hygiene note:** repeated HMR reloads during verification make the
 desk's `__terminal` and the composited frame disagree in confusing ways; a
