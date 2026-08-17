@@ -121,6 +121,25 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — mural weave: can a 22×5 glyph mural stay recognisable?
+
+- **What**: open `docs/design-reviews/2026-08-17-mural-weave.html` (Safari is
+  fine — charset declared this time). Three headers you own (Hades, Stardew,
+  Hollow Knight) woven at the mural's real 22×5 cells in phosphor and
+  aegean-stitch, two techniques each (two-colour mosaic vs glyphs-on-cloth),
+  real header beside each. Bars are §3 of the sibling `.md`, frozen before
+  any weave existed: **K1** — cover the cartouche: can you name the game
+  from the weave alone at desk scale? **K2** — woven world content, or
+  still a pasted photo? **K3** — any colour outside the pack's 13 keys is
+  a defect. The 44×10 row is DIAGNOSTIC ONLY — it separates "rect too
+  small" from "technique fails" if K1 fires.
+- **Unblocks**: the mural's return to the desk (it has been CUT since the
+  2026-08-08 anatomy pass) in woven form — or, on a K1 fail with the
+  diagnostic passing, a mural-rect-size question; on a full fail, the
+  fallback scope is non-game tapestry panels only.
+- **Where**: `docs/design-reviews/2026-08-17-mural-weave.{md,html}`,
+  page shot in `docs/design-reviews/2026-08-17-mural-weave/`.
+
 ### 👁 EYEBALL — underground continuation: the stacked-pair probe
 
 - **What**: open `docs/design-reviews/2026-08-17-underground-continuation.html`
