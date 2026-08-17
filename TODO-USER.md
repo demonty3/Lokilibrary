@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-17, later** (the STITCH FAMILY eyeball PASSED — Harry: "yea those look nice", then "yea merged"; aegean-stitch, kilim and winter-sampler are MERGED, corpus 13. The motif-density half of the question went unanswered — the widening-track unpark is NOT triggered and NOT ruled out; it re-arms if he ever judges the packs short of the reference. Earlier same day: the UNDERGROUND-CONTINUATION PROBE: vertical
+Last updated: **2026-08-17, night** (the CAPTION-BACKING DEFECT is closed —
+close-out queue item 2: a marginalia caption now occludes the closed-wing
+skyline under its rect instead of mixing with the wing ids; the judged
+reveal envelope is untouched; verified live with before/after shots. One
+eyeball queued below.)
+Previously **2026-08-17, later** (the STITCH FAMILY eyeball PASSED — Harry: "yea those look nice", then "yea merged"; aegean-stitch, kilim and winter-sampler are MERGED, corpus 13. The motif-density half of the question went unanswered — the widening-track unpark is NOT triggered and NOT ruled out; it re-arms if he ever judges the packs short of the reference. Earlier same day: the UNDERGROUND-CONTINUATION PROBE: vertical
 stacking re-opened as a mockup-first question — a window snapped UNDERNEATH is
 the same wing's deep strata, no sky, the shaft stitching the pair. Bars were
 frozen and committed BEFORE the mockup was authored, inheriting the Terrace
@@ -120,6 +125,28 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
+
+**Status**: shipped 2026-08-17 (close-out queue item 2, logged 2026-08-06).
+A marginalia caption whose rect crossed the closed-wing skyline used to mix
+with the wing silhouettes and `d2`/`d4`-style ids — text over text, hard to
+read. Now, while a reveal is live, its rect mechanically hides the skyline
+glyphs underneath (the caption is nearer than the far-ridge plane, same
+doctrine as the mural's eviction); everything you already judged about the
+reveal — the 1.4 s emergence, the 0.74 peak, the soft see-through backing —
+is untouched, and terrain under the backing still dims rather than
+disappears. Verified on the live desk: the `d4 d2 d5` ids vanish under a
+caption sitting exactly on their band and return when it closes; ids away
+from the caption never move.
+**What to look at**: the pair of shots in
+`docs/design-reviews/2026-08-17-caption-skyline/` (occluded during, restored
+after) — or live, wait for a note to surface in the sky band. The one thing
+worth judging by eye: the ids disappear once the caption is about half-risen
+and return as it dies. If that swap reads as a pop rather than being covered
+by the emerging note, say so — the dial is `SKYLINE_OCCLUDE_ALPHA` in
+`terminalLand.ts` (higher = later, more hidden by the backing).
+**Not blocking anything.**
 
 ### 👁 EYEBALL — underground continuation: the stacked-pair probe
 

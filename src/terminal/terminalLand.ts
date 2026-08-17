@@ -410,6 +410,9 @@ declare global {
         backAlpha: number;
         framed: boolean;
         lines: number;
+        /** True while the caption rect occludes the closed-wing skyline
+         *  layers (the inverted mask is applied). */
+        skylineOccluded: boolean;
       } | null;
       /** e2e only — launcher-beat readback: the clickable sites, the door
        *  column, the live errand, who is away, and the last launch fired. */
@@ -887,6 +890,39 @@ export async function mountTerminalLand(
   world.addChild(captionBack);
   world.addChild(caption);
 
+  // Text-over-text is the one collision the translucent backing cannot solve:
+  // a caption whose rect crosses the closed-wing skyline mixes with the wing
+  // silhouette + id glyphs (logged 2026-08-08, T3 slice 1). The reveal is
+  // nearer than the far-ridge plane, so it occludes — an inverted mask (a
+  // scene-sized rect with the caption rect cut out) on the wingSil/wingMark
+  // layers, applied once the envelope passes SKYLINE_OCCLUDE_ALPHA so the
+  // half-risen backing covers the swap rather than the glyphs popping out
+  // under an invisible caption.
+  const SKYLINE_OCCLUDE_ALPHA = 0.35;
+  const skylineHole = new Graphics();
+  world.addChild(skylineHole);
+  let skylineOccluded = false;
+  const captionRect = (): { x: number; y: number; w: number; h: number } => ({
+    x: caption.x - CAPTION_PAD,
+    y: caption.y - CAPTION_PAD,
+    w: caption.width + CAPTION_PAD * 2,
+    h: caption.height + CAPTION_PAD * 2,
+  });
+  const maskSkyline = (rect: { x: number; y: number; w: number; h: number } | null): void => {
+    skylineHole.clear();
+    const silTexts = [...(scene.layers.wingSil ?? []), ...(scene.layers.wingMark ?? [])];
+    if (rect === null) {
+      for (const t of silTexts) t.mask = null;
+      return;
+    }
+    skylineHole
+      .rect(-4 * CW, -40 * CH, (model.width + 8) * CW, (model.height + 80) * CH)
+      .fill(0xffffff)
+      .rect(rect.x, rect.y, rect.w, rect.h)
+      .cut();
+    for (const t of silTexts) t.mask = skylineHole;
+  };
+
   // ── Proximity labels (raised-horizon slice, 2026-07-30) ────────────────
   // The baked label layer is hidden in the TERMINAL path only (web preview /
   // V0 keep always-on labels); per-site overlay texts — knit-glow ownership
@@ -1023,6 +1059,8 @@ export async function mountTerminalLand(
     refreshWear(); // worn columns survive a join recompose
     drawMarks(); // marks re-sit on the reshaped surface
     hideBakedLayers();
+    // The occluded skyline layers died with the old scene; re-mask the new ones.
+    if (skylineOccluded) maskSkyline(captionRect());
     buildSiteLabels(); // rebuilt at alpha 0 — a reshaped land re-earns its reveals
     buildWisps(); // same — the composed clouds are new, so the wisps must be too
     // A join reshapes the terrain and moves the mural, so both the arc's floor
@@ -2353,6 +2391,10 @@ export async function mountTerminalLand(
       // Evicted by the render cap mid-reveal: close the caption safely.
       caption.visible = false;
       captionBack.visible = false;
+      if (skylineOccluded) {
+        skylineOccluded = false;
+        maskSkyline(null);
+      }
       reveal = null;
     } else {
       const t = elapsedS - reveal.startedAtS;
@@ -2361,6 +2403,11 @@ export async function mountTerminalLand(
       // The backing rides the same envelope but never fully opaque, so the
       // world stays faintly visible through it rather than being punched out.
       captionBack.alpha = a * 0.88;
+      const occlude = a >= SKYLINE_OCCLUDE_ALPHA;
+      if (occlude !== skylineOccluded) {
+        skylineOccluded = occlude;
+        maskSkyline(occlude ? captionRect() : null);
+      }
       if (a === 0) {
         caption.visible = false;
         captionBack.visible = false;
@@ -2564,6 +2611,7 @@ export async function mountTerminalLand(
         // rather than inferring it from the glyph count.
         framed: /[╔╗╚╝║═]/.test(caption.text),
         lines: caption.text.split('\n').length,
+        skylineOccluded,
       };
     },
     debugCellAt: (x, y) =>

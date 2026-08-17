@@ -2818,6 +2818,30 @@ sub-cell animation re-dialled — own spec); FAIL routes fidelity to mixed
 registers (fine-lattice mural rect / far layers inside the coarse world).
 The mural's return waits on this answer either way.
 
+**Caption-over-skyline defect CLOSED 2026-08-17 (close-out queue item 2;
+logged 2026-08-06, residual re-observed at T3 slice 1).** The anatomy pass's
+translucent backing (peak 0.651) dims terrain correctly but cannot solve
+text-over-text: a caption whose rect crosses the closed-wing skyline mixed
+with the wingSil/wingMark glyphs. Fix is occlusion, not opacity: the reveal
+is nearer than the far-ridge plane, so while it is live an inverted mask
+(scene-sized rect with the caption rect cut out, Pixi `cut()`; the
+PixiApp.ts pane-clip pattern) is applied to the wingSil/wingMark layers
+only — every judged reveal number (1.4 s smoothstep ease, 0.74 peak,
+0.88× backing) is untouched, and terrain under the backing still dims
+rather than punches out. The mask engages at `SKYLINE_OCCLUDE_ALPHA = 0.35`
+on the same envelope, so the half-risen backing covers the glyph swap
+instead of the ids popping out under an invisible caption; it releases on
+the way out, closes safely on cap-eviction, and a join recompose re-masks
+the fresh scene's layers (the old ones die with sceneContainer).
+`debugReveal()` grew a `skylineOccluded` field. VERIFIED ON THE LIVE DESK
+(typecheck + all smokes green first): flag observed true at peak 0.74 and
+false at 0.041 on fade-out; pixel proof via two join-shots — the `d4 d2 d5`
+wing ids absent under a live caption occupying their exact band, restored
+after it closed, and ids OUTSIDE a live caption's rect unaffected while it
+showed. Test residue: a few debugMark notes placed at cols 29/41 of d0
+persist in the desk's mark memory (in-voice, render-capped; same precedent
+as every debugMark-driven verification). Eyeball queued in TODO-USER.md.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
