@@ -13,7 +13,7 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-17** (the UNDERGROUND-CONTINUATION PROBE: vertical
+Last updated: **2026-08-17, later** (the STITCH FAMILY eyeball PASSED — Harry: "yea those look nice", then "yea merged"; aegean-stitch, kilim and winter-sampler are MERGED, corpus 13. The motif-density half of the question went unanswered — the widening-track unpark is NOT triggered and NOT ruled out; it re-arms if he ever judges the packs short of the reference. Earlier same day: the UNDERGROUND-CONTINUATION PROBE: vertical
 stacking re-opened as a mockup-first question — a window snapped UNDERNEATH is
 the same wing's deep strata, no sky, the shaft stitching the pair. Bars were
 frozen and committed BEFORE the mockup was authored, inheriting the Terrace
@@ -120,31 +120,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 👁 EYEBALL — the stitch family: three packs from your reference photo
-
-- **What**: three new packs authored from the Aegean cross-stitch photo you
-  saved (`~/Downloads/IMG_7038.JPG` — kept local, NOT committed: it is
-  someone's artwork and the repo is public). Judge each desk shot in
-  `docs/design-reviews/2026-08-17-stitch-packs/` beside the photo:
-  `desk-aegean.png` (**aegean-stitch** — indigo night sampler, ╳
-  constellations, ▚▞ weave strata, olive terraces), `desk-kilim.png`
-  (**kilim** — aubergine wool rug, ◆ motif stars, ┄ weft rows, madder/ochre
-  weave), `desk-winter.png` (**winter-sampler** — spruce nordic knit, ♠
-  trees, frost `*`, one scandi red). Stock phosphor beside them
-  (`pack-stock.png`).
-- **The bars** (the standing pack bars, nothing new): each reads as a
-  *different machine*, not a recolour (the DMG kill, inherited verbatim);
-  beings first thing the eye finds; one coherent palette per scene. Plus the
-  question this round exists to answer: **do the current slots reach the
-  photo's dots-for-detail read, or do these packs fall visibly short of its
-  motif density?** Falling short is the evidence that unparks the widening
-  track for a motif-field slot (the frozen unpark condition: "a real pack
-  author needs a slot that does not exist").
-- **Unblocks**: MERGED status for whichever pass; the widening-track
-  decision either way.
-- **Where**: `src/themes/{aegean-stitch,kilim,winter-sampler}.json`; all
-  four gates green on each; desk shots taken on the live Electron desk.
 
 ### 👁 EYEBALL — underground continuation: the stacked-pair probe
 

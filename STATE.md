@@ -2769,8 +2769,11 @@ moon/sun for the joined desk, wisps drifting across seams — Harry's three
 visual findings collapse to per-window private skies), the caption-backing
 defect, the README GIF re-cut.
 
-**The stitch family SHIPPED 2026-08-17 (three packs, eyeballs OPEN) — the
-corpus is 13 themes.** Harry's reference: a cross-stitch pixel-art piece ("a
+**The stitch family SHIPPED 2026-08-17, eyeball PASSED same day ("yea those
+look nice" → "yea merged") — all three MERGED; the corpus is 13 themes. The
+motif-density question went unanswered: the widening unpark is NOT
+triggered, and re-arms if Harry ever judges the packs short of the
+reference.** Harry's reference: a cross-stitch pixel-art piece ("a
 little quiet town in the coast of the Aegean Sea"; local file only, never
 committed — public repo, someone's artwork). The extracted mechanism: every
 material a FIELD of one repeated micro-motif, no outlines (boundary = field
