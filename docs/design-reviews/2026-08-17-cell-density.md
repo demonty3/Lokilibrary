@@ -53,3 +53,14 @@ beings and masthead drawn in both. Judged at wallpaper distance. Verdict
 recorded below, dated.
 
 ---
+
+## Verdict — 2026-08-17, Harry's eyeball (same day): KEEP SCALE 2
+
+Harry, verbatim: "let's leave it as is i reccon."
+
+Read against §3: the global scale stays 2. Per the routing frozen in K1/K2
+before viewing, fidelity work routes to **mixed registers only** —
+fine-lattice surfaces inside the coarse world (the mural rect at a finer
+cell, far tapestry layers) — and the world rework question is CLOSED at
+this scope. The mural's return, if it comes, is as a fine-lattice surface
+in the scale-2 world (the 44×10-equivalent inside the existing rect).

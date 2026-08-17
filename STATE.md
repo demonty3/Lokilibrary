@@ -2803,7 +2803,7 @@ full-screen-desk direction discussion (PURSUE; ladder recorded in session,
 gated on the underground eyeball + scale/anchor slice).
 
 **Mural-weave probe JUDGED same day → MUTATE into the cell-density probe
-(OPEN, eyeball queued).** The weave at the real 22×5 mural rect did not
+(JUDGED same day: **KEEP SCALE 2** — "let's leave it as is"; fidelity routes to mixed registers only, per the frozen routing).** The weave at the real 22×5 mural rect did not
 pass recognition (consistent with why the mural was cut); mosaic beat
 cloth; the 44×10 diagnostic was Harry's "clearly the best" — so the
 binding variable is CELL DENSITY, and Harry asked the foundational form:

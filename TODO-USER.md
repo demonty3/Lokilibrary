@@ -121,45 +121,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — cell density: the same wing at 4× the cells
-
-- **What**: open `docs/design-reviews/2026-08-17-cell-density.html` (Safari
-  fine). Wing d0 phosphor twice, real composer both times: today's 53×20 at
-  scale 2 beside a 106×40 candidate at scale 1 — 4× the cells in the same
-  window size. Stand back / squint (it's a wallpaper). Bars are §3 of the
-  sibling `.md`, frozen before generation: **K1** — on the right, can you
-  still FIND the beings and READ the site labels at a glance? **K2** — does
-  the right read as a richer place, or collapse into texture (the
-  "unreadable ae's" failure going global)?
-- **What each outcome means**: PASS opens the engine question (scale as a
-  dial, every salience bar re-measured, sub-cell animation re-dialled —
-  its own spec, its own bars; it compounds with the full-screen direction).
-  FAIL routes fidelity to MIXED REGISTERS only — fine-lattice surfaces
-  (mural rect, far tapestry layers) inside the coarse world. This probe
-  inherits the mural-weave verdict: 44×10 was "clearly the best", so
-  density is the named variable under test.
-- **Where**: `docs/design-reviews/2026-08-17-cell-density.{md,html}`, page
-  shot in `docs/design-reviews/2026-08-17-cell-density/`.
-
-### 👁 EYEBALL — mural weave: can a 22×5 glyph mural stay recognisable?
-
-- **What**: open `docs/design-reviews/2026-08-17-mural-weave.html` (Safari is
-  fine — charset declared this time). Three headers you own (Hades, Stardew,
-  Hollow Knight) woven at the mural's real 22×5 cells in phosphor and
-  aegean-stitch, two techniques each (two-colour mosaic vs glyphs-on-cloth),
-  real header beside each. Bars are §3 of the sibling `.md`, frozen before
-  any weave existed: **K1** — cover the cartouche: can you name the game
-  from the weave alone at desk scale? **K2** — woven world content, or
-  still a pasted photo? **K3** — any colour outside the pack's 13 keys is
-  a defect. The 44×10 row is DIAGNOSTIC ONLY — it separates "rect too
-  small" from "technique fails" if K1 fires.
-- **Unblocks**: the mural's return to the desk (it has been CUT since the
-  2026-08-08 anatomy pass) in woven form — or, on a K1 fail with the
-  diagnostic passing, a mural-rect-size question; on a full fail, the
-  fallback scope is non-game tapestry panels only.
-- **Where**: `docs/design-reviews/2026-08-17-mural-weave.{md,html}`,
-  page shot in `docs/design-reviews/2026-08-17-mural-weave/`.
-
 ### 👁 EYEBALL — underground continuation: the stacked-pair probe
 
 - **What**: open `docs/design-reviews/2026-08-17-underground-continuation.html`
