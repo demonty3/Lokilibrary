@@ -518,6 +518,20 @@ wallpaper throttle: **live window → throttled window → headless simulation
 → cold state**. Windows become a *viewport cache* over a larger living
 topology; the meta-agent pages lands in and out of view.
 
+**Measured 2026-08-17 (the N-window resource check, run for the full-screen
+direction):** a real 6-window desk on the MacBook costs **~574 MB RSS and
+~80% of one core at full** (the shared GPU helper alone 356 MB / 35%; each
+renderer ~70–80 MB / ~8%), and **wallpapered + throttled-1hz it costs ~0.0%
+CPU across every process with RSS down to ~321 MB** (the GPU helper sheds
+150 MB). Marginal cost ≈ 75 MB per additional window, near-zero idle. So at
+MacBook screen scale the virtual-terminal tier is NOT the binding
+constraint — occlusion suspension + the idle ladder already zero the idle
+cost, and memory affords a dozen-plus live windows. What binds first on
+this display is screen area (1440×900 ≈ two fixed-size windows) and
+full-mode CPU only while the desk is actively watched. The headless-
+simulation tier becomes real at multi-monitor / dozens-of-lands scale, not
+before.
+
 ### The meta-agent is Loki given hands
 
 Per the Living-world entry, Loki is the climate. A fleet-manager
