@@ -67,3 +67,21 @@ comparison. Judged at desk scale (26px Cozette = WORLD_SCALE 2). Verdict
 recorded below, dated.
 
 ---
+
+## Verdict — 2026-08-17, Harry's eyeball (same day): MUTATE → cell density
+
+Harry, verbatim: "I was more thinking of a more foundational cell rework,
+like seeing if we can get better results on fidelity with this art
+technique. I wasn't such a fan of the mural design before because i
+couldn't tell what it was before, the first diagnostic only is clearly the
+best the one on the left."
+
+Read against §3: **K1 at 22×5 is not passed** — consistent with the exact
+complaint that got the original mural cut ("couldn't tell what it was").
+**Mosaic beats cloth** — the named best is the mosaic diagnostic. The
+44×10 mosaic being "clearly the best" routes the finding to **cell
+density, not technique**: the binding variable is cells available, and the
+mural question folds into the foundational one. The probe mutates into
+`2026-08-17-cell-density.md`; the mural's return waits on that question's
+answer (at a finer world cell, the same mural rect quadruples its cell
+count on its own).
