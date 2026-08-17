@@ -1,0 +1,29 @@
+{
+  "id": "kilim",
+  "name": "Kilim",
+  "palette": {
+    "bg": "#150c0e",
+    "bgAlt": "#261418",
+    "fgDim": "#7a5058",
+    "fg": "#d8b894",
+    "fgBright": "#f5e6cc",
+    "yellow": "#e0b040",
+    "orange": "#cc7a3d",
+    "red": "#b5453a",
+    "magenta": "#d4708a",
+    "violet": "#a878a0",
+    "blue": "#5a6a8f",
+    "cyan": "#6aa895",
+    "green": "#7a9a5a"
+  },
+  "landGlyphs": {
+    "foliage": "♦",
+    "topsoil": "▞",
+    "stone": "▚",
+    "starBright": "◆",
+    "skyDither": "┄"
+  },
+  "landRamp": {
+    "roles": ["topsoil", "stone", "cottage", "monument", "shelf", "roof", "shaft"]
+  }
+}

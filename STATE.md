@@ -2769,6 +2769,36 @@ moon/sun for the joined desk, wisps drifting across seams — Harry's three
 visual findings collapse to per-window private skies), the caption-backing
 defect, the README GIF re-cut.
 
+**The stitch family SHIPPED 2026-08-17 (three packs, eyeballs OPEN) — the
+corpus is 13 themes.** Harry's reference: a cross-stitch pixel-art piece ("a
+little quiet town in the coast of the Aegean Sea"; local file only, never
+committed — public repo, someone's artwork). The extracted mechanism: every
+material a FIELD of one repeated micro-motif, no outlines (boundary = field
+change), detail from density + rhythm, depth from terraced field boundaries,
+dark ground. Three packs authored against it through the EXISTING slots:
+**aegean-stitch** (indigo sampler: ╳ starBright, ▚/▞ strata weave, ▲ trees,
+olive green — first cut's mint green read as a different pack and was pulled
+to sage), **kilim** (aubergine wool rug: ◆ starBright, ┄ skyDither weft, ♦
+trees, madder/ochre), **winter-sampler** (spruce nordic knit: ♠ trees, ▘/▝
+fine-knit strata, scandi red). All omit-free → they join `DESK_PACK_POOL`
+positions 8–10 with ZERO change to the shipped wings d0–d5 (mapping is
+positional). All four gates green per pack (style-pack 72 assertions each;
+bedrock/cavern dropped from the aegean ramp — bgAlt-keyed roles fail the
+step-0 bar by construction). Desk-verified live (`?theme` on t2 via
+`history.replaceState` + reload — **plain `location.href` navigation gets
+renormalised to the canonical URL by the shell; replaceState is the working
+override path**). Shots:
+`docs/design-reviews/2026-08-17-stitch-packs/`. **The round's real question
+rides the eyeball: do current slots reach the photo's motif density, or do
+these packs fall short — the frozen widening-track unpark condition ("a real
+pack author needs a slot that does not exist"). Gates never bound; no
+engine gap was HIT during authoring, so the unpark is not triggered unless
+Harry's eye says the read falls short.** Also this session: the N-window
+resource check (IDEAS.md § hundred-terminal has the numbers — 6 windows
+cheap, idle ~zero, virtual tier binds at multi-monitor scale) and the
+full-screen-desk direction discussion (PURSUE; ladder recorded in session,
+gated on the underground eyeball + scale/anchor slice).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

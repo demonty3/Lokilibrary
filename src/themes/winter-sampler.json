@@ -1,0 +1,29 @@
+{
+  "id": "winter-sampler",
+  "name": "Winter Sampler",
+  "palette": {
+    "bg": "#0b100e",
+    "bgAlt": "#16221d",
+    "fgDim": "#4d6a60",
+    "fg": "#cfd8cc",
+    "fgBright": "#f8fff5",
+    "yellow": "#e8d48a",
+    "orange": "#d88a50",
+    "red": "#c94f45",
+    "magenta": "#d987a0",
+    "violet": "#9a86c9",
+    "blue": "#6a8fc0",
+    "cyan": "#8fd0c9",
+    "green": "#6aa87a"
+  },
+  "landGlyphs": {
+    "foliage": "♠",
+    "topsoil": "▘",
+    "stone": "▝",
+    "star": "·",
+    "starBright": "*"
+  },
+  "landRamp": {
+    "roles": ["topsoil", "stone", "cottage", "monument", "shelf", "roof", "shaft"]
+  }
+}

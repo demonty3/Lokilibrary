@@ -121,6 +121,31 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — the stitch family: three packs from your reference photo
+
+- **What**: three new packs authored from the Aegean cross-stitch photo you
+  saved (`~/Downloads/IMG_7038.JPG` — kept local, NOT committed: it is
+  someone's artwork and the repo is public). Judge each desk shot in
+  `docs/design-reviews/2026-08-17-stitch-packs/` beside the photo:
+  `desk-aegean.png` (**aegean-stitch** — indigo night sampler, ╳
+  constellations, ▚▞ weave strata, olive terraces), `desk-kilim.png`
+  (**kilim** — aubergine wool rug, ◆ motif stars, ┄ weft rows, madder/ochre
+  weave), `desk-winter.png` (**winter-sampler** — spruce nordic knit, ♠
+  trees, frost `*`, one scandi red). Stock phosphor beside them
+  (`pack-stock.png`).
+- **The bars** (the standing pack bars, nothing new): each reads as a
+  *different machine*, not a recolour (the DMG kill, inherited verbatim);
+  beings first thing the eye finds; one coherent palette per scene. Plus the
+  question this round exists to answer: **do the current slots reach the
+  photo's dots-for-detail read, or do these packs fall visibly short of its
+  motif density?** Falling short is the evidence that unparks the widening
+  track for a motif-field slot (the frozen unpark condition: "a real pack
+  author needs a slot that does not exist").
+- **Unblocks**: MERGED status for whichever pass; the widening-track
+  decision either way.
+- **Where**: `src/themes/{aegean-stitch,kilim,winter-sampler}.json`; all
+  four gates green on each; desk shots taken on the live Electron desk.
+
 ### 👁 EYEBALL — underground continuation: the stacked-pair probe
 
 - **What**: open `docs/design-reviews/2026-08-17-underground-continuation.html`

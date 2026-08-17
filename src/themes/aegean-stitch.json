@@ -1,0 +1,37 @@
+{
+  "id": "aegean-stitch",
+  "name": "Aegean Stitch",
+  "palette": {
+    "bg": "#0b0e1a",
+    "bgAlt": "#182036",
+    "fgDim": "#4a5788",
+    "fg": "#c9b98a",
+    "fgBright": "#f5ecd0",
+    "yellow": "#e8c96a",
+    "orange": "#d89a55",
+    "red": "#b85c4a",
+    "magenta": "#d97fa8",
+    "violet": "#9a7fd0",
+    "blue": "#5a6db8",
+    "cyan": "#6fc7c0",
+    "green": "#7fae72"
+  },
+  "landGlyphs": {
+    "foliage": "▲",
+    "topsoil": "▚",
+    "stone": "▞",
+    "star": "·",
+    "starBright": "╳"
+  },
+  "landRamp": {
+    "roles": [
+      "topsoil",
+      "stone",
+      "cottage",
+      "monument",
+      "shelf",
+      "roof",
+      "shaft"
+    ]
+  }
+}
