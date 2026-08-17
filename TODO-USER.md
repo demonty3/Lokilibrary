@@ -121,6 +121,26 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — cell density: the same wing at 4× the cells
+
+- **What**: open `docs/design-reviews/2026-08-17-cell-density.html` (Safari
+  fine). Wing d0 phosphor twice, real composer both times: today's 53×20 at
+  scale 2 beside a 106×40 candidate at scale 1 — 4× the cells in the same
+  window size. Stand back / squint (it's a wallpaper). Bars are §3 of the
+  sibling `.md`, frozen before generation: **K1** — on the right, can you
+  still FIND the beings and READ the site labels at a glance? **K2** — does
+  the right read as a richer place, or collapse into texture (the
+  "unreadable ae's" failure going global)?
+- **What each outcome means**: PASS opens the engine question (scale as a
+  dial, every salience bar re-measured, sub-cell animation re-dialled —
+  its own spec, its own bars; it compounds with the full-screen direction).
+  FAIL routes fidelity to MIXED REGISTERS only — fine-lattice surfaces
+  (mural rect, far tapestry layers) inside the coarse world. This probe
+  inherits the mural-weave verdict: 44×10 was "clearly the best", so
+  density is the named variable under test.
+- **Where**: `docs/design-reviews/2026-08-17-cell-density.{md,html}`, page
+  shot in `docs/design-reviews/2026-08-17-cell-density/`.
+
 ### 👁 EYEBALL — mural weave: can a 22×5 glyph mural stay recognisable?
 
 - **What**: open `docs/design-reviews/2026-08-17-mural-weave.html` (Safari is

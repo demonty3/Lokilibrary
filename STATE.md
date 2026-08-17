@@ -2802,6 +2802,22 @@ cheap, idle ~zero, virtual tier binds at multi-monitor scale) and the
 full-screen-desk direction discussion (PURSUE; ladder recorded in session,
 gated on the underground eyeball + scale/anchor slice).
 
+**Mural-weave probe JUDGED same day → MUTATE into the cell-density probe
+(OPEN, eyeball queued).** The weave at the real 22×5 mural rect did not
+pass recognition (consistent with why the mural was cut); mosaic beat
+cloth; the 44×10 diagnostic was Harry's "clearly the best" — so the
+binding variable is CELL DENSITY, and Harry asked the foundational form:
+can the whole world run a finer lattice? New probe with frozen bars
+(`docs/design-reviews/2026-08-17-cell-density.{md,html}`): d0 composed at
+today's 53×20/scale-2 beside a 106×40/scale-1 candidate (band split
+rebalanced to today's sky proportion — the first cut was 62% sky vs 55%
+and biased K2), both honest composer output. K1 glance-legibility of
+beings/labels, K2 richer-place-vs-texture. PASS opens a real engine
+question (scale dial, salience bars re-measured at the new denominator,
+sub-cell animation re-dialled — own spec); FAIL routes fidelity to mixed
+registers (fine-lattice mural rect / far layers inside the coarse world).
+The mural's return waits on this answer either way.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
