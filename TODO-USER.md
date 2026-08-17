@@ -13,7 +13,16 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-15** (T5 ORCHESTRATION V0: the snapping-terminals
+Last updated: **2026-08-17** (the UNDERGROUND-CONTINUATION PROBE: vertical
+stacking re-opened as a mockup-first question — a window snapped UNDERNEATH is
+the same wing's deep strata, no sky, the shaft stitching the pair. Bars were
+frozen and committed BEFORE the mockup was authored, inheriting the Terrace
+Join kill record verbatim. The mockup's upper half is generated from the real
+composer at the desk's exact options and honesty-checked against a live t1
+capture; only the under-land continuation is authored — that content IS the
+proposal. One eyeball open, below; engine work (topology, under-compose,
+being descent) is gated on it.)
+Previously **2026-08-15** (T5 ORCHESTRATION V0: the snapping-terminals
 ladder's last slice. Opt-in only — a tray checkbox, default off. Overnight,
 an opted-in desk's sleep-pass reflections may name ONE closed wing; the
 morning banner asks `the night asks: a terminal onto d4?` over two bracket
@@ -111,6 +120,25 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — underground continuation: the stacked-pair probe
+
+- **What**: open `docs/design-reviews/2026-08-17-underground-continuation.html`
+  in a browser at 100% zoom and judge the joined pair at wallpaper distance.
+  The bars are §3 of the sibling `.md` (frozen before authoring): **K1** — the
+  pair reads as two broken lands, not one place → vertical stacking stays dead
+  at this scope; **K2** — the lower window reads as a separate land / texture
+  panel rather than "the ground of the window above, continued down" → fail;
+  **K3** — the seam reads as window chrome rather than strata → fail. Also
+  judge the closed-state wall row (`═`/`╤`) crops, and say whether the
+  **640×260** lower window reads as a place worth keeping open (two stacked
+  520s don't fit the MacBook's work area; one re-mock at 640×320 is the
+  pre-authorised dial if 260 is too shallow).
+- **Unblocks**: the Phase B engine slices (vertical topology + under-compose +
+  being descent), outlined in the approved plan; nothing engine-side moves on
+  a fail.
+- **Where**: `docs/design-reviews/2026-08-17-underground-continuation.{md,html}`,
+  shots in `docs/design-reviews/2026-08-17-underground-continuation/`.
 
 ### 👁 EYEBALL — T5: the desk may ask for one room a night (bar 8, taste)
 **Status**: shipped 2026-08-15, verified end-to-end on the live desk with

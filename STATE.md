@@ -2729,6 +2729,46 @@ opted-out, default t1/t2 pair.
 
 ---
 
+**Underground-continuation probe OPENED 2026-08-17 (mockup only, no engine
+work) — vertical stacking re-opened per protocol.** Harry asked for stacked
+storeys directly; the recorded ground: "Terrace Join" was KILLED 2026-08-01
+on priority grounds plus the invariant break (not refuted), and the
+stacked-storeys idea (IDEAS.md, 2026-08-06) is PARKED on a mockup eyeball.
+New document with the inherited kills quoted verbatim:
+`docs/design-reviews/2026-08-17-underground-continuation.md` — **committed
+BEFORE the mockup was authored** (freezing order is part of the record).
+Product decisions (Harry, this session): a window snapped UNDERNEATH is the
+**same wing's underground continuation** (no sky, all deep strata — caverns,
+ore, relics, the descent shaft continuing down; the seam is the strata
+boundary, dodging the recorded "sky at mid-elevation" failure); **downward
+only** in v0; **mockup before engine**. Display fact that shaped the shape:
+two stacked 520px windows (1040px) exceed the MacBook's ~830–875px work
+area, so the under window is a second fixed size, **640×260**, mocked at
+that size so the eyeball judges what would ship (pre-authorised dial: one
+re-mock at 640×320). Kill conditions frozen in §3: K1 one-place
+(inherited), K2 deep-rock legibility, K3 seam-reads-as-chrome. The probe
+(`2026-08-17-underground-continuation.html`): upper window **generated from
+the real composer** at the desk's exact options (53×20, skyH 11, no mural,
+closed-wing skyline d1–d5) through the real render transforms
+(strataMaterialGlyph / landRoleFill / phosphor), honesty-checked against a
+live t1 capture (`2026-08-17-underground-continuation/live-t1-honesty-check.png`
+— same monument, same shaft column 22, same strata register); the under-land
+continuation is the one authored element — bedrock-dominant with stone-vein
+intrusions so the depth gradient stays monotone across the seam, material
+glyphs hashed at GLOBAL y so texture runs continue rather than restart, the
+shaft continuing at the model's own column into a cavern, a relic labelled
+with the wing's SIXTH game (the five slice games all label surface sites
+above — a duplicate name would be an authoring artefact). Closed state
+mocked too: bottom wall row `═` with `╤`/`╧` at the ╎-cadence transposed.
+**Eyeball OPEN (TODO-USER.md); the Phase B engine slices (VJoin topology +
+under-compose + shaft-column climb/descent, outlined in the approved plan at
+`~/.claude/plans/i-meant-stacking-them-linked-duckling.md`) are GATED on it —
+nothing engine-side moves on a fail.** Also this session, discussed and
+recorded as separate candidate slices, unbuilt: desk-wide shared sky (one
+moon/sun for the joined desk, wisps drifting across seams — Harry's three
+visual findings collapse to per-window private skies), the caption-backing
+defect, the README GIF re-cut.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
