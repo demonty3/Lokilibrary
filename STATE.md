@@ -2925,12 +2925,12 @@ undercroft was dragged away mid-visit (exits refuse, no crash), and climbed
 back after re-dock. Smokes: new `smoke-under-land` (92) + `smoke-vertical-join`
 (37); extended edge-part (54), broker-handoff (39), cross-edge (17),
 being-intents (52), desk-topology (43), glyph-coverage. Shots:
-scratchpad-only this session; the eyeball re-captures. **Open: Harry's
-three-beat eyeball (dock seam read / part motion / descent-return), queued
-in TODO-USER.md — and one flagged observation: the violet `deep` band is
-prominent (ROLE_KEY.deep 'violet' predates Phase B but had never rendered);
-if it reads as noise at wallpaper distance, the dial is its palette key or
-fill density, not the seam.** The L-shape stays deferred; hall/storeys stays
+scratchpad-only this session; the eyeball re-captures. **Eyeball PASSED
+same day — "passes, the undercroft reads as one place — merged": K1 in its
+own words, no kill named anywhere, including against the flagged violet
+`deep` band, which stands as shipped (its dial — ROLE_KEY.deep / deep fill
+density — stays available if it ever grates). The vertical-stacking arc is
+CLOSED at v0 scope.** The L-shape stays deferred; hall/storeys stays
 parked on its own precondition.
 
 ## What this file is NOT

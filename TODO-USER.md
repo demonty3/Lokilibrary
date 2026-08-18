@@ -13,11 +13,10 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18, latest** (PHASE B SHIPPED — the undercroft
-window is real: VJoin topology, composeUnderLand seam agreement, the
-parting floor, and beings descending the shaft and returning; verified live
-end-to-end. One three-beat eyeball queued below, with one flagged
-observation — the violet `deep` band's first appearance.)
+Last updated: **2026-08-18, latest** (PHASE B eyeball PASSED same day —
+"passes, the undercroft reads as one place — merged". The arc is closed;
+no kill was named against the violet `deep` band, so it stands as shipped
+and its dial stays available if it ever grates.)
 Previously **2026-08-18, later** (SHARED SKY shipped — one ☼/☾ desk-wide,
 wisps crossing seams, no broker; all four measured bars passed live; one
 eyeball queued below. The README demo-GIF re-cut is now unblocked.)
@@ -136,32 +135,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 👁 EYEBALL — Phase B: the undercroft is real (dock · seam · descent)
-
-**Status**: shipped 2026-08-18, all three engine slices, verified live
-end-to-end (loki and cat descended, were stranded safely when the window was
-dragged away, and climbed back after re-dock). Spec:
-`docs/superpowers/specs/2026-08-18-underground-continuation-phase-b.md`.
-**What to do**: tray → `Open undercroft (d0)` under a surface terminal, then
-judge three beats at wallpaper distance, against the probe's own bars (K1
-one place / K2 same wing's deep rock / K3 no window-chrome seam):
-1. **The dock**: the 640×260 window snaps beneath; strata bands, glyph runs
-   and the shaft continue column-for-column; the floor row parts outward
-   from the shaft as it docks. Drag it sideways — it detaches and the seam
-   seals; drag it back — it re-docks.
-2. **The seam at rest**: nothing drawn — rock through a gap, with a pulsing
-   `▾`/`▴` at the shaft mouth only.
-3. **Descent + return**: watch a while; a being crossing the shaft column
-   sometimes climbs down, lives on the gallery floor, and later climbs back
-   (a few minutes' patience — it is chance-gated on purpose).
-**One flagged observation to rule on**: the violet `deep` band (the rock
-below everything) renders for the first time and is PROMINENT. If it reads
-as letter-noise or a separate panel rather than old rock, say so — the dial
-is `ROLE_KEY.deep` (currently `violet`) or the deep fill density in
-`composeUnderLand`; the seam mechanics don't move.
-**Blocks**: nothing mechanically; the L-shape and any further underground
-content (relics below? a second shaft?) wait on this read.
 
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 
@@ -361,6 +334,14 @@ session if convenient:
 ---
 
 ## Done / skipped (kept for posterity until next slice prunes)
+
+- ✅ **EYEBALL Phase B undercroft (dock · seam · descent) — PASSED
+  2026-08-18, same day** ("passes, the undercroft reads as one place —
+  merged"). K1 answered in its own words; no kill named on the seam or the
+  descent, and none against the flagged violet `deep` band — it stands as
+  shipped (dial: `ROLE_KEY.deep` / deep fill density, if it ever grates).
+  The vertical-stacking arc is CLOSED at v0 scope; the L-shape stays
+  deferred, hall/storeys stays parked.
 
 - ✅ **EYEBALL shared sky — PASSED 2026-08-18, same day** ("yea looks good,
   continue"): the one-sky read landed, no kill named on the bodyless window
