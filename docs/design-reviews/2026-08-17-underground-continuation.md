@@ -130,3 +130,17 @@ standing on the cavern floor; joined (open seam) and closed (bottom wall row,
 §3. The verdict is recorded in this file, dated, below this line.
 
 ---
+
+## Verdict — 2026-08-18
+
+**PASS.** Harry, viewing the mockup at 100% zoom: *"passes, the lower window
+reads as the same wing."* That is K2 answered in its own words (the ground of
+the window above, continued down — not a separate land or texture panel), and
+no kill was named against K1 (one place) or K3 (seam-as-chrome). The 640×260
+depth was not flagged as too shallow, so the pre-authorised 640×320 re-mock
+dial goes unspent and 260 stands as the accepted under-window size.
+
+Consequence (§4): both preconditions are met — the Phase B engine slices
+(vertical topology / VJoin, under-compose, shaft descent) are UNBLOCKED, per
+the approved plan. The L-shape stays explicitly deferred; the variable-size
+hall/storeys idea stays parked on its own precondition.

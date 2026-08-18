@@ -2760,10 +2760,12 @@ shaft continuing at the model's own column into a cavern, a relic labelled
 with the wing's SIXTH game (the five slice games all label surface sites
 above — a duplicate name would be an authoring artefact). Closed state
 mocked too: bottom wall row `═` with `╤`/`╧` at the ╎-cadence transposed.
-**Eyeball OPEN (TODO-USER.md); the Phase B engine slices (VJoin topology +
-under-compose + shaft-column climb/descent, outlined in the approved plan at
-`~/.claude/plans/i-meant-stacking-them-linked-duckling.md`) are GATED on it —
-nothing engine-side moves on a fail.** Also this session, discussed and
+**Eyeball PASSED 2026-08-18 — "passes, the lower window reads as the same
+wing" (K2 in its own words; no kill named on K1/K3; 640×260 not flagged
+shallow, so the 640×320 re-mock dial goes unspent). Verdict recorded in the
+probe doc. The Phase B engine slices (VJoin topology + under-compose +
+shaft-column climb/descent, outlined in the approved plan at
+`~/.claude/plans/i-meant-stacking-them-linked-duckling.md`) are UNBLOCKED.** Also this session, discussed and
 recorded as separate candidate slices, unbuilt: desk-wide shared sky (one
 moon/sun for the joined desk, wisps drifting across seams — Harry's three
 visual findings collapse to per-window private skies), the caption-backing

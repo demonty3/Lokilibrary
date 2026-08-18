@@ -13,7 +13,10 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-17, night** (the CAPTION-BACKING DEFECT is closed —
+Last updated: **2026-08-18** (the UNDERGROUND-CONTINUATION eyeball PASSED —
+"passes, the lower window reads as the same wing"; 640×260 accepted; Phase B
+engine work — VJoin topology, under-compose, shaft descent — is UNBLOCKED.)
+Previously **2026-08-17, night** (the CAPTION-BACKING DEFECT is closed —
 close-out queue item 2: a marginalia caption now occludes the closed-wing
 skyline under its rect instead of mixing with the wing ids; the judged
 reveal envelope is untouched; verified live with before/after shots. One
@@ -147,25 +150,6 @@ and return as it dies. If that swap reads as a pop rather than being covered
 by the emerging note, say so — the dial is `SKYLINE_OCCLUDE_ALPHA` in
 `terminalLand.ts` (higher = later, more hidden by the backing).
 **Not blocking anything.**
-
-### 👁 EYEBALL — underground continuation: the stacked-pair probe
-
-- **What**: open `docs/design-reviews/2026-08-17-underground-continuation.html`
-  in a browser at 100% zoom and judge the joined pair at wallpaper distance.
-  The bars are §3 of the sibling `.md` (frozen before authoring): **K1** — the
-  pair reads as two broken lands, not one place → vertical stacking stays dead
-  at this scope; **K2** — the lower window reads as a separate land / texture
-  panel rather than "the ground of the window above, continued down" → fail;
-  **K3** — the seam reads as window chrome rather than strata → fail. Also
-  judge the closed-state wall row (`═`/`╤`) crops, and say whether the
-  **640×260** lower window reads as a place worth keeping open (two stacked
-  520s don't fit the MacBook's work area; one re-mock at 640×320 is the
-  pre-authorised dial if 260 is too shallow).
-- **Unblocks**: the Phase B engine slices (vertical topology + under-compose +
-  being descent), outlined in the approved plan; nothing engine-side moves on
-  a fail.
-- **Where**: `docs/design-reviews/2026-08-17-underground-continuation.{md,html}`,
-  shots in `docs/design-reviews/2026-08-17-underground-continuation/`.
 
 ### 👁 EYEBALL — T5: the desk may ask for one room a night (bar 8, taste)
 **Status**: shipped 2026-08-15, verified end-to-end on the live desk with
@@ -344,6 +328,12 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL underground continuation (stacked-pair probe) — PASSED
+  2026-08-18**: "passes, the lower window reads as the same wing" — K2 in its
+  own words, no kill named on K1/K3, 640×260 accepted (the 640×320 re-mock
+  dial unspent). Verdict recorded in
+  `docs/design-reviews/2026-08-17-underground-continuation.md`. Phase B
+  engine slices (VJoin topology, under-compose, shaft descent) UNBLOCKED.
 - ✅ **EYEBALL the daylight sky register — PASSED 2026-08-08, all six bars,
   and bar 1's kill INVERTED.** Harry judged it in three passes. First the
   side-by-side: *"solarized looks way better because it actually looks like a
