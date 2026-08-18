@@ -295,7 +295,16 @@ iteration here uses the Claude API.
   desk's sleeping reflections see one extra clause on the topology
   line (a few dozen tokens), and the candidate is extracted from the
   plan the router already stored. Opted-out (the default) is
-  byte-identical to T4. New runtime
+  byte-identical to T4. **Phase B (2026-08-18, underground continuation)
+  adds ZERO new call sites** — a being descending/ascending the shaft
+  pushes the EXISTING `terminal_arrival` perception (subject
+  `"<wing> undercroft"` going down) through the unchanged arrival drain;
+  cost is bounded by the descent chance + crossing cooldown, under the
+  horizontal crossing rate, and charged to the same terminal-land-arrival
+  budget line. The undercroft window runs the unchanged Tier-2 pump, but
+  reflection budgeting is per-BEING (threshold + rate limit carried in
+  the mind), so a being below reflects instead of, not in addition to,
+  reflecting above. New runtime
   AI calls require an entry in this file documenting cost model,
   caching strategy, and fallback before shipping.
 - **Don't make local LLM the shipped default.** With BYO-key open source

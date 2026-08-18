@@ -2888,6 +2888,51 @@ in), desk-wide wisps, marginalia reveals, the crossing. The close-out
 queue's Claude-side items (2, 3, 4) are all closed; remaining are
 Harry's T3/T5 eyeballs, the caption eyeball, and the T5-1440px call.
 
+**Phase B — underground continuation SHIPPED 2026-08-18 (all three engine
+slices, one session; Harry's eyeball PENDING).** Spec with frozen bars
+committed first (`docs/superpowers/specs/2026-08-18-underground-continuation-phase-b.md`);
+slices landed B1p → B1w → B2s → B3, each typecheck + smoke green before
+commit. The shape: a second window kind — `Open undercroft (<wing>)` in the
+tray spawns a 640×260 `under` window (`&under=1`, `resizable:false`) docked
+at exact abutment beneath its surface terminal; `VJoin {top, bottom}` in
+`desktop/src/topology.ts` (`computeVSnapTarget`/`computeVJoins`/
+`neighbourBelow`/`neighbourAbove`, `SNAP_X_PX 48`), kind-gated so ONLY under
+windows snap vertically and horizontal drag is their escape — the old
+SNAP_Y_PX conflict dissolved, surface behaviour untouched (smoke-t0
+unmodified). `composeUnderLand` (`UNDER_SALT 0x0d0e`, own stream) continues
+the wing's depth profile via the extracted `landReliefProfile`/`shaftColumn`/
+`strataRoleAtDepth` helpers — role bands, shaft column + GLOBAL-y glyph
+parity, and `strataMaterialGlyph` runs (renderer `strataYOffset`) agree
+across the seam with no broker; the flat crust floor row IS `model.surface[]`
+so intents/wear/marks/knit run unchanged; `'deep'` (violet) is emitted for
+the first time below twice the surface band. Seam craft: on dock a `─` wall
+row parts OUTWARD from the shaft (rowSpan + the reused partFront/wallAlpha),
+a strata glow rides the front (vKnitCols), pulsing `▾`/`▴` thresholds mark
+the shaft mouth; both rest states carry zero objects (vjoin-free windows
+byte-identical). Descent: crossing side widened to down/up at the HANDOFF
+seams only (nearEdge + watch_edge stay horizontal — beings don't see through
+rock); a being crossing the shaft column while the seam is open may take it
+(0.25 chance + cooldown); climb is renderer juice (x pinned, eased row
+offset — the intent engine stays 1-D); `deskTopologyLine` gains the
+undercroft clauses, never a move_to target (reachableWings untouched,
+smoke-t5-proposal passes unmodified). ZERO new AI call sites (CLAUDE.md
+entry added). **Verified live end-to-end on the desk**: dock/undock/re-dock
+by drag (surface window never moves — T5 kill held), relaunch restores the
+vjoined pair (TerminalSlot.kind persisted; absent = surface), wallpaper
+round-trip with an undercroft docked keeps bounds, and loki + cat descended
+organically, lived on the gallery floor, were STRANDED safely when the
+undercroft was dragged away mid-visit (exits refuse, no crash), and climbed
+back after re-dock. Smokes: new `smoke-under-land` (92) + `smoke-vertical-join`
+(37); extended edge-part (54), broker-handoff (39), cross-edge (17),
+being-intents (52), desk-topology (43), glyph-coverage. Shots:
+scratchpad-only this session; the eyeball re-captures. **Open: Harry's
+three-beat eyeball (dock seam read / part motion / descent-return), queued
+in TODO-USER.md — and one flagged observation: the violet `deep` band is
+prominent (ROLE_KEY.deep 'violet' predates Phase B but had never rendered);
+if it reads as noise at wallpaper distance, the dial is its palette key or
+fill density, not the seam.** The L-shape stays deferred; hall/storeys stays
+parked on its own precondition.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
