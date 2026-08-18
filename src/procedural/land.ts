@@ -293,6 +293,75 @@ export function landSeamBoundary(seedA: number, seedB: number): { height: number
   };
 }
 
+/** The rolling-horizon surface function shared by composeLand and the
+ *  undercroft continuation (Phase B). `phase` must be the FIRST draw of
+ *  mulberry32(seed) — composeLand draws it in place on its own main stream;
+ *  landReliefProfile reproduces it from a fresh stream, so a surface window
+ *  and its under window agree on every column with no negotiation. Pure:
+ *  landSeamBoundary has its own salted stream, hermite is arithmetic. */
+function reliefSurfaceY(
+  phase: number,
+  seed: number,
+  cols: number,
+  groundLine: number,
+  join?: { readonly left?: number; readonly right?: number },
+): (x: number) => number {
+  const baseRelief = (x: number): number =>
+    1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2);
+  const baseSlope = (x: number): number =>
+    0.144 * Math.cos(x * 0.09 + phase) + 0.168 * Math.cos(x * 0.21 + phase * 2);
+  const K = SEAM_BLEND_COLS;
+  const rightJoin = join?.right !== undefined ? landSeamBoundary(seed, join.right) : null;
+  const leftJoin = join?.left !== undefined ? landSeamBoundary(seed, join.left) : null;
+  const reliefAt = (x: number): number => {
+    if (rightJoin && x > cols - 1 - K) {
+      const t = (x - (cols - 1 - K)) / K; // 0 at ramp start → 1 at the seam col
+      return hermite(t, baseRelief(cols - 1 - K), baseSlope(cols - 1 - K) * K, rightJoin.height, rightJoin.slope * K);
+    }
+    if (leftJoin && x < K) {
+      const t = x / K; // 0 at the seam col → 1 at ramp end
+      return hermite(t, leftJoin.height, leftJoin.slope * K, baseRelief(K), baseSlope(K) * K);
+    }
+    return baseRelief(x);
+  };
+  return (x: number) => groundLine - Math.round(reliefAt(x));
+}
+
+/** The surface row (crust `▀`) per column that composeLand(seed, …) would
+ *  produce — WITHOUT composing. The undercroft window uses this to continue
+ *  its surface window's depth profile column-for-column. */
+export function landReliefProfile(
+  seed: number,
+  cols: number,
+  groundLine: number,
+  join?: { readonly left?: number; readonly right?: number },
+): number[] {
+  const phase = mulberry32(seed >>> 0).rangeFloat(0, 6.283);
+  const surfaceY = reliefSurfaceY(phase, seed, cols, groundLine, join);
+  return Array.from({ length: cols }, (_, x) => surfaceY(x));
+}
+
+/** The descent shaft's column — a pure function of width + surface-game
+ *  count (no rng draw), so a surface window and its undercroft derive the
+ *  same x independently. Mirrors composeLand's `slot * 2 + 2`. */
+export function shaftColumn(cols: number, surfaceGamesCount: number): number {
+  return Math.floor(cols / (surfaceGamesCount + 1)) * 2 + 2;
+}
+
+/** The strata band at `depth` cells below the crust, continuing composeLand's
+ *  underH-relative thresholds past the surface window's bottom row. 'deep'
+ *  (declared in LandRole since V0, never emitted by composeLand) begins past
+ *  twice the surface band — rock older than anything the surface window can
+ *  show. */
+export function strataRoleAtDepth(depth: number, underH: number): 'topsoil' | 'stone' | 'bedrock' | 'deep' {
+  const topsoilD = Math.max(1, Math.round(underH * 0.15));
+  const stoneD = Math.max(topsoilD + 1, Math.round(underH * 0.5));
+  if (depth <= topsoilD) return 'topsoil';
+  if (depth <= stoneD) return 'stone';
+  if (depth <= underH * 2) return 'bedrock';
+  return 'deep';
+}
+
 export function composeLand(
   seed: number,
   games: readonly LandGame[] = SAMPLE_LAND,
@@ -326,35 +395,20 @@ export function composeLand(
   };
 
   // Rolling horizon — deterministic height field (a touch more relief).
-  const phase = rng.rangeFloat(0, 6.283);
-  const baseRelief = (x: number): number =>
-    1.6 * Math.sin(x * 0.09 + phase) + 0.8 * Math.sin(x * 0.21 + phase * 2);
-  const baseSlope = (x: number): number =>
-    0.144 * Math.cos(x * 0.09 + phase) + 0.168 * Math.cos(x * 0.21 + phase * 2);
-
   // Joined edges ramp to a boundary shared with the neighbour so the two
   // silhouettes meet at the same height + slope (Terrain-Diffusion's shared-
   // coordinate idea, folded from both wing seeds — see landSeamBoundary).
-  const K = SEAM_BLEND_COLS;
-  const rightJoin = opts.join?.right !== undefined ? landSeamBoundary(seed, opts.join.right) : null;
-  const leftJoin = opts.join?.left !== undefined ? landSeamBoundary(seed, opts.join.left) : null;
-  const reliefAt = (x: number): number => {
-    if (rightJoin && x > cols - 1 - K) {
-      const t = (x - (cols - 1 - K)) / K; // 0 at ramp start → 1 at the seam col
-      return hermite(t, baseRelief(cols - 1 - K), baseSlope(cols - 1 - K) * K, rightJoin.height, rightJoin.slope * K);
-    }
-    if (leftJoin && x < K) {
-      const t = x / K; // 0 at the seam col → 1 at ramp end
-      return hermite(t, leftJoin.height, leftJoin.slope * K, baseRelief(K), baseSlope(K) * K);
-    }
-    return baseRelief(x);
-  };
-  const surfaceY = (x: number) => groundLine - Math.round(reliefAt(x));
+  // `phase` stays the FIRST draw of the main stream — reliefSurfaceY is the
+  // shared field (also the undercroft's, via landReliefProfile) and takes it
+  // as an argument precisely so no draw here moves.
+  const phase = rng.rangeFloat(0, 6.283);
+  const surfaceY = reliefSurfaceY(phase, seed, cols, groundLine, opts.join);
   const surfaceRows: number[] = Array.from({ length: cols }, (_, x) => surfaceY(x));
 
   /** Suppress structures/labels in the blend columns so only ground + fill move. */
+  const K = SEAM_BLEND_COLS;
   const inJoinBuffer = (x: number): boolean =>
-    (rightJoin !== null && x >= cols - 1 - K) || (leftJoin !== null && x <= K);
+    (opts.join?.right !== undefined && x >= cols - 1 - K) || (opts.join?.left !== undefined && x <= K);
 
   // --- Celestial pass: stars, sun, moon, clouds — its own salted PRNG so
   // sky tuning never touches the terrain stream. Star density is zenith-
@@ -601,7 +655,7 @@ export function composeLand(
   });
 
   // --- A descent shaft into the caverns ------------------------------------
-  const shaftX = slot * 2 + 2;
+  const shaftX = shaftColumn(cols, surface.length); // === slot * 2 + 2
   for (let y = surfaceY(shaftX); y < rows; y++) set(shaftX, y, y % 2 ? '‖' : '╫', 'shaft');
 
   // --- Abandoned games rest DEEP (relics) ----------------------------------
@@ -793,5 +847,138 @@ export function composeLand(
     ...(shade ? { shade } : {}),
     ...(poster ? { poster } : {}),
     ...(mural ? { mural } : {}),
+  };
+}
+
+/** PRNG namespace for the undercroft compose (Phase B) — distinct from every
+ *  other src/procedural salt (cell 0xce11 · scatter 0x5ca7 · loki 0x10ce ·
+ *  landmark 0x1a4d · clusters 0xc1a5/0xc0a5 · cell-seam 0x5ea3 · land-seam
+ *  0x5a11 · ridge-far 0xfa42 · sky-dither 0xd174 · sky 0x57a5 · wing-sil
+ *  0x5117). Its OWN stream so the undercroft can never perturb the surface
+ *  seed's main stream — a surface window's model is byte-identical whether
+ *  or not an undercroft exists. */
+const UNDER_SALT = 0x0d0e;
+
+export interface ComposeUnderLandOptions {
+  /** World width in cells — MUST equal the surface window's, or the shared
+   *  relief profile and shaft column diverge. */
+  readonly width: number;
+  /** Under-window height in cells (10 at 640×260, WORLD_SCALE 2). */
+  readonly rows: number;
+  /** The surface window's total rows (20 on the desk) — the global-y offset:
+   *  under row r sits at global row yOffset + r for depth maths, shaft glyph
+   *  parity, and the renderer's strata glyph runs. */
+  readonly yOffset: number;
+  /** The surface window's compose geometry, to continue its depth profile. */
+  readonly surface: { readonly skyH: number; readonly surfaceBand: number; readonly underH: number };
+  /** The SURFACE window's horizontal join seeds, mirrored here so the edge-
+   *  ramp relief — hence the seam-row band identity at the window corners —
+   *  agrees with what the window above composed. */
+  readonly join?: { readonly left?: number; readonly right?: number };
+}
+
+/** The undercroft — the SAME wing's deep strata, continued below its surface
+ *  window (Phase B; probe PASSED 2026-08-18). No sky, no sites: strata whose
+ *  bands continue the surface window's depth profile column-for-column, a
+ *  couple of gallery caverns, ore glints, the descent shaft at the shared
+ *  column, and a flat cavern floor as `surface[]` — so beings, wear, marks
+ *  and the intent engine work unchanged.
+ *
+ *  Seam contract (spec 2026-08-18): role bands, shaft column + glyph parity,
+ *  and the relief-derived depth profile agree with the window above; per-cell
+ *  fill, caverns and ore deliberately do NOT (vertically adjacent rows within
+ *  one window are already independent draws). */
+export function composeUnderLand(
+  seed: number,
+  games: readonly LandGame[] = SAMPLE_LAND,
+  opts: ComposeUnderLandOptions,
+): LandModel {
+  const cols = opts.width;
+  const rows = opts.rows;
+  const groundLine = opts.surface.skyH + opts.surface.surfaceBand;
+  const underH = opts.surface.underH;
+  // The window above's crust row per column — depth continues from it.
+  const surfaceRows = landReliefProfile(seed, cols, groundLine, opts.join);
+  const rng = mulberry32((seed ^ UNDER_SALT) >>> 0);
+
+  const char: string[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ' '));
+  const role: LandRole[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'sky' as LandRole));
+  const set = (x: number, y: number, c: string, r: LandRole) => {
+    if (y >= 0 && y < rows && x >= 0 && x < cols) {
+      char[y][x] = c;
+      role[y][x] = r;
+    }
+  };
+
+  const galleryRow = rows - 2; // walking headroom above the floor
+  const floorRow = rows - 1;
+
+  // Gallery caverns — pockets in the rock, 1-row like the shallow desk band.
+  const cavCount = 2 + rng.range(0, 2);
+  const caverns = Array.from({ length: cavCount }, () => ({
+    cx: rng.range(4, Math.max(5, cols - 4)),
+    cy: rng.range(1, Math.max(2, galleryRow - 1)),
+    rx: 4 + rng.range(0, 5),
+    ry: 1,
+  }));
+  const inCavern = (x: number, y: number) =>
+    caverns.some((c) => ((x - c.cx) / c.rx) ** 2 + ((y - c.cy) / c.ry) ** 2 < 1);
+
+  // Strata continuation — same shallow-band fill constants as the desk's
+  // underH=4 surface strata (composeLand), so the seam rows match in density
+  // as well as band. 'deep' packs a touch denser than bedrock: the oldest
+  // rock reads solid, not sparse.
+  for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < galleryRow; y++) {
+      if (inCavern(x, y)) {
+        if (rng.next() < 0.05) set(x, y, '░', 'cavern');
+        continue;
+      }
+      const depth = opts.yOffset + y - surfaceRows[x];
+      const band = strataRoleAtDepth(depth, underH);
+      const r = rng.next();
+      if (band === 'topsoil') set(x, y, r < 0.45 ? '▒' : '░', 'topsoil');
+      else if (band === 'stone') {
+        if (r < 0.75) set(x, y, r < 0.5 ? '▓' : '▒', 'stone');
+      } else if (band === 'bedrock') {
+        if (r < 0.5) set(x, y, r < 0.35 ? '▓' : '░', 'bedrock');
+      } else {
+        if (r < 0.65) set(x, y, r < 0.45 ? '▓' : '▒', 'deep');
+      }
+    }
+    // The gallery: open air with the cavern dust speckle.
+    if (rng.next() < 0.05) set(x, galleryRow, '░', 'cavern');
+    // The floor: crust, flat — `surface[]` points here so the whole
+    // surface-keyed machinery (beings, wear, marks, knit) works unchanged.
+    set(x, floorRow, '▀', 'crust');
+  }
+
+  // The shaft continues at the shared column, glyph parity in GLOBAL y so
+  // the alternation runs unbroken through the seam.
+  const shaftX = shaftColumn(cols, games.filter((p) => p.state !== 'abandoned').length);
+  for (let y = 0; y < rows; y++) set(shaftX, y, (y + opts.yOffset) % 2 ? '‖' : '╫', 'shaft');
+
+  // Ore glints — same role-guarded stamp rule as composeLand, 'deep' included.
+  const veinCount = 1 + rng.range(0, 2);
+  for (let v = 0; v < veinCount; v++) {
+    let vx = rng.range(2, Math.max(3, cols - 2));
+    let vy = rng.range(0, Math.max(1, galleryRow));
+    const vdx = rng.next() < 0.5 ? -1 : 1;
+    const len = 2 + rng.range(0, 3);
+    for (let c = 0; c < len; c++) {
+      const r = role[vy]?.[vx];
+      if (r === 'stone' || r === 'bedrock' || r === 'deep') set(vx, vy, ORE_GLYPH, 'ore');
+      vx += vdx;
+      vy += 1;
+    }
+  }
+
+  return {
+    width: cols,
+    height: rows,
+    char,
+    role,
+    surface: Array.from({ length: cols }, () => floorRow),
+    sites: [],
   };
 }

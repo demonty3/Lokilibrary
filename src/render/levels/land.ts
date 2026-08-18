@@ -149,6 +149,7 @@ const STRATA_MATERIAL: Partial<Record<LandRole, readonly [string, string, number
   topsoil: ['▒', '░', 45],
   stone: ['▓', '▒', 55],
   bedrock: ['▓', '░', 60],
+  deep: ['▓', '▒', 70], // undercroft-only (composeUnderLand); composeLand never emits it
 };
 
 /** The run-coherent glyph for a strata cell, null for non-strata roles.
@@ -324,6 +325,14 @@ export function buildLandContainer(theme: Theme, model: LandModel, opts?: {
    *  at every join. Absent (V0 preview, palace) = no overhang, byte-identical.
    *  Widening `cols` instead was rejected: it recomposes every land. */
   readonly skyBleed?: number;
+  /** Global-y offset for the strata glyph-run hash (undercroft windows pass
+   *  the surface window's row count) so a run straddling the vertical seam
+   *  picks the same glyph on both sides. Absent/0 = byte-identical. */
+  readonly strataYOffset?: number;
+  /** Skip the per-column sky fill entirely (undercroft windows — their
+   *  `surface[]` is the cavern floor, and a sky fill down to it would flood
+   *  the rock). Absent/false = byte-identical. */
+  readonly noSky?: boolean;
 }): {
   container: Container;
   /** The flat fills behind every glyph — ground body + sky. Returned so a
@@ -358,7 +367,7 @@ export function buildLandContainer(theme: Theme, model: LandModel, opts?: {
   // rather than a rebuild, and it freezes cleanly under the wallpaper throttle.
   const bleed = (opts?.skyBleed ?? 0) * COZETTE_CELL_WIDTH;
   const sky = new Graphics();
-  for (let x = 0; x < model.width; x++) {
+  for (let x = 0; opts?.noSky !== true && x < model.width; x++) {
     const groundRow = Math.max(0, Math.min(model.height, model.surface[x] ?? 0));
     if (groundRow === 0) continue;
     const left = x === 0 ? -bleed : 0;
@@ -445,8 +454,9 @@ export function buildLandContainer(theme: Theme, model: LandModel, opts?: {
   for (const r of roles) {
     // Pack dialect first; undialected strata take the run-coherent material.
     const dialect = landRoleGlyph(theme, r);
+    const yOff = opts?.strataYOffset ?? 0;
     const glyph: GlyphSource =
-      dialect ?? (STRATA_MATERIAL[r] !== undefined ? (x, y) => strataMaterialGlyph(r, x, y) as string : null);
+      dialect ?? (STRATA_MATERIAL[r] !== undefined ? (x, y) => strataMaterialGlyph(r, x, y + yOff) as string : null);
     const shadeGrid = model.shade;
     if (shadeGrid && SHADED_ROLES.has(r)) {
       // V0: vertical gradient — one layer per luminance step (≤4 extra
