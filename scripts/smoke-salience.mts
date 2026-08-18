@@ -91,16 +91,16 @@ check('every cohort accent is a reserved key (or the ghost fgDim exception)',
 // it (a bar written in terms of the constant it guards is not a bar).
 const SEP_MIN = 1.5; // inherited verbatim from the daylight-colour rung's
                      // measured "perceptible change to the same surface" floor
-const { composeLand, SAMPLE_LAND } = await import('../src/procedural/land.ts');
+const { composeLand, SAMPLE_LAND, DESK_SURFACE } = await import('../src/procedural/land.ts');
 const { ROLE_KEY, landRoleFill } = await import('../src/render/levels/land.ts');
 const { THEMES, THEME_IDS } = await import('../src/themes/index.ts');
 
-// Desk geometry, restated from terminalLand.ts:143-144 + :437-439 (the desk
-// builds its composeOpts inline and exports nothing). Swept over a second
-// width so a window-size change cannot silently shrink the trigger set.
+// Desk geometry from DESK_SURFACE (scale/anchor slice: the constant the desk
+// itself composes with — no longer a restatement). Swept over a second width
+// so a window-size change cannot silently shrink the trigger set.
 const DESK_GEOM = [
-  { width: 53, skyH: 11, surfaceBand: 4, underH: 4, withPlayer: false, mural: false },
-  { width: 80, skyH: 11, surfaceBand: 4, underH: 4, withPlayer: false, mural: false },
+  { width: 53, skyH: DESK_SURFACE.skyH, surfaceBand: DESK_SURFACE.surfaceBand, underH: DESK_SURFACE.underH, withPlayer: false, mural: false },
+  { width: 80, skyH: DESK_SURFACE.skyH, surfaceBand: DESK_SURFACE.surfaceBand, underH: DESK_SURFACE.underH, withPlayer: false, mural: false },
 ] as const;
 const fnv = (s: string): number => {
   let h = 0x811c9dc5;

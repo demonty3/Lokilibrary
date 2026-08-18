@@ -14,6 +14,7 @@ import {
   landReliefProfile,
   shaftColumn,
   strataRoleAtDepth,
+  DESK_SURFACE,
   SAMPLE_LAND,
   type LandGame,
   type LandModel,
@@ -36,8 +37,8 @@ const hash = (v: unknown): string => fnv1a(JSON.stringify(v)).toString(16);
 
 // The desk's exact geometry: 640×520 surface (53×20 cells, skyH 11) over a
 // 640×260 undercroft (53×10 cells), WORLD_SCALE 2.
-const T = { width: 53, skyH: 11, surfaceBand: 4, underH: 4, withPlayer: false, mural: false } as const;
-const U = { width: 53, rows: 10, yOffset: 20, surface: { skyH: 11, surfaceBand: 4, underH: 4 } } as const;
+const T = { width: 53, skyH: DESK_SURFACE.skyH, surfaceBand: DESK_SURFACE.surfaceBand, underH: DESK_SURFACE.underH, withPlayer: false, mural: false } as const;
+const U = { width: 53, rows: 10, yOffset: DESK_SURFACE.rows, surface: { skyH: DESK_SURFACE.skyH, surfaceBand: DESK_SURFACE.surfaceBand, underH: DESK_SURFACE.underH } } as const;
 const GROUND_LINE = T.skyH + T.surfaceBand;
 
 const WINGS = ['d0', 'd1', 'd2', 'd3', 'd4', 'd5'] as const;
