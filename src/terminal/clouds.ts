@@ -34,12 +34,13 @@ export interface WispSpec {
  *  mural span dominated both baked cloud rows at desk widths). */
 const RE_ROW_THRESHOLD = 0.5;
 /** The composer's canonical wisp shapes — used to restore the intended count
- *  when the mural evicts a baked run outright. */
-const WISP_SHAPES = ['~ ~~~~ ~', '~~ ~~~'] as const;
+ *  when the mural evicts a baked run outright (and, shared-sky, to author the
+ *  desk-global wisps that cross seams). */
+export const WISP_SHAPES = ['~ ~~~~ ~', '~~ ~~~'] as const;
 /** The composer always bakes two wisps; the drifting sky keeps that many. */
 const WISP_COUNT = 2;
 
-function blockedSpansAt(model: LandModel, y: number): Array<readonly [number, number]> {
+export function blockedSpansAt(model: LandModel, y: number): Array<readonly [number, number]> {
   const blocked: Array<readonly [number, number]> = [];
   let bs = -1;
   for (let c = 0; c <= model.width; c++) {

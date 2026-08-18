@@ -13,7 +13,10 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18** (the UNDERGROUND-CONTINUATION eyeball PASSED —
+Last updated: **2026-08-18, later** (SHARED SKY shipped — one ☼/☾ desk-wide,
+wisps crossing seams, no broker; all four measured bars passed live; one
+eyeball queued below. The README demo-GIF re-cut is now unblocked.)
+Previously **2026-08-18** (the UNDERGROUND-CONTINUATION eyeball PASSED —
 "passes, the lower window reads as the same wing"; 640×260 accepted; Phase B
 engine work — VJoin topology, under-compose, shaft descent — is UNBLOCKED.)
 Previously **2026-08-17, night** (the CAPTION-BACKING DEFECT is closed —
@@ -128,6 +131,29 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — shared sky: one sun, one moon, weather crossing seams
+
+**Status**: shipped 2026-08-18 (close-out queue item 4). All four measured
+bars passed live; this is the taste half. Spec (bars frozen before
+implementation): `docs/superpowers/specs/2026-08-18-shared-sky-design.md`.
+**What changed**: a joined desk used to show one moon PER WINDOW at the same
+hour. Now the desk has one ☼ and one ☾ total — each lives in one window,
+picked deterministically — and the wisps are desk-global: a run drifts out
+of one window's right edge and into the neighbour's left, same row, same
+moment. Unjoined windows are untouched.
+**What to look at**, on the joined pair (or the shot in
+`docs/design-reviews/2026-08-18-shared-sky/`):
+1. **One sky.** Does the pair read as one place under one sky — one sun (at
+   night, one moon), somewhere on the desk rather than one per room?
+2. **The frozen kill, your half**: does the bodyless window's sky read as
+   "the moon is over the other room" — or as BROKEN (a missing moon)? Say
+   which.
+3. **A wisp crossing the seam.** Watch the top rows for a minute: a run
+   should hand off between windows as passage, not pop or teleport at the
+   seam.
+**Not blocking anything** — but the README demo-GIF re-cut was waiting on
+this slice and is now unblocked.
 
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 

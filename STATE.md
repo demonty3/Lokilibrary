@@ -2844,6 +2844,46 @@ showed. Test residue: a few debugMark notes placed at cols 29/41 of d0
 persist in the desk's mark memory (in-voice, render-capped; same precedent
 as every debugMark-driven verification). Eyeball queued in TODO-USER.md.
 
+**Shared sky SHIPPED 2026-08-18 (close-out queue item 4) — one ☼, one ☾,
+weather crossing seams; no broker, by construction.** Spec + frozen bars:
+`docs/superpowers/specs/2026-08-18-shared-sky-design.md` (committed before
+implementation). Mechanism: every window already receives the FULL joins
+list + wings map, so every window derives the same left-to-right chain
+(`sharedSky.ts deskChain` — pure, cycle-guarded) and everything shared
+seeds off the chain's wing key. Bodies: a hash of (chainKey, role) picks
+one HOST window per body; only the host draws its ☼/☾ (extraction, arc,
+glow untouched). Wisps: chained windows author `2 × chainLen` wisps from
+the chain key (canonical shapes, the judged 0.25–0.45 band), positions in
+desk-space over the chain's combined width; each window converts to local
+columns, the canvas clips the overhang, and the neighbour — same clock,
+same maths — draws the rest of the run. Occlusion stays per-window (own
+blocked spans, own pack omissions). Solo (chain of one) leaves every sky
+path byte-identical — the shared branch is unreachable (B3). The chain is
+tracked BESIDE joinKey because it can change without this window's own
+join seeds changing (a third window docking on a neighbour's far side);
+that path rebuilds wisps + bodies without a recompose.
+
+**All four measured bars PASSED on the live desk** (typecheck + full sweep
++ 17-assertion `smoke-shared-sky.mts` first): **B1** t1 sun-view only /
+t2 moon-view only (debugSky both windows; re-verified after a fresh join);
+**B2** timestamped reads 15.1 s apart show all four wisps at consistent
+desk positions drifting at exactly their spec speeds (0.40–0.44 cells/s),
+and one wisp was caught mid-crossing — desk x 45.2 in both windows, t1
+drawing to its right edge, t2 the head past the seam, both lit; **B4**
+closing t2 collapsed t1's chain to one, wisps back to 2, both bodies
+redrawn; rejoining re-split them. The KILL (windows deriving different
+chains) never fired — every paired read agreed on key `d0>d1`. `debugSky`
+grew a `shared` block (chain/index/key/hosts/per-wisp desk-x). Shot:
+`docs/design-reviews/2026-08-18-shared-sky/joined-pair-one-sun.png`.
+Eyeball (one-sky read, seam handoff as passage) queued in TODO-USER.md.
+Known and accepted (spec §2): the host pick is blind to pack omissions —
+only gameboy-dmg omits bodies and it is excluded from the auto-pool.
+Verification note: an OCCLUDED window's compositor pauses, so its drawn
+positions read stale over CDP — activate the app before sampling (two
+false alarms this session both dissolved on wake). **The README demo-GIF
+re-cut is now unblocked** (it was waiting on this slice so the two-moon
+defect would not be baked into the headline GIF).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

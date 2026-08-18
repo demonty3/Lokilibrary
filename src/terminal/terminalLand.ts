@@ -81,7 +81,8 @@ import {
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
 import { daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
 import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
-import { extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
+import { blockedSpansAt, extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
+import { bodyHost, deskChain, sharedWisps, type DeskChainSpec } from './sharedSky';
 import {
   launchNote,
   maybeMark,
@@ -370,6 +371,18 @@ declare global {
          *  Proves the far planes recede into the CURRENT sky rather than into a
          *  dark constant — the noon depth-inversion this rung had to avoid. */
         farInk: number | null;
+        /** Shared sky (spec B1/B2): this window's derived chain, its index,
+         *  the host picks, and each wisp's DESK-space x + row — two windows'
+         *  reads must agree on the desk position modulo the drift between the
+         *  reads. */
+        shared: {
+          chain: string[];
+          index: number;
+          key: string;
+          sunHost: number | null;
+          moonHost: number | null;
+          wisps: Array<{ row: number; deskX: number; localX: number; alpha: number }>;
+        };
       };
       /** e2e only — throttle readback: the state the desk believes it is in
        *  and what that did to the ticker. Bar 5 ("alive but cheap") is not
@@ -750,6 +763,11 @@ export async function mountTerminalLand(
   // no clear sky at all; nothing is drawn and the tick skips it.
   let sunView: { spec: ArcSpec; text: BitmapText } | null = null;
   let moonView: { spec: ArcSpec; text: BitmapText } | null = null;
+  // Shared sky (2026-08-18): this window's horizontal chain, derived in
+  // applyJoins from the same broker payload every window gets — all windows
+  // agree without talking. Solo (length 1) leaves every sky path byte-
+  // identical to the pre-slice behaviour (spec B3).
+  let chain: DeskChainSpec = { order: [terminalId], index: 0, key: wing };
   const buildBodies = (): void => {
     for (const v of [sunView, moonView]) v?.text.destroy();
     sunView = null;
@@ -757,6 +775,8 @@ export async function mountTerminalLand(
     const omit = theme.landOmit ?? [];
     for (const role of ['sun', 'moon'] as const) {
       if (omit.includes(role)) continue; // a pack that deletes the body gets no arc
+      // Chained, one window hosts each body; the rest show sky (spec B1).
+      if (chain.order.length > 1 && bodyHost(chain.key, role, chain.order.length) !== chain.index) continue;
       const spec = extractArc(model, role);
       if (!spec) continue;
       const text = new BitmapText({
@@ -967,12 +987,30 @@ export async function mountTerminalLand(
       return { site, text, alpha: 0 };
     });
   };
-  interface WispView { spec: WispSpec; text: BitmapText }
+  /** `desk` marks a shared-sky wisp: its wispX runs in DESK cells over the
+   *  chain's combined width and the tick converts to this window's local
+   *  columns — the run leaves one window's right edge as it enters the
+   *  neighbour's left. Occlusion stays local (own blocked spans, own pack). */
+  interface WispView { spec: WispSpec; text: BitmapText; desk: boolean }
   let wispViews: WispView[] = [];
   const buildWisps = (): void => {
     for (const w of wispViews) w.text.destroy();
     wispViews = [];
     if ((theme.landOmit ?? []).includes('cloud')) return; // a pack that deletes clouds gets no wisps either
+    if (chain.order.length > 1) {
+      wispViews = sharedWisps(chain.key, chain.order.length, model.width).map((s) => {
+        const spec: WispSpec = { ...s, blocked: blockedSpansAt(model, s.row) };
+        const text = new BitmapText({
+          text: spec.text,
+          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: landRoleFill(theme, 'cloud') },
+        });
+        text.y = spec.row * CH;
+        text.alpha = 0; // positioned + faded on the first tick
+        world.addChildAt(text, 1);
+        return { spec, text, desk: true };
+      });
+      return;
+    }
     wispViews = extractWisps(model, seed).map((spec) => {
       const text = new BitmapText({
         text: spec.text,
@@ -981,7 +1019,7 @@ export async function mountTerminalLand(
       text.y = spec.row * CH;
       text.alpha = 0; // positioned + faded on the first tick
       world.addChildAt(text, 1); // same plane as the label overlays
-      return { spec, text };
+      return { spec, text, desk: false };
     });
   };
   let muralState: TerminalMuralState = 'idle';
@@ -1234,12 +1272,22 @@ export async function mountTerminalLand(
     if (rightNb && wings[rightNb]) join.right = fnv1a(`terminal:${wings[rightNb]}`);
     const open = new Set(Object.values(wings));
     closedWings = (allWings ?? []).filter((w) => w !== wing && !open.has(w)).sort();
+    // Shared sky: the chain can change without this window's own joins
+    // changing (a third window docking on the FAR side of a neighbour), so
+    // it is tracked beside joinKey, not inside it.
+    const prevChainKey = chain.key;
+    chain = deskChain(terminalId, joins, wings);
     const key = `${join.left ?? ''}|${join.right ?? ''}|${closedWings.join(',')}`;
     if (key !== joinKey) {
       joinKey = key;
       recompose(join.left === undefined && join.right === undefined ? null : join);
       if (edges.left && !prev.left) startKnit('left');
       if (edges.right && !prev.right) startKnit('right');
+    } else if (chain.key !== prevChainKey) {
+      // No terrain change, but the desk's sky membership moved: re-author
+      // the shared wisps and re-run the host pick (spec B1/B4).
+      buildWisps();
+      buildBodies();
     }
     // The frame parts on the same transition the knit fires on, and closes
     // again when a window is dragged away.
@@ -2050,10 +2098,16 @@ export async function mountTerminalLand(
 
     // #19 slice 2: cloud drift — same wall clock, same reason (and a woken
     // throttle snaps to where the sky has got to, with no accumulator).
+    // Shared-sky wisps run in DESK cells: converted to local columns here,
+    // the canvas clips the overhang, and the joined neighbour — computing the
+    // same desk position from the same clock — draws the rest of the run.
     for (const w of wispViews) {
-      const xc = wispX(w.spec, skyT, model.width);
+      const xc = w.desk
+        ? wispX(w.spec, skyT, chain.order.length * model.width) - chain.index * model.width
+        : wispX(w.spec, skyT, model.width);
       w.text.x = xc * CW;
-      w.text.alpha = wispAlpha(w.spec, xc) * 0.9;
+      w.text.alpha =
+        xc <= -w.spec.text.length || xc >= model.width ? 0 : wispAlpha(w.spec, xc) * 0.9;
     }
 
     // Proximity labels: a site's name fades in only while a walker is near.
@@ -2575,6 +2629,22 @@ export async function mountTerminalLand(
         moonCol: moonView ? moonView.spec.col : null,
         skyInk: scene.sky.tint as number,
         farInk: (scene.farLayers[0]?.bt.tint as number | undefined) ?? null,
+        shared: {
+          chain: [...chain.order],
+          index: chain.index,
+          key: chain.key,
+          sunHost: chain.order.length > 1 ? bodyHost(chain.key, 'sun', chain.order.length) : null,
+          moonHost: chain.order.length > 1 ? bodyHost(chain.key, 'moon', chain.order.length) : null,
+          wisps: wispViews.map((w) => {
+            const local = w.text.x / CW;
+            return {
+              row: w.spec.row,
+              deskX: r3(w.desk ? local + chain.index * model.width : local),
+              localX: r3(local),
+              alpha: r3(w.text.alpha),
+            };
+          }),
+        },
       };
     },
     debugLabels: () =>
