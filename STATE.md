@@ -2933,8 +2933,9 @@ density — stays available if it ever grates). The vertical-stacking arc is
 CLOSED at v0 scope.** The L-shape stays deferred; hall/storeys stays
 parked on its own precondition.
 
-**Scale/anchor slice SHIPPED 2026-08-18 (eyeball queued) — window height
-stops meaning zoom and starts meaning depth.** Spec + frozen bars committed
+**Scale/anchor slice SHIPPED 2026-08-18, eyeball PASSED same day
+("the aperture eyeball passes — reads as the same wing, merged") — window
+height stops meaning zoom and starts meaning depth.** Spec + frozen bars committed
 first (`docs/superpowers/specs/2026-08-18-scale-anchor-slice.md`); the
 load-bearing rung of the full-screen-desk ladder (IDEAS.md § Terminals of
 different sizes, item 2; PRD § risks "lock land scale across terminals",
@@ -2977,10 +2978,11 @@ along: smoke-salience + smoke-under-land geometry restatements now import
 DESK_SURFACE (zero goldens moved). **Frozen bars carried:** every golden
 byte-identical (kill: a golden moves → the canonical compose was perturbed;
 rework, never re-baseline); extension rows pure in (seed, width, globalRow).
-**Eyeball queued (TODO-USER.md):** tall-beside-standard reads as a deeper
-aperture onto the same wing; kill = the extra strata read as a second
-underworld competing with the undercroft → cut ore glints first, then cap
-extension depth. Next rungs on the ladder: variable widths, then the
+**Eyeball PASSED 2026-08-18, same day:** tall-beside-standard reads as a
+deeper aperture onto the same wing — "reads as the same wing, merged". The
+frozen kill (second-underworld read → cut ore glints, then cap extension
+depth) never fired; both remedies stay available as dials if the read ever
+grates. Next rungs on the ladder are UNBLOCKED: variable widths, then the
 archipelago full-screen mockup.
 
 ## What this file is NOT
