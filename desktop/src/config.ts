@@ -34,6 +34,9 @@ export interface TerminalSlot {
   y: number;
   width: number;
   height: number;
+  /** Phase B: 'under' = a 640×260 undercroft window. Absent = 'surface'
+   *  (pre-B configs migrate for free). */
+  kind?: 'surface' | 'under';
 }
 
 export interface Config {
@@ -57,7 +60,8 @@ function isTerminalSlot(v: unknown): v is TerminalSlot {
     typeof s.x === 'number' &&
     typeof s.y === 'number' &&
     typeof s.width === 'number' &&
-    typeof s.height === 'number'
+    typeof s.height === 'number' &&
+    (s.kind === undefined || s.kind === 'surface' || s.kind === 'under')
   );
 }
 

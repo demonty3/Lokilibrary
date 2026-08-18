@@ -104,7 +104,7 @@ import {
   type LaunchTarget,
 } from './launchTargets';
 import { launchGame } from '../agents/launch';
-import { composeLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
+import { composeLand, composeUnderLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
   getTerminalTopology,
@@ -123,6 +123,7 @@ import {
   terminalProposeTopology,
   terminalReportNearEdge,
   type TerminalJoin,
+  type TerminalVJoin,
   type ThrottleState,
 } from '../api/electron';
 import { shouldFireAttention, tickerFor } from './deskThrottle';
@@ -578,7 +579,12 @@ export async function mountTerminalLand(
   theme: Theme,
   terminalId: string,
   wing: string,
+  mountOpts: { kind?: 'surface' | 'under' } = {},
 ): Promise<() => void> {
+  /** Phase B: this window is the wing's UNDERCROFT — same wing, same pack,
+   *  deep-strata compose (composeUnderLand), no sky/masthead/celestial, no
+   *  left/right joins, no boot residents (beings arrive via the shaft, B3). */
+  const isUnder = mountOpts.kind === 'under';
   const app = new Application();
   await app.init({
     resizeTo: host,
@@ -594,21 +600,40 @@ export async function mountTerminalLand(
   // window sizes + equal scale across terminals ⇒ equal ground row ⇒
   // ground-line continuity once the broker aligns window y.
   const cols = Math.max(40, Math.floor(app.screen.width / (CW * WORLD_SCALE)));
-  const rows = Math.max(20, Math.floor(app.screen.height / (CH * WORLD_SCALE)));
+  const rows = Math.max(isUnder ? 8 : 20, Math.floor(app.screen.height / (CH * WORLD_SCALE)));
   const skyH = rows - SURFACE_BAND - 1 - UNDER_H;
+  /** The surface window above an undercroft is the fixed 640×520 (20 rows) —
+   *  the global-y offset for depth continuation, shaft parity, and the
+   *  renderer's strata glyph runs. Its skyH re-derives from the same formula
+   *  at 20 rows so the two windows share one depth profile. */
+  const UNDER_PARENT_ROWS = 20;
+  const underComposeOpts = {
+    width: cols,
+    rows,
+    yOffset: UNDER_PARENT_ROWS,
+    surface: {
+      skyH: UNDER_PARENT_ROWS - SURFACE_BAND - 1 - UNDER_H,
+      surfaceBand: SURFACE_BAND,
+      underH: UNDER_H,
+    },
+  };
   const seed = fnv1a(`terminal:${wing}`);
   // Memory stream (Tier-1 society): the desktop terminal gets the DB-backed
   // writer namespaced per wing; the web preview degrades to the null writer.
   // Each terminal window is its own renderer process → its own bootstrap.
+  // The undercroft keeps the wing's LAND seed (seam agreement) but its own
+  // memory cell — marks/wear placed underground must not resurface on the
+  // wing's surface rows.
+  const memSeed = isUnder ? fnv1a(`terminal:${wing}:under`) : seed;
   let memory = getCurrentMemoryWriter() ?? nullMemoryWriter;
   void bootstrapMemory({
-    namespace: { cellId: cellIdFor(seed), libraryId: libraryIdFor(null) },
+    namespace: { cellId: cellIdFor(memSeed), libraryId: libraryIdFor(null) },
   }).then((r) => {
     memory = r.writer;
     // Persisted marks (the palace's exact read path) — the 12 most
     // recent; stored y is advisory, the display row re-derives from the
     // live surface inside addMarkView.
-    for (const m of r.writer.placedMarksForCell(cellIdFor(seed)).slice(0, MARK_RENDER_CAP)) {
+    for (const m of r.writer.placedMarksForCell(cellIdFor(memSeed)).slice(0, MARK_RENDER_CAP)) {
       addMarkView(m.agentId, m.text, m.location.x);
     }
     seedWear(r.writer); // fresh-process path (bootstrap cache was cold)
@@ -627,7 +652,9 @@ export async function mountTerminalLand(
   // now takes is the one smoke-land-mural.mts already pins with a golden
   // hash); the desk simply stops asking for one. Reversible by this word.
   const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: false };
-  let model = composeLand(seed, games, composeOpts);
+  let model = isUnder
+    ? composeUnderLand(seed, games, underComposeOpts)
+    : composeLand(seed, games, composeOpts);
 
   // Persistent transform container; the land SCENE is a swappable child so a
   // join can recompose the terrain without disturbing beings / edges / sparks.
@@ -644,6 +671,7 @@ export async function mountTerminalLand(
   // fx block, so both of those hold by construction.
   const masthead = new Container();
   masthead.scale.set(WORLD_SCALE);
+  masthead.visible = !isUnder; // the undercroft has no masthead — drag strip only (probe decision)
   app.stage.addChild(masthead);
   const mastBack = new Graphics();
   masthead.addChild(mastBack);
@@ -737,7 +765,14 @@ export async function mountTerminalLand(
   const backdropHost = new Container();
   backdropHost.scale.set(WORLD_SCALE);
 
-  let scene = buildLandContainer(theme, model, { skyBleed: SKY_BLEED_CELLS });
+  /** Under windows: no sky fill (their surface[] is the cavern floor) and the
+   *  strata glyph-run hash offset by the parent's rows, so a run straddling
+   *  the vertical seam picks the same glyph on both sides. */
+  const containerOpts = {
+    skyBleed: SKY_BLEED_CELLS,
+    ...(isUnder ? { noSky: true, strataYOffset: UNDER_PARENT_ROWS } : {}),
+  };
+  let scene = buildLandContainer(theme, model, containerOpts);
   let sceneContainer = scene.container;
   let contentH = scene.contentH;
   world.addChildAt(sceneContainer, 0);
@@ -772,6 +807,7 @@ export async function mountTerminalLand(
     for (const v of [sunView, moonView]) v?.text.destroy();
     sunView = null;
     moonView = null;
+    if (isUnder) return; // no sky underground — no bodies, ever
     const omit = theme.landOmit ?? [];
     for (const role of ['sun', 'moon'] as const) {
       if (omit.includes(role)) continue; // a pack that deletes the body gets no arc
@@ -996,6 +1032,7 @@ export async function mountTerminalLand(
   const buildWisps = (): void => {
     for (const w of wispViews) w.text.destroy();
     wispViews = [];
+    if (isUnder) return; // no sky underground — no wisps, ever
     if ((theme.landOmit ?? []).includes('cloud')) return; // a pack that deletes clouds gets no wisps either
     if (chain.order.length > 1) {
       wispViews = sharedWisps(chain.key, chain.order.length, model.width).map((s) => {
@@ -1075,18 +1112,20 @@ export async function mountTerminalLand(
   let doorX: number | null = doorColumn(model.role);
 
   const recompose = (join: { left?: number; right?: number } | null): void => {
-    model = composeLand(seed, games, {
-      ...composeOpts,
-      ...(join ? { join } : {}),
-      ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
-    });
+    model = isUnder
+      ? composeUnderLand(seed, games, { ...underComposeOpts, ...(join ? { join } : {}) })
+      : composeLand(seed, games, {
+          ...composeOpts,
+          ...(join ? { join } : {}),
+          ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
+        });
     world.removeChild(sceneContainer);
     // The backdrop was re-parented out of sceneContainer at mount, so the
     // children sweep below cannot reach it — destroy it by hand or every join
     // leaks a full-scene Graphics pair.
     scene.backdrop.destroy({ children: true });
     sceneContainer.destroy({ children: true });
-    scene = buildLandContainer(theme, model, { skyBleed: SKY_BLEED_CELLS });
+    scene = buildLandContainer(theme, model, containerOpts);
     sceneContainer = scene.container;
     contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
@@ -1256,8 +1295,28 @@ export async function mountTerminalLand(
     joins: TerminalJoin[],
     wings: Record<string, string>,
     allWings?: string[],
+    vjoins?: TerminalVJoin[],
   ): void => {
     lastTopology = { joins, wings, ...(allWings && { allWings }) };
+    if (isUnder) {
+      // The undercroft's left/right edges are rock, always (v0's vertical
+      // pair). Its terrain instead tracks its PARENT's horizontal joins:
+      // the shared relief profile ramps at the parent's seams, so the
+      // corner columns of the under window agree with what the window
+      // above composed. Recompose only when those change.
+      const parent = (vjoins ?? []).find((v) => v.bottom === terminalId)?.top ?? null;
+      const pl = parent ? joins.find((j) => j.right === parent)?.left : undefined;
+      const pr = parent ? joins.find((j) => j.left === parent)?.right : undefined;
+      const join: { left?: number; right?: number } = {};
+      if (pl && wings[pl]) join.left = fnv1a(`terminal:${wings[pl]}`);
+      if (pr && wings[pr]) join.right = fnv1a(`terminal:${wings[pr]}`);
+      const key = `under|${parent ?? ''}|${join.left ?? ''}|${join.right ?? ''}`;
+      if (key !== joinKey) {
+        joinKey = key;
+        recompose(join.left === undefined && join.right === undefined ? null : join);
+      }
+      return;
+    }
     const prev = edges;
     edges = {
       left: joins.some((j) => j.right === terminalId),
@@ -1891,6 +1950,7 @@ export async function mountTerminalLand(
   // rest of this file, just typed to satisfy the shared BehaviorContext.
   const presencePrngs = new Map<string, Prng>();
   void getTerminalSociety().then((society) => {
+    if (isUnder) return; // no boot residents underground — beings arrive via the shaft (B3)
     const defs = filterByTheme(
       residentsOf(society, wing)
         .map((id) => COHORT_BY_ID.get(id))
@@ -2472,8 +2532,8 @@ export async function mountTerminalLand(
   app.ticker.add(tick);
 
   // ── Broker wiring ────────────────────────────────────────────────────────
-  const unsubTopology = subscribeTerminalTopology(({ joins, wings, allWings }) =>
-    applyJoins(joins, wings, allWings),
+  const unsubTopology = subscribeTerminalTopology(({ joins, vjoins, wings, allWings }) =>
+    applyJoins(joins, wings, allWings, vjoins),
   );
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
@@ -2516,8 +2576,8 @@ export async function mountTerminalLand(
   const unsubNeighbour = subscribeTerminalNeighbourSummary(({ side, beings: bs }) => {
     neighbourNear[side] = bs;
   });
-  void getTerminalTopology().then(({ joins, wings, allWings }) => applyJoins(joins, wings, allWings));
-  drawEdges();
+  void getTerminalTopology().then(({ joins, vjoins, wings, allWings }) => applyJoins(joins, wings, allWings, vjoins));
+  if (!isUnder) drawEdges();
 
   window.__terminal = {
     state: () => ({

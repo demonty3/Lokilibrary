@@ -29,7 +29,7 @@ import * as path from 'path';
 import { getMode, getOrchestration, getSociety, getTerminals, setMode, setOrchestration, setSociety, setTerminals, type Mode } from './config';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { startThrottleController, stopThrottleController, type ThrottleState } from './wallpaper/throttle';
-import { computeJoins, computeSnapTarget, neighbourOf, type Join, type TermBounds } from './topology';
+import { computeJoins, computeSnapTarget, computeVJoins, computeVSnapTarget, neighbourBelow, neighbourOf, type Join, type TermBounds, type TermKind, type VJoin } from './topology';
 import { proposalSpawnBounds, validateProposal } from './proposalPlacement';
 import { broadcast, registerWindow } from './broadcast';
 
@@ -42,6 +42,12 @@ const PEEK_ACCELERATOR = 'CmdOrCtrl+Alt+L';
 // which fights the broker.
 const TERMINAL_W = 640;
 const TERMINAL_H = 520;
+/** The undercroft window (Phase B): same width — the shared relief profile
+ *  and shaft column require it — half the height ("_PX" so nobody confuses
+ *  it with the renderer's UNDER_H strata-rows constant). 520+260 fits the
+ *  MacBook's ~830px work area where two stacked 520s do not. */
+const UNDER_W = 640;
+const UNDER_H_PX = 260;
 /** Settle debounce for live 'move' events (macOS streams them mid-drag). */
 const SETTLE_MS = 140;
 const WINGS = ['d0', 'd1', 'd2', 'd3', 'd4', 'd5'];
@@ -50,6 +56,8 @@ interface Terminal {
   id: string;
   wing: string;
   win: BrowserWindow;
+  /** 'surface' (640×520 wing terminal) or 'under' (640×260 undercroft). */
+  kind: TermKind;
 }
 
 const terminals = new Map<string, Terminal>();
@@ -82,6 +90,10 @@ function persistSociety(): void {
 }
 
 let joins: Join[] = [];
+let vjoins: VJoin[] = [];
+/** Tray refresh on a topology change (the "Open undercroft" items track
+ *  vjoins); broadcastTopology is module-level, the tray is a closure local. */
+let onTopologyChange: (() => void) | null = null;
 /** Guard: programmatic setBounds re-fires 'move'; don't re-broker those. */
 let snapping = false;
 /** App quit in progress — the per-window 'closed' cascade must not persist
@@ -90,11 +102,18 @@ let quitting = false;
 
 function boundsOf(t: Terminal): TermBounds {
   const b = t.win.getBounds();
-  return { id: t.id, x: b.x, y: b.y, width: b.width, height: b.height };
+  return { id: t.id, x: b.x, y: b.y, width: b.width, height: b.height, kind: t.kind };
 }
 
 function allBounds(): TermBounds[] {
   return [...terminals.values()].filter((t) => !t.win.isDestroyed()).map(boundsOf);
+}
+
+/** The horizontal-topology universe: under windows never join left/right
+ *  (v0's vertical pair), so they are invisible to computeSnapTarget /
+ *  computeJoins / proposal placement. */
+function surfaceBounds(): TermBounds[] {
+  return allBounds().filter((b) => b.kind !== 'under');
 }
 
 /** Keep a spawn x on the primary work area — macOS shuffles fully-offscreen
@@ -112,7 +131,7 @@ function persistTerminals(): void {
       .filter((t) => !t.win.isDestroyed())
       .map((t) => {
         const b = t.win.getBounds();
-        return { id: t.id, wing: t.wing, x: b.x, y: b.y, width: b.width, height: b.height };
+        return { id: t.id, wing: t.wing, x: b.x, y: b.y, width: b.width, height: b.height, kind: t.kind };
       }),
   );
 }
@@ -137,17 +156,20 @@ function wingsMap(): Record<string, string> {
 let lastTopologyKey = '';
 
 function broadcastTopology(): void {
-  const next = computeJoins(allBounds());
-  const key = JSON.stringify({ joins: next, wings: wingsMap() });
+  const next = computeJoins(surfaceBounds());
+  const nextV = computeVJoins(allBounds());
+  const key = JSON.stringify({ joins: next, vjoins: nextV, wings: wingsMap() });
   if (key === lastTopologyKey) return;
   lastTopologyKey = key;
   joins = next;
+  vjoins = nextV;
   // eslint-disable-next-line no-console
-  console.log(`[terminals] topology: ${joins.length ? joins.map((j) => `${j.left}+${j.right}`).join(' ') : '(none)'}`);
+  console.log(`[terminals] topology: ${joins.length ? joins.map((j) => `${j.left}+${j.right}`).join(' ') : '(none)'}${vjoins.length ? ` | under: ${vjoins.map((v) => `${v.top}/${v.bottom}`).join(' ')}` : ''}`);
   for (const t of terminals.values()) {
     if (!t.win.isDestroyed())
-      t.win.webContents.send('terminal:topology', { joins, wings: wingsMap(), allWings: WINGS });
+      t.win.webContents.send('terminal:topology', { joins, vjoins, wings: wingsMap(), allWings: WINGS });
   }
+  onTopologyChange?.();
 }
 
 /** Snap the settled window if a neighbour is in magnetic range, then
@@ -156,11 +178,21 @@ function settle(id: string): void {
   const t = terminals.get(id);
   if (!t || t.win.isDestroyed()) return;
   const moved = boundsOf(t);
-  const others = allBounds().filter((b) => b.id !== id);
-  const target = computeSnapTarget(moved, others);
+  // The kind gate that dissolves the SNAP_Y_PX conflict: only under windows
+  // snap vertically (horizontal drag is their escape); surface windows keep
+  // vertical-drag-to-unsnap exactly as before.
+  const target =
+    t.kind === 'under'
+      ? computeVSnapTarget(moved, allBounds().filter((b) => b.id !== id))
+      : computeSnapTarget(moved, surfaceBounds().filter((b) => b.id !== id));
   if (target && (target.x !== moved.x || target.y !== moved.y)) {
     snapping = true;
-    t.win.setBounds({ x: target.x, y: target.y, width: TERMINAL_W, height: TERMINAL_H });
+    t.win.setBounds({
+      x: target.x,
+      y: target.y,
+      width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
+      height: t.kind === 'under' ? UNDER_H_PX : TERMINAL_H,
+    });
     snapping = false;
   }
   broadcastTopology();
@@ -176,10 +208,10 @@ export function startTerminalsMode(
 ): { togglePeek: () => void } {
   const settleTimers = new Map<string, NodeJS.Timeout>();
 
-  function spawnTerminal(id: string, wing: string, x: number, y: number): void {
+  function spawnTerminal(id: string, wing: string, x: number, y: number, kind: TermKind = 'surface'): void {
     const win = new BrowserWindow({
-      width: TERMINAL_W,
-      height: TERMINAL_H,
+      width: kind === 'under' ? UNDER_W : TERMINAL_W,
+      height: kind === 'under' ? UNDER_H_PX : TERMINAL_H,
       x,
       y,
       resizable: false,
@@ -197,7 +229,7 @@ export function startTerminalsMode(
     registerWindow(win); // throttle / mode / peek / attention fan-out
     win.once('ready-to-show', () => win.show());
     const sep = rendererUrl.includes('?') ? '&' : '?';
-    void win.loadURL(`${rendererUrl}${sep}terminal=${id}&wing=${wing}`);
+    void win.loadURL(`${rendererUrl}${sep}terminal=${id}&wing=${wing}${kind === 'under' ? '&under=1' : ''}`);
     win.webContents.on('will-navigate', (e, target) => {
       if (target !== win.webContents.getURL()) e.preventDefault();
     });
@@ -217,7 +249,7 @@ export function startTerminalsMode(
       rebuildTray(); // a close frees a wing — the menu label must refresh
     });
 
-    terminals.set(id, { id, wing, win });
+    terminals.set(id, { id, wing, win, kind });
   }
 
   // ── Desk persistence: restore the set as it was left ────────────────────
@@ -229,15 +261,18 @@ export function startTerminalsMode(
     quitting = true;
   });
   const saved = process.env.LOKILIBRARY_TERMINALS_RESET ? undefined : getTerminals();
-  const fromConfig: Array<{ id: string; wing: string; x: number; y: number }> = [];
+  const fromConfig: Array<{ id: string; wing: string; x: number; y: number; kind: TermKind }> = [];
   const seen = new Set<string>();
   for (const s of saved ?? []) {
     if (seen.has(s.id) || !WINGS.includes(s.wing)) continue; // hand-edited-config hygiene
     seen.add(s.id);
-    fromConfig.push({ id: s.id, wing: s.wing, x: clampX(s.x), y: s.y });
+    fromConfig.push({ id: s.id, wing: s.wing, x: clampX(s.x), y: s.y, kind: s.kind === 'under' ? 'under' : 'surface' });
   }
-  const restored = fromConfig.length >= 2;
-  let slots = fromConfig;
+  // A restorable desk needs 2+ SURFACE terminals (an orphaned undercroft in a
+  // hand-edited config must not count as a desk). Surfaces spawn first so a
+  // restored vjoined pair boots with its parent already live.
+  const restored = fromConfig.filter((s) => s.kind !== 'under').length >= 2;
+  let slots = fromConfig.sort((a, b) => Number(a.kind === 'under') - Number(b.kind === 'under'));
   if (!restored) {
     const n = Math.max(2, Math.min(count, WINGS.length));
     // Boot spread: fully apart when the chain fits the display; a clamped,
@@ -254,14 +289,15 @@ export function startTerminalsMode(
       wing: WINGS[i],
       x: clampX(60 + i * spacing),
       y: 160 + i * 36,
+      kind: 'surface' as TermKind,
     }));
   }
   // eslint-disable-next-line no-console
   console.log(`[terminals] ${restored ? 'restoring desk' : 'spawning defaults'} — ${slots.length} terminal windows`);
-  for (const s of slots) spawnTerminal(s.id, s.wing, s.x, s.y);
+  for (const s of slots) spawnTerminal(s.id, s.wing, s.x, s.y, s.kind);
   assignHomes(
     process.env.LOKILIBRARY_TERMINALS_RESET ? undefined : getSociety(),
-    slots.map((s) => s.wing),
+    slots.filter((s) => s.kind !== 'under').map((s) => s.wing),
   );
   persistSociety();
   broadcastTopology(); // a restored desk can boot already-joined
@@ -410,9 +446,13 @@ export function startTerminalsMode(
   let tray: Tray | null = null;
   let nextIndex =
     1 + [...terminals.keys()].reduce((m, id) => Math.max(m, Number(/^t(\d+)$/.exec(id)?.[1] ?? '0')), 0);
+  let nextUnderIndex =
+    1 + [...terminals.keys()].reduce((m, id) => Math.max(m, Number(/^u(\d+)$/.exec(id)?.[1] ?? '0')), 0);
 
   function nextWing(): string | undefined {
-    const used = new Set([...terminals.values()].map((t) => t.wing));
+    // Surface terminals only: an undercroft shares its wing, it doesn't
+    // occupy one.
+    const used = new Set([...terminals.values()].filter((t) => t.kind !== 'under').map((t) => t.wing));
     return WINGS.find((w) => !used.has(w));
   }
 
@@ -428,6 +468,23 @@ export function startTerminalsMode(
     return id;
   }
 
+  /** Open a wing's undercroft: a NEW 640×260 under window spawned at exact
+   *  abutment beneath its surface terminal — pre-snapped, vjoined on the
+   *  next broadcast. Positioning a NEW window is legal under the T5 kill;
+   *  no existing window moves. One per surface window. */
+  function spawnUnder(surfaceId: string): string | null {
+    const t = terminals.get(surfaceId);
+    if (!t || t.win.isDestroyed() || t.kind === 'under') return null;
+    if (neighbourBelow(surfaceId, vjoins)) return null;
+    const b = t.win.getBounds();
+    const id = `u${nextUnderIndex++}`;
+    spawnTerminal(id, t.wing, b.x, b.y + b.height, 'under');
+    broadcastTopology(); // exact abutment ⇒ computeVJoins reports the vjoin
+    persistTerminals();
+    rebuildTray();
+    return id;
+  }
+
   function rebuildTray(): void {
     if (!tray) return;
     const wing = nextWing();
@@ -438,6 +495,17 @@ export function startTerminalsMode(
           enabled: wing !== undefined,
           click: () => void spawnNext(),
         },
+        // Phase B: one "Open undercroft" per surface terminal that doesn't
+        // have one docked (vjoins are the truth — a hand-dragged-away
+        // undercroft frees its surface window's slot).
+        ...[...terminals.values()]
+          .filter((t) => !t.win.isDestroyed() && t.kind !== 'under' && neighbourBelow(t.id, vjoins) === null)
+          .map(
+            (t): MenuItemConstructorOptions => ({
+              label: `Open undercroft (${t.wing})`,
+              click: () => void spawnUnder(t.id),
+            }),
+          ),
         { type: 'separator' },
         // CHECKBOX, not radio: main.ts:161-172 records the v0.6 hazard where
         // a radio group fires its own click on rebuild. applyDeskMode's
@@ -491,6 +559,7 @@ export function startTerminalsMode(
   tray = new Tray(trayIcon());
   tray.setToolTip('lokilibrary — terminals');
   rebuildTray();
+  onTopologyChange = rebuildTray; // vjoins drive the "Open undercroft" items
 
   // Restore the persisted mode. Deferred to ready-to-show for the same
   // reason main.ts defers it: entering before the first paint gives the
@@ -518,7 +587,7 @@ export function startTerminalsMode(
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
   // Hydration: a terminal renderer asks for the current joins on mount.
-  ipcMain.handle('terminal:getTopology', () => ({ joins, wings: wingsMap(), allWings: WINGS }));
+  ipcMain.handle('terminal:getTopology', () => ({ joins, vjoins, wings: wingsMap(), allWings: WINGS }));
 
   // Society hydration: which cohort member lives on which wing.
   ipcMain.handle('terminal:getSociety', () => Object.fromEntries(homes));
@@ -546,6 +615,10 @@ export function startTerminalsMode(
   ipcMain.handle('terminal:proposeTopology', (e, payload: { wing: string; agentId: string }) => {
     const t = terminalOf(e.sender);
     if (!t) return { accepted: false, reason: 'unknown_sender' };
+    // Phase B: an undercroft never anchors a proposal — its 260px bounds
+    // would corrupt proposalSpawnBounds' uniform-size chain walk, and its
+    // prompt never offers the proposal clause anyway.
+    if (t.kind === 'under') return { accepted: false, reason: 'unknown_sender' };
     const verdict = validateProposal(
       {
         optIn: getOrchestration(),
@@ -677,6 +750,7 @@ export function startTerminalsMode(
   ipcMain.handle('terminal:debugState', () => ({
     bounds: allBounds(),
     joins,
+    vjoins,
     roster: Object.fromEntries(roster),
     society: Object.fromEntries(homes),
   }));
@@ -684,13 +758,21 @@ export function startTerminalsMode(
   ipcMain.handle('terminal:debugMove', (_e, payload: { terminalId: string; x: number; y: number }) => {
     const t = terminals.get(payload.terminalId);
     if (!t || t.win.isDestroyed()) return false;
-    t.win.setBounds({ x: payload.x, y: payload.y, width: TERMINAL_W, height: TERMINAL_H });
+    t.win.setBounds({
+      x: payload.x,
+      y: payload.y,
+      width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
+      height: t.kind === 'under' ? UNDER_H_PX : TERMINAL_H,
+    });
     settle(payload.terminalId);
     return true;
   });
 
   // Tray parity for the harness: the exact spawn path the tray item drives.
   ipcMain.handle('terminal:debugSpawn', () => spawnNext());
+
+  // Tray parity for the undercroft item (Phase B).
+  ipcMain.handle('terminal:debugSpawnUnder', (_e, surfaceId: string) => spawnUnder(surfaceId));
 
   // Tray parity for the harness: the exact mode path the tray items drive.
   // Also the e2e escape hatch — a wallpapered desk is click-through, so

@@ -67,8 +67,8 @@ export interface ElectronAPI {
 
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>;
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }>;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   getTerminalSociety(): Promise<Record<string, string>>;
   getTerminalRoster(): Promise<Record<string, string>>;
   getTerminalOrchestration(): Promise<boolean>;
@@ -103,6 +103,13 @@ export interface ElectronAPI {
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** Phase B — a live vertical join: `bottom` is the undercroft window docked
+ *  beneath `top` (same wing, one deep-rock column; mirrors preload.ts). */
+export interface TerminalVJoin {
+  top: string;
+  bottom: string;
 }
 
 /** Tier-1 society — runtime state carried across a handoff (mirrors
@@ -360,18 +367,18 @@ export function subscribeDeskAttention(cb: () => void): () => void {
  * exits refused (the being turns around).
  */
 
-export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }> {
+export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }> {
   const api = getElectronAPI();
-  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [], wings: {} };
+  if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [], vjoins: [], wings: {} };
   try {
     return await api.terminalGetTopology();
   } catch {
-    return { joins: [], wings: {} };
+    return { joins: [], vjoins: [], wings: {} };
   }
 }
 
 export function subscribeTerminalTopology(
-  cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void,
+  cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;

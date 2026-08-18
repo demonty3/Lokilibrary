@@ -22,6 +22,9 @@ const WING = params.get('wing') ?? 'd0';
  *  an omitting pack like gameboy-dmg is reached — it is excluded from the
  *  multi-window pool on purpose; see packAssignment.ts). */
 const THEME_ID = params.get('theme') ?? deskPackFor(WING);
+/** Phase B: `&under=1` marks this window as the wing's undercroft — same
+ *  wing, same pack (inherited via deskPackFor above), deep-strata compose. */
+const UNDER = params.get('under') === '1';
 
 /** Frameless windows need an explicit OS drag region, and nothing else. T3
  *  slice 2 moved the title into the world (terminalLand.ts's masthead — Cozette,
@@ -49,7 +52,9 @@ export function TerminalApp() {
     let cancelled = false;
     void (async () => {
       if (!host.current) return;
-      const fn = await mountTerminalLand(host.current, getById(THEME_ID), TERMINAL_ID, WING);
+      const fn = await mountTerminalLand(host.current, getById(THEME_ID), TERMINAL_ID, WING, {
+        kind: UNDER ? 'under' : 'surface',
+      });
       if (cancelled) fn();
       else teardown = fn;
     })();

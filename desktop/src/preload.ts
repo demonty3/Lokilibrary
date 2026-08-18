@@ -114,8 +114,10 @@ export interface ElectronAPI {
   // Present on every window but only live in terminals mode
   // (LOKILIBRARY_TERMINALS=N); the palace renderer never calls these.
 
-  /** Current joins + terminalId→wing map, for hydration on terminal mount. */
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>;
+  /** Current joins + terminalId→wing map, for hydration on terminal mount.
+   *  `vjoins` (Phase B): live vertical joins — a wing's undercroft docked
+   *  beneath its surface terminal. */
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }>;
   /** T2 society — current agentId→home-wing map, for hydration on terminal
    *  mount (mirrors src/api/electron.ts). */
   getTerminalSociety(): Promise<Record<string, string>>;
@@ -132,7 +134,7 @@ export interface ElectronAPI {
   /** T5 — dismiss the accepted proposal (tap or banner timeout). */
   terminalDismissProposal(): Promise<boolean>;
   /** Topology changes from the main-process broker (snap/un-snap). */
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
   /** Register a freshly spawned being with the roster. False = the id is
    *  already live in another terminal; despawn the local copy. */
   terminalAgentSpawn(agentId: string, terminalId: string): Promise<boolean>;
@@ -170,6 +172,13 @@ export interface ElectronAPI {
 export interface TerminalJoin {
   left: string;
   right: string;
+}
+
+/** A live vertical join (Phase B): `bottom` is the undercroft window docked
+ *  beneath `top` — same wing, one continuous deep-rock column. */
+export interface TerminalVJoin {
+  top: string;
+  bottom: string;
 }
 
 /** Runtime state carried across a handoff so the being RESUMES in the
@@ -236,7 +245,7 @@ const api: ElectronAPI = {
     return () => ipcRenderer.off('desk:attention', handler);
   },
   terminalGetTopology: () =>
-    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }>,
+    ipcRenderer.invoke('terminal:getTopology') as Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }>,
   getTerminalSociety: () =>
     ipcRenderer.invoke('terminal:getSociety') as Promise<Record<string, string>>,
   getTerminalRoster: () =>
@@ -250,7 +259,7 @@ const api: ElectronAPI = {
   terminalDismissProposal: () =>
     ipcRenderer.invoke('terminal:dismissProposal') as Promise<boolean>,
   onTerminalTopology: (cb) => {
-    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] }): void => cb(event);
+    const handler = (_e: IpcRendererEvent, event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }): void => cb(event);
     ipcRenderer.on('terminal:topology', handler);
     return () => ipcRenderer.off('terminal:topology', handler);
   },
