@@ -2875,7 +2875,7 @@ redrawn; rejoining re-split them. The KILL (windows deriving different
 chains) never fired — every paired read agreed on key `d0>d1`. `debugSky`
 grew a `shared` block (chain/index/key/hosts/per-wisp desk-x). Shot:
 `docs/design-reviews/2026-08-18-shared-sky/joined-pair-one-sun.png`.
-Eyeball (one-sky read, seam handoff as passage) queued in TODO-USER.md.
+Eyeball PASSED same day ("yea looks good") — the slice is fully closed.
 Known and accepted (spec §2): the host pick is blind to pack omissions —
 only gameboy-dmg omits bodies and it is excluded from the auto-pool.
 Verification note: an OCCLUDED window's compositor pauses, so its drawn

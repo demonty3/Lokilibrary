@@ -132,29 +132,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — shared sky: one sun, one moon, weather crossing seams
-
-**Status**: shipped 2026-08-18 (close-out queue item 4). All four measured
-bars passed live; this is the taste half. Spec (bars frozen before
-implementation): `docs/superpowers/specs/2026-08-18-shared-sky-design.md`.
-**What changed**: a joined desk used to show one moon PER WINDOW at the same
-hour. Now the desk has one ☼ and one ☾ total — each lives in one window,
-picked deterministically — and the wisps are desk-global: a run drifts out
-of one window's right edge and into the neighbour's left, same row, same
-moment. Unjoined windows are untouched.
-**What to look at**, on the joined pair (or the shot in
-`docs/design-reviews/2026-08-18-shared-sky/`):
-1. **One sky.** Does the pair read as one place under one sky — one sun (at
-   night, one moon), somewhere on the desk rather than one per room?
-2. **The frozen kill, your half**: does the bodyless window's sky read as
-   "the moon is over the other room" — or as BROKEN (a missing moon)? Say
-   which.
-3. **A wisp crossing the seam.** Watch the top rows for a minute: a run
-   should hand off between windows as passage, not pop or teleport at the
-   seam.
-**Not blocking anything** — but the README demo-GIF re-cut was waiting on
-this slice and is now unblocked.
-
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 
 **Status**: shipped 2026-08-17 (close-out queue item 2, logged 2026-08-06).
@@ -354,6 +331,10 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL shared sky — PASSED 2026-08-18, same day** ("yea looks good,
+  continue"): the one-sky read landed, no kill named on the bodyless window
+  or the seam handoff. Shipped 2f4bc01; measured bars B1–B4 had already
+  passed live.
 - ✅ **EYEBALL underground continuation (stacked-pair probe) — PASSED
   2026-08-18**: "passes, the lower window reads as the same wing" — K2 in its
   own words, no kill named on K1/K3, 640×260 accepted (the 640×320 re-mock
