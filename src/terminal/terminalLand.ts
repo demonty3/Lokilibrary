@@ -106,7 +106,7 @@ import {
   type LaunchTarget,
 } from './launchTargets';
 import { launchGame } from '../agents/launch';
-import { composeLand, composeUnderLand, shaftColumn, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
+import { composeLand, composeLandExtension, composeUnderLand, shaftColumn, DESK_SURFACE, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandModel, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
   getTerminalTopology,
@@ -614,23 +614,26 @@ export async function mountTerminalLand(
   host.appendChild(app.canvas);
   await waitForCozette();
 
-  // Land dims from the (fixed-size) window at the scaled cell size. Equal
-  // window sizes + equal scale across terminals ⇒ equal ground row ⇒
-  // ground-line continuity once the broker aligns window y.
+  // Land dims from the window at the scaled cell size. Scale/anchor slice
+  // (spec 2026-08-18): the surface geometry is FIXED from the window top
+  // (DESK_SURFACE — skyH no longer derives from window height), and the world
+  // is top-anchored, so equal window TOPS ⇒ equal ground row on screen at any
+  // height — exactly the broker's join predicate. A window taller than the
+  // canonical 20 rows shows `extraRows` of aperture rock below the model.
   const cols = Math.max(40, Math.floor(app.screen.width / (CW * WORLD_SCALE)));
   const rows = Math.max(isUnder ? 8 : 20, Math.floor(app.screen.height / (CH * WORLD_SCALE)));
-  const skyH = rows - SURFACE_BAND - 1 - UNDER_H;
-  /** The surface window above an undercroft is the fixed 640×520 (20 rows) —
-   *  the global-y offset for depth continuation, shaft parity, and the
-   *  renderer's strata glyph runs. Its skyH re-derives from the same formula
-   *  at 20 rows so the two windows share one depth profile. */
-  const UNDER_PARENT_ROWS = 20;
+  const skyH = DESK_SURFACE.skyH;
+  const extraRows = isUnder ? 0 : rows - DESK_SURFACE.rows;
+  /** The surface window above an undercroft is the canonical 20 rows — the
+   *  global-y offset for depth continuation, shaft parity, and the renderer's
+   *  strata glyph runs. */
+  const UNDER_PARENT_ROWS = DESK_SURFACE.rows;
   const underComposeOpts = {
     width: cols,
     rows,
     yOffset: UNDER_PARENT_ROWS,
     surface: {
-      skyH: UNDER_PARENT_ROWS - SURFACE_BAND - 1 - UNDER_H,
+      skyH: DESK_SURFACE.skyH,
       surfaceBand: SURFACE_BAND,
       underH: UNDER_H,
     },
@@ -670,9 +673,22 @@ export async function mountTerminalLand(
   // now takes is the one smoke-land-mural.mts already pins with a golden
   // hash); the desk simply stops asking for one. Reversible by this word.
   const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: false };
+  /** Append the aperture-rock rows a taller-than-canonical window shows below
+   *  the model (extraRows ≤ 0 → the model passes through untouched, so shipped
+   *  520px windows are byte-identical). `surface` stays in the top 20 rows —
+   *  beings, marks, wear, knit and the shaft descent never see the extension. */
+  const stitchExtension = (m: LandModel, join?: { left?: number; right?: number } | null): LandModel => {
+    if (extraRows <= 0) return m;
+    const ext = composeLandExtension(seed, games, {
+      width: cols,
+      extraRows,
+      ...(join ? { join } : {}),
+    });
+    return { ...m, height: m.height + extraRows, char: [...m.char, ...ext.char], role: [...m.role, ...ext.role] };
+  };
   let model = isUnder
     ? composeUnderLand(seed, games, underComposeOpts)
-    : composeLand(seed, games, composeOpts);
+    : stitchExtension(composeLand(seed, games, composeOpts));
 
   // Persistent transform container; the land SCENE is a swappable child so a
   // join can recompose the terrain without disturbing beings / edges / sparks.
@@ -792,7 +808,6 @@ export async function mountTerminalLand(
   };
   let scene = buildLandContainer(theme, model, containerOpts);
   let sceneContainer = scene.container;
-  let contentH = scene.contentH;
   world.addChildAt(sceneContainer, 0);
   app.stage.addChildAt(backdropHost, 0); // behind `world`; scanlines stay above both
   backdropHost.addChild(scene.backdrop);
@@ -846,11 +861,15 @@ export async function mountTerminalLand(
     }
   };
 
-  // Bottom anchor: dead space (if any) lives behind the sky, never below
-  // the bedrock — the land sits on the window sill.
+  // Top anchor (scale/anchor slice): the ground line sits at a fixed offset
+  // from the window TOP — the same edge the broker's join predicate aligns —
+  // so ground lines stay continuous across joined windows of any height. At
+  // shipped sizes content exactly fills the window, so this equals the old
+  // bottom anchor pixel-for-pixel; a shorter window crops the bottom (rock),
+  // never the sky.
   const layoutWorld = (): void => {
     world.x = Math.floor((app.screen.width - model.width * CW * WORLD_SCALE) / 2);
-    world.y = app.screen.height - contentH * WORLD_SCALE;
+    world.y = 0;
     backdropHost.x = world.x;
     backdropHost.y = world.y;
     // The masthead shares the land's column grid but not its bottom anchor —
@@ -1132,11 +1151,14 @@ export async function mountTerminalLand(
   const recompose = (join: { left?: number; right?: number } | null): void => {
     model = isUnder
       ? composeUnderLand(seed, games, { ...underComposeOpts, ...(join ? { join } : {}) })
-      : composeLand(seed, games, {
-          ...composeOpts,
-          ...(join ? { join } : {}),
-          ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
-        });
+      : stitchExtension(
+          composeLand(seed, games, {
+            ...composeOpts,
+            ...(join ? { join } : {}),
+            ...(closedWings.length > 0 ? { skyline: closedWings } : {}),
+          }),
+          join,
+        );
     world.removeChild(sceneContainer);
     // The backdrop was re-parented out of sceneContainer at mount, so the
     // children sweep below cannot reach it — destroy it by hand or every join
@@ -1145,7 +1167,6 @@ export async function mountTerminalLand(
     sceneContainer.destroy({ children: true });
     scene = buildLandContainer(theme, model, containerOpts);
     sceneContainer = scene.container;
-    contentH = scene.contentH;
     world.addChildAt(sceneContainer, 0);
     backdropHost.addChild(scene.backdrop);
     muralBacking = null; // died with the old scene; mountMural re-registers it
