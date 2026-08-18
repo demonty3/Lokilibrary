@@ -132,4 +132,40 @@ check('the plan VERB whitelist is untouched by the widening',
     withTopo.system.includes(v)) &&
     !/\b(cross_seam|walk_to_terminal|open_terminal)\b/.test(withTopo.system + withTopo.user));
 
+// ── Phase B: the vertical pair in the line ─────────────────────────────
+// Bar (frozen 2026-08-18): vjoin-free inputs are byte-identical.
+check('absent vjoins → byte-identical line',
+  deskTopologyLine(deskTopology({ ...DESK, vjoins: [] })) === line &&
+    deskTopologyLine(deskTopology(DESK)) === line);
+
+// A surface window with its undercroft docked names it — but never as a
+// move_to target (reachableWings is the whitelist and must not widen).
+const vDesk = deskTopology({ ...DESK, vjoins: [{ top: 't1', bottom: 'u1' }], wings: { ...DESK.wings, u1: 'd0' } });
+const vLine = deskTopologyLine(vDesk);
+check('surface line names the open undercroft',
+  vLine.includes("your wing's undercroft is open below — the shaft goes down"), vLine);
+check('the undercroft is NOT a reachable wing',
+  JSON.stringify(reachableWings(vDesk)) === JSON.stringify(['d1']));
+check('the undercroft clause is opts-independent (t5 byte-identity holds)',
+  deskTopologyLine(vDesk, {}) === deskTopologyLine(vDesk, { proposals: false }));
+
+// The undercroft window's own line frames the same wing, seen deeper.
+const uDesk = deskTopology({
+  ...DESK,
+  terminalId: 'u1',
+  kind: 'under',
+  vjoins: [{ top: 't1', bottom: 'u1' }],
+  wings: { ...DESK.wings, u1: 'd0' },
+  joins: DESK.joins, // the PARENT's horizontal joins — u1 has none of its own
+});
+const uLine = deskTopologyLine(uDesk);
+check('under line says it is the undercroft of its wing',
+  uLine.includes('you are in the undercroft of d0'), uLine);
+check('under line points up the shaft', uLine.includes('the surface of d0 is above through the shaft'), uLine);
+check('under window offers no reachable wings',
+  JSON.stringify(reachableWings(uDesk)) === JSON.stringify([]), JSON.stringify(reachableWings(uDesk)));
+// An orphaned undercroft (surface dragged away) says the shaft is sealed.
+const orphan = deskTopologyLine(deskTopology({ ...DESK, terminalId: 'u1', kind: 'under', vjoins: [], wings: { ...DESK.wings, u1: 'd0' }, joins: [] }));
+check('an orphaned undercroft says the shaft is sealed', orphan.includes('sealed'), orphan);
+
 report();

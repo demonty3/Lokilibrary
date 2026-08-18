@@ -134,12 +134,21 @@ export function pickIntent(
  * FAR side when it's open (the being is walking a chain) and decays to
  * an inward wander otherwise. `kind` arrives as a broker-opaque string —
  * unknown values decay to wander.
+ *
+ * Phase B: a VERTICAL entry ('down'/'up' — the shaft) has no far side and
+ * no meaningful inward direction, so everything except `rest` decays to a
+ * centre-ward wander from the shaft column (`ctx.x`). The 1-D intent
+ * engine is untouched — the shaft is a door, not an axis.
  */
 export function resumeIntent(
   kind: string,
-  entrySide: 'left' | 'right',
+  entrySide: 'left' | 'right' | 'down' | 'up',
   ctx: IntentContext,
 ): BeingIntent {
+  if (entrySide === 'down' || entrySide === 'up') {
+    if (kind === 'rest') return { kind: 'rest' };
+    return { kind: 'wander', dir: ctx.x < ctx.width / 2 ? 1 : -1 };
+  }
   const inward: 1 | -1 = entrySide === 'left' ? 1 : -1;
   const farSide = entrySide === 'left' ? 'right' : 'left';
   switch (kind) {

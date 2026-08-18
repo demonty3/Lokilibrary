@@ -22,6 +22,13 @@ export interface DeskJoin {
   right: string;
 }
 
+/** Phase B — a live vertical join (a wing's undercroft docked beneath its
+ *  surface terminal). Mirrors TerminalVJoin. */
+export interface DeskVJoin {
+  top: string;
+  bottom: string;
+}
+
 export interface DeskTopologyInput {
   /** This window's terminal id and the wing it shows. */
   terminalId: string;
@@ -35,6 +42,11 @@ export interface DeskTopologyInput {
   roster?: Readonly<Record<string, string>>;
   /** agentId → display name, for the "who is where" clause. */
   names?: Readonly<Record<string, string>>;
+  /** Phase B — live vertical joins. Absent = byte-identical output (the
+   *  frozen bar; smoke-desk-topology asserts). */
+  vjoins?: readonly DeskVJoin[];
+  /** Phase B — 'under' when this window IS an undercroft. Absent = surface. */
+  kind?: 'surface' | 'under';
 }
 
 export interface DeskTopology {
@@ -48,6 +60,14 @@ export interface DeskTopology {
   closed: string[];
   /** Live occupancy, wing → agent display names, sorted by wing. */
   occupancy: Array<{ wing: string; who: string[] }>;
+  /** Phase B — true when this SURFACE window has its undercroft docked
+   *  below. Never a move_to target: the undercroft is the same wing. */
+  undercroftBelow?: boolean;
+  /** Phase B — true when this window IS the undercroft and its surface
+   *  window stands above. */
+  surfaceAbove?: boolean;
+  /** Phase B — 'under' when this window is an undercroft. */
+  kind?: 'surface' | 'under';
 }
 
 /** Resolve the raw broker payload into the desk as this window sees it. */
@@ -78,7 +98,22 @@ export function deskTopology(input: DeskTopologyInput): DeskTopology {
     .map(([w, who]) => ({ wing: w, who: who.sort() }))
     .sort((a, b) => a.wing.localeCompare(b.wing));
 
-  return { here: wing, joined, open, closed, occupancy };
+  // Phase B: the vertical pair, from either end. Absent vjoins (every pre-B
+  // caller) leaves both fields undefined → the line below is byte-identical.
+  const vjoins = input.vjoins ?? [];
+  const undercroftBelow = vjoins.some((v) => v.top === terminalId) || undefined;
+  const surfaceAbove = vjoins.some((v) => v.bottom === terminalId) || undefined;
+
+  return {
+    here: wing,
+    joined,
+    open,
+    closed,
+    occupancy,
+    ...(undercroftBelow ? { undercroftBelow } : {}),
+    ...(surfaceAbove ? { surfaceAbove } : {}),
+    ...(input.kind ? { kind: input.kind } : {}),
+  };
 }
 
 /** Wings a plan may legally name as a `move_to` target: the neighbours this
@@ -124,6 +159,21 @@ export function deskTopologyLine(t: DeskTopology, opts: { proposals?: boolean } 
       ? `${list(sides)}, so the ground runs unbroken between you`
       : 'no terminal is joined to yours; your edges are walls',
   );
+
+  // Phase B: the vertical pair, named but NEVER a move_to target — the
+  // undercroft is the same wing seen deeper, not a place to plan toward
+  // (reachableWings is untouched; the whitelist does not widen here). Both
+  // clauses are opts-independent, so smoke-t5-proposal's {} vs
+  // {proposals:false} byte-identity holds.
+  if (t.kind === 'under') {
+    parts.push(
+      t.surfaceAbove
+        ? `you are in the undercroft of ${t.here} — its deep rock; the surface of ${t.here} is above through the shaft`
+        : `you are in the undercroft of ${t.here} — its deep rock; the surface window has been drawn away, so the shaft is sealed for now`,
+    );
+  } else if (t.undercroftBelow) {
+    parts.push(`your wing's undercroft is open below — the shaft goes down`);
+  }
 
   if (t.closed.length > 0) {
     parts.push(`${list(t.closed)} ${t.closed.length === 1 ? 'has' : 'have'} no terminal open`);

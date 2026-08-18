@@ -29,7 +29,7 @@ import * as path from 'path';
 import { getMode, getOrchestration, getSociety, getTerminals, setMode, setOrchestration, setSociety, setTerminals, type Mode } from './config';
 import { enterWallpaper, exitWallpaper } from './wallpaper';
 import { startThrottleController, stopThrottleController, type ThrottleState } from './wallpaper/throttle';
-import { computeJoins, computeSnapTarget, computeVJoins, computeVSnapTarget, neighbourBelow, neighbourOf, type Join, type TermBounds, type TermKind, type VJoin } from './topology';
+import { computeJoins, computeSnapTarget, computeVJoins, computeVSnapTarget, neighbourAbove, neighbourBelow, neighbourOf, type Join, type TermBounds, type TermKind, type VJoin } from './topology';
 import { proposalSpawnBounds, validateProposal } from './proposalPlacement';
 import { broadcast, registerWindow } from './broadcast';
 
@@ -692,26 +692,39 @@ export function startTerminalsMode(
       payload: {
         agentId: string;
         terminalId: string;
-        side: 'left' | 'right';
+        side: 'left' | 'right' | 'down' | 'up';
         state?: unknown;
       },
     ) => {
-      const dest = neighbourOf(payload.terminalId, payload.side, joins);
+      // Phase B: 'down'/'up' route through the shaft (vjoins); left/right
+      // through the horizontal joins, exactly as before.
+      const dest =
+        payload.side === 'down'
+          ? neighbourBelow(payload.terminalId, vjoins)
+          : payload.side === 'up'
+            ? neighbourAbove(payload.terminalId, vjoins)
+            : neighbourOf(payload.terminalId, payload.side, joins);
       if (!dest || roster.get(payload.agentId) !== payload.terminalId) return false;
       const destTerm = terminals.get(dest);
       if (!destTerm || destTerm.win.isDestroyed()) return false;
       const src = terminals.get(payload.terminalId);
       roster.set(payload.agentId, dest);
       // Society members re-home on a crossing (unknown/native ids don't).
+      // A vertical crossing is the SAME wing, so re-homing is a no-op there.
       if (homes.has(payload.agentId)) {
         homes.set(payload.agentId, destTerm.wing);
         persistSociety();
       }
+      const flip: Record<string, 'left' | 'right' | 'down' | 'up'> = { left: 'right', right: 'left', down: 'up', up: 'down' };
       destTerm.win.webContents.send('terminal:agentEnter', {
         agentId: payload.agentId,
-        side: payload.side === 'left' ? 'right' : 'left', // enters the opposite edge
+        side: flip[payload.side], // enters through the opposite edge
         state: payload.state,
-        from: { terminalId: payload.terminalId, wing: src?.wing ?? '' },
+        from: {
+          terminalId: payload.terminalId,
+          // An undercroft source names itself honestly in the arrival memory.
+          wing: src ? (src.kind === 'under' ? `${src.wing} undercroft` : src.wing) : '',
+        },
       });
       // eslint-disable-next-line no-console
       console.log(`[terminals] ${payload.agentId}: ${payload.terminalId} → ${dest}`);

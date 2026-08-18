@@ -145,4 +145,20 @@ check("t1's right-edge beings reach t2 as ITS left summary",
 check("t1's un-joined left side is dropped",
   w1.webContents.sent.filter((m) => m.channel === 'terminal:neighbourSummary').length === 0);
 
+// Phase B bar: near-edge perception stays HORIZONTAL — beings do not see
+// through rock. The summary's shape is exactly {left, right}, and the relay
+// only ever emits left/right sides.
+{
+  const shape = nearEdgeSummary([{ id: 'x', x: 1 }], 40, { left: true, right: true });
+  check('nearEdgeSummary emits exactly left+right, never down/up',
+    JSON.stringify(Object.keys(shape).sort()) === JSON.stringify(['left', 'right']));
+  const sides = new Set(
+    [...w1.webContents.sent, ...w2.webContents.sent]
+      .filter((m) => m.channel === 'terminal:neighbourSummary')
+      .map((m) => (m.payload as { side: string }).side),
+  );
+  check('the relay never emitted a vertical side',
+    [...sides].every((s) => s === 'left' || s === 'right'));
+}
+
 report();

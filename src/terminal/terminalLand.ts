@@ -73,6 +73,7 @@ import {
   jambAlpha,
   jambGlyph,
   partDone,
+  partEase,
   partEaseInv,
   partFront,
   restFront,
@@ -217,6 +218,13 @@ const WEAR_FLUSH_S = 30;
 /** Crossing juice durations (seconds). */
 const EXIT_S = 0.25;
 const ENTER_S = 0.25;
+/** Phase B: shaft climb-in after a vertical arrival — long enough to read as
+ *  a descent (or ascent), not a teleport. */
+const CLIMB_S = 1.2;
+/** Phase B: chance per shaft-crossing that a being takes the shaft while the
+ *  undercroft is open (runtime rng, the idle-beat stream's class — NOT
+ *  procedural determinism). Kept modest so the surface stays lively. */
+const DESCEND_CHANCE = 0.25;
 const SPARK_S = 0.3;
 /** Tier-2 structure glow: alpha pulse (the 6A landmark-pulse envelope). */
 const GLOW_STRUCT_PERIOD_S = 2.8;
@@ -279,6 +287,15 @@ interface Being {
   /** Exit/enter juice state (progress driven by elapsedS). */
   exitingSince: number | null;
   enteringSince: number | null;
+  /** Phase B: vertical exit direction — 1 down / -1 up / 0 horizontal. The
+   *  exit juice slides along the shaft instead of past the side edge. */
+  exitDy: 0 | 1 | -1;
+  /** Phase B: shaft climb-in after a vertical arrival — x pinned to the
+   *  shaft, drawn row eased from `fromRows` cells away down/up to the
+   *  ground; intent ticking suppressed while live. NO general y: the
+   *  intent engine stays 1-D and the climb is renderer juice, like
+   *  exitingSince. */
+  climb: { fromRows: number; startedS: number } | null;
   /** Marginalia: the first re-pick after a seam arrival may leave an
    *  after_crossing mark; consumed (set false) at that re-pick. */
   pendingArrivalMark: boolean;
@@ -1456,7 +1473,7 @@ export async function mountTerminalLand(
     allWings?: string[],
     vjoins?: TerminalVJoin[],
   ): void => {
-    lastTopology = { joins, wings, ...(allWings && { allWings }) };
+    lastTopology = { joins, wings, ...(allWings && { allWings }), ...(vjoins && { vjoins }) };
     if (isUnder) {
       // The undercroft's left/right edges are rock, always (v0's vertical
       // pair). Its terrain instead tracks its PARENT's horizontal joins:
@@ -1606,6 +1623,8 @@ export async function mountTerminalLand(
       text,
       pending: false,
       exitingSince: null,
+      exitDy: 0,
+      climb: null,
       enteringSince: entering ? elapsedS : null,
       pendingArrivalMark: entering,
       mind: reconstructMind(id, Math.round(x), surfaceRow),
@@ -1625,8 +1644,10 @@ export async function mountTerminalLand(
     beings.delete(id);
   };
 
-  const spawnSpark = (side: 'left' | 'right'): void => {
-    const edgeCol = side === 'left' ? 0 : model.width - 1;
+  const spawnSpark = (side: 'left' | 'right' | 'down' | 'up'): void => {
+    // Vertical crossings spark at the shaft mouth, not a side edge.
+    const edgeCol =
+      side === 'left' ? 0 : side === 'right' ? model.width - 1 : vShaftX;
     const spark = new BitmapText({
       text: '✦',
       style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
@@ -1846,7 +1867,7 @@ export async function mountTerminalLand(
   // practice the threshold binds long before the limit does.
   /** The raw broker topology payload, kept so a reflection can describe the
    *  desk. applyJoins only keeps the derived bits it renders from. */
-  let lastTopology: { joins: TerminalJoin[]; wings: Record<string, string>; allWings?: string[] } = {
+  let lastTopology: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] } = {
     joins: [],
     wings: {},
   };
@@ -1901,6 +1922,10 @@ export async function mountTerminalLand(
       allWings: lastTopology.allWings,
       roster,
       names: Object.fromEntries(COHORT.map((d) => [d.id, d.name])),
+      // Phase B: the vertical pair reaches the reflection line; never a
+      // move_to target (reachableWings is untouched by construction).
+      vjoins: lastTopology.vjoins,
+      ...(isUnder ? { kind: 'under' as const } : {}),
     });
   };
 
@@ -2135,7 +2160,7 @@ export async function mountTerminalLand(
     });
   });
 
-  const tryExit = (b: Being, side: 'left' | 'right'): void => {
+  const tryExit = (b: Being, side: 'left' | 'right' | 'down' | 'up'): void => {
     b.pending = true;
     const carried = {
       speed: b.speed,
@@ -2146,11 +2171,20 @@ export async function mountTerminalLand(
     };
     void terminalAgentExit(b.id, terminalId, side, carried).then((accepted) => {
       if (accepted) {
+        if (side === 'down' || side === 'up') {
+          // Climb out along the shaft: pin the column, slide vertically.
+          b.x = vShaftX;
+          b.exitDy = side === 'down' ? 1 : -1;
+        }
         b.exitingSince = elapsedS; // ease out past the edge, then destroy
         spawnSpark(side);
       } else {
         b.pending = false;
-        b.dir = side === 'left' ? 1 : -1; // refused — turn around
+        // Refused — turn around (horizontal) or just walk on (vertical:
+        // the shaft mouth refused, e.g. the undercroft was dragged away
+        // mid-flight; the cooldown stamps below so nothing retries hot).
+        if (side === 'left' || side === 'right') b.dir = side === 'left' ? 1 : -1;
+        b.crossCooldownUntil = elapsedS + CROSS_COOLDOWN_S;
       }
     });
   };
@@ -2456,16 +2490,32 @@ export async function mountTerminalLand(
         }
       }
       // Exit juice: slide one cell past the edge while fading, then go.
+      // A vertical exit (Phase B) slides along the shaft instead.
       if (b.exitingSince !== null) {
         const p = (elapsedS - b.exitingSince) / EXIT_S;
         if (p >= 1) {
           removeBeing(b.id);
           continue;
         }
-        b.text.x = Math.round((b.x + b.dir * p) * CW);
-        b.text.y = surfaceLocalY(b.x);
+        b.text.x = Math.round((b.x + (b.exitDy === 0 ? b.dir * p : 0)) * CW);
+        b.text.y = surfaceLocalY(b.x) + b.exitDy * p * 2 * CH;
         b.text.alpha = 1 - p;
         continue;
+      }
+      // Phase B climb-in: a vertical arrival descends (or rises) the shaft
+      // to the ground line before normal life resumes. Renderer juice only —
+      // x is pinned, the intent clock waits (pausedUntil set at arrival).
+      if (b.climb !== null) {
+        const p = (elapsedS - b.climb.startedS) / CLIMB_S;
+        if (p >= 1) {
+          b.climb = null;
+          b.text.alpha = 1;
+        } else {
+          b.text.x = Math.round(b.x * CW);
+          b.text.y = surfaceLocalY(b.x) + b.climb.fromRows * (1 - partEase(p)) * CH;
+          b.text.alpha = Math.min(1, p * 4);
+          continue;
+        }
       }
       // Entry juice: fade in while already walking inward.
       if (b.enteringSince !== null) {
@@ -2589,7 +2639,21 @@ export async function mountTerminalLand(
 
         if (elapsedS >= b.pausedUntil) b.x += vel * dt;
 
-        if (b.x <= 0) {
+        // Phase B: the shaft mouth. A being that steps ACROSS the shaft
+        // column while the vertical seam is open may take it — down from
+        // the surface, back up from the undercroft. Chance-gated so the
+        // shaft is a temptation, not a drain; cooldown-gated like every
+        // crossing (anti-ping-pong).
+        if (
+          vEdgeOpen &&
+          vel !== 0 &&
+          elapsedS >= b.crossCooldownUntil &&
+          x0 !== b.x &&
+          (x0 - vShaftX) * (b.x - vShaftX) <= 0 &&
+          rng() < DESCEND_CHANCE
+        ) {
+          tryExit(b, isUnder ? 'up' : 'down');
+        } else if (b.x <= 0) {
           if (edges.left && elapsedS >= b.crossCooldownUntil) {
             tryExit(b, 'left');
           } else {
@@ -2702,8 +2766,24 @@ export async function mountTerminalLand(
   );
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
+    const vertical = side === 'down' || side === 'up';
     spawnSpark(side);
-    const b = addBeing(agentId, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
+    // Vertical arrivals appear at the shaft mouth and CLIMB in; horizontal
+    // arrivals keep the walk-in-from-the-edge juice.
+    const b = vertical
+      ? addBeing(agentId, vShaftX, vShaftX < model.width / 2 ? 1 : -1, true)
+      : addBeing(agentId, side === 'left' ? 0 : model.width - 1, side === 'left' ? 1 : -1, true);
+    if (vertical) {
+      const groundRow = (model.surface[vShaftX] ?? model.height) - 1;
+      b.enteringSince = null; // the climb owns the fade
+      b.climb = {
+        // 'up' entry = came from above (descending): start at the ceiling.
+        // 'down' entry = came from below (ascending): start past the floor.
+        fromRows: side === 'up' ? -groundRow : model.height - groundRow,
+        startedS: elapsedS,
+      };
+      b.pausedUntil = elapsedS + CLIMB_S; // no walking mid-rung
+    }
     b.crossCooldownUntil = elapsedS + CROSS_COOLDOWN_S; // anti-ping-pong
     if (!presencePrngs.has(agentId)) {
       presencePrngs.set(agentId, mulberry32(fnv1a(`presence:${agentId}:${terminalId}`)));
@@ -2715,24 +2795,26 @@ export async function mountTerminalLand(
       // structure for approach). Missing state (stale preload) degrades
       // to the fresh-spawn defaults addBeing already chose.
       b.speed = state.speed;
-      b.dir = state.dir;
+      if (!vertical) b.dir = state.dir; // a shaft has no carried facing
       b.bobPhase = state.bobPhase;
       b.intent = resumeIntent(state.intent, side, intentCtx(b.x));
       if (state.mind) b.mind = reconstructMind(agentId, Math.round(b.x), surfaceRow, state.mind);
     }
     // The arrival is a PERCEPTION now — queued on the mind, drained (and
     // written to memory) by the next re-pick's routeTier1. recordArrival
-    // is boot-spawn-only as of T2.
+    // is boot-spawn-only as of T2. An undercroft arrival names itself so
+    // the memory line reads honestly (zero new AI call sites — this rides
+    // the existing arrival drain; spec 2026-08-18 cost note).
     b.mind.perceptionQueue.push({
       kind: 'terminal_arrival',
-      subject: wing,
+      subject: isUnder ? `${wing} undercroft` : wing,
       at: { x: Math.round(b.x), y: surfaceRow },
       when: Date.now(),
     });
     recordCrossing(memory, {
       agentId,
       fromWing: from?.wing || '?',
-      toWing: wing,
+      toWing: isUnder ? `${wing} undercroft` : wing,
       col: Math.round(b.x),
       row: surfaceRow,
       whenMs: Date.now(),

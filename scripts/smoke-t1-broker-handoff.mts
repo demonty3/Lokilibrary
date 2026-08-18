@@ -187,4 +187,40 @@ check('refusals leave the roster untouched', state().roster.b1 === 't2');
       JSON.stringify({ lastTier1At: 5, reflectionCounter: 1, perceptionQueue: [] }));
 }
 
+// ── Phase B: vertical routing through the shaft ─────────────────────────
+{
+  const exitH = handlers.get('terminal:agentExit')!;
+  // No undercroft yet: a 'down' exit is refused (ack=false — the renderer
+  // keeps the being; this is also the dragged-away-mid-visit path).
+  check('down exit refused with no vjoin',
+    exitH(null, { agentId: 'b1', terminalId: 't2', side: 'down', state: carried }) === false);
+  // Dock t2's undercroft, then descend.
+  const uid = handlers.get('terminal:debugSpawnUnder')!(null, 't2') as string | null;
+  check('undercroft spawned for the vertical leg', uid === 'u1');
+  const uWin = FakeBrowserWindow.all[FakeBrowserWindow.all.length - 1];
+  check('down exit routes to the undercroft',
+    exitH(null, { agentId: 'b1', terminalId: 't2', side: 'down', state: carried }) === true);
+  check('roster moved b1 → u1', state().roster.b1 === 'u1');
+  const uEnter = uWin.webContents.sent.filter((m) => m.channel === 'terminal:agentEnter').pop()?.payload as
+    | { agentId: string; side: string; from: { terminalId: string; wing: string } }
+    | undefined;
+  check('vertical entry side flips (exit down → enter up)', uEnter?.side === 'up');
+  check('descent from names the surface wing plainly',
+    JSON.stringify(uEnter?.from) === JSON.stringify({ terminalId: 't2', wing: 'd1' }));
+  // Ascend back.
+  check('up exit routes back to the surface',
+    exitH(null, { agentId: 'b1', terminalId: 'u1', side: 'up', state: carried }) === true);
+  check('roster moved b1 → t2', state().roster.b1 === 't2');
+  const backEnter = w2.webContents.sent.filter((m) => m.channel === 'terminal:agentEnter').pop()?.payload as
+    | { agentId: string; side: string; from: { terminalId: string; wing: string } }
+    | undefined;
+  check('ascent entry side flips (exit up → enter down)', backEnter?.side === 'down');
+  check('ascent from names the undercroft honestly',
+    JSON.stringify(backEnter?.from) === JSON.stringify({ terminalId: 'u1', wing: 'd1 undercroft' }));
+  // Vertical crossings are the SAME wing — a society member's home is a
+  // no-op move, never a re-home to somewhere else.
+  const homeState = handlers.get('terminal:debugState')!(null) as { society: Record<string, string> };
+  check('vertical legs never moved a home', homeState.society.loki === 'd1');
+}
+
 report();

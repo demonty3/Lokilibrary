@@ -79,13 +79,13 @@ export interface ElectronAPI {
   terminalAgentExit(
     agentId: string,
     terminalId: string,
-    side: 'left' | 'right',
+    side: 'left' | 'right' | 'down' | 'up',
     state: TerminalBeingState,
   ): Promise<boolean>;
   onTerminalAgentEnter(
     cb: (event: {
       agentId: string;
-      side: 'left' | 'right';
+      side: 'left' | 'right' | 'down' | 'up';
       state?: TerminalBeingState;
       from?: { terminalId: string; wing: string };
     }) => void,
@@ -476,7 +476,7 @@ export async function terminalAgentSpawn(agentId: string, terminalId: string): P
 export async function terminalAgentExit(
   agentId: string,
   terminalId: string,
-  side: 'left' | 'right',
+  side: 'left' | 'right' | 'down' | 'up',
   state: TerminalBeingState,
 ): Promise<boolean> {
   const api = getElectronAPI();
@@ -491,7 +491,7 @@ export async function terminalAgentExit(
 export function subscribeTerminalAgentEnter(
   cb: (event: {
     agentId: string;
-    side: 'left' | 'right';
+    side: 'left' | 'right' | 'down' | 'up';
     state?: TerminalBeingState;
     from?: { terminalId: string; wing: string };
   }) => void,

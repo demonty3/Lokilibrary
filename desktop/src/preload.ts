@@ -143,7 +143,7 @@ export interface ElectronAPI {
   terminalAgentExit(
     agentId: string,
     terminalId: string,
-    side: 'left' | 'right',
+    side: 'left' | 'right' | 'down' | 'up',
     state: TerminalBeingState,
   ): Promise<boolean>;
   /** A being handed over by the broker arrives at `side`, with its
@@ -151,7 +151,7 @@ export interface ElectronAPI {
   onTerminalAgentEnter(
     cb: (event: {
       agentId: string;
-      side: 'left' | 'right';
+      side: 'left' | 'right' | 'down' | 'up';
       state?: TerminalBeingState;
       from?: { terminalId: string; wing: string };
     }) => void,
@@ -272,7 +272,7 @@ const api: ElectronAPI = {
       _e: IpcRendererEvent,
       event: {
         agentId: string;
-        side: 'left' | 'right';
+        side: 'left' | 'right' | 'down' | 'up';
         state?: TerminalBeingState;
         from?: { terminalId: string; wing: string };
       },

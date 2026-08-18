@@ -106,6 +106,19 @@ check('watch_edge decays to inward wander when the far side is closed',
 check('unknown kind decays to inward wander',
   JSON.stringify(resumeIntent('???', 'right', rctx)) === JSON.stringify({ kind: 'wander', dir: -1 }));
 
+// Phase B — a VERTICAL entry (the shaft) has no far side: everything but
+// rest decays to a centre-ward wander from the entry column; the horizontal
+// cases above are untouched by the widening.
+check('vertical entry: rest still rests', resumeIntent('rest', 'up', rctx).kind === 'rest');
+check('vertical entry: watch_edge decays to centre-ward wander',
+  JSON.stringify(resumeIntent('watch_edge', 'up', baseCtx({ x: 10, width: 80 }))) ===
+    JSON.stringify({ kind: 'wander', dir: 1 }));
+check('vertical entry: wander heads centre-ward from a right-of-centre shaft',
+  JSON.stringify(resumeIntent('wander', 'down', baseCtx({ x: 70, width: 80 }))) ===
+    JSON.stringify({ kind: 'wander', dir: -1 }));
+check('vertical entry: approach decays too (old coordinates are meaningless)',
+  resumeIntent('approach', 'down', baseCtx({ x: 10, width: 80 })).kind === 'wander');
+
 // 8 · ctx is never mutated (frozen ctx would throw in strict mode)
 const frozen = Object.freeze(baseCtx());
 pickIntent(makeRng(1), frozen);
