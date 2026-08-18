@@ -62,6 +62,9 @@ interface Terminal {
    *  spawns (scale/anchor slice) — the broker must re-apply THIS at snap, not
    *  squash a tall window back to the standard height. */
   h: number;
+  /** Actual window width in px. TERMINAL_W/UNDER_W except for debug wide/
+   *  narrow spawns (variable-widths rung) — re-applied at snap/move like h. */
+  w: number;
 }
 
 const terminals = new Map<string, Terminal>();
@@ -123,9 +126,9 @@ function surfaceBounds(): TermBounds[] {
 /** Keep a spawn x on the primary work area — macOS shuffles fully-offscreen
  *  windows unpredictably (a 3×640 chain outgrows a 1440-wide desk), which
  *  fights the broker. */
-function clampX(x: number): number {
+function clampX(x: number, w: number = TERMINAL_W): number {
   const wa = screen.getPrimaryDisplay().workArea;
-  return Math.max(wa.x, Math.min(x, wa.x + wa.width - TERMINAL_W));
+  return Math.max(wa.x, Math.min(x, wa.x + wa.width - w));
 }
 
 /** Write the live desk {id, wing, bounds} to config (desk persistence). */
@@ -154,6 +157,15 @@ function wingsMap(): Record<string, string> {
   return m;
 }
 
+/** terminalId → window width in px (variable-widths rung): every renderer
+ *  converts these to cols with its own formula, so the whole chain agrees on
+ *  the shared sky's desk-space without talking. */
+function widthsMap(): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const t of terminals.values()) if (!t.win.isDestroyed()) m[t.id] = t.w;
+  return m;
+}
+
 /** Change gate for broadcastTopology: joins + the wings map (a spawn/close
  *  changes which wings are OPEN without changing any join, and the closed-
  *  wing skyline recomposes off that). */
@@ -162,16 +174,17 @@ let lastTopologyKey = '';
 function broadcastTopology(): void {
   const next = computeJoins(surfaceBounds());
   const nextV = computeVJoins(allBounds());
-  const key = JSON.stringify({ joins: next, vjoins: nextV, wings: wingsMap() });
+  const key = JSON.stringify({ joins: next, vjoins: nextV, wings: wingsMap(), widths: widthsMap() });
   if (key === lastTopologyKey) return;
   lastTopologyKey = key;
   joins = next;
   vjoins = nextV;
+  const widths = widthsMap();
   // eslint-disable-next-line no-console
   console.log(`[terminals] topology: ${joins.length ? joins.map((j) => `${j.left}+${j.right}`).join(' ') : '(none)'}${vjoins.length ? ` | under: ${vjoins.map((v) => `${v.top}/${v.bottom}`).join(' ')}` : ''}`);
   for (const t of terminals.values()) {
     if (!t.win.isDestroyed())
-      t.win.webContents.send('terminal:topology', { joins, vjoins, wings: wingsMap(), allWings: WINGS });
+      t.win.webContents.send('terminal:topology', { joins, vjoins, wings: wingsMap(), allWings: WINGS, widths });
   }
   onTopologyChange?.();
 }
@@ -191,12 +204,7 @@ function settle(id: string): void {
       : computeSnapTarget(moved, surfaceBounds().filter((b) => b.id !== id));
   if (target && (target.x !== moved.x || target.y !== moved.y)) {
     snapping = true;
-    t.win.setBounds({
-      x: target.x,
-      y: target.y,
-      width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
-      height: t.h,
-    });
+    t.win.setBounds({ x: target.x, y: target.y, width: t.w, height: t.h });
     snapping = false;
   }
   broadcastTopology();
@@ -219,6 +227,7 @@ export function startTerminalsMode(
     y: number,
     kind: TermKind = 'surface',
     heightPx?: number,
+    widthPx?: number,
   ): void {
     // Debug tall spawns only (scale/anchor slice): surface windows may take a
     // nonstandard height, clamped to [TERMINAL_H, 780] — never shorter than
@@ -228,8 +237,14 @@ export function startTerminalsMode(
       kind === 'under'
         ? UNDER_H_PX
         : Math.max(TERMINAL_H, Math.min(780, heightPx ?? TERMINAL_H));
+    // Debug wide/narrow spawns (variable-widths rung): clamped to [480, 1200]
+    // — 480 is the renderer's 40-col floor at CW 6 × WORLD_SCALE 2; 1200
+    // keeps a wide window plus one standard sibling inside a 1440 work area.
+    // Session-only, like heights.
+    const w =
+      kind === 'under' ? UNDER_W : Math.max(480, Math.min(1200, widthPx ?? TERMINAL_W));
     const win = new BrowserWindow({
-      width: kind === 'under' ? UNDER_W : TERMINAL_W,
+      width: w,
       height: h,
       x,
       y,
@@ -268,7 +283,7 @@ export function startTerminalsMode(
       rebuildTray(); // a close frees a wing — the menu label must refresh
     });
 
-    terminals.set(id, { id, wing, win, kind, h });
+    terminals.set(id, { id, wing, win, kind, h, w });
   }
 
   // ── Desk persistence: restore the set as it was left ────────────────────
@@ -475,12 +490,12 @@ export function startTerminalsMode(
     return WINGS.find((w) => !used.has(w));
   }
 
-  function spawnNext(heightPx?: number): string | null {
+  function spawnNext(heightPx?: number, widthPx?: number): string | null {
     const wing = nextWing();
     if (!wing) return null;
     const id = `t${nextIndex++}`;
     const i = terminals.size;
-    spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80)), 160 + i * 36, 'surface', heightPx);
+    spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80), widthPx), 160 + i * 36, 'surface', heightPx, widthPx);
     broadcastTopology(); // the opened wing leaves every sibling's skyline
     persistTerminals();
     rebuildTray();
@@ -496,8 +511,11 @@ export function startTerminalsMode(
     if (!t || t.win.isDestroyed() || t.kind === 'under') return null;
     // Standard-height parents only: a tall (debug) window's extension rows and
     // an undercroft's galleries would both claim global rows 20+ — reconciling
-    // them is the variable-size rung, not this one (spec 2026-08-18).
-    if (t.h !== TERMINAL_H) return null;
+    // them is a later rung, not this one (spec 2026-08-18). Standard-WIDTH
+    // parents only too (variable-widths rung): the undercroft spawns at
+    // UNDER_W, and the shared relief profile + shaft column require equal
+    // cols — computeVJoins would refuse the mismatched dock anyway.
+    if (t.h !== TERMINAL_H || t.w !== TERMINAL_W) return null;
     if (neighbourBelow(surfaceId, vjoins)) return null;
     const b = t.win.getBounds();
     const id = `u${nextUnderIndex++}`;
@@ -610,7 +628,7 @@ export function startTerminalsMode(
   // --- IPC: renderer ↔ broker ---------------------------------------------
 
   // Hydration: a terminal renderer asks for the current joins on mount.
-  ipcMain.handle('terminal:getTopology', () => ({ joins, vjoins, wings: wingsMap(), allWings: WINGS }));
+  ipcMain.handle('terminal:getTopology', () => ({ joins, vjoins, wings: wingsMap(), allWings: WINGS, widths: widthsMap() }));
 
   // Society hydration: which cohort member lives on which wing.
   ipcMain.handle('terminal:getSociety', () => Object.fromEntries(homes));
@@ -794,21 +812,17 @@ export function startTerminalsMode(
   ipcMain.handle('terminal:debugMove', (_e, payload: { terminalId: string; x: number; y: number }) => {
     const t = terminals.get(payload.terminalId);
     if (!t || t.win.isDestroyed()) return false;
-    t.win.setBounds({
-      x: payload.x,
-      y: payload.y,
-      width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
-      height: t.h,
-    });
+    t.win.setBounds({ x: payload.x, y: payload.y, width: t.w, height: t.h });
     settle(payload.terminalId);
     return true;
   });
 
   // Tray parity for the harness: the exact spawn path the tray item drives.
-  // Optional heightPx (scale/anchor slice): a debug tall spawn — clamped in
-  // spawnTerminal, session-only, never persisted at that height.
-  ipcMain.handle('terminal:debugSpawn', (_e, payload?: { heightPx?: number }) =>
-    spawnNext(payload?.heightPx),
+  // Optional heightPx (scale/anchor slice) / widthPx (variable-widths rung):
+  // debug nonstandard spawns — clamped in spawnTerminal, session-only, never
+  // persisted at those sizes.
+  ipcMain.handle('terminal:debugSpawn', (_e, payload?: { heightPx?: number; widthPx?: number }) =>
+    spawnNext(payload?.heightPx, payload?.widthPx),
   );
 
   // Tray parity for the undercroft item (Phase B).

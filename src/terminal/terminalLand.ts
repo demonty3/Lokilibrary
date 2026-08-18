@@ -84,7 +84,7 @@ import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './
 import { daylight, foliageSway, localHour, pulse, skyNow, sunGlow } from './ambient';
 import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
 import { blockedSpansAt, extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
-import { bodyHost, deskChain, sharedWisps, type DeskChainSpec } from './sharedSky';
+import { bodyHost, chainOffsets, deskChain, sharedWisps, type DeskChainSpec } from './sharedSky';
 import {
   launchNote,
   maybeMark,
@@ -836,6 +836,22 @@ export async function mountTerminalLand(
   // agree without talking. Solo (length 1) leaves every sky path byte-
   // identical to the pre-slice behaviour (spec B3).
   let chain: DeskChainSpec = { order: [terminalId], index: 0, key: wing };
+  // Variable widths (2026-08-18): the chain's desk-space is a prefix-sum
+  // space, not index × width. Every window converts every member's px width
+  // (broker ground truth) to cols with the SAME formula it uses for its own
+  // canvas, so the whole chain agrees without talking. A missing width falls
+  // back to this window's own cols — the shipped uniform assumption.
+  let deskWidthsPx: Record<string, number> = {};
+  let chainTotalCols = 0; // recomputed below; 0 only before the first pass
+  let chainOffsetCols = 0;
+  const colsOfPx = (px: number | undefined): number =>
+    px === undefined ? model.width : Math.max(40, Math.floor(px / (CW * WORLD_SCALE)));
+  const recomputeChainCols = (): void => {
+    const { total, offsets } = chainOffsets(chain.order.map((id) => colsOfPx(deskWidthsPx[id])));
+    chainTotalCols = total;
+    chainOffsetCols = offsets[chain.index] ?? 0;
+  };
+  recomputeChainCols();
   const buildBodies = (): void => {
     for (const v of [sunView, moonView]) v?.text.destroy();
     sunView = null;
@@ -1072,7 +1088,7 @@ export async function mountTerminalLand(
     if (isUnder) return; // no sky underground — no wisps, ever
     if ((theme.landOmit ?? []).includes('cloud')) return; // a pack that deletes clouds gets no wisps either
     if (chain.order.length > 1) {
-      wispViews = sharedWisps(chain.key, chain.order.length, model.width).map((s) => {
+      wispViews = sharedWisps(chain.key, chain.order.length, chainTotalCols).map((s) => {
         const spec: WispSpec = { ...s, blocked: blockedSpansAt(model, s.row) };
         const text = new BitmapText({
           text: spec.text,
@@ -1493,8 +1509,10 @@ export async function mountTerminalLand(
     wings: Record<string, string>,
     allWings?: string[],
     vjoins?: TerminalVJoin[],
+    widths?: Record<string, number>,
   ): void => {
     lastTopology = { joins, wings, ...(allWings && { allWings }), ...(vjoins && { vjoins }) };
+    deskWidthsPx = widths ?? {};
     if (isUnder) {
       // The undercroft's left/right edges are rock, always (v0's vertical
       // pair). Its terrain instead tracks its PARENT's horizontal joins:
@@ -1533,14 +1551,19 @@ export async function mountTerminalLand(
     // changing (a third window docking on the FAR side of a neighbour), so
     // it is tracked beside joinKey, not inside it.
     const prevChainKey = chain.key;
+    // Variable widths: the chain's column layout can change without the key
+    // changing (same wings, a member respawned at another width), so it is
+    // tracked beside the key.
+    const prevChainColsKey = `${chainTotalCols}:${chainOffsetCols}`;
     chain = deskChain(terminalId, joins, wings);
+    recomputeChainCols();
     const key = `${join.left ?? ''}|${join.right ?? ''}|${closedWings.join(',')}`;
     if (key !== joinKey) {
       joinKey = key;
       recompose(join.left === undefined && join.right === undefined ? null : join);
       if (edges.left && !prev.left) startKnit('left');
       if (edges.right && !prev.right) startKnit('right');
-    } else if (chain.key !== prevChainKey) {
+    } else if (chain.key !== prevChainKey || `${chainTotalCols}:${chainOffsetCols}` !== prevChainColsKey) {
       // No terrain change, but the desk's sky membership moved: re-author
       // the shared wisps and re-run the host pick (spec B1/B4).
       buildWisps();
@@ -2383,7 +2406,7 @@ export async function mountTerminalLand(
     // same desk position from the same clock — draws the rest of the run.
     for (const w of wispViews) {
       const xc = w.desk
-        ? wispX(w.spec, skyT, chain.order.length * model.width) - chain.index * model.width
+        ? wispX(w.spec, skyT, chainTotalCols) - chainOffsetCols
         : wispX(w.spec, skyT, model.width);
       w.text.x = xc * CW;
       w.text.alpha =
@@ -2782,8 +2805,8 @@ export async function mountTerminalLand(
   app.ticker.add(tick);
 
   // ── Broker wiring ────────────────────────────────────────────────────────
-  const unsubTopology = subscribeTerminalTopology(({ joins, vjoins, wings, allWings }) =>
-    applyJoins(joins, wings, allWings, vjoins),
+  const unsubTopology = subscribeTerminalTopology(({ joins, vjoins, wings, allWings, widths }) =>
+    applyJoins(joins, wings, allWings, vjoins, widths),
   );
   const unsubEnter = subscribeTerminalAgentEnter(({ agentId, side, state, from }) => {
     if (beings.has(agentId)) return; // duplicate guard
@@ -2844,7 +2867,7 @@ export async function mountTerminalLand(
   const unsubNeighbour = subscribeTerminalNeighbourSummary(({ side, beings: bs }) => {
     neighbourNear[side] = bs;
   });
-  void getTerminalTopology().then(({ joins, vjoins, wings, allWings }) => applyJoins(joins, wings, allWings, vjoins));
+  void getTerminalTopology().then(({ joins, vjoins, wings, allWings, widths }) => applyJoins(joins, wings, allWings, vjoins, widths));
   if (!isUnder) drawEdges();
 
   window.__terminal = {
@@ -2967,7 +2990,7 @@ export async function mountTerminalLand(
             const local = w.text.x / CW;
             return {
               row: w.spec.row,
-              deskX: r3(w.desk ? local + chain.index * model.width : local),
+              deskX: r3(w.desk ? local + chainOffsetCols : local),
               localX: r3(local),
               alpha: r3(w.text.alpha),
             };

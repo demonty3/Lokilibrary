@@ -175,6 +175,10 @@ export function computeVSnapTarget(
   let best: { x: number; y: number; gap: number } | null = null;
   for (const o of others) {
     if (o.id === moved.id || o.kind === 'under') continue;
+    // Equal widths only (variable-widths rung): the shared relief profile and
+    // shaftColumn are functions of cols, so a width-mismatched dock would
+    // disagree at the seam by construction.
+    if (Math.abs(moved.width - o.width) > JOIN_EPS_PX) continue;
     if (horizontalOverlap(moved, o) < MIN_OVERLAP_FRAC * Math.min(moved.width, o.width)) continue;
     if (Math.abs(moved.x - o.x) > SNAP_X_PX) continue; // outside the capture band — un-snap escape
     // Occupied surface: another under window is already docked beneath it.
@@ -208,7 +212,8 @@ export function computeVJoins(all: readonly TermBounds[]): VJoin[] {
       if (b.kind !== 'under' || a.id === b.id) continue;
       if (
         Math.abs(a.y + a.height - b.y) <= JOIN_EPS_PX &&
-        Math.abs(a.x - b.x) <= JOIN_EPS_PX
+        Math.abs(a.x - b.x) <= JOIN_EPS_PX &&
+        Math.abs(a.width - b.width) <= JOIN_EPS_PX // same-cols seam agreement
       ) {
         vjoins.push({ top: a.id, bottom: b.id });
       }

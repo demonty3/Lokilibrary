@@ -48,6 +48,15 @@ check('JOIN_EPS_PX tolerance holds', computeVJoins([W('t1', 100, 100), W('u1', 1
 check('3px y gap does not vjoin', computeVJoins([W('t1', 100, 100), W('u1', 100, 623, 'under')]).length === 0);
 check('3px x offset does not vjoin', computeVJoins([W('t1', 103, 100), W('u1', 100, 620, 'under')]).length === 0);
 check('surface below surface never vjoins', computeVJoins([W('t1', 100, 100), W('t2', 100, 620)]).length === 0);
+// Variable widths (spec 2026-08-18-variable-widths, bar 4's counterpart):
+// the shared relief profile + shaft column are functions of cols, so a
+// width-mismatched pair never vjoins and never vsnaps.
+check('width-mismatched pair never vjoins',
+  computeVJoins([{ ...W('t1', 100, 100), width: 960 }, W('u1', 100, 620, 'under')]).length === 0);
+check('width-mismatched under never vsnaps',
+  computeVSnapTarget(W('u1', 110, 640, 'under'), [{ ...W('t1', 100, 100), width: 960 }]) === null);
+check('equal widths within eps still vjoin',
+  computeVJoins([{ ...W('t1', 100, 100), width: 640 + JOIN_EPS_PX }, W('u1', 100, 620, 'under')]).length === 1);
 check('under below under never vjoins', computeVJoins([W('u1', 100, 100, 'under'), W('u2', 100, 360, 'under')]).length === 0);
 check('vjoins sort deterministically',
   JSON.stringify(computeVJoins([W('u2', 800, 620, 'under'), W('t2', 800, 100), W('u1', 100, 620, 'under'), W('t1', 100, 100)]).map((v) => `${v.top}/${v.bottom}`)) ===

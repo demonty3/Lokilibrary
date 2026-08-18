@@ -67,8 +67,8 @@ export interface ElectronAPI {
 
   // --- T0 spike: snapping terminals (docs/PRD-snapping-terminals.md).
   // Mirrors desktop/src/preload.ts; only live under LOKILIBRARY_TERMINALS.
-  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }>;
-  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }) => void): () => void;
+  terminalGetTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[]; widths?: Record<string, number> }>;
+  onTerminalTopology(cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[]; widths?: Record<string, number> }) => void): () => void;
   getTerminalSociety(): Promise<Record<string, string>>;
   getTerminalRoster(): Promise<Record<string, string>>;
   getTerminalOrchestration(): Promise<boolean>;
@@ -367,7 +367,7 @@ export function subscribeDeskAttention(cb: () => void): () => void {
  * exits refused (the being turns around).
  */
 
-export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }> {
+export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[]; widths?: Record<string, number> }> {
   const api = getElectronAPI();
   if (!api || typeof api.terminalGetTopology !== 'function') return { joins: [], vjoins: [], wings: {} };
   try {
@@ -378,7 +378,7 @@ export async function getTerminalTopology(): Promise<{ joins: TerminalJoin[]; vj
 }
 
 export function subscribeTerminalTopology(
-  cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[] }) => void,
+  cb: (event: { joins: TerminalJoin[]; vjoins?: TerminalVJoin[]; wings: Record<string, string>; allWings?: string[]; widths?: Record<string, number> }) => void,
 ): () => void {
   const api = getElectronAPI();
   if (!api || typeof api.onTerminalTopology !== 'function') return () => undefined;

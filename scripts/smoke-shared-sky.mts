@@ -6,7 +6,7 @@
  *  and a chain of one is the pre-slice world (B3, the solo control).
  *  The Pixi wiring is e2e-verified on the live desk. */
 import { makeChecker } from './lib/smoke.ts';
-import { bodyHost, deskChain, sharedWisps, SHARED_WISP_ROW_MAX } from '../src/terminal/sharedSky.ts';
+import { bodyHost, chainOffsets, deskChain, sharedWisps, SHARED_WISP_ROW_MAX } from '../src/terminal/sharedSky.ts';
 import { wispX } from '../src/terminal/clouds.ts';
 const { check, report } = makeChecker('smoke shared-sky');
 
@@ -39,12 +39,34 @@ check('host pick is stable', bodyHost(c2.key, 'sun', 3) === sun && bodyHost(c3.k
 check('exactly one seat hosts each body', [0, 1, 2].filter((i) => i === sun).length === 1);
 
 // ── Shared wisps: density, band, rows, desk-space continuity ──────────────
+// sharedWisps takes the chain's TOTAL desk width in cells (variable-widths
+// rung); an equal-width chain passes chainLen × width, byte-identical to the
+// pre-slice call shape.
 const W = 106;
-const wisps = sharedWisps(c1.key, 3, W);
+const wisps = sharedWisps(c1.key, 3, 3 * W);
 check('per-window density preserved (2 × chainLen)', wisps.length === 6, String(wisps.length));
 check('rows ride the sky band', wisps.every((w) => w.row >= 1 && w.row <= SHARED_WISP_ROW_MAX));
 check('speeds within the judged band', wisps.every((w) => w.speed >= 0.25 && w.speed <= 0.46));
-check('deterministic', JSON.stringify(wisps) === JSON.stringify(sharedWisps(c1.key, 3, W)));
+check('deterministic', JSON.stringify(wisps) === JSON.stringify(sharedWisps(c1.key, 3, 3 * W)));
+
+// ── Variable widths (spec 2026-08-18-variable-widths, bars 2 + 3) ─────────
+// Bar 2: on a uniform chain the prefix-sum maths must reproduce the shipped
+// behaviour exactly — offset(i) ≡ i × width, total ≡ chainLen × width.
+const uni = chainOffsets([W, W, W]);
+check('bar 2: uniform offsets ≡ index × width', uni.offsets.every((o, i) => o === i * W));
+check('bar 2: uniform total ≡ chainLen × width', uni.total === 3 * W);
+// Bar 3: mixed widths — offset(i+1) = offset(i) + cols(i), so window i's exit
+// column IS window i+1's entry column, by construction.
+const mixedCols = [100, 53, 80];
+const mixed = chainOffsets(mixedCols);
+check(
+  'bar 3: mixed offsets are prefix sums',
+  mixed.offsets[0] === 0 &&
+    mixedCols.every((c, i) => i === mixedCols.length - 1 || mixed.offsets[i + 1] === mixed.offsets[i] + c),
+);
+check('bar 3: mixed total is the sum', mixed.total === 233);
+// Host picks stay a pure function of the chain key — widths never enter.
+check('bar 3: host pick blind to widths', bodyHost(c1.key, 'sun', 3) === sun);
 
 // B2's testable half: the SAME spec read from two seats at the same wall
 // second lands on the same desk x — seat i's local x + i·W equals seat j's.

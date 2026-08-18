@@ -73,12 +73,27 @@ export interface SharedWisp {
  *  window. */
 export const SHARED_WISP_ROW_MAX = 7;
 
+/** Per-member column counts → the chain's total desk width in cells and each
+ *  member's offset (prefix sum). offsets[i+1] = offsets[i] + cols[i], so a
+ *  desk-space run's exit column of window i IS window i+1's entry column —
+ *  the variable-widths continuity is by construction, not by tuning. */
+export function chainOffsets(cols: readonly number[]): { total: number; offsets: number[] } {
+  const offsets: number[] = [];
+  let total = 0;
+  for (const c of cols) {
+    offsets.push(total);
+    total += c;
+  }
+  return { total, offsets };
+}
+
 /** The desk's wisps, authored from the chain key alone: 2 per window (the
  *  composer's per-window density, preserved), positions in desk-space
- *  [0, chainLen × width) so a run exits one window's right edge as it enters
- *  the neighbour's left. */
-export function sharedWisps(key: string, chainLen: number, width: number): SharedWisp[] {
-  const deskW = chainLen * width;
+ *  [0, deskW) so a run exits one window's right edge as it enters the
+ *  neighbour's left. `deskW` is the chain's TOTAL width in cells (equal-width
+ *  chains pass chainLen × width, byte-identical to the pre-variable-widths
+ *  behaviour; mixed-width chains pass chainOffsets().total). */
+export function sharedWisps(key: string, chainLen: number, deskW: number): SharedWisp[] {
   const out: SharedWisp[] = [];
   for (let i = 0; i < 2 * chainLen; i++) {
     const h = fnv1a32(`sharedSky:${key}:wisp:${i}`);
