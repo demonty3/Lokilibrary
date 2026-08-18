@@ -13,7 +13,13 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18, latest** (the SCALE/ANCHOR eyeball PASSED —
+Last updated: **2026-08-18, latest** (VARIABLE WIDTHS shipped — window
+width now means horizon, not zoom: per-window widths through the broker
+and the shared sky's new prefix-sum desk-space, width-equality on the
+undercroft dock; 80-smoke sweep green, zero re-baselines; 960/480 windows
+live-verified against standard siblings. One eyeball queued below. Next
+rung: the archipelago full-screen mockup.)
+Previously **2026-08-18** (the SCALE/ANCHOR eyeball PASSED —
 "the aperture eyeball passes — reads as the same wing, merged". The
 second-underworld kill never fired; the full-screen ladder's next rungs —
 variable widths, then the archipelago mockup — are UNBLOCKED.)
@@ -144,6 +150,32 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — variable widths: different windows are different-width apertures
+
+**Status**: shipped 2026-08-18 (spec
+`docs/superpowers/specs/2026-08-18-variable-widths.md`, bars frozen first).
+Window width no longer implies anything about the world: a wider terminal
+shows more of its wing's horizon, a narrower one less, at the same glyph
+scale, same masthead row, same ground line. Snap, joins, crossings and the
+shared sky all work across mixed widths (the sky's wisps now ride a
+prefix-sum desk-space, so a run leaves a 960-wide window's right edge
+exactly as it enters the 480-wide neighbour's left).
+**What to look at**: the two shots in
+`docs/design-reviews/2026-08-18-variable-widths/` — `01` is a 960-wide d2
+beside a 480-wide d3 (exactly filling the 1440 display), `02` is the 480
+beside the standard 640 d0. Judge one thing: does each window read as a
+*different-width aperture onto the same world* (more/less horizon, same
+scale, one ground), or does width read as zoom / a different place?
+Second, smaller check: in the 480 window, does the masthead still read
+(wing label left, holdings right, no collision)? **Kill (frozen)**:
+zoom-read → the slice failed at its one job; masthead collision at 480 →
+raise the minimum width to 520 rather than reworking the masthead.
+Live repro: `node scripts/e2e/term-drive.mjs t1
+"require('electron').ipcRenderer.invoke('terminal:debugSpawn', {widthPx: 960})"`
+on a running desk (widthPx clamps to [480, 1200]), drag it next to a
+standard window.
+**Blocks**: the archipelago full-screen mockup (next rung).
 
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 

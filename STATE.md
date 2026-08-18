@@ -2985,6 +2985,53 @@ depth) never fired; both remedies stay available as dials if the read ever
 grates. Next rungs on the ladder are UNBLOCKED: variable widths, then the
 archipelago full-screen mockup.
 
+**Variable-widths rung SHIPPED 2026-08-18, same day (eyeball queued) —
+window width means horizon, not zoom.** Spec + frozen bars committed first
+(`docs/superpowers/specs/2026-08-18-variable-widths.md`); rung 2 of the
+full-screen ladder (IDEAS.md § Terminals of different sizes, item 1).
+Most of the rung was ALREADY width-general and was verified by reading, not
+assumed: the renderer composes cols from its own window width, snap/join
+maths reads width off the bounds, proposal placement walks real bounds,
+near-edge projection is distance-from-edge, and the seam blend folds wing
+seeds only. What actually changed: (1) broker — `Terminal.w` beside `h`,
+`terminal:debugSpawn {widthPx}` clamped **[480, 1200]** (480 = the
+renderer's 40-col floor at CW 6 × WORLD_SCALE 2; 1200 keeps a wide window
+plus a standard sibling inside a 1440 work area), settle/debugMove/clampX
+re-apply the window's own width, debug widths session-only (restore
+respawns standard); (2) the topology payload carries
+`widths: Record<id, px>` (broker ground truth, in the change-gate key);
+(3) shared sky — desk-space is now a PREFIX-SUM space: `chainOffsets` in
+`sharedSky.ts`, every window converts every member's px width to cols with
+the same formula it uses for itself, `sharedWisps` takes the chain's total
+cols, wisp draw + skyDebug deskX use the offset instead of
+`index × model.width` (uniform chains produce byte-identical values by
+construction — bar 2); (4) the vertical dock gains a width-equality
+predicate (computeVSnapTarget/computeVJoins) and `spawnUnder` gates to
+standard-WIDTH parents beside the existing height gate — the shared relief
+profile and shaftColumn are functions of cols, so a mismatched dock would
+disagree at the seam by construction. Evidence: smoke-shared-sky 22 (bars
+2+3: uniform offsets ≡ index × width, mixed offsets are prefix sums, host
+picks blind to widths), smoke-vertical-join 40 (width-mismatched pair
+never vjoins/vsnaps), smoke-t1-broker-handoff payload shape; full 80-smoke
+sweep green with ZERO re-baselines (bar 1, every golden byte-identical);
+both typecheck legs + desktop tsc green. Live (bar 5): 960×520 d2 spawned
+via debug IPC, snapped to standard d0 — join reported at width 960 (no
+squash), skyDebug from both seats agreed on the chain and on every shared
+wisp's desk position with `deskX = localX + 53` exactly (t1's cols), each
+wisp visible in precisely the window whose span contains it; 480×520 d3
+snapped to both the wide and the standard window; `spawnUnder` on the 960
+parent returned null while the standard parent still docked. Shots:
+`docs/design-reviews/2026-08-18-variable-widths/` (960+480 exactly filling
+the 1440 display; 480 beside the standard 640). **Frozen bars carried:**
+every golden byte-identical (kill: a golden moves → rework, never
+re-baseline); uniform-chain shared sky byte-identical to shipped.
+**Eyeball queued (TODO-USER.md):** different widths read as different-width
+apertures onto the same world; kill = width reads as zoom / a different
+place; narrow-masthead collision at 480 → raise the minimum to 520, not a
+masthead rework. Out of scope, recorded: resizable windows, variable-width
+undercrofts, multi-seam edges (IDEAS item 3). Next rung: the archipelago
+full-screen mockup.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
