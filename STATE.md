@@ -2933,6 +2933,56 @@ density — stays available if it ever grates). The vertical-stacking arc is
 CLOSED at v0 scope.** The L-shape stays deferred; hall/storeys stays
 parked on its own precondition.
 
+**Scale/anchor slice SHIPPED 2026-08-18 (eyeball queued) — window height
+stops meaning zoom and starts meaning depth.** Spec + frozen bars committed
+first (`docs/superpowers/specs/2026-08-18-scale-anchor-slice.md`); the
+load-bearing rung of the full-screen-desk ladder (IDEAS.md § Terminals of
+different sizes, item 2; PRD § risks "lock land scale across terminals",
+made concrete). WORLD_SCALE stays 2 (cell-density verdict inherited). The
+surface geometry is now the exported constant `DESK_SURFACE` in
+`src/procedural/land.ts` ({rows 20, skyH 11, band 4, underH 4, groundRow
+15}) — `terminalLand.ts` composes with a FIXED skyH instead of deriving it
+from window height, and `layoutWorld` anchors the world to the window TOP
+(`world.y = 0`, replacing the bottom anchor; at both shipped sizes content
+exactly fills the window, so the swap is pixel-identical by construction —
+top-anchored ground + the broker's tops-equal join predicate is exactly
+what keeps ground lines continuous at any height). Extra height composes
+`extraRows` of **aperture rock** below the canonical model via the new pure
+`composeLandExtension`: each row draws from its own salted stream
+(`seed ^ EXT_SALT(0xa9e2) ^ globalRow`), so any two heights agree on every
+shared row *by construction* (the UNDER_SALT discipline, per-row-keyed) and
+the canonical compose is untouchable — **widening `underH` instead was
+ruled out and must stay ruled out: underground draws interleave in
+composeLand's main stream before surface/ore/sky draws, so it moves every
+above-ground row**. Content: strata fill at the undercroft's density
+constants, shaft continuing at global parity, ≤1 ore glint per row; no
+caverns/gallery/floor — uninhabitable depth, `model.surface` stays in the
+top 20 rows so beings/marks/wear/knit/descent never see the extension.
+Desktop: `terminal:debugSpawn` takes optional `heightPx` (clamped 520–780),
+the Terminal record carries its real `h` and the broker re-applies it at
+snap/debugMove (no more squash-to-520); debug heights are session-only
+(restore respawns standard); `spawnUnder` is GATED to standard-height
+parents — a tall window's extension rows and an undercroft's galleries
+both claim global rows 20+, and reconciling them belongs to the
+variable-size rung. Evidence: new `smoke-land-aperture` (26 — anchor
+identity, row agreement 5-vs-12, band/parity continuity incl. join relief,
+per-wing aperture goldens frozen, canonical d0 golden double-pinned); full
+80-smoke sweep green with ZERO re-baselines (bar 1); both typecheck legs +
+desktop tsc green; live on the desk — 640×650 t3 (d2) spawned via the debug
+IPC, snapped to t1 (d0) with joins `[{left:t1,right:t3}]` at its own height,
+masthead/sky/ground rows aligned across the seam, only deeper rock differs
+(bedrock thinning into the violet `deep` band, shaft unbroken). Shots:
+`docs/design-reviews/2026-08-18-scale-anchor/`. Smoke-literal hygiene rode
+along: smoke-salience + smoke-under-land geometry restatements now import
+DESK_SURFACE (zero goldens moved). **Frozen bars carried:** every golden
+byte-identical (kill: a golden moves → the canonical compose was perturbed;
+rework, never re-baseline); extension rows pure in (seed, width, globalRow).
+**Eyeball queued (TODO-USER.md):** tall-beside-standard reads as a deeper
+aperture onto the same wing; kill = the extra strata read as a second
+underworld competing with the undercroft → cut ore glints first, then cap
+extension depth. Next rungs on the ladder: variable widths, then the
+archipelago full-screen mockup.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

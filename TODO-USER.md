@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18, latest** (PHASE B eyeball PASSED same day —
+Last updated: **2026-08-18, latest** (SCALE/ANCHOR slice shipped — height
+now means depth, not zoom: fixed geometry from the window top, top-anchored
+world, aperture-rock rows for taller windows, all provably pixel-identical
+at shipped sizes; one eyeball queued below. The full-screen ladder's next
+rungs — variable widths, archipelago mockup — are gated on it.)
+Previously **2026-08-18, PHASE B** (eyeball PASSED same day —
 "passes, the undercroft reads as one place — merged". The arc is closed;
 no kill was named against the violet `deep` band, so it stands as shipped
 and its dial stays available if it ever grates.)
@@ -135,6 +140,29 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — scale/anchor slice: a taller window is a deeper aperture, not a zoomed copy
+
+**Status**: shipped 2026-08-18 (spec
+`docs/superpowers/specs/2026-08-18-scale-anchor-slice.md`, bars frozen
+first). Window height no longer changes what the world is — the sky band,
+ground line and strata sit at fixed rows from the window TOP, and a window
+taller than the standard 520px simply shows more underground rock below
+(generated so every possible height agrees on every shared row). The
+standard desk is pixel-identical by construction, and the full 80-smoke
+sweep passed with zero goldens moved. This is the load-bearing rung for
+variable-size terminals and the full-screen desk.
+**What to look at**: `docs/design-reviews/2026-08-18-scale-anchor/02-tall-beside-standard.png`
+— a 640×650 d2 window joined to the standard 520px d0. Judge one thing: does
+the tall window read as a *deeper aperture onto the same wing* (same
+masthead row, same sky, same ground line across the seam, only deeper rock
+below), or do the extra strata read as a second underworld competing with
+the real undercroft? **Kill (frozen)**: second-underworld read → cut the
+per-row ore glints first; if it still fails, cap the extension depth rather
+than tune the fill. Live repro: spawn a tall window with
+`node scripts/e2e/term-drive.mjs t1 "require('electron').ipcRenderer.invoke('terminal:debugSpawn', {heightPx: 650})"`
+on a running desk, drag it next to a standard one.
+**Blocks**: the variable-widths rung and the archipelago full-screen mockup.
 
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 
