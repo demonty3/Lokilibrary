@@ -54,3 +54,15 @@ export function knitGlowCell(
   if (model.role[row]?.[col] !== 'crust') return null;
   return { col, row, glyph: crustGlyphAt(model, worn, col, row) };
 }
+
+/** Phase B — the column pair `index` steps OUTWARD from the shaft along a
+ *  vertical seam row (the knitGlowCol sibling for the undercroft dock):
+ *  deduped at index 0, clamped at the row's ends. */
+export function vKnitCols(shaftX: number, width: number, index: number): number[] {
+  const cols: number[] = [];
+  const a = shaftX - index;
+  const b = shaftX + index;
+  if (a >= 0 && a < width) cols.push(a);
+  if (b !== a && b >= 0 && b < width) cols.push(b);
+  return cols;
+}

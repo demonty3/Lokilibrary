@@ -54,10 +54,10 @@ import {
   hexToInt,
   waitForCozette,
 } from '../render/fonts';
-import { buildLandContainer, landRoleFill, skyInkOf } from '../render/levels/land';
+import { buildLandContainer, landRoleFill, skyInkOf, strataMaterialGlyph } from '../render/levels/land';
 import { loadMuralPixels, buildQuantizedMural, MURAL_BACKING, type TerminalMuralState } from '../render/mural';
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
-import { knitGlowCell } from './knit';
+import { knitGlowCell, vKnitCols } from './knit';
 import {
   holdingsRamp,
   MAST_GAP_COLS,
@@ -76,6 +76,7 @@ import {
   partEaseInv,
   partFront,
   restFront,
+  rowSpan,
   wallAlpha,
 } from './edgePart';
 import { createFootfall, crustLayerText, decayedCount, WEAR_THRESHOLD } from './wear';
@@ -104,7 +105,7 @@ import {
   type LaunchTarget,
 } from './launchTargets';
 import { launchGame } from '../agents/launch';
-import { composeLand, composeUnderLand, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
+import { composeLand, composeUnderLand, shaftColumn, MOON_GLYPH, SAMPLE_LAND, SUN_GLYPH, type LandGame, type LandSite } from '../procedural/land';
 import {
   getTerminalSociety,
   getTerminalTopology,
@@ -1286,6 +1287,164 @@ export async function mountTerminalLand(
     };
   };
 
+  // ── Phase B: the vertical seam (undercroft dock) ──────────────────────────
+  // A vjoin-free window draws NOTHING here (the frozen bar: today's look,
+  // byte-identical). On dock, a seam-row wall ('─' per column) parts OUTWARD
+  // from the shaft column — partFront/partEase/wallAlpha reused with dist in
+  // COLUMNS — and behind the front a brief glow brightens the strata it
+  // revealed (knit's column-wise sibling, vKnitCols). On undock the wall
+  // sweeps closed, holds a beat, fades, and is destroyed: both rest states
+  // carry zero objects. Own layer — drawEdges() wipes edgeLayer wholesale.
+  const vseamLayer = new Container();
+  world.addChild(vseamLayer);
+  const vShaftX = shaftColumn(cols, games.filter((g) => g.state !== 'abandoned').length);
+  const vSeamRow = (): number => (isUnder ? 0 : model.height - 1);
+  const VSEAM_SEAL_HOLD_S = 0.35;
+  const VSEAM_SEAL_FADE_S = 0.8;
+  interface VSeamState {
+    wall: Array<{ text: BitmapText; dist: number }>;
+    span: number;
+    front: number;
+    part: { startedAtS: number; opening: boolean } | null;
+    /** Close finished at this time → linger, fade, destroy. */
+    sealedAtS: number | null;
+    /** Columns (as |col-shaft| indices) the glow has already fired for. */
+    glowedTo: number;
+  }
+  let vseam: VSeamState | null = null;
+  let vThresholds: BitmapText[] = [];
+  /** One-shot strata brightenings behind the opening front. */
+  const vglows: Array<{ text: BitmapText; bornAt: number }> = [];
+  let vEdgeOpen = false; // surface: undercroft docked below · under: surface above
+
+  const destroyVSeam = (): void => {
+    if (!vseam) return;
+    for (const w of vseam.wall) w.text.destroy();
+    vseam = null;
+  };
+  const setVThresholds = (open: boolean): void => {
+    for (const t of vThresholds) t.destroy();
+    vThresholds = [];
+    if (!open) return;
+    // The shaft mouth, marked in the ‹ › vocabulary turned vertical: ▾ on the
+    // surface floor, ▴ on the undercroft ceiling (both atlas-covered).
+    const mark = new BitmapText({
+      text: isUnder ? '▴' : '▾',
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fgBright) },
+    });
+    mark.x = vShaftX * CW;
+    mark.y = vSeamRow() * CH;
+    vseamLayer.addChild(mark);
+    vThresholds.push(mark);
+  };
+  const applyVSeamAlphas = (fade: number): void => {
+    if (!vseam) return;
+    for (const w of vseam.wall) w.text.alpha = wallAlpha(w.dist, vseam.front) * fade;
+  };
+  const startVSeam = (opening: boolean): void => {
+    const span = rowSpan(model.width, vShaftX);
+    if (!vseam) {
+      const row = vSeamRow();
+      const wallInk = hexToInt(theme.palette.fg);
+      const wall: VSeamState['wall'] = [];
+      for (let x = 0; x < model.width; x++) {
+        if (x === vShaftX) continue; // the shaft mouth never walls over
+        const text = new BitmapText({
+          text: '─',
+          style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: wallInk },
+        });
+        text.x = x * CW;
+        text.y = row * CH;
+        text.alpha = 0;
+        vseamLayer.addChild(text);
+        wall.push({ text, dist: Math.abs(x - vShaftX) });
+      }
+      vseam = { wall, span, front: restFront(!opening, span), part: null, sealedAtS: null, glowedTo: 0 };
+    }
+    vseam.sealedAtS = null;
+    const from0 = restFront(!opening, span);
+    const to = restFront(opening, span);
+    // Mid-flight reversal resumes from the current front (startPart's move).
+    vseam.part = {
+      startedAtS: elapsedS - partEaseInv((vseam.front - from0) / (to - from0)) * EDGE_PART_S,
+      opening,
+    };
+    applyVSeamAlphas(1);
+  };
+  /** Advance the seam tween + glow + threshold pulse. Rest states cost one
+   *  null check. */
+  const updateVSeam = (): void => {
+    for (let i = vglows.length - 1; i >= 0; i--) {
+      const g = vglows[i];
+      const q = (elapsedS - g.bornAt) / KNIT_GLOW_S;
+      if (q >= 1) {
+        g.text.destroy();
+        vglows.splice(i, 1);
+      } else g.text.alpha = 0.85 * (1 - q);
+    }
+    for (const t of vThresholds) t.alpha = 0.55 + 0.25 * Math.sin(elapsedS * 2.2);
+    if (!vseam) return;
+    if (vseam.part) {
+      const tS = elapsedS - vseam.part.startedAtS;
+      vseam.front = partFront(tS, vseam.span, vseam.part.opening);
+      if (vseam.part.opening) {
+        // The glow rides the front: as each column pair is revealed, its
+        // strata glyph brightens once and fades in place.
+        const upto = Math.min(vseam.span, Math.floor(vseam.front));
+        const row = vSeamRow();
+        for (let idx = vseam.glowedTo; idx <= upto; idx++) {
+          for (const col of vKnitCols(vShaftX, model.width, idx)) {
+            const role = model.role[row]?.[col];
+            const glyph =
+              role !== undefined && role !== 'sky'
+                ? (strataMaterialGlyph(role, col, row + (isUnder ? UNDER_PARENT_ROWS : 0)) ?? model.char[row][col])
+                : null;
+            if (glyph === null || glyph === ' ') continue;
+            const text = new BitmapText({
+              text: glyph,
+              style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: hexToInt(theme.palette.fg) },
+            });
+            text.x = col * CW;
+            text.y = row * CH;
+            text.alpha = 0.85;
+            vseamLayer.addChild(text);
+            vglows.push({ text, bornAt: elapsedS });
+          }
+        }
+        vseam.glowedTo = upto + 1;
+      }
+      if (partDone(tS)) {
+        vseam.front = restFront(vseam.part.opening, vseam.span);
+        const wasOpening = vseam.part.opening;
+        vseam.part = null;
+        if (wasOpening) {
+          destroyVSeam(); // rest-open = nothing (the rock IS continuous)
+          return;
+        }
+        vseam.sealedAtS = elapsedS; // rest-closed lingers, then fades away
+      }
+      applyVSeamAlphas(1);
+      return;
+    }
+    if (vseam.sealedAtS !== null) {
+      const tS = elapsedS - vseam.sealedAtS;
+      if (tS <= VSEAM_SEAL_HOLD_S) return;
+      const fade = 1 - (tS - VSEAM_SEAL_HOLD_S) / VSEAM_SEAL_FADE_S;
+      if (fade <= 0) {
+        destroyVSeam();
+        return;
+      }
+      applyVSeamAlphas(fade);
+    }
+  };
+  /** The vjoin transition, from either broadcast branch of applyJoins. */
+  const applyVEdge = (open: boolean): void => {
+    if (open === vEdgeOpen) return;
+    vEdgeOpen = open;
+    startVSeam(open);
+    setVThresholds(open);
+  };
+
   /** Cache key of the current scene inputs (join seeds + closed-wing set) —
    *  recompose only when it changes. Initialised to the no-join, no-skyline
    *  key so a broker-less boot (web preview) never recomposes; the first
@@ -1310,6 +1469,7 @@ export async function mountTerminalLand(
       const join: { left?: number; right?: number } = {};
       if (pl && wings[pl]) join.left = fnv1a(`terminal:${wings[pl]}`);
       if (pr && wings[pr]) join.right = fnv1a(`terminal:${wings[pr]}`);
+      applyVEdge(parent !== null); // the ceiling parts when the surface docks above
       const key = `under|${parent ?? ''}|${join.left ?? ''}|${join.right ?? ''}`;
       if (key !== joinKey) {
         joinKey = key;
@@ -1353,6 +1513,8 @@ export async function mountTerminalLand(
     for (const side of ['left', 'right'] as const) {
       if (edges[side] !== prev[side]) startPart(side, edges[side]);
     }
+    // Phase B: the floor parts when an undercroft docks below.
+    applyVEdge((vjoins ?? []).some((v) => v.top === terminalId));
     drawEdges();
   };
 
@@ -2065,6 +2227,9 @@ export async function mountTerminalLand(
       }
       applyEdgeFront(side);
     }
+
+    // Phase B: the vertical seam's tween/glow/threshold (rest = one null check).
+    updateVSeam();
 
     // Wall clock, read once for every desk-global CONDITION in this tick (sun,
     // wind, sky drift): their whole job is to agree across windows that were

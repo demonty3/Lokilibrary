@@ -133,6 +133,9 @@ for (const [id, theme] of Object.entries(THEMES)) {
 const RENDERER_LITERALS: Array<[string, string]> = [
   // Tier-2 knit-sweep trail (terminalLand.ts startKnit/tick) — all covered.
   ['█▓▒', 'terminalLand.ts knit-sweep trail'],
+  // Phase B vertical seam (terminalLand.ts startVSeam/setVThresholds): the
+  // seam-row wall rule and the shaft-mouth thresholds (▾ surface / ▴ under).
+  ['─▾▴', 'terminalLand.ts vertical seam wall + shaft-mouth thresholds'],
   // Card frames — district.ts / island.ts renderIslandCard/renderDistrictCard.
   ['┌─┐│└┘', 'district.ts + island.ts card frames'],
   // Double-line stub/empty panel — stub.ts + island.ts/continent.ts emptyPanel.

@@ -95,3 +95,11 @@ export function jambGlyph(side: 'left' | 'right', j: number): string {
   if (j > 0) return '╎';
   return side === 'left' ? '╰' : '╯';
 }
+
+/** Phase B — how far the SEAM-ROW front must travel outward from the shaft
+ *  column to clear the row (the vertical seam's edgeSpan sibling; the front
+ *  is measured in columns from the shaft, and wallAlpha/partFront/partEase
+ *  are reused as-is with dist = |col - shaftX|). */
+export function rowSpan(width: number, shaftX: number): number {
+  return Math.max(shaftX, width - 1 - shaftX);
+}

@@ -25,8 +25,10 @@ import {
   partEaseInv,
   partFront,
   restFront,
+  rowSpan,
   wallAlpha,
 } from '../src/terminal/edgePart.ts';
+import { vKnitCols } from '../src/terminal/knit.ts';
 
 const { check, report } = makeChecker('smoke edge-part');
 
@@ -122,5 +124,23 @@ check('above the bend the remnant is the wall’s own thin rule',
   jambGlyph('left', 1) === '╎' && jambGlyph('right', 2) === '╎');
 check('the two sides of one seam bend apart, not the same way',
   jambGlyph('left', 0) !== jambGlyph('right', 0));
+
+// --- Phase B: the vertical seam's row front (rowSpan + reused maths) --------
+// The front travels in COLUMNS outward from the shaft; wallAlpha/partFront
+// are reused as-is, so only the span derivation is new.
+check('rowSpan reaches the far end from a left-of-centre shaft', rowSpan(53, 22) === 30);
+check('rowSpan is the shaft column itself when the shaft sits right of centre', rowSpan(53, 40) === 40);
+check('rowSpan at the row edges degenerates to the full row',
+  rowSpan(53, 0) === 52 && rowSpan(53, 52) === 52);
+check('a shaft-adjacent column clears before the outermost one',
+  wallAlpha(1, partFront(0.2, 30, true)) <= wallAlpha(30, partFront(0.2, 30, true)));
+check('the row front comes to rest at rowSpan when open',
+  partFront(EDGE_PART_S, rowSpan(53, 22), true) === rowSpan(53, 22));
+
+// --- Phase B: vKnitCols — the outward column pairs of the vertical knit ----
+check('vKnitCols index 0 is the shaft alone', JSON.stringify(vKnitCols(22, 53, 0)) === '[22]');
+check('vKnitCols steps outward in pairs', JSON.stringify(vKnitCols(22, 53, 3)) === '[19,25]');
+check('vKnitCols clamps at the left end', JSON.stringify(vKnitCols(2, 53, 5)) === '[7]');
+check('vKnitCols clamps at the right end', JSON.stringify(vKnitCols(50, 53, 4)) === '[46]');
 
 report();
