@@ -2985,7 +2985,7 @@ depth) never fired; both remedies stay available as dials if the read ever
 grates. Next rungs on the ladder are UNBLOCKED: variable widths, then the
 archipelago full-screen mockup.
 
-**Variable-widths rung SHIPPED 2026-08-18, same day (eyeball queued) —
+**Variable-widths rung SHIPPED 2026-08-18, same day (eyeball PASSED) —
 window width means horizon, not zoom.** Spec + frozen bars committed first
 (`docs/superpowers/specs/2026-08-18-variable-widths.md`); rung 2 of the
 full-screen ladder (IDEAS.md § Terminals of different sizes, item 1).
@@ -3025,10 +3025,11 @@ parent returned null while the standard parent still docked. Shots:
 the 1440 display; 480 beside the standard 640). **Frozen bars carried:**
 every golden byte-identical (kill: a golden moves → rework, never
 re-baseline); uniform-chain shared sky byte-identical to shipped.
-**Eyeball queued (TODO-USER.md):** different widths read as different-width
-apertures onto the same world; kill = width reads as zoom / a different
-place; narrow-masthead collision at 480 → raise the minimum to 520, not a
-masthead rework. Out of scope, recorded: resizable windows, variable-width
+**Eyeball PASSED 2026-08-18, same day:** "both read as apertures, merged" —
+different widths read as different-width apertures onto the same world. The
+frozen kill (width reads as zoom / a different place) never fired, and no
+masthead collision was flagged at 480, so the [480, 1200] clamp stands.
+Out of scope, recorded: resizable windows, variable-width
 undercrofts, multi-seam edges (IDEAS item 3). Next rung: the archipelago
 full-screen mockup.
 
