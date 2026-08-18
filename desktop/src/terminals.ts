@@ -58,6 +58,10 @@ interface Terminal {
   win: BrowserWindow;
   /** 'surface' (640×520 wing terminal) or 'under' (640×260 undercroft). */
   kind: TermKind;
+  /** Actual window height in px. TERMINAL_H/UNDER_H_PX except for debug tall
+   *  spawns (scale/anchor slice) — the broker must re-apply THIS at snap, not
+   *  squash a tall window back to the standard height. */
+  h: number;
 }
 
 const terminals = new Map<string, Terminal>();
@@ -191,7 +195,7 @@ function settle(id: string): void {
       x: target.x,
       y: target.y,
       width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
-      height: t.kind === 'under' ? UNDER_H_PX : TERMINAL_H,
+      height: t.h,
     });
     snapping = false;
   }
@@ -208,10 +212,25 @@ export function startTerminalsMode(
 ): { togglePeek: () => void } {
   const settleTimers = new Map<string, NodeJS.Timeout>();
 
-  function spawnTerminal(id: string, wing: string, x: number, y: number, kind: TermKind = 'surface'): void {
+  function spawnTerminal(
+    id: string,
+    wing: string,
+    x: number,
+    y: number,
+    kind: TermKind = 'surface',
+    heightPx?: number,
+  ): void {
+    // Debug tall spawns only (scale/anchor slice): surface windows may take a
+    // nonstandard height, clamped to [TERMINAL_H, 780] — never shorter than
+    // canonical, never past the extension-depth eyeball range. Session-only:
+    // the restore path always respawns at the standard heights.
+    const h =
+      kind === 'under'
+        ? UNDER_H_PX
+        : Math.max(TERMINAL_H, Math.min(780, heightPx ?? TERMINAL_H));
     const win = new BrowserWindow({
       width: kind === 'under' ? UNDER_W : TERMINAL_W,
-      height: kind === 'under' ? UNDER_H_PX : TERMINAL_H,
+      height: h,
       x,
       y,
       resizable: false,
@@ -249,7 +268,7 @@ export function startTerminalsMode(
       rebuildTray(); // a close frees a wing — the menu label must refresh
     });
 
-    terminals.set(id, { id, wing, win, kind });
+    terminals.set(id, { id, wing, win, kind, h });
   }
 
   // ── Desk persistence: restore the set as it was left ────────────────────
@@ -456,12 +475,12 @@ export function startTerminalsMode(
     return WINGS.find((w) => !used.has(w));
   }
 
-  function spawnNext(): string | null {
+  function spawnNext(heightPx?: number): string | null {
     const wing = nextWing();
     if (!wing) return null;
     const id = `t${nextIndex++}`;
     const i = terminals.size;
-    spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80)), 160 + i * 36);
+    spawnTerminal(id, wing, clampX(60 + i * (TERMINAL_W + 80)), 160 + i * 36, 'surface', heightPx);
     broadcastTopology(); // the opened wing leaves every sibling's skyline
     persistTerminals();
     rebuildTray();
@@ -475,6 +494,10 @@ export function startTerminalsMode(
   function spawnUnder(surfaceId: string): string | null {
     const t = terminals.get(surfaceId);
     if (!t || t.win.isDestroyed() || t.kind === 'under') return null;
+    // Standard-height parents only: a tall (debug) window's extension rows and
+    // an undercroft's galleries would both claim global rows 20+ — reconciling
+    // them is the variable-size rung, not this one (spec 2026-08-18).
+    if (t.h !== TERMINAL_H) return null;
     if (neighbourBelow(surfaceId, vjoins)) return null;
     const b = t.win.getBounds();
     const id = `u${nextUnderIndex++}`;
@@ -775,14 +798,18 @@ export function startTerminalsMode(
       x: payload.x,
       y: payload.y,
       width: t.kind === 'under' ? UNDER_W : TERMINAL_W,
-      height: t.kind === 'under' ? UNDER_H_PX : TERMINAL_H,
+      height: t.h,
     });
     settle(payload.terminalId);
     return true;
   });
 
   // Tray parity for the harness: the exact spawn path the tray item drives.
-  ipcMain.handle('terminal:debugSpawn', () => spawnNext());
+  // Optional heightPx (scale/anchor slice): a debug tall spawn — clamped in
+  // spawnTerminal, session-only, never persisted at that height.
+  ipcMain.handle('terminal:debugSpawn', (_e, payload?: { heightPx?: number }) =>
+    spawnNext(payload?.heightPx),
+  );
 
   // Tray parity for the undercroft item (Phase B).
   ipcMain.handle('terminal:debugSpawnUnder', (_e, surfaceId: string) => spawnUnder(surfaceId));
