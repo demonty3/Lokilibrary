@@ -854,10 +854,30 @@ export function composeLand(
  *  other src/procedural salt (cell 0xce11 · scatter 0x5ca7 · loki 0x10ce ·
  *  landmark 0x1a4d · clusters 0xc1a5/0xc0a5 · cell-seam 0x5ea3 · land-seam
  *  0x5a11 · ridge-far 0xfa42 · sky-dither 0xd174 · sky 0x57a5 · wing-sil
- *  0x5117). Its OWN stream so the undercroft can never perturb the surface
+ *  0x5117 · ext 0xa9e2). Its OWN stream so the undercroft can never perturb the surface
  *  seed's main stream — a surface window's model is byte-identical whether
  *  or not an undercroft exists. */
 const UNDER_SALT = 0x0d0e;
+
+/** The desk's canonical surface-window compose geometry (640×520 at
+ *  WORLD_SCALE 2 → 53×20). Fixed from the window TOP: skyH no longer derives
+ *  from window height (scale/anchor slice, spec 2026-08-18) — a taller window
+ *  composes this exact model plus `composeLandExtension` rows below it, so
+ *  height changes how much you see, never what the world is. groundRow =
+ *  skyH + surfaceBand; rows = skyH + surfaceBand + 1 + underH. */
+export const DESK_SURFACE = {
+  rows: 20,
+  skyH: 11,
+  surfaceBand: 4,
+  underH: 4,
+  groundRow: 15,
+} as const;
+
+/** PRNG namespace for the aperture extension rows — like UNDER_SALT, its own
+ *  stream family so extension rows can never perturb the canonical compose;
+ *  additionally keyed per GLOBAL ROW so any two window heights agree on every
+ *  shared row by construction (row r is a pure function of (seed, width, r)). */
+const EXT_SALT = 0xa9e2;
 
 export interface ComposeUnderLandOptions {
   /** World width in cells — MUST equal the surface window's, or the shared
@@ -981,4 +1001,85 @@ export function composeUnderLand(
     surface: Array.from({ length: cols }, () => floorRow),
     sites: [],
   };
+}
+
+export interface ComposeLandExtensionOptions {
+  /** World width in cells — MUST equal the surface window's. */
+  readonly width: number;
+  /** How many rows below the canonical DESK_SURFACE.rows to compose. */
+  readonly extraRows: number;
+  /** The surface window's horizontal join seeds, so seam-column depth agrees. */
+  readonly join?: { readonly left?: number; readonly right?: number };
+}
+
+/** Aperture rock — the extra strata rows a taller-than-520px surface window
+ *  shows below the canonical 20-row model (scale/anchor slice, spec
+ *  2026-08-18). NOT the undercroft: no caverns, no gallery, no floor — bare
+ *  strata + the shaft continuing + a light ore glint, uninhabitable depth
+ *  seen through a bigger window.
+ *
+ *  Each row draws from its own stream keyed on (seed ^ EXT_SALT ^ globalRow),
+ *  drawing left-to-right then one glint pass — so row r is byte-identical
+ *  across any two window heights that both show it (frozen row-agreement
+ *  bar), and the canonical compose's streams are untouched. Returns bare
+ *  char/role rows to append below a canonical model (no shade rows — the
+ *  desk passes no `hall`). */
+export function composeLandExtension(
+  seed: number,
+  games: readonly LandGame[] = SAMPLE_LAND,
+  opts: ComposeLandExtensionOptions,
+): { char: string[][]; role: LandRole[][] } {
+  const cols = opts.width;
+  const surfaceRows = landReliefProfile(seed, cols, DESK_SURFACE.groundRow, opts.join);
+  const shaftX = shaftColumn(cols, games.filter((p) => p.state !== 'abandoned').length);
+
+  const char: string[][] = [];
+  const role: LandRole[][] = [];
+  for (let i = 0; i < opts.extraRows; i++) {
+    const g = DESK_SURFACE.rows + i; // global row
+    const rng = mulberry32((seed ^ EXT_SALT ^ g) >>> 0);
+    const rowChar: string[] = Array.from({ length: cols }, () => ' ');
+    const rowRole: LandRole[] = Array.from({ length: cols }, () => 'sky' as LandRole);
+    // Strata fill — same band thresholds and fill constants as the undercroft
+    // continuation (composeUnderLand), so density matches across row 20.
+    for (let x = 0; x < cols; x++) {
+      const depth = g - surfaceRows[x];
+      const band = strataRoleAtDepth(depth, DESK_SURFACE.underH);
+      const r = rng.next();
+      if (band === 'topsoil') {
+        rowChar[x] = r < 0.45 ? '▒' : '░';
+        rowRole[x] = 'topsoil';
+      } else if (band === 'stone') {
+        if (r < 0.75) {
+          rowChar[x] = r < 0.5 ? '▓' : '▒';
+          rowRole[x] = 'stone';
+        }
+      } else if (band === 'bedrock') {
+        if (r < 0.5) {
+          rowChar[x] = r < 0.35 ? '▓' : '░';
+          rowRole[x] = 'bedrock';
+        }
+      } else {
+        if (r < 0.65) {
+          rowChar[x] = r < 0.45 ? '▓' : '▒';
+          rowRole[x] = 'deep';
+        }
+      }
+    }
+    // Ore glint — at most one per row, role-guarded like composeLand's veins.
+    if (rng.next() < 0.3) {
+      const gx = rng.range(2, Math.max(3, cols - 2));
+      const gr = rowRole[gx];
+      if (gr === 'stone' || gr === 'bedrock' || gr === 'deep') {
+        rowChar[gx] = ORE_GLYPH;
+        rowRole[gx] = 'ore';
+      }
+    }
+    // The shaft continues at the shared column, glyph parity in GLOBAL y.
+    rowChar[shaftX] = g % 2 ? '‖' : '╫';
+    rowRole[shaftX] = 'shaft';
+    char.push(rowChar);
+    role.push(rowRole);
+  }
+  return { char, role };
 }
