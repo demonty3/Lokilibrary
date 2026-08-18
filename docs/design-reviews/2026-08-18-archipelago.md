@@ -71,3 +71,35 @@ Shots land in `docs/design-reviews/2026-08-18-archipelago/` (01 continent,
 02 archipelago), captured with macOS `screencapture` so the desktop
 between windows is in frame. This file is committed before the app is
 launched; the bars above do not move after the shots exist.
+
+## Result (recorded after the shots; bars above untouched)
+
+Both shots taken 2026-08-18 ~23:40 local (night — stars and ☾ out), full
+2880×1800 display captures, live desk, all honest engine output via the
+debug IPC.
+
+**01-continent.png.** t5 = 800×780 (d1, teal pack) at (0, 30); t1 =
+640×520 (d0) at (800, 30) with u1 = 640×260 docked beneath (right column
+780, matching). Broker state at capture: `joins [{left:t5, right:t1}]`,
+`vjoins [{top:t1, bottom:u1}]` — the world block is 1440×780, ground
+lines aligned across the vertical seam at their shared row, the strait of
+desktop + dock below. The t5/t1 seam is also a pack boundary (teal
+beside near-black), the one legal palette boundary per T3.
+
+**02-archipelago.png.** Mainland = t1 (d0) at (40, 30) with u1 beneath;
+outpost = t6 (d1, 480×520, debug width) at (920, 280) — tops offset
+250 px, a ~240 px strait, `joins []` (no join anywhere between islands).
+The sea is the real desktop: wallpaper and Harry's desktop icons around
+the outpost's edges.
+
+**Pre-registered observation, confirmed in frame:** shot 02 shows TWO
+crescent moons — one per island, each chain hosting its own ☾ — exactly
+as the shared-sky per-chain construction predicts. Judged per the
+protocol frozen above.
+
+**Test residue:** the desk's persisted slots now reflect the mockup
+arrangement (t1+u1 mainland, t6 outpost; the closed t2/t3/t4 wings freed)
+rather than the 4-window desk that restored at launch. Debug sizes are
+session-only — a restart respawns standard geometry. The app is left
+running in the shot-02 arrangement so the eyeball can be taken live as
+well as from the shots.

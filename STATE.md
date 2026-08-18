@@ -3033,6 +3033,36 @@ Out of scope, recorded: resizable windows, variable-width
 undercrofts, multi-seam edges (IDEAS item 3). Next rung: the archipelago
 full-screen mockup.
 
+**Archipelago full-screen MOCKUP taken 2026-08-18 (eyeball queued) — rung
+3 of the full-screen-desk ladder, a judgment on the direction before any
+engine spend.** Bars frozen + committed before the app was launched
+(`docs/design-reviews/2026-08-18-archipelago.md`); unlike the underground
+probe this mockup is entirely LIVE-DESK engine output — the shipped
+height/width clamps + undercroft dock arranged via the debug IPC, whole
+display captured with `screencapture` so the desktop between windows is
+in frame. Two arrangements
+(`docs/design-reviews/2026-08-18-archipelago/`): **01-continent** — an
+800×780 aperture (d1) joined to a standard 640×520 (d0) with its 640×260
+undercroft docked beneath (right column 780, matching), a 1440×780 world
+block exactly filling the display width, broker confirming
+`joins [{t5,t1}]` + `vjoins [{t1,u1}]`, ground lines aligned across the
+seam, strait of desktop below; **02-archipelago** — mainland (d0 +
+undercroft) upper-left, a lone 480×520 outpost (d1) at (920, 280), tops
+offset 250 px, ~240 px strait, `joins []`, the real desktop as the sea.
+**Frozen bars:** K1 — shot 01 reads as one world through a wall of
+apertures (kill: pile-of-app-windows → the full-screen direction fails,
+ladder ends); K2 — the outpost reads as deliberately apart (kill:
+forgotten/broken → the apartness dialect, layout-06's outpost treatment,
+becomes its own rung first). **Pre-registered observation, confirmed in
+frame: shot 02 shows TWO MOONS** — shared-sky chains are per-island by
+construction; if that specific thing grates it routes to a desk-global
+sky rung and K2 is judged on the apart-read alone. Test residue: the
+desk's persisted slots now hold the mockup arrangement (debug sizes
+session-only; restart respawns standard); the app is left running in the
+shot-02 arrangement for a live look. A pass unblocks the archipelago
+engine rungs (desk-global sky, apartness dialect, mixed-size persistence,
+multi-seam / L-shape) each as its own specced slice.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

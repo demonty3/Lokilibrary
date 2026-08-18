@@ -13,7 +13,15 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18, latest** (the VARIABLE-WIDTHS eyeball
+Last updated: **2026-08-18, latest** (ARCHIPELAGO full-screen MOCKUP
+taken — two live-desk arrangements, all honest engine output: 01 the
+continent (1440×780 world block filling the display), 02 the archipelago
+(mainland + undercroft island, lone 480 outpost, desktop sea between).
+Bars frozen + committed before the shots
+(`docs/design-reviews/2026-08-18-archipelago.md`). TWO MOONS visible in
+shot 02 — the pre-registered per-chain-sky observation, in frame. One
+eyeball queued below; the app is left running in the shot-02 arrangement.)
+Previously **2026-08-18** (the VARIABLE-WIDTHS eyeball
 PASSED — "both read as apertures, merged". The frozen kill (width reads
 as zoom) never fired; no masthead collision at 480, so the [480, 1200]
 clamp stands. Next rung: the archipelago full-screen mockup is
@@ -154,6 +162,37 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
+
+**Status**: mockup taken 2026-08-18 (bars frozen + committed first:
+`docs/design-reviews/2026-08-18-archipelago.md`). Rung 3 of the
+full-screen-desk ladder — a judgment on the DIRECTION, before any engine
+work (multi-seam, desk-global sky, apartness dialect) is spent on it.
+Both shots are the live desk, honest engine output, real desktop behind.
+**What to look at**: `docs/design-reviews/2026-08-18-archipelago/` —
+`01-continent.png` (an 800×780 aperture joined to a standard window with
+its undercroft docked beneath; 1440×780 of world filling the display) and
+`02-archipelago.png` (mainland island + lone 480 outpost, desktop sea
+between; the app is still running in this arrangement if you want it
+live). Judge two frozen bars:
+**K1 (shot 01)** — does the filled screen read as ONE world seen through
+a wall of differently-sized apertures (continuous ground at the seam,
+basement beneath its parent), or as a pile of app windows that happen to
+touch? Kill: pile-of-windows → the full-screen direction fails at desk
+scale; the ladder ends.
+**K2 (shot 02)** — does the outpost read as deliberately apart (an island
+across a strait), or as a window someone forgot to close? Kill:
+forgotten/broken → the apartness dialect (layout-06's outpost treatment)
+becomes its own rung before any archipelago engine work.
+**Pre-registered observation (named before looking):** shot 02 shows TWO
+MOONS — shared-sky chains are per-island by construction. If the two-suns
+/ two-moons is specifically what grates, that routes to a desk-global sky
+rung and K2 is judged on the apart-read alone; any other failure of the
+outpost read fires K2's kill as written.
+**Unblocks**: the archipelago engine rungs (desk-global sky, apartness
+dialect, mixed-size persistence, eventually multi-seam / L-shape) — each
+its own specced slice.
 
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 
