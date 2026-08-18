@@ -2880,9 +2880,13 @@ Known and accepted (spec §2): the host pick is blind to pack omissions —
 only gameboy-dmg omits bodies and it is excluded from the auto-pool.
 Verification note: an OCCLUDED window's compositor pauses, so its drawn
 positions read stale over CDP — activate the app before sampling (two
-false alarms this session both dissolved on wake). **The README demo-GIF
-re-cut is now unblocked** (it was waiting on this slice so the two-moon
-defect would not be baked into the headline GIF).
+false alarms this session both dissolved on wake). **The README demo-GIF re-cut SHIPPED the same
+day**: same rig and beat (join-demo.sh, 36 frames), now showing d0
+phosphor beside d1 solarized, ONE moon after the snap (checked
+frame-by-frame — the exact frame class the old cut carried two moons
+in), desk-wide wisps, marginalia reveals, the crossing. The close-out
+queue's Claude-side items (2, 3, 4) are all closed; remaining are
+Harry's T3/T5 eyeballs, the caption eyeball, and the T5-1440px call.
 
 ## What this file is NOT
 
