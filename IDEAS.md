@@ -996,3 +996,34 @@ visibly go, what the marginalia recounts, what the monuments commemorate.
 Kill condition for the principle (test at rung 2): same seed, directives
 followed vs. ignored — if survival odds don't measurably differ, the mind
 isn't consequential and "dungeon as benchmark" is fiction.
+
+### Addendum 2 — dialect packs, and monuments with teeth (added 2026-08-19, same day)
+
+**Combat flavour is a pack surface, not a fork.** Guns for some, spells for
+Harry — because the repo is public, the dungeon's fiction should ride the
+proven style-pack architecture (10 packs, conformance smoke, cold-test-
+verified stranger authoring). The DM grammar's verbs stay *mechanical*
+(ranged strike / ward / lure + bounded parameters); a pack owns the
+**dialect** — whether that verb renders as fireball or revolver, plus glyphs
+and marginalia vocabulary. Packs reskin names, never numbers: a community
+pack cannot smuggle a balance break. This is a rung-4 design constraint
+(keep the grammar flavour-neutral from day one). Moddable *mechanics* —
+packs adding new verbs/hazards/curves — is PARKED: precondition is a stable
+Tier-0 plugin surface, a real engineering commitment, not v0.
+
+**Venerated monuments grant buffs.** A church the beings venerate gives a
+skill buff — upgrading monuments from pure ledger to infrastructure, and
+making the economy's central choice real: reinvest in delvers (direct,
+fast, selfish) vs build civic works (shared, slow). Personality through
+spending gets mechanical teeth. Mechanically a monument is a persistent
+skill with a location and a ritual — same deterministic power bounds, and
+eventually the DM can price proposed monuments through the same grammar; no
+second system. The beat that keeps it on-moat: **veneration is watchable
+behaviour** — beings walk to the church before an expedition descends; the
+buff's cause is a scene, not a stat. Prior art (from knowledge): shrine/
+wonder buffs are standard 4X/colony-sim design; the watchable-veneration
+composition is the part that's ours. Slots into rung 3.
+
+Kill condition (monument buffs): if the buff is only legible as a modifier
+in a log — no watchable veneration on the desk — it fails the spatial rail
+and monuments revert to expression-only.
