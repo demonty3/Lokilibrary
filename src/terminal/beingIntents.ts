@@ -38,7 +38,13 @@ export type BeingIntent =
    *  the errand to the door. USER-DRIVEN ONLY — `pickIntent` never scores
    *  it and `resumeIntent` never decays to it (both smoke-enforced), so the
    *  world can never launch a game on its own. Walks like `approach`. */
-  | { kind: 'errand'; targetX: number };
+  | { kind: 'errand'; targetX: number }
+  /** Dungeon rung 1: this being is walking to the shaft mouth to send
+   *  the delvers down. SCHEDULER-DRIVEN ONLY — `pickIntent` never scores
+   *  it and `resumeIntent` decays it (both smoke-enforced), so a being
+   *  only dispatches when the colony's own clock asks. Walks like
+   *  `approach`; the arrival fires the expedition (the errand posture). */
+  | { kind: 'dispatch'; targetX: number };
 
 export type BeingIntentKind = BeingIntent['kind'];
 

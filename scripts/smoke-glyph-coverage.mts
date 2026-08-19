@@ -136,6 +136,10 @@ const RENDERER_LITERALS: Array<[string, string]> = [
   // Phase B vertical seam (terminalLand.ts startVSeam/setVThresholds): the
   // seam-row wall rule and the shaft-mouth thresholds (▾ surface / ▴ under).
   ['─▾▴', 'terminalLand.ts vertical seam wall + shaft-mouth thresholds'],
+  // Dungeon rung 1 (terminalLand.ts delver colony): the ▪ delver folk and
+  // the creature-hazard disturbance at the delve mouth (▚ silhouette; the
+  // ▒░ shades are covered above).
+  ['▪▚', 'terminalLand.ts delver colony + hazard disturbance'],
   // Card frames — district.ts / island.ts renderIslandCard/renderDistrictCard.
   ['┌─┐│└┘', 'district.ts + island.ts card frames'],
   // Double-line stub/empty panel — stub.ts + island.ts/continent.ts emptyPanel.

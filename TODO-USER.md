@@ -13,7 +13,16 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-18, latest** (ARCHIPELAGO full-screen MOCKUP
+Last updated: **2026-08-19** (DUNGEON RUNG 1 shipped — Tier-0 delvers
+under one wing: a 3-5-strong `▪` colony idles in the first wing's
+undercroft, a being walks to the shaft mouth 2-4 times per day of desk
+uptime to send an expedition down, one creature hazard rolls dice below,
+delvers die permanently and are replaced over days, every expedition
+leaves one marginalia line in the dispatcher's voice, gold accrues
+invisibly. Zero LLM calls, no numerals anywhere on screen; spec frozen
+before implementation; smoke-delve 130 green incl. the bar-7
+params-move-odds test. One eyeball queued below.)
+Previously **2026-08-18, latest** (ARCHIPELAGO full-screen MOCKUP
 taken — two live-desk arrangements, all honest engine output: 01 the
 continent (1440×780 world block filling the display), 02 the archipelago
 (mainland + undercroft island, lone 480 outpost, desktop sea between).
@@ -162,6 +171,41 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — dungeon rung 1: delvers, a dispatch, a death, a line above ground
+
+**Status**: shipped 2026-08-19; spec frozen before implementation
+(`docs/superpowers/specs/2026-08-19-dungeon-rung1-delvers.md`); all 8
+code-level bars MET (typecheck + full smoke sweep + fresh-context spec
+review green). What remains is exactly what code review cannot judge —
+the register.
+**What to look at**, on a booted desk (the colony lives under the
+first-sorted wing, i.e. the d0 window):
+1. Tray → **Open undercroft (d0)**. Between expeditions you should see
+   3-5 small `▪` folk drifting unhurried near the shaft — dimmer and
+   smaller-reading than the beings' letters.
+2. The organic dispatch is hours apart; to force one, in the d0
+   SURFACE window's console: `__terminal.debugDelveDispatch()` — a
+   being should visibly walk to the ▾ shaft mouth, a ✦ fires, and in
+   the undercroft the party walks to the far cavern edge and sinks
+   through the floor.
+3. `__terminal.debugDelveResolve()` (surface window) pulls the
+   resolution to now: survivors rise and walk back; the surface gets
+   ONE marginalia line at the shaft mouth in the dispatcher's voice
+   (walk-over reveal reads it). If the dice met the creature, the
+   undercroft shows a dim `▒▚░` disturbance pulse first.
+4. Relaunch the app: the same delvers (and any losses) persist.
+**The frozen kill conditions, verbatim — judge against these:**
+*Reads as an idle game* (grind-ticker feel → re-cut pacing/render,
+never add UI). *Invisible without peeking* (a week of uptime leaving no
+above-ground trace a wallpaper-glancer notices → re-cut the marginalia
+beat). *A number appears* (any numeric readout → remove, never
+restyle). Also worth a word: does the hazard read melancholy rather
+than horror, and do the ▪ folk read as smaller/simpler kin rather than
+letter-noise?
+**Unblocks**: rung 2 of the dungeon ladder (gold as a visible hoard
+glyph; being directives that move the expedition params — the
+consequentiality kill test).
 
 ### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
 

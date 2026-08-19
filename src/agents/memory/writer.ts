@@ -156,6 +156,12 @@ export function buildMemoryWriter(opts: BuildWriterOptions): MemoryWriter {
       const prunes = entries.filter((e) => e.count < 1).map((e) => e.col);
       db.flushLandWear(ns.cellId, upserts, prunes, nowMs);
     },
+    delveStateForCell(cellId) {
+      return db.delveStateRow(cellId)?.data ?? null;
+    },
+    saveDelveState(cellId, json, nowMs) {
+      db.upsertDelveState(cellId, json, nowMs);
+    },
     recordLore({ text, source, embedding }) {
       const id = uuidv7();
       db.insertLore({

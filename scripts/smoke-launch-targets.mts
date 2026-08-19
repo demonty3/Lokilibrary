@@ -111,21 +111,28 @@ const ctx = {
   neighbourNear: { left: 2, right: 1 },
 };
 let sawErrand = false;
+let sawDispatch = false;
 for (let i = 0; i < 10000; i++) {
-  if (pickIntent(rand, { ...ctx, x: rand() * m.width }, { approach: 0.2, wander: 0.1 }).kind === 'errand') {
-    sawErrand = true;
-  }
+  const k = pickIntent(rand, { ...ctx, x: rand() * m.width }, { approach: 0.2, wander: 0.1 }).kind;
+  if (k === 'errand') sawErrand = true;
+  if (k === 'dispatch') sawDispatch = true;
 }
 check('pickIntent NEVER returns errand (10k draws)', !sawErrand);
+check('pickIntent NEVER returns dispatch (10k draws)', !sawDispatch);
 
 let sawResumed = false;
-for (const kind of ['wander', 'rest', 'approach', 'watch_edge', 'errand', 'nonsense']) {
+let sawResumedDispatch = false;
+for (const kind of ['wander', 'rest', 'approach', 'watch_edge', 'errand', 'dispatch', 'nonsense']) {
   for (const side of ['left', 'right'] as const) {
-    if (resumeIntent(kind, side, ctx).kind === 'errand') sawResumed = true;
+    const k = resumeIntent(kind, side, ctx).kind;
+    if (k === 'errand') sawResumed = true;
+    if (k === 'dispatch') sawResumedDispatch = true;
   }
 }
 check('resumeIntent NEVER decays to errand — including from a carried "errand"',
   !sawResumed);
+check('resumeIntent NEVER decays to dispatch — including from a carried "dispatch"',
+  !sawResumedDispatch);
 
 // --- Launch vocab ---------------------------------------------------------
 const vprng = mulberry32(9);

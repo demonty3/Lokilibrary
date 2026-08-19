@@ -3063,6 +3063,58 @@ shot-02 arrangement for a live look. A pass unblocks the archipelago
 engine rungs (desk-global sky, apartness dialect, mixed-size persistence,
 multi-seam / L-shape) each as its own specced slice.
 
+**Dungeon rung 1 SHIPPED 2026-08-19 (eyeball queued) — Tier-0 delvers
+under one wing; spec frozen before implementation**
+(`docs/superpowers/specs/2026-08-19-dungeon-rung1-delvers.md`; the
+dungeon-economy ladder, IDEAS.md § The dungeon economy). One wing —
+`delverWingOf` picks the first sorted profile wing from the topology
+broadcast, so every window agrees without talking — keeps a persistent
+colony of 3-5 `▪` delvers in its undercroft. The pure engine is
+`src/terminal/delve.ts` (no PIXI/IPC/wall-clock reads): expedition N of
+a wing draws from `mulberry32(fnv1a("delve:{wing}:{N}"))`, so same seed
++ same dispatch sequence reproduces the same outcomes by construction
+(bar 6); odds are a pure function of `ExpeditionParams {depth,
+retreatThreshold, partySize}` — engine defaults at rung 1, rung 2's
+directives will move them (bar 7, Addendum 1's consequentiality). One
+creature hazard: it lairs at a drawn step; fight rounds roll
+death/drive-off dice, the retreat threshold caps exposure. Dispatch
+cadence is DESK-UPTIME wall-clock accrual (clamped 10 s/tick — the
+AWAY_* lesson), one per [6h, 12h) → 2-4 per 24h of uptime (bar 2); a
+being visibly walks to the shaft mouth on a new `dispatch` intent
+(errand posture — pickIntent never scores it, resumeIntent decays it,
+smoke-launch-targets enforces both), the ✦ send-off fires at the mouth,
+and the undercroft window plays the party's descent (sink through the
+cavern floor at the delve mouth), the hazard beat (dim `▒▚░`
+disturbance pulse, melancholy register), and the survivors' return.
+Deaths are permanent; replacements walk in over [2d, 4d) of WALL clock,
+one on the road at a time. Every expedition leaves exactly ONE
+marginalia line above ground at the shaft mouth in the dispatching
+being's voice (EXPEDITION_VOCAB in marks.ts, rich/hollow/loss/lost, the
+first dead delver named, ZERO numerals — smoke-enforced), through the
+shipped recordMark/addMarkView surface (the stepThrough event posture).
+Gold accrues to `hoardGold` in the persisted blob and renders NOWHERE
+(bar 5). Persistence: additive `delve_state` table (schema v4→v5, the
+land_wear pattern), one JSON colony blob keyed by the wing's SURFACE
+cell id — the surface window owns every write, the undercroft window
+polls the same blob by explicit cell id every 5 s (WAL-shared). Zero
+LLM calls anywhere in the loop (bar 2; no new CLAUDE.md cost entry
+needed). e2e surface: `debugDelve()` readback + `debugDelveDispatch()`
+(uptime jump; the real walk runs) + `debugDelveResolve()`. Evidence:
+new `smoke-delve` (130 — determinism, the two-sided bar-7 odds test
+[timid vs reckless retreat shifts the death rate; the smoke FAILS if
+params stop moving odds], no-numeral vocab, founding bounds, permanent
+death + slow replacement, sqlite round-trip incl. cross-namespace
+read); smoke-launch-targets grew the dispatch never-scored assertions;
+smoke-glyph-coverage covers `▪▚`; full smoke sweep green, both
+typecheck legs + desktop tsc green; fresh-context spec review graded
+all 8 bars MET at code level, zero findings. **Frozen kill conditions
+carried verbatim, all eyeball-gated:** reads as an idle game → re-cut
+pacing/render, never add UI; invisible without peeking after a week →
+re-cut the marginalia beat; a number appears → remove, never restyle;
+params do not move odds → smoke-delve already fails. Eyeball queued in
+TODO-USER.md (idle colony read, dispatch walk, hazard register,
+marginalia line, relaunch persistence).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

@@ -84,6 +84,12 @@ export interface MemoryDb {
     nowMs: number,
   ): void;
 
+  // ---- Delve state (dungeon rung 1) — one JSON blob per wing cell ----
+  /** The persisted colony blob for a wing cell, or undefined. */
+  delveStateRow(cellId: string): { data: string; updated_at: number } | undefined;
+  /** Upsert the whole colony blob (last write wins — one owner window). */
+  upsertDelveState(cellId: string, data: string, nowMs: number): void;
+
   // ---- World-events ledger (events-calendar, 2026-07-12) ----
   /** Insert one day's staged event. INSERT OR IGNORE on the `day` PK —
    *  re-staging the same day is a no-op (idempotent). */
@@ -282,6 +288,17 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     },
   );
 
+  // ---- Delve state statements (dungeon rung 1) ----
+  const delveStateRowStmt = db.prepare(
+    `SELECT data, updated_at FROM delve_state WHERE cell_id = ?`,
+  );
+  const upsertDelveStateStmt = db.prepare(`
+    INSERT INTO delve_state (cell_id, data, updated_at)
+    VALUES (@cell_id, @data, @updated_at)
+    ON CONFLICT(cell_id) DO UPDATE SET
+      data = excluded.data, updated_at = excluded.updated_at
+  `);
+
   let insertVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
   let updateEmbeddingFkStmt: { run: (...a: unknown[]) => unknown } | null = null;
   let insertLoreVecStmt: { run: (b: Uint8Array) => { lastInsertRowid: number | bigint } } | null = null;
@@ -398,6 +415,14 @@ export function openMemoryDb(opts: OpenOptions): MemoryDb {
     },
     flushLandWear(cellId, upserts, pruneCols, nowMs) {
       flushLandWearTx(cellId, upserts, pruneCols, nowMs);
+    },
+    delveStateRow(cellId) {
+      return delveStateRowStmt.get(cellId) as
+        | { data: string; updated_at: number }
+        | undefined;
+    },
+    upsertDelveState(cellId, data, nowMs) {
+      upsertDelveStateStmt.run({ cell_id: cellId, data, updated_at: nowMs });
     },
     insertWorldEvent(row) {
       insertWorldEventStmt.run(row);
@@ -575,6 +600,16 @@ function bootstrap(db: SqliteHandle, hasVec: boolean): void {
       count      REAL NOT NULL,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (cell_id, col)
+    );
+
+    -- Delve state (dungeon rung 1). One JSON colony blob per wing cell,
+    -- additive (the land_wear precedent) — never touching the memories
+    -- contract. The wing's SURFACE window owns writes; the undercroft
+    -- window polls reads (shared WAL).
+    CREATE TABLE IF NOT EXISTS delve_state (
+      cell_id    TEXT PRIMARY KEY,
+      data       TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS lore_fts

@@ -231,6 +231,70 @@ const LAUNCH_VOCAB: Record<string, readonly string[]> = {
   ghost: ['"{game} was played here before. it is being played again."', 'a cold shape passed into {game}.'],
 };
 
+/** Dungeon rung 1 — the expedition's one line above ground, in the
+ *  DISPATCHING being's voice (spec bar 4: exactly one, attributed, no
+ *  numerals — the outcome arrives as words). Its own table because an
+ *  expedition, like a launch, is an event: odds + cooldown are bypassed.
+ *  `{name}` is the only slot — the first delver who did not come back.
+ *  Keys are delve.ts OutcomeKinds:
+ *    rich — returned heavy; hollow — turned back with little;
+ *    loss — some returned, one did not; lost — none returned. */
+const EXPEDITION_VOCAB: Record<string, Record<string, readonly string[]>> = {
+  loki: {
+    rich: ['the delvers came up heavy. the deep was generous, this once.', 'sacks up from below. the dark paid its rent.'],
+    hollow: ['the delvers turned back early. the deep kept its own counsel.', 'they came up with dust and their lives. fair trade.'],
+    loss: ['the delvers came up one short. {name} stays below.', 'sent them down. the deep kept {name}.'],
+    lost: ['sent a party down. the shaft has gone quiet.', 'no lamps came back up. the deep owes me nothing.'],
+  },
+  archivist: {
+    rich: ['expedition returned. yield: considerable. filed.', 'the delvers surfaced with a full ledger. entered.'],
+    hollow: ['expedition returned early. yield: negligible. noted without comment.', 'they went down, they came up. the interval is the record.'],
+    loss: ['expedition returned incomplete. {name}: no further entries.', 'the roster is shorter by one. {name}, struck through gently.'],
+    lost: ['expedition overdue past all margins. the file stays open.', 'nothing surfaced. the ledger holds an empty page for them.'],
+  },
+  cat: {
+    rich: ['the small ones came up smelling of cold and metal. good.', 'watched the delvers surface, heavy and pleased with themselves.'],
+    hollow: ['the small ones hurried back up. wise, probably.', 'they brought up nothing. the nothing was heavy anyway.'],
+    loss: ['one warm shape fewer under the floor. {name} was the quick one.', 'the small ones came up quiet. {name} did not.'],
+    lost: ['the under-floor has gone still. no one to watch now.', 'sat by the shaft a long while. nothing came up.'],
+  },
+  visitor: {
+    rich: ['saw the delvers off, saw them back, heavier. a good day out.', 'the party came up singing something low. they earned it.'],
+    hollow: ['they turned around down there. some doors are just doors.', 'the delvers came back with pockets of grit. souvenirs, of a kind.'],
+    loss: ['walked them to the shaft. {name} is still down there.', 'the party came up missing {name}. left a pebble at the mouth.'],
+    lost: ['waved a party down. kept waiting at the mouth. still waiting.', 'the shaft took the whole party. the mouth looks smaller now.'],
+  },
+  ghost: {
+    rich: ['"they came up laden. the deep was in a giving mood, once, too."', 'warmth rose from the shaft with them. it fades.'],
+    hollow: ['"they turned back. the deep remembers who turns back kindly."', 'a party rose empty-handed. the stone kept what it keeps.'],
+    loss: ['"{name} walks deeper now. some of us stay below."', 'a cold spot by the shaft where {name} used to pass.'],
+    lost: ['"a whole party, gone under. the stone has room for everyone."', 'the shaft breathes colder now. none of them rose.'],
+  },
+};
+
+/** The expedition's marginalia line. Unknown dispatcher ids fall back to
+ *  the loki table (the DEFAULT_MARK_STYLE philosophy). */
+export function expeditionNote(
+  agentId: string,
+  kind: string,
+  deadName: string,
+  rand: () => number,
+): string {
+  const table = EXPEDITION_VOCAB[agentId] ?? EXPEDITION_VOCAB.loki;
+  const lines = table[kind] ?? table.hollow;
+  return lines[Math.floor(rand() * lines.length)].replace('{name}', deadName);
+}
+
+/** Every authored expedition line, for the no-numerals smoke (spec kill
+ *  condition: "a number appears"). */
+export function expeditionVocabLines(): string[] {
+  const out: string[] = [];
+  for (const table of Object.values(EXPEDITION_VOCAB)) {
+    for (const lines of Object.values(table)) out.push(...lines);
+  }
+  return out;
+}
+
 /** A note for a launch runner. Unknown ids fall back to loki (the
  *  DEFAULT_MARK_STYLE philosophy, as in noteFor). */
 export function launchNote(agentId: string, game: string, rand: () => number): string {

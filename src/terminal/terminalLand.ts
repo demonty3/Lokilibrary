@@ -86,6 +86,7 @@ import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
 import { blockedSpansAt, extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import { bodyHost, chainOffsets, deskChain, sharedWisps, type DeskChainSpec } from './sharedSky';
 import {
+  expeditionNote,
   launchNote,
   maybeMark,
   markDisplayRow,
@@ -96,6 +97,19 @@ import {
   revealAlpha,
   type MarkContextKind,
 } from './marks';
+import {
+  accrueUptime,
+  beginExpedition,
+  DEFAULT_EXPEDITION_PARAMS,
+  deferDispatch,
+  delverWingOf,
+  dispatchDue,
+  initialDelveState,
+  parseDelveState,
+  resolveExpedition,
+  tickArrival,
+  type DelveState,
+} from './delve';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
 import { wrapNote } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
@@ -552,6 +566,42 @@ declare global {
         pending: { wing: string; agentName: string } | null;
         bannerOpen: boolean;
       };
+      /** e2e only — dungeon rung 1. The colony as THIS window sees it:
+       *  the surface owner reports its live state, the undercroft its
+       *  latest poll + rendered views. Numbers here are harness-facing
+       *  ground truth, never rendered (the spec's no-numerals bar is
+       *  about the world surface). */
+      debugDelve(): {
+        here: boolean;
+        delverWing: string | null;
+        state: {
+          delvers: Array<{ id: string; name: string }>;
+          targetPop: number;
+          hoardGold: number;
+          expeditionSeq: number;
+          uptimeMs: number;
+          nextDispatchAtUptimeMs: number;
+          nextArrivalAtMs: number | null;
+          active: {
+            dispatcherId: string;
+            partyIds: string[];
+            startedAtMs: number;
+            resolveAtMs: number;
+            hazardAtMs: number | null;
+            deadCount: number;
+          } | null;
+        } | null;
+        dispatch: { agentId: string } | null;
+        views: Array<{ id: string; x: number; below: boolean; visible: boolean }>;
+        hazardGlyphs: number;
+      };
+      /** e2e only — dungeon rung 1. Make the next dispatch due NOW
+       *  (jumps the uptime clock; the walk + everything after runs the
+       *  REAL path — the debugWear directness). Surface owner only. */
+      debugDelveDispatch(): boolean;
+      /** e2e only — dungeon rung 1. Pull a live expedition's resolution
+       *  (and hazard beat) to now. Surface owner only. */
+      debugDelveResolve(): boolean;
       debugEdgeFrame(): Record<
         'left' | 'right',
         {
@@ -658,6 +708,7 @@ export async function mountTerminalLand(
       addMarkView(m.agentId, m.text, m.location.x);
     }
     seedWear(r.writer); // fresh-process path (bootstrap cache was cold)
+    loadDelve(); // dungeon rung 1 — re-read the colony with the real writer
   });
   // Each wing owns a DISTINCT slice of the library — same games in the same
   // order across terminals made t1/t2 read as copies, not as two wings.
@@ -1513,6 +1564,9 @@ export async function mountTerminalLand(
   ): void => {
     lastTopology = { joins, wings, ...(allWings && { allWings }), ...(vjoins && { vjoins }) };
     deskWidthsPx = widths ?? {};
+    // Dungeon rung 1: every window (surface AND under) derives the one
+    // delver wing from the same broadcast — nobody has to talk.
+    maybeInitDelvers(allWings, wings);
     if (isUnder) {
       // The undercroft's left/right edges are rock, always (v0's vertical
       // pair). Its terrain instead tracks its PARENT's horizontal joins:
@@ -1735,7 +1789,12 @@ export async function mountTerminalLand(
     b.exitingSince === null &&
     b.throughSince === null &&
     b.away === null &&
-    b.returningSince === null;
+    b.returningSince === null &&
+    // One scripted walk at a time: a being mid-errand or mid-dispatch
+    // holds nextIntentAt=Infinity, and hijacking it would strand the
+    // other beat's completion.
+    b.intent.kind !== 'errand' &&
+    b.intent.kind !== 'dispatch';
 
   /** Nearest eligible being to the goal column, or null on an empty land. */
   const pickRunner = (goalX: number): Being | null => {
@@ -2233,6 +2292,146 @@ export async function mountTerminalLand(
     });
   };
 
+  // ── Dungeon rung 1: the delver colony (spec 2026-08-19) ────────────────
+  // ONE wing keeps a small Tier-0 colony in its undercroft. The wing's
+  // SURFACE window owns the clock (uptime accrual, dispatch walks,
+  // resolution, the one marginalia line, every state write); the
+  // undercroft window is a pure presenter polling the shared blob. Both
+  // key the blob by the WING's surface cell id, so they agree without
+  // talking — the shared-sky discipline, pointed at sqlite.
+  const delveCellId = cellIdFor(seed);
+  let delverWing: string | null = null; // resolved from the topology broadcast
+  let delveState: DelveState | null = null; // surface owner's live truth
+  /** The live dispatch walk (one at a time — the errand posture). */
+  let delveDispatch: { agentId: string; startedS: number } | null = null;
+  let delveLastMs = Date.now();
+  let delveUptimeFlushAtMs = 0;
+  /** A stalled dispatch walk (dispatcher went absent) releases + retries. */
+  const DELVE_WALK_CAP_S = 120;
+  const delversHere = (): boolean => delverWing === wing;
+  const saveDelve = (): void => {
+    if (!delveState) return;
+    try {
+      memory.saveDelveState(delveCellId, JSON.stringify(delveState), Date.now());
+    } catch {
+      // Contention costs a lost save, never a broken tick.
+    }
+  };
+  /** Load (or found) the colony. Runs when the topology names this wing
+   *  AND when the DB writer lands — expeditions are hours apart, so the
+   *  boot-order seconds between the two cannot lose progress. */
+  const loadDelve = (): void => {
+    if (isUnder || !delversHere()) return;
+    let persisted: DelveState | null = null;
+    try {
+      persisted = parseDelveState(memory.delveStateForCell(delveCellId), wing);
+    } catch {
+      persisted = null;
+    }
+    if (persisted) {
+      delveState = persisted;
+    } else {
+      if (!delveState) delveState = initialDelveState(wing);
+      saveDelve(); // founds (or re-persists) the colony once a real writer exists
+    }
+  };
+  const maybeInitDelvers = (allWings: string[] | undefined, wings: Record<string, string>): void => {
+    const w = delverWingOf(allWings ?? [], Object.values(wings));
+    if (w === delverWing) return;
+    delverWing = w;
+    loadDelve();
+  };
+  /** Resolution's one line above ground, at the shaft mouth, in the
+   *  DISPATCHING being's voice (the stepThrough posture: an event
+   *  bypasses maybeMark's odds; the dedupe rule applied by hand). */
+  const placeExpeditionMark = (dispatcherId: string, kind: string, deadName: string): void => {
+    const col = Math.min(model.width - 1, Math.max(0, vShaftX));
+    for (let i = marks.length - 1; i >= 0; i--) {
+      if (Math.abs(marks[i].col - col) <= MARK_DEDUPE_COLS) {
+        marks[i].text.destroy();
+        marks.splice(i, 1);
+      }
+    }
+    const note = expeditionNote(dispatcherId, kind, deadName, rng);
+    markLastAt.set(dispatcherId, elapsedS);
+    recordMark(memory, { agentId: dispatcherId, note, col, row: model.surface[col] });
+    addMarkView(dispatcherId, note, col);
+  };
+
+  // The undercroft presenter: single-cell ▪ folk on the cavern floor —
+  // smaller marks than the beings' letters, inked quiet (never a
+  // reserved being accent; smoke-salience's rule cuts the right way
+  // here — delvers must NOT out-shout the beings).
+  const DELVER_GLYPH = '▪';
+  const DELVER_SPEED = 0.5; // cells/sec — small folk, unhurried
+  const DELVER_SINK_S = 2.0; // descent through the floor at the delve mouth
+  const DELVE_DEPART_MS = 30_000; // late joiners this far in start below
+  const CAMP_HALF = 8;
+  const HAZARD_S = 10;
+  interface DelverView {
+    id: string;
+    x: number;
+    tx: number;
+    nextMoveAt: number;
+    below: boolean;
+    sinkStartS: number | null;
+    riseStartS: number | null;
+    text: BitmapText;
+    rng: () => number;
+    phase: number;
+  }
+  const delverViews = new Map<string, DelverView>();
+  /** Where an expedition leaves the visible undercroft: the far side of
+   *  the cavern from the up-shaft — the deep galleries. */
+  const delveMouthX = vShaftX < cols / 2 ? cols - 3 : 2;
+  const campMin = Math.max(1, vShaftX - CAMP_HALF);
+  const campMax = Math.min(cols - 2, vShaftX + CAMP_HALF);
+  let underDelve: DelveState | null = null; // the poll's latest read
+  let delvePollAt = 0;
+  const hazardViews: BitmapText[] = [];
+  const delverInk = (): number =>
+    hexToInt(theme.palette[roleKey(theme, 'decor.quiet', 'fgDim')]);
+  const addDelverView = (id: string, startBelow: boolean): void => {
+    const drng = makeRng(fnv1a(`delver:${id}`));
+    const text = new BitmapText({
+      text: DELVER_GLYPH,
+      style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: delverInk() },
+    });
+    const x = campMin + drng() * (campMax - campMin);
+    text.visible = !startBelow;
+    world.addChild(text);
+    delverViews.set(id, {
+      id,
+      x,
+      tx: x,
+      nextMoveAt: 0,
+      below: startBelow,
+      sinkStartS: null,
+      riseStartS: null,
+      text,
+      rng: drng,
+      phase: (fnv1a(id) % 628) / 100,
+    });
+  };
+  const reconcileDelvers = (nowMs: number): void => {
+    const s = underDelve;
+    const want = new Set((s?.delvers ?? []).map((d) => d.id));
+    for (const [id, v] of delverViews) {
+      if (!want.has(id)) {
+        v.text.destroy();
+        delverViews.delete(id); // the dead never climb back up
+      }
+    }
+    if (!s) return;
+    for (const d of s.delvers) {
+      if (delverViews.has(d.id)) continue;
+      const a = s.active;
+      const startBelow =
+        a !== null && a.partyIds.includes(d.id) && nowMs < a.resolveAtMs && nowMs > a.startedAtMs + DELVE_DEPART_MS;
+      addDelverView(d.id, startBelow);
+    }
+  };
+
   const tick = (): void => {
     const dt = app.ticker.deltaMS / 1000;
     elapsedS += dt;
@@ -2315,6 +2514,154 @@ export async function mountTerminalLand(
     // src/terminal/ambient.ts. Everything window-local keeps elapsedS.
     const nowMs = Date.now();
     const skyT = nowMs / 1000;
+
+    // ── Dungeon rung 1: the colony's slow clock (surface owner) ─────────
+    // Wall-clock deltas, clamped: occlusion/sleep gaps are not desk
+    // uptime, and the wallpaper's 1 Hz throttle must still count — the
+    // AWAY_* lesson (elapsedS accrues ~10× slow under throttle).
+    const delveDtMs = nowMs - delveLastMs;
+    delveLastMs = nowMs;
+    if (!isUnder && delveState !== null && delversHere()) {
+      const dS = delveState;
+      accrueUptime(dS, delveDtMs);
+      if (tickArrival(dS, nowMs)) saveDelve(); // a replacement walks in
+      const res = resolveExpedition(dS, nowMs);
+      if (res) {
+        saveDelve();
+        placeExpeditionMark(res.dispatcherId, res.kind, res.deadName);
+      }
+      if (delveDispatch && elapsedS - delveDispatch.startedS > DELVE_WALK_CAP_S) {
+        // The walk stalled (dispatcher gone absent / off the roster):
+        // release them and let the colony ask again in a while.
+        const walker = beings.get(delveDispatch.agentId);
+        if (walker && walker.intent.kind === 'dispatch') {
+          walker.intent = { kind: 'rest' };
+          walker.nextIntentAt = elapsedS;
+        }
+        delveDispatch = null;
+        deferDispatch(dS);
+        saveDelve();
+      }
+      if (!delveDispatch && dispatchDue(dS)) {
+        const runner = pickRunner(vShaftX);
+        if (runner) {
+          runner.intent = { kind: 'dispatch', targetX: vShaftX };
+          runner.pausedUntil = 0; // asked by the colony — no hesitation beat
+          runner.nextIntentAt = Infinity; // no re-pick until the mouth
+          delveDispatch = { agentId: runner.id, startedS: elapsedS };
+        } else {
+          deferDispatch(dS); // nobody home — the colony waits
+          saveDelve();
+        }
+      }
+      if (nowMs >= delveUptimeFlushAtMs) {
+        delveUptimeFlushAtMs = nowMs + 60_000;
+        saveDelve(); // accrued uptime survives a relaunch (≤1 min lost)
+      }
+    }
+
+    // ── Dungeon rung 1: the undercroft presenter ────────────────────────
+    if (isUnder && delversHere()) {
+      if (elapsedS >= delvePollAt) {
+        delvePollAt = elapsedS + 5;
+        try {
+          underDelve = parseDelveState(memory.delveStateForCell(delveCellId), wing);
+        } catch {
+          // Contention costs a stale poll, never a broken tick.
+        }
+        reconcileDelvers(nowMs);
+      }
+      const act = underDelve?.active ?? null;
+      for (const v of delverViews.values()) {
+        const inParty = act !== null && nowMs < act.resolveAtMs && act.partyIds.includes(v.id);
+        if (inParty) {
+          if (v.below) continue; // away in the deep galleries
+          if (v.sinkStartS !== null) {
+            // Descend through the cavern floor at the delve mouth.
+            const p = (elapsedS - v.sinkStartS) / DELVER_SINK_S;
+            if (p >= 1) {
+              v.below = true;
+              v.sinkStartS = null;
+              v.text.visible = false;
+            } else {
+              v.text.x = Math.round(v.x * CW);
+              v.text.y = surfaceLocalY(v.x) + p * 2 * CH;
+              v.text.alpha = 1 - p;
+            }
+            continue;
+          }
+          if (Math.abs(v.x - delveMouthX) <= 0.4) {
+            v.sinkStartS = elapsedS;
+            continue;
+          }
+          v.x += (v.x < delveMouthX ? 1 : -1) * DELVER_SPEED * dt;
+        } else {
+          if (v.below || v.sinkStartS !== null) {
+            // The expedition is over and this one lived: rise at the mouth.
+            v.below = false;
+            v.sinkStartS = null;
+            v.riseStartS = elapsedS;
+            v.x = delveMouthX;
+            v.tx = campMin + v.rng() * (campMax - campMin);
+            v.text.visible = true;
+          }
+          if (v.riseStartS !== null) {
+            const p = (elapsedS - v.riseStartS) / DELVER_SINK_S;
+            if (p >= 1) {
+              v.riseStartS = null;
+              v.text.alpha = 1;
+            } else {
+              v.text.x = Math.round(v.x * CW);
+              v.text.y = surfaceLocalY(v.x) + (1 - p) * 2 * CH;
+              v.text.alpha = p;
+              continue;
+            }
+          }
+          // Idle: unhurried drift within the camp around the shaft.
+          if (elapsedS >= v.nextMoveAt) {
+            v.nextMoveAt = elapsedS + 4 + v.rng() * 6;
+            v.tx = campMin + v.rng() * (campMax - campMin);
+          }
+          if (Math.abs(v.x - v.tx) > 0.2) {
+            v.x += (v.x < v.tx ? 1 : -1) * DELVER_SPEED * dt;
+          }
+        }
+        v.text.x = Math.round(v.x * CW);
+        // A faint breath, half the beings' amplitude — small folk.
+        v.text.y = surfaceLocalY(v.x) + Math.sin(elapsedS * 1.1 + v.phase) * 0.5;
+        v.text.alpha = 1;
+      }
+      // The creature hazard: disturbed glyphs at the delve mouth while
+      // the beat passes below — a slow dim pulse, melancholy register,
+      // never horror (spec bar 3). Rest state costs one null check.
+      const hzActive =
+        act !== null && act.hazardAtMs !== null && nowMs >= act.hazardAtMs && nowMs <= act.hazardAtMs + HAZARD_S * 1000;
+      if (hzActive && hazardViews.length === 0) {
+        const glyphs = ['▒', '▚', '░'];
+        glyphs.forEach((g, i) => {
+          const col = Math.min(cols - 1, Math.max(0, delveMouthX - 1 + i));
+          const t = new BitmapText({
+            text: g,
+            style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: delverInk() },
+          });
+          t.x = col * CW;
+          t.y = surfaceLocalY(col);
+          t.alpha = 0;
+          world.addChild(t);
+          hazardViews.push(t);
+        });
+      } else if (!hzActive && hazardViews.length > 0) {
+        for (const t of hazardViews) t.destroy();
+        hazardViews.length = 0;
+      }
+      if (hzActive && act !== null && act.hazardAtMs !== null) {
+        const q = (nowMs - act.hazardAtMs) / (HAZARD_S * 1000);
+        const env = Math.min(1, q * 4, (1 - q) * 4);
+        hazardViews.forEach((t, i) => {
+          t.alpha = env * (0.3 + 0.15 * Math.sin(elapsedS * 1.6 + i));
+        });
+      }
+    }
 
     // World clock: which of the baked sky is out at this hour, and how far
     // through its own day the pack's sky has moved. Every window derives it
@@ -2670,6 +3017,24 @@ export async function mountTerminalLand(
           }
           b.dir = b.x < it.targetX ? 1 : -1;
           vel = b.dir * b.speed;
+        } else if (it.kind === 'dispatch') {
+          // Dungeon rung 1: walks like approach; the arrival at the
+          // shaft mouth FIRES the expedition (the errand posture — the
+          // colony asked, so the world may watch the walk).
+          if (Math.abs(b.x - it.targetX) <= APPROACH_NEAR) {
+            if (delveState && delveDispatch?.agentId === b.id) {
+              beginExpedition(delveState, b.id, DEFAULT_EXPEDITION_PARAMS, Date.now());
+              saveDelve();
+              spawnSpark('down'); // the send-off, at the mouth
+              delveDispatch = null;
+            }
+            b.intent = { kind: 'rest' }; // linger a beat, then normal life
+            b.pausedUntil = elapsedS + 2;
+            b.nextIntentAt = elapsedS + 6;
+            continue;
+          }
+          b.dir = b.x < it.targetX ? 1 : -1;
+          vel = b.dir * b.speed;
         } else if (it.kind === 'watch_edge') {
           if (!edges[it.side]) {
             b.nextIntentAt = elapsedS; // edge closed under us — re-pick next frame
@@ -2691,6 +3056,7 @@ export async function mountTerminalLand(
         if (
           vEdgeOpen &&
           vel !== 0 &&
+          b.intent.kind !== 'dispatch' && // a dispatcher stops AT the mouth, never takes it
           elapsedS >= b.crossCooldownUntil &&
           x0 !== b.x &&
           (x0 - vShaftX) * (b.x - vShaftX) <= 0 &&
@@ -3163,6 +3529,57 @@ export async function mountTerminalLand(
       pending: pendingProposal,
       bannerOpen: dispatchBanner !== null,
     }),
+    debugDelve: () => {
+      const s = isUnder ? underDelve : delveState;
+      return {
+        here: delversHere(),
+        delverWing,
+        state: s
+          ? {
+              delvers: s.delvers.map((d) => ({ id: d.id, name: d.name })),
+              targetPop: s.targetPop,
+              hoardGold: s.hoardGold,
+              expeditionSeq: s.expeditionSeq,
+              uptimeMs: Math.round(s.uptimeMs),
+              nextDispatchAtUptimeMs: Math.round(s.nextDispatchAtUptimeMs),
+              nextArrivalAtMs: s.nextArrivalAtMs,
+              active: s.active
+                ? {
+                    dispatcherId: s.active.dispatcherId,
+                    partyIds: [...s.active.partyIds],
+                    startedAtMs: s.active.startedAtMs,
+                    resolveAtMs: s.active.resolveAtMs,
+                    hazardAtMs: s.active.hazardAtMs,
+                    deadCount: s.active.outcome.deadIndices.length,
+                  }
+                : null,
+            }
+          : null,
+        dispatch: delveDispatch ? { agentId: delveDispatch.agentId } : null,
+        views: [...delverViews.values()].map((v) => ({
+          id: v.id,
+          x: Math.round(v.x * 10) / 10,
+          below: v.below,
+          visible: v.text.visible,
+        })),
+        hazardGlyphs: hazardViews.length,
+      };
+    },
+    debugDelveDispatch: () => {
+      if (isUnder || !delveState || !delversHere()) return false;
+      delveState.uptimeMs = delveState.nextDispatchAtUptimeMs;
+      return true;
+    },
+    debugDelveResolve: () => {
+      if (isUnder || !delveState?.active) return false;
+      const nowMs = Date.now();
+      delveState.active.resolveAtMs = nowMs;
+      if (delveState.active.hazardAtMs !== null && delveState.active.hazardAtMs > nowMs) {
+        delveState.active.hazardAtMs = nowMs;
+      }
+      saveDelve();
+      return true;
+    },
     debugEdgeFrame: () => {
       const r3 = (n: number): number => Math.round(n * 1000) / 1000;
       const read = (side: 'left' | 'right'): {
@@ -3195,6 +3612,7 @@ export async function mountTerminalLand(
 
   return () => {
     flushWear(); // final wear write — teardown must not lose the session
+    saveDelve(); // final colony write (uptime + anything mid-flight)
     unsubTopology();
     unsubEnter();
     unsubNeighbour();

@@ -214,6 +214,15 @@ export interface MemoryWriter {
    *  entries, deletes `< 1` entries (decay prune), one transaction. */
   flushLandWear(entries: ReadonlyArray<{ col: number; count: number }>, nowMs: number): void;
 
+  // ---- Delve state (dungeon rung 1) — one JSON blob per wing cell ----
+  /** The persisted colony blob for `cellId`, or null. EXPLICIT cellId
+   *  (the placedMarksForCell posture), not the writer's namespace: the
+   *  wing's surface window and its undercroft window are different
+   *  namespaces reading the same colony. */
+  delveStateForCell(cellId: string): string | null;
+  /** Upsert the whole colony blob (last write wins — one owner window). */
+  saveDelveState(cellId: string, json: string, nowMs: number): void;
+
   // ---- Lore (Phase 5C) — library-scoped, not per-agent ----
   /** Persist one uploaded lore chunk. `embedding` (768-dim, from the
    *  worker /api/embed route) is attached when present; FTS5 indexes the
@@ -246,6 +255,8 @@ export const nullMemoryWriter: MemoryWriter = {
   persona: () => null,
   landWearForCell: () => [],
   flushLandWear: () => {},
+  delveStateForCell: () => null,
+  saveDelveState: () => {},
   recordLore: () => null,
   recentLore: () => [],
   loreCount: () => 0,

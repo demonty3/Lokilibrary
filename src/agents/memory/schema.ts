@@ -233,5 +233,7 @@ export interface WorldEventRow {
  *  tokens — additive only (`source` is unconstrained TEXT; old rows untouched;
  *  the version table accumulates one row per version).
  *  v4 (2026-08-01): +land_wear table (marginalia slice) — additive only
- *  (CREATE IF NOT EXISTS; existing tables and rows untouched). */
-export const SCHEMA_VERSION = 4;
+ *  (CREATE IF NOT EXISTS; existing tables and rows untouched).
+ *  v5 (2026-08-19): +delve_state table (dungeon rung 1) — additive only,
+ *  the land_wear pattern (one JSON blob per wing cell). */
+export const SCHEMA_VERSION = 5;
