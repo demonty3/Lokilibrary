@@ -1082,3 +1082,42 @@ orchestration quality and dungeon depth, cost breakdown. Disaggregated:
 Verdict: PARK. Precondition: the dungeon arc shipped and a self-hoster
 population exists to advise. Riff closed 2026-08-19 — next movement on this
 entry should be the rung-1 spec-interview, not more addenda.
+
+### Addendum 5 — separated clusters are separate societies (added 2026-08-19, same day; the riff reopened for one more)
+
+Separated terminal clusters should be treated as their own areas: the human
+controls the topology by arranging windows, and clusters develop
+independently — reconnect them later and they trade and re-merge. This is
+the **behavioural half of the archipelago rung** (visual half: the 08-18
+mockup, K1/K2 eyeball open).
+
+- **Geography = window arrangement.** A cluster is a connected component
+  over seams (computable from existing seam state). Dragging a terminal
+  away performs continental drift — an OS gesture as geological event. The
+  topology already has two hands on it (user drags; T5 beings propose
+  connections); this makes the interplay meaningful.
+- **Divergence rides existing machinery.** Cluster-scoped drift: names
+  (Culture seed), marginalia dialect, and — once the dungeon arc exists —
+  **cookbooks**: separated clusters invent different skills, venerate
+  different monuments. Different rates emerge free: more beings → more
+  crossings → more reflections; metropolis vs backwater without a knob.
+- **Reconnection is the payoff beat.** Reunion as event: a Festival of
+  Reconnection, skills traded across (adjudicated by the DM, which already
+  has that job), beings meeting marginalia in a drifted dialect. User
+  causes it with a drag, then watches two histories interleave —
+  killer-demo family, same lineage as the snapping crossing.
+- **Fighting: KILL.** Not for complexity — for tone. Combat was deliberately
+  pushed below into mindless Tier-0 puppets so beings stay unhurried souls
+  in a society you visit; beings warring on the desk breaks the register.
+  In its place: **rivalry as culture** — disputing schools of thought,
+  competing monuments, souring trade terms, pointed marginalia.
+
+Prior art (from knowledge): divergent evolution on separation is standard
+civ-sim ground (Dwarf Fortress; Project Sid's multi-town meme/religion
+spread). Unoccupied: the user's window management as the isolating force.
+
+Verdict: PURSUE. Preconditions: archipelago eyeball passes (K1/K2) + the
+dungeon economy exists (so cookbooks have something to diverge over). Kill
+condition: if a month of separation produces no difference visible on the
+desk — no dialect drift, no divergent skyline — the societies aren't
+diverging, they're unrendered variables.
