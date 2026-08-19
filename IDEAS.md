@@ -1121,3 +1121,44 @@ dungeon economy exists (so cookbooks have something to diverge over). Kill
 condition: if a month of separation produces no difference visible on the
 desk — no dialect drift, no divergent skyline — the societies aren't
 diverging, they're unrendered variables.
+
+### Addendum 6 — corruption: the depths→surface channel (added 2026-08-19, same day)
+
+Addendum 2 built surface→depths (veneration buffs delvers). This is the
+return channel: an orchestrator places an evil artifact in a dungeon, and
+if the cluster above lacks faith (no church, unvenerated monuments), the
+corruption leaks UP — beings drift to venerating darker spirits. Two-way
+spiritual pressure; the dungeon stops being an extraction site and becomes
+something that can leak.
+
+- **Corruption is spiritual weather** — the mechanic *Loki-as-climate* has
+  been waiting for since the pivot. It rides the conditions-vs-content
+  ladder as a cluster-scoped CONDITION (like daylight): tints the pack
+  palette, bends marginalia tone, changes veneration targets. The shipped
+  daylight-colour machinery is the enabling work — the desk already knows
+  how to shift emotional register through hue. Weather was the ladder's
+  named next rung; this is weather with a theology.
+- **Deterministic core, zero-to-one AI calls.** Artifact exerts corruption
+  pressure; churches/monuments exert faith; the balance is arithmetic.
+  Pressure wins → a being's veneration flips (Tier-0-visible: they walk to
+  the cave shrine, not the church) and Tier-2 prompts gain a condition flag,
+  same as "it is night." Whitelist-safe (disposition, not action space). If
+  artifact placement is scheduled+DM-flavoured: zero new call sites. If the
+  DM actively AUTHORS placements as dramatic timing (the parked
+  meta-agent-as-DIRECTOR role, given its first prop): one cheap call site,
+  needs the usual CLAUDE.md cost entry. Decide at spec time.
+- **No fighting; divergence and reconvergence.** Corruption is the most
+  legible version of Addendum 5's two-societies drama: one cluster corrupts,
+  one keeps faith; reconnection asks real questions (does it cross the
+  seam? missionaries? redemption when the church finally goes up?).
+  Corruption MUST be recoverable — build the church, tend the faith, the
+  palette warms back — or it's a fail state instead of weather.
+- **Tone bar (the kill risk):** evil reads as **melancholy wrongness, not
+  horror** — glyph decay, colder register, stars slightly wrong; the
+  dusty-district feeling with intent behind it. Ghibli-dark, never grimdark.
+
+Verdict: PURSUE — the drama layer over rungs 3+5, sequenced after monuments
+and clusters exist. Kill conditions: corruption legible only in reflection
+logs, not at a glance in palette/behaviour → fails the spatial rail;
+corruption reads horror instead of wrongness → fails the register and needs
+re-arting, not re-balancing.
