@@ -740,7 +740,7 @@ Ordered by payoff over cost:
 | **Daylight colour, per-pack** | **SHIPPED + JUDGED 2026-08-08 — CLOSED. This is the mechanism that landed.** One correction to the note below: it says `DEFAULT_THEME_ID` is `solarized-dark` and calls that the out-of-the-box desk. That is the PALACE's default; the terminals desk hard-codes `TERMINAL_THEME = 'phosphor'` (`src/terminal/TerminalApp.tsx:16`) and the Electron shell blocks `?theme=` on desk windows, so phosphor is what a stranger actually boots — it was authored too (lift axis, measured headroom ×4.9). The per-pack *strength* did not become a slot in the end: authoring the colours directly subsumes it, and the pack is its own ceiling. | Harry's correction, 2026-08-07: the engine is built from per-pack slots and the style-pack bars are per-theme, so the *strength* should be a slot too, not one global constant. Measured with each pack free to choose its own key and its own ceiling: **7 of 10 clear separation ≥ 1.5 while holding every frozen bar** — catppuccin-mocha (cyan, 2.40), amber-crt (orange, 1.88), phosphor (fgDim, 1.79), night-drive (green, 1.78), tokyo-night (cyan, 1.71), cozy-autumn (orange, 1.71), ibm-3270 (magenta, 1.53). Three cannot: solarized-dark (1.09) and gruvbox-dark (1.16) bind on a being accent already sitting at ~2.98 against the 3.0 floor, and gameboy-dmg has deleted its sky outright. **A pack that cannot simply does not** — `daySky: null`, legal omission, the same doctrine as DMG's blank sky, and [[style-identity-lives-in-omission-not-palette]] says omission IS identity: some machines show the time of day, some don't. **The deflating fact, recorded: `DEFAULT_THEME_ID` is `solarized-dark`**, one of the three — so this alone leaves the out-of-the-box desk (and the README's desk) with no daylight, which is why it sequences *after* the contrast-neutral rung rather than instead of it. Caveat for whoever builds it: four of the seven bind on a sky-role floor of 1.1 that was borrowed from `RAMP_STEP0_MIN` and chosen before the sweep — freeze it deliberately, do not tune it upward after seeing which packs it admits. |
 | **Daylight colour, the other seven packs** | **DONE 2026-08-08 (`51bacc1`) — 9 of 10 packs have a day; `ibm-3270` omits and cannot do otherwise.** | Authored hue-first per the judged finding. The spread is the point: `gruvbox-dark` ×1.0 (its bg is neutral grey, so its whole day is hue — iso-luminant to 1%), `solarized-dark` ×1.2, `gameboy-dmg` ×1.4, `tokyo-night` ×3.8, `cozy-autumn` ×3.9, `phosphor` ×4.5, `night-drive` ×4.7 (magenta sunset — the synthwave signature), `catppuccin-mocha` ×6.4, `amber-crt` ×10.6. **`ibm-3270` is a measured NEGATIVE, not a preference**: ceiling relLum 0.0028 over a bg of 0.0017, and the best colour reachable in ANY hue direction has chroma 3.1–7.4 — the only one above noise is a blue nowhere near its monochrome amber. There is nothing to author; omission is what the doctrine is for. Two defects found by LOOKING that the gate is blind to by construction: gruvbox's first cut peaked at midnight (dusk 22% below night — legible, gate-green, wrong), and DMG's first cut at ×2.0 inverted its figure/ground so the horizon flattened. Both re-cut. Contact sheet: `docs/design-reviews/2026-08-08-daylight-sky-register/all-packs-noon.png`. |
 | Light direction | cheap rider on the clock | One sun-azimuth scalar into the existing shade channel. This is what makes it read as one *place* rather than N places agreeing on the hour. |
-| Weather | cheap rider on the clock | Rain stopping at a window edge is the worst available break. Hooks § The living world (Loki as climate). |
+| Weather | cheap rider on the clock | Rain stopping at a window edge is the worst available break. Hooks § The living world (Loki as climate). **Scoping note (2026-08-19):** the dungeon-economy entry's Addendum 6 (corruption as spiritual weather) later needs conditions scoped to a terminal CLUSTER, a scope between desk-global and wing-owned that the ruling below does not name. When building this rung, don't hard-code desk-global into the condition channel — carry a scope field (desk is the only value v1 uses) so corruption can ride it later without rework. This amends nothing shipped; it shapes unbuilt code. Check before spec: how hard desk-global is baked into the existing conditions tick (main-process broadcast). |
 | Far-layer parallax | **NEEDS-CHECK** | Each window scrolls its camera independently; if the distant plane isn't anchored to a shared world-x the horizon jumps at every seam. At a glance the far layer is the strongest "one place" cue, so a break there costs more than a near break. Check = screenshot two joined terminals scrolled apart. |
 | Worn paths across seams | later | Trail wear dead-ending at a frame edge undoes the crossing beat. |
 | Ambience as one field | no audio yet | Fix the per-window-loop assumption before any audio work starts, not after. |
@@ -1231,3 +1231,41 @@ refinement, not a new rung. Kill conditions: profile ever derives from LLM
 text → cut that channel; a morality HUD appears → spatial-rail fail; the
 corruption build plays as a fair class with different-coloured powers →
 Addendum 7 is broken, fix the extraction costs, never loosen the theology.
+
+### Context routing (added 2026-08-19; closes the riff — the index, not an addendum)
+
+Eight addenda accumulated in one day, most of them theology for rungs that
+do not exist yet. To keep each rung's spec-interview at rung size, each
+addendum loads at the rung whose spec it constrains — and NOT before:
+
+- **Rung-1 spec-interview carries ONLY:** the main entry's ladder + Addendum
+  1's consequentiality principle (with its rung-2 kill test: same seed,
+  directives followed vs ignored). Everything else stays out of the room.
+  One amendment to the ladder, from this pass: pull a minimal above-ground
+  evidence beat forward from rung 2 into rung 1 — one marginalia line when
+  an expedition returns or doesn't — so the wallpaper surface shows the
+  dungeon exists without peeking. Failed expeditions are content from day
+  one.
+- **Rung-3 spec loads:** Addendum 2's monument buffs + watchable veneration.
+- **Rung-4 spec loads:** Addendum 2's flavour-neutral grammar constraint,
+  Addendum 7 (pantheon: aspects as bounded dispositions), Addendum 8
+  (aspect profiles: deeds-only accrual, requirement field, extraction
+  costs). Doctrine-heavy on the page; compresses to a few sentences of
+  spec input. The "LLM dungeon master balancing an agent economy"
+  prior-art scout also fires here.
+- **Society/drama arc (after the economy is legible on screen):** Addendum
+  3's guilds, Addendum 5's cluster divergence, Addendum 6's corruption.
+  One future arc, not three; none evaluable until gold and monuments exist
+  to be taxed, diverged over, and corrupted.
+- **Already parked with named preconditions, no routing needed:** setup
+  advisor (Add. 4), lore-to-pack (Add. 3), moddable mechanics (Add. 2),
+  aptitude-profiles kernel (Add. 1).
+
+One near-term engineering consequence outside this entry: Addendum 6 needs
+CLUSTER-scoped conditions, a scope the conditions-vs-content ladder's
+"desk-global" ruling does not have — noted at that ladder's weather rung so
+weather gets built scopeable once, not twice.
+
+Kill test for this routing: if the rung-1 spec-interview still ends up
+discussing the pantheon or corruption, the routing failed — physically move
+the addenda out of this entry into per-rung spec docs, don't re-label.
