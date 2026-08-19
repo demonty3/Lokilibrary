@@ -971,3 +971,28 @@ ladder, not a commitment. Sits behind the open snapping-terminals close-out
 shipped), the T5 proposal pattern (shipped), *The living world*'s
 agents-live-their-lives frame. **Unblock:** Harry picks it as the next arc
 after the current close-out; first move is the spec-interview for rung 1.
+
+### Addendum — depth as the in-world benchmark (added 2026-08-19, same day)
+
+Harry: dungeons get progressively harder, deeper pays more — partly so
+self-hosters on stronger local models get somewhere to go. The ramp itself
+is ordinary roguelike economy design (rung-1 detail). The load-bearing
+principle underneath it: **orchestration must be mechanically consequential**
+— a being's expedition directives (loadout, route, retreat threshold) must
+actually move the Tier-0 odds. Given that, the difficulty ramp makes the
+dungeon *the benchmark, run in-world*: a stronger mind expresses itself as
+depth reached, with no model detection, no benchmark suites, no off-screen
+evaluation. This salvages the killed runtime-benchmarking idea in fully
+diegetic form — the palace is as deep as the mind that runs it.
+
+Two constraints: (1) the weak-model floor matters more than the strong-model
+ceiling — the default BYO-key config is frontier and local models sit
+*below* it, so a mediocre mind must still get a turning economy (beings
+choose their own depth; retreat to farmable floors beats any difficulty
+knob); (2) depth never gets a number — no "max depth: 14" HUD, or the
+society becomes a leaderboard. Depth reads spatially: how far the shafts
+visibly go, what the marginalia recounts, what the monuments commemorate.
+
+Kill condition for the principle (test at rung 2): same seed, directives
+followed vs. ignored — if survival odds don't measurably differ, the mind
+isn't consequential and "dungeon as benchmark" is fiction.
