@@ -1195,3 +1195,39 @@ undermines the society itself.**
 Verdict: PURSUE as the governing principle of Addendum 6's theology —
 refinement, not new scope. Guard: aspects stay bounded dispositions; the
 moment an aspect needs its own mechanics, it's scope creep wearing a mitre.
+
+### Addendum 8 — aspect profiles: specialisation gates the cookbook (added 2026-08-19, same day)
+
+Not good-vs-evil scores — Addendum 7 abolished that axis. Each being
+carries an **aspect profile**: the distribution of its DEEDS across the
+pantheon's aspects (war, death, harvest, craft, faith...). The profile
+gates unlock paths. As a mechanic, alignment-gated abilities are occupied
+ground (D&D, KOTOR, Black & White, Fable) — it earns its place as a
+component, through composition:
+
+- **Specialisation** = concentration in one aspect → exclusive unlocks (the
+  paladin is extreme faith-concentration; war-devotion gets what only
+  zealots get). **Breadth** = even spread → most of the cookbook, mastery
+  of none.
+- **The corruption path must stay socially extractive.** It cannot be a
+  balanced third class or Addendum 7's functional definition of evil
+  breaks. Its unlocks are individually rewarding but paid from the commons
+  — cluster faith drains, the shared hoard leaks, monuments decay faster.
+  Seductive to the being, undermining to the society; the mechanic enforces
+  the theology. One being's bargain is everyone else's colder sky.
+- **Deeds only** (load-bearing guard): the profile accrues from
+  Tier-0-observable acts — venerations, expedition choices, artifact
+  interactions — NEVER from LLM self-description, or beings prompt-drift
+  into claiming paladinhood and the profile is fiction grading itself.
+  Arithmetic decides; gated cookbook entries grow a requirement field in
+  the existing grammar; zero new AI calls.
+- **No profile HUD.** The pie chart is engine state. Specialisation reads
+  through the world — vestment glyphs, where they walk, what they build,
+  what the marginalia dwells on. The paladin is recognisable at a glance
+  the way the miser and patron already are.
+
+Verdict: PURSUE as the gating layer of the rung-4 skill system —
+refinement, not a new rung. Kill conditions: profile ever derives from LLM
+text → cut that channel; a morality HUD appears → spatial-rail fail; the
+corruption build plays as a fair class with different-coloured powers →
+Addendum 7 is broken, fix the extraction costs, never loosen the theology.
