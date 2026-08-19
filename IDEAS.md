@@ -853,3 +853,121 @@ technical, and it will not be settled by making the joins work.
 neighbours at different rows that reads as one place rather than two broken
 lands. Sits alongside `docs/PRD-snapping-terminals.md` T3 (join-edge craft),
 which is where the glyph treatment for a floor-into-hall join would live.
+
+---
+
+## The dungeon economy: smart beings above, dumb delvers below (added 2026-08-19)
+
+Riffed 2026-08-19, starting from "agents earn gold and buy skill.md files" and
+composting through several forms. The composed spine:
+
+**Tier-0 delvers below → gold → beings spend on monuments or reinvest in delvers
+→ beings propose novel skills → a DM meta-agent adjudicates → the cookbook grows
+→ deeper delves.**
+
+The surprising finding is how much of it maps onto shipped work rather than new
+machinery:
+
+- **Smart/dumb split = the tier router.** Surface beings are the existing
+  Tier-1/Tier-2 minds; delvers are Tier-0 utility-AI — dice and behaviour
+  trees, zero LLM calls, tickable at 10 Hz, watchable in real time *because*
+  they're mindless. The hierarchy also dissolves the agent-goals problem
+  (see *The living world*): grinding lives in the puppets, not the souls.
+  Beings stay unhurried patrons who send expeditions and reflect on what
+  came back.
+- **Orchestration = the T5 proposal pattern pointed downward.** T5
+  orchestration v0 already extracts world-changing proposals from sleep
+  reflections and gates them deterministically. "Being directs the
+  expedition" is a new directive type on that mechanism, not a new mechanism.
+- **The dungeon = the undercroft, deepened.** Phase B shipped beings
+  descending shafts below the terminals. Procedural dungeons are the
+  project's strongest muscle (WFC, seeded PRNG), and the terminal aesthetic
+  *is* the roguelike aesthetic — Rogue and NetHack are this project's
+  ancestral art style.
+- **Monuments = the parked creative-budget mechanic, finally given a source.**
+  The Art/Culture systems in *The living world* always lacked an input;
+  "wealth from below becomes monuments above" is a source with a story. The
+  *beings* spend the gold, never the user — it stays a society you visit,
+  not an idle game you manage.
+- **Peek-to-watch, not click-to-watch.** The wallpapered desk cannot receive
+  clicks (measured; peek is the interaction path). The beat survives as
+  "lift the floorboard": the Phase B undercroft window is already the
+  surface for watching an expedition live. Windowed mode can click.
+
+### The DM meta-agent — the whitelist rule's missing second half
+
+Beings may propose skills that aren't in the cookbook. This sounds like a
+whitelist violation; adjudicated properly it is the *sanctioned deliberate
+widening mechanism* the rule asks for. Constraints that make it real:
+
+- **Novelty lives inside a compositional grammar.** The cookbook defines
+  verbs (strike, ward, lure...), modifiers, and parameter ranges; a "novel"
+  skill is a new combination with a new name. Outside the grammar a proposal
+  is words the Tier-0 engine can't run — and the DM rejecting it as "beyond
+  the craft" is diegetic.
+- **The DM is never the balance authority.** LLM fairness judgment is an
+  adversarial loop waiting to happen. Deterministic power bounds (computable
+  power score, hard caps, cost floors scaling with score — plain code) gate
+  every proposal; the DM prices, flavours, and paces *within* them. A
+  jailbroken DM can only misprice, never break the game. Same
+  propose→validate→apply shape as T5.
+- **Pacing** ("would they unlock everything at once") is 90% deterministic
+  knobs (cost curves, scarcity), 10% DM taste. The 10% is where the
+  character lives.
+
+The payoff: content generative from play. A skill the society invented —
+proposed by a named being after a disastrous delve, priced by the DM, named
+in the being's voice, now in the cookbook for everyone — is lore with a
+paper trail.
+
+### Prior art (from knowledge; run prior-art-scout at point of commitment)
+
+Zero-player watch-the-agents RPGs are a genre: Progress Quest (2002),
+Godville, autobattlers. LLM-agents-play-games is crowded (Voyager's earned
+skill library, Claude-plays-Pokémon). None have this frame: persistent
+beings with minds, a society, and a surface world the dungeon feeds back
+into. The mechanic is old; the composition appears unoccupied. Unsearched
+specifically: "LLM dungeon master balancing an agent economy" — scout it
+before speccing the DM rung.
+
+### Verdicts (as riffed 2026-08-19)
+
+- **Dungeon layer under the desk** — PURSUE. (KILL as a standalone game:
+  that's rebuilding Progress Quest with an API bill.)
+- **Gold loop + monuments** — PURSUE. Kill condition: if the economy is only
+  legible by reading logs — gold must exist as a hoard glyph, wealth as
+  monument construction stages, never as a number in a HUD.
+- **Peek-to-watch** — PURSUE as part of the peek gesture; the click variant
+  is windowed-mode only (measured constraint).
+- **DM meta-agent** — PURSUE, rung three or later; needs an economy to
+  referee. First test: hand-run five proposals through a prompted DM; every
+  output in-schema, prices non-absurd. Kill condition: if proposals only
+  feel novel by *escaping* the grammar, the grammar is too small and the DM
+  is a price list wearing a hat — redesign the cookbook, don't ship the DM.
+- **Runtime-benchmarking beings' models to set tasks (ARC-AGI etc.)** —
+  KILL as riffed: no per-being model diversity exists, benchmark runs are
+  token-heavy off-screen computation, runtime web search is a surface the
+  Worker doesn't want. Salvageable kernel PARKED: static aptitude profiles
+  from *published* scores at template-build time, precondition per-being
+  model diversity.
+
+### Ladder order (when unparked)
+
+1. Tier-0 delvers under one wing; one hazard; no numbers on screen.
+2. Gold as a visible hoard glyph; above-ground evidence of a delve
+   (marginalia line, changed sprite, a memorial for the lost).
+3. Monument construction as the spend; reinvestment as the alternative.
+4. Skill cookbook (hand-authored) + the DM proposal loop.
+
+Failed expeditions are content — loss makes an economy legible faster than
+gain. New runtime AI call sites (the DM; expedition perceptions if any)
+require the usual CLAUDE.md cost-model entry before shipping.
+
+### Status
+
+Parked 2026-08-19, riffed same day. Nothing carved in gold — a candidate
+ladder, not a commitment. Sits behind the open snapping-terminals close-out
+(T3/T5 eyeballs, demo GIF re-cut). **Depends on:** the undercroft (Phase B,
+shipped), the T5 proposal pattern (shipped), *The living world*'s
+agents-live-their-lives frame. **Unblock:** Harry picks it as the next arc
+after the current close-out; first move is the spec-interview for rung 1.
