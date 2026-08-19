@@ -1162,3 +1162,36 @@ and clusters exist. Kill conditions: corruption legible only in reflection
 logs, not at a glance in palette/behaviour → fails the spatial rail;
 corruption reads horror instead of wrongness → fails the register and needs
 re-arting, not re-balancing.
+
+### Addendum 7 — the pantheon: evil is functional, not aesthetic (added 2026-08-19, same day)
+
+Refines Addendum 6, which quietly assumed a moral binary ("darker
+spirits"). The HWFWM correction: gods of death or war aren't evil — they're
+aspects of life a society metabolises. **Evil is specifically what
+undermines the society itself.**
+
+- **Legitimate divergence gets wide.** A cluster that lost many delvers
+  grows a death cult — that's mourning with an institution around it:
+  memorial monuments, a quieter register. Another leans into war and delves
+  braver. Both healthy; different theological weather. Corruption stops
+  being "the dark path" and becomes the *pathology* state, distinct from
+  every legitimate mood.
+- **Evil is mechanically checkable.** Aspect-gods FEED the loop (death →
+  memorials → content; war → deeper delves → gold). Corruption is
+  veneration that DEGRADES it — gold converting to nothing, monuments
+  decaying unrepaired, veneration hollowing out. Corruption = negative-sum
+  participation in the loop, computable; no moral judgment call in the code
+  and the DM never rules on what's evil — the arithmetic does.
+- **Pantheon rides the pack surface** (same split as combat dialect): the
+  engine owns functional ASPECTS — bounded disposition biases inside the
+  existing power grammar, the skill-buff machinery wearing robes; the pack
+  owns which gods embody them, names, glyphs. Corruption is NOT a god in
+  any pack roster — it's a pressure, so no pack can ship a "legitimate"
+  corruption deity.
+- Strengthens the tone bar: a death god in the gentle register is memorials
+  and long shadows — language the desk already speaks. Corruption stays the
+  only thing that is *wrong*, legible by contrast.
+
+Verdict: PURSUE as the governing principle of Addendum 6's theology —
+refinement, not new scope. Guard: aspects stay bounded dispositions; the
+moment an aspect needs its own mechanics, it's scope creep wearing a mitre.
