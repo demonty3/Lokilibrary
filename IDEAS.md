@@ -1027,3 +1027,34 @@ composition is the part that's ours. Slots into rung 3.
 Kill condition (monument buffs): if the buff is only legible as a modifier
 in a log — no watchable veneration on the desk — it fails the spatial rail
 and monuments revert to expression-only.
+
+### Addendum 3 — guilds, and lore-to-pack generation (added 2026-08-19, same day)
+
+**Guilds: the institutional layer (rung 5).** Adventurers' / mages' /
+alchemists' guilds with their own law, politics, missions, stories. Seeds
+already parked: the Science system's schools-of-thought are proto-factions;
+Culture has festivals and drifting names; and content-is-wing-owned gives
+guilds a home — a guild IS a wing with a charter. Missions = orchestration
+directives wearing fiction; guild treasuries tax the gold loop; guilds
+sponsor the monuments. Prior art (from knowledge): Project Sid (Altera,
+2024) — 1000+ LLM agents in Minecraft with emergent government, laws,
+taxation, religion — occupies "agent societies develop institutions"; it
+lacks the inhabitable-wallpaper, watchable-at-a-glance frame. The binding
+rail: **law and politics must read as behaviour and architecture** — members
+visibly refusing to delve on their festival, a hall that grows with the
+treasury — never as lore text. Kill condition: if guild identity is only
+legible in Tier-2 logs, it's a text adventure wearing a wallpaper. Sits
+after the economy + monuments exist for guilds to govern. Vibe source:
+He Who Fights with Monsters (LitRPG adventure-society fiction).
+
+**Lore-to-pack: themed worlds from a user's own text.** "Chuck in a wiki
+page on your favourite book" → template-build-time pack generation: source
+text in, an agent authors a dialect pack (vocabulary, glyphs, guild names,
+monument styles) through the EXISTING new-pack gates (conformance smoke +
+eyeball; the blueprint cold test already proved stranger-agent authoring
+survives the gates). Stage-4 lore-upload embeddings are the adjacent shipped
+surface. No runtime generation, no new call sites — slots into the pack
+surface from Addendum 2. **Licence trap, welded on:** a pack themed on a
+copyrighted series is derivative fan content — the repo ships the TOOL and
+original packs only; user-generated themed packs stay local, never in the
+repo or any official registry. Licence hygiene does not relax for free/OSS.
