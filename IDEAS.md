@@ -1058,3 +1058,27 @@ surface from Addendum 2. **Licence trap, welded on:** a pack themed on a
 copyrighted series is derivative fan content — the repo ships the TOOL and
 original packs only; user-generated themed packs stay local, never in the
 repo or any official registry. Licence hygiene does not relax for free/OSS.
+
+### Addendum 4 — the setup advisor tool (added 2026-08-19, same day; closes the riff)
+
+A tool that probes the user's system and answers "what can this machine
+run?" in Lokilibrary terms: how many beings, which tier config, expected
+orchestration quality and dungeon depth, cost breakdown. Disaggregated:
+
+- **Generic model-fit calculation is OCCUPIED** (from knowledge: Ollama's
+  fit checks, LM Studio's estimates, standalone VRAM calculators) — wrap or
+  point at existing tools, never rebuild.
+- **The Lokilibrary-specific mapping is the part worth building**: hardware
+  → beings count / tier config / expected depth ("12GB → Qwen 14B →
+  competent delving, mediocre orchestration") + monthly cost on the API
+  default (queryable from the EXISTING tier-router telemetry rows). This is
+  also the natural home of Addendum 1's parked kernel — static aptitude
+  profiles from *published* benchmark scores power the intelligence
+  breakdown, no runtime evals.
+- **Rail:** local stays explicit opt-in; the tool's honest default output
+  is usually "stay on the API config" — it advises people who already chose
+  self-hosting, it does not nudge toward it.
+
+Verdict: PARK. Precondition: the dungeon arc shipped and a self-hoster
+population exists to advise. Riff closed 2026-08-19 — next movement on this
+entry should be the rung-1 spec-interview, not more addenda.
