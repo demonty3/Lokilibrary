@@ -60,6 +60,80 @@ export const DEFAULT_EXPEDITION_PARAMS: ExpeditionParams = {
   partySize: 3,
 };
 
+// ── Rung 2: persona-derived directives ─────────────────────────────────────
+// (docs/superpowers/specs/2026-08-20-dungeon-rung2-directives-hoard.md)
+
+/** Structural mirror of beingIntents' LandPersona — delve.ts stays
+ *  dependency-free; the land persona satisfies this shape as-is. */
+export interface DirectiveTraits {
+  bias: Partial<Record<string, number>>;
+  /** Walk speed range, cells/sec [min, max). */
+  speed: [number, number];
+  intentWindowMult: number;
+}
+
+/**
+ * Temperament in [0,1]: resty/slow/patient personas read timid, fast
+ * wandering quick-thinkers read bold. DEFAULT_LAND_PERSONA (empty bias,
+ * speed mid 1.9, mult 1) lands at exactly 0.5 by construction, so
+ * unknown dispatchers get near-default expeditions (spec bar 6).
+ */
+export function directiveBoldness(traits: DirectiveTraits): number {
+  const wander = traits.bias['wander'] ?? 0;
+  const rest = traits.bias['rest'] ?? 0;
+  const midSpeed = (traits.speed[0] + traits.speed[1]) / 2;
+  const b = 0.5 + 2 * wander - 2 * rest + 0.4 * (midSpeed - 1.9) + 0.5 * (1 - traits.intentWindowMult);
+  return Math.max(0, Math.min(1, b));
+}
+
+/**
+ * The dispatcher's directive (spec bars 1-3): timid = larger party,
+ * shallower, early retreat; bold = smaller party, deeper, holds longer.
+ * Ranges chosen by calibration against the frozen odds bars — depth
+ * moves gold not death, retreat 2-5 x party 4-3 spans >1pp of per-delver
+ * death rate while staying under the 2.5x spread cap. Pure and
+ * prng-free: the ±1 depth flavour comes from a hash of the agent id, so
+ * rung 1's expedition streams cannot move (spec bar 1).
+ */
+export function directiveParams(agentId: string, traits: DirectiveTraits): ExpeditionParams {
+  const b = directiveBoldness(traits);
+  const jitter = (delveHash(`directive:${agentId}`) % 3) - 1;
+  return {
+    depth: Math.max(4, Math.min(8, 4 + Math.round(b * 4) + jitter)),
+    retreatThreshold: 2 + Math.floor(b * 3.999),
+    partySize: 4 - Math.round(b),
+  };
+}
+
+// ── Rung 2: the hoard made visible ─────────────────────────────────────────
+
+export const HOARD_STAGE_MAX = 5;
+/** Gold thresholds per stage — geometric, tuned to the accrual rate
+ *  (roughly 2-4 expeditions x ~10-30 gold per day of desk uptime):
+ *  first glint within a day, never done inside a month (spec bar 4). */
+const HOARD_THRESHOLDS = [1, 40, 160, 480, 1200] as const;
+
+/** 0 = nothing yet. Pure, monotone non-decreasing in hoardGold. */
+export function hoardStage(hoardGold: number): number {
+  let stage = 0;
+  for (const t of HOARD_THRESHOLDS) {
+    if (hoardGold >= t) stage += 1;
+  }
+  return stage;
+}
+
+/** What the undercroft draws per stage 1..HOARD_STAGE_MAX, verbatim —
+ *  rows top-to-bottom, glyphs from the rung-1 undercroft vocabulary
+ *  only, numeral-free (smoke-asserted). A low heap that widens, then
+ *  rises. Static by design: animation reads as a gauge (spec bar 8). */
+export const HOARD_GLYPH_ROWS: readonly (readonly string[])[] = [
+  ['▪'],
+  ['▪▪'],
+  ['░▪▪'],
+  ['  ▪ ', '░▒▪▪'],
+  [' ▪▪▪ ', '░▒▪▪▒'],
+];
+
 // Creature-hazard dice (spec bar 3: ONE creature, dice-driven). The
 // creature lairs at a drawn step; meeting it starts rounds of danger.
 const LAIR_STEP_MIN = 2;

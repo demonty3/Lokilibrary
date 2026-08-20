@@ -100,10 +100,12 @@ import {
 import {
   accrueUptime,
   beginExpedition,
-  DEFAULT_EXPEDITION_PARAMS,
   deferDispatch,
   delverWingOf,
+  directiveParams,
   dispatchDue,
+  HOARD_GLYPH_ROWS,
+  hoardStage,
   initialDelveState,
   parseDelveState,
   resolveExpedition,
@@ -594,6 +596,9 @@ declare global {
         dispatch: { agentId: string } | null;
         views: Array<{ id: string; x: number; below: boolean; visible: boolean }>;
         hazardGlyphs: number;
+        /** Rung 2 — derived hoard stage + rendered pile glyph rows. */
+        hoardStage: number;
+        hoardGlyphs: number;
       };
       /** e2e only — dungeon rung 1. Make the next dispatch due NOW
        *  (jumps the uptime clock; the walk + everything after runs the
@@ -2393,6 +2398,15 @@ export async function mountTerminalLand(
   let underDelve: DelveState | null = null; // the poll's latest read
   let delvePollAt = 0;
   const hazardViews: BitmapText[] = [];
+  // Rung 2: the hoard glyph — the colony's wealth as a low static heap
+  // on the camp side of the shaft, away from the delve mouth. Rebuilt
+  // only when the stage moves; deliberately never animated (a pulsing
+  // pile reads as a gauge — spec bar 8).
+  const hoardViews: BitmapText[] = [];
+  let lastHoardStage = -1;
+  const hoardCol = vShaftX < cols / 2
+    ? Math.max(1, vShaftX - 7)
+    : Math.min(cols - 6, vShaftX + 3);
   const delverInk = (): number =>
     hexToInt(theme.palette[roleKey(theme, 'decor.quiet', 'fgDim')]);
   const addDelverView = (id: string, startBelow: boolean): void => {
@@ -2434,6 +2448,25 @@ export async function mountTerminalLand(
         a !== null && a.partyIds.includes(d.id) && nowMs < a.resolveAtMs && nowMs > a.startedAtMs + DELVE_DEPART_MS;
       addDelverView(d.id, startBelow);
     }
+  };
+  const rebuildHoard = (): void => {
+    const stage = hoardStage(underDelve?.hoardGold ?? 0);
+    if (stage === lastHoardStage) return;
+    lastHoardStage = stage;
+    for (const t of hoardViews) t.destroy();
+    hoardViews.length = 0;
+    if (stage === 0) return;
+    const rows = HOARD_GLYPH_ROWS[stage - 1];
+    rows.forEach((row, i) => {
+      const t = new BitmapText({
+        text: row,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: delverInk() },
+      });
+      t.x = hoardCol * CW;
+      t.y = surfaceLocalY(hoardCol) - (rows.length - 1 - i) * CH;
+      world.addChild(t);
+      hoardViews.push(t);
+    });
   };
 
   const tick = (): void => {
@@ -2574,6 +2607,7 @@ export async function mountTerminalLand(
           // Contention costs a stale poll, never a broken tick.
         }
         reconcileDelvers(nowMs);
+        rebuildHoard();
       }
       const act = underDelve?.active ?? null;
       for (const v of delverViews.values()) {
@@ -3027,7 +3061,9 @@ export async function mountTerminalLand(
           // colony asked, so the world may watch the walk).
           if (Math.abs(b.x - it.targetX) <= APPROACH_NEAR) {
             if (delveState && delveDispatch?.agentId === b.id) {
-              beginExpedition(delveState, b.id, DEFAULT_EXPEDITION_PARAMS, Date.now());
+              // Rung 2: the dispatcher's temperament shapes the expedition
+              // (persona-derived, prng-free — spec bar 1).
+              beginExpedition(delveState, b.id, directiveParams(b.id, b.persona), Date.now());
               saveDelve();
               spawnSpark('down'); // the send-off, at the mouth
               delveDispatch = null;
@@ -3567,6 +3603,8 @@ export async function mountTerminalLand(
           visible: v.text.visible,
         })),
         hazardGlyphs: hazardViews.length,
+        hoardStage: hoardStage(s?.hoardGold ?? 0),
+        hoardGlyphs: hoardViews.length,
       };
     },
     debugDelveDispatch: () => {

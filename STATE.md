@@ -3115,6 +3115,60 @@ params do not move odds → smoke-delve already fails. Eyeball queued in
 TODO-USER.md (idle colony read, dispatch walk, hazard register,
 marginalia line, relaunch persistence).
 
+**Dungeon rung 2 SHIPPED 2026-08-20 (eyeball queued) — persona
+directives + the hoard glyph; spec frozen before implementation**
+(`docs/superpowers/specs/2026-08-20-dungeon-rung2-directives-hoard.md`;
+Addendum 1 is the only addendum routed in, per IDEAS.md's context
+routing). Harry's two direction calls, made at planning: directives are
+PERSONA-DERIVED and zero-LLM (reflection-driven directives are a later
+rung), and the evidence surface is the hoard glyph alone (memorial +
+changed sprite stay on the ladder). Leg A: the dispatch site now passes
+`directiveParams(b.id, b.persona)` instead of the engine defaults —
+`directiveBoldness` (pure, in `delve.ts`) folds the land persona's
+rest/wander bias, walk speed and think-window into a [0,1] temperament
+(DEFAULT_LAND_PERSONA lands at exactly 0.5, so strangers derive within
+±1 of the rung-1 defaults — smoke-enforced), mapped over the
+CALIBRATED ranges depth 4-8 / retreat 2-5 / party 4-3; the ±1 depth
+flavour is a hash of the agent id, ZERO prng draws, so rung 1's
+expedition streams provably cannot move. Calibration happened BEFORE
+the spec froze (order on record in the spec): depth moves gold, not
+death odds, and party 2 at the bold end breaks the spread cap — that is
+why the bold floor is party 3. The Addendum-1 kill test is a smoke, on
+IDENTICAL per-run seed streams so only the directive varies: ghost
+1.27% / defaults-ignored 1.80% / loki 2.51% per-delver death — spread
+1.24pp (bar > 1pp), ratio 1.98x (bar < 2.5x), strict ordering
+timid < default < bold. Leg B: `hoardStage` (pure, monotone, thresholds
+1/40/160/480/1200 — first glint within a day of uptime, never done
+inside a month) drives `HOARD_GLYPH_ROWS`, a low static heap of
+`▪ ░ ▒` at the camp side of the shaft (away from the delve mouth),
+drawn by the undercroft presenter in the rung-1 convention
+(direct BitmapText, decor.quiet ink), rebuilt ONLY on stage change and
+DELIBERATELY never animated — a pulsing pile reads as a gauge. No
+DelveState shape change, no migration, zero new AI calls. Evidence:
+new `smoke-delve2` (41 — derivation purity/determinism/zero-draw,
+range + default-≈-defaults shape, the two-sided kill test, bounded
+spread, hoard monotonicity, numeral-free glyph rows); `smoke-delve`
+byte-untouched and green (130); full 82-smoke sweep + all three
+typecheck legs green; fresh-context spec review: all 7 code-checkable
+bars MET, zero findings (incl. a brute-force over cols 40-400 showing
+the hoard column never collides with the shaft). VERIFIED LIVE (macOS
+desk, t1/t6/u1, windows visible not throttled): three forced
+dispatch/resolve cycles drew three DIFFERENT organic dispatchers whose
+banked gold fingerprints their directives exactly — loki party 3
+banking 44/run (depth 8, one survived encounter), archivist party 4
+banking 27 (depth 6), cat party 4 banking 14 (depth 4), ledger
+44→88→115→129; the undercroft window rendered the stage-2 pile
+(`hoardGlyphs 1`) on its next poll. debugDelve() grew `hoardStage` +
+`hoardGlyphs`. Shots (context only):
+`docs/design-reviews/2026-08-20-dungeon-rung2/`. **Frozen kill
+conditions carried verbatim:** a number appears → remove, never
+restyle; directives do not move odds → smoke-delve2 already fails; one
+persona reads as cursed → re-tune derivation ranges, never the dice;
+the hoard reads as a gauge or confetti → re-cut shape/thresholds, never
+add UI, never animate. One honest flag for the eyeball: at stages 1-2
+the pile is `▪`/`▪▪`, the delvers' own glyph — only its stillness
+distinguishes it until stage 3's `░▒`; the dial is HOARD_GLYPH_ROWS.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

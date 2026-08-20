@@ -13,7 +13,17 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-19** (DUNGEON RUNG 1 shipped — Tier-0 delvers
+Last updated: **2026-08-20** (DUNGEON RUNG 2 shipped — persona directives
++ the hoard glyph: the dispatching being's temperament now sets each
+expedition's depth/retreat/party (zero LLM, prng-free, the Addendum-1
+consequentiality kill test is a smoke on identical seed streams — ghost
+1.27% vs loki 2.51% per-delver death, live-verified by the gold ledger
+fingerprinting each dispatcher's directive), and the invisible hoard now
+renders as a static `▪░▒` pile in the undercroft, growing by stages,
+never a number. Spec frozen before implementation; smoke-delve2 41 green,
+rung-1's smoke byte-untouched, spec review zero findings. One eyeball
+queued below.)
+Previously **2026-08-19** (DUNGEON RUNG 1 shipped — Tier-0 delvers
 under one wing: a 3-5-strong `▪` colony idles in the first wing's
 undercroft, a being walks to the shaft mouth 2-4 times per day of desk
 uptime to send an expedition down, one creature hazard rolls dice below,
@@ -172,6 +182,39 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
+### 👁 EYEBALL — dungeon rung 2: the hoard pile, and temperaments you can feel
+
+**Status**: shipped 2026-08-20; spec frozen before implementation
+(`docs/superpowers/specs/2026-08-20-dungeon-rung2-directives-hoard.md`);
+all 7 code-level bars MET (smokes + typecheck + fresh-context spec
+review, zero findings). Bar 8 is yours. Sensible to judge together with
+(or right after) the rung-1 eyeball below — same windows.
+**What to look at**, on a booted desk with the d0 undercroft open:
+1. **The hoard pile.** Near the shaft foot, on the camp side (away from
+   the delve mouth), a small static heap in the delvers' quiet ink. It
+   grows only when the colony banks enough gold — stages, never a
+   number, never animated. Live right now it is stage 2 (`▪▪`).
+   To grow it a stage for the look: in the d0 SURFACE window,
+   `__terminal.debugDelveDispatch()`, wait for the walk + ✦, then
+   `__terminal.debugDelveResolve()` — a few cycles crosses a threshold.
+2. **The frozen bar, verbatim**: the hoard reads as *treasure
+   accumulating*. KILL: reads as clutter/confetti, or as a
+   gauge/progress bar → re-cut shape or thresholds, never add UI,
+   never animate it into legibility.
+3. **Honest flag, named before you look**: at stages 1-2 the pile is
+   `▪`/`▪▪` — the delvers' own glyph; only its stillness distinguishes
+   it until stage 3 mixes in `░▒`. If it reads as a loitering delver
+   rather than a pile, say so — the dial is `HOARD_GLYPH_ROWS` in
+   `src/terminal/delve.ts`.
+4. **Temperament, over days (no action needed now)**: dispatchers now
+   shape expeditions — a bold walker sends fewer, deeper, holds longer;
+   a timid one sends more, shallower, retreats early. The thing to
+   notice over a week of marginalia: losses cluster under bold
+   dispatchers as *temperament*, not as one being reading cursed
+   (the spread is capped at 2.5x by a frozen smoke bar).
+**Unblocks**: rung 3 of the dungeon ladder (monuments/spend); the
+Addendum-9 display rung's spec-interview sequences after this.
+
 ### 👁 EYEBALL — dungeon rung 1: delvers, a dispatch, a death, a line above ground
 
 **Status**: shipped 2026-08-19; spec frozen before implementation
@@ -203,9 +246,9 @@ beat). *A number appears* (any numeric readout → remove, never
 restyle). Also worth a word: does the hazard read melancholy rather
 than horror, and do the ▪ folk read as smaller/simpler kin rather than
 letter-noise?
-**Unblocks**: rung 2 of the dungeon ladder (gold as a visible hoard
-glyph; being directives that move the expedition params — the
-consequentiality kill test).
+**Unblocks**: nothing code-side any more — rung 2 shipped 2026-08-20 on
+the assumption this passes (per the approved plan); if a rung-1 kill
+fires here, both rungs re-cut together.
 
 ### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
 
