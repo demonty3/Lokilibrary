@@ -1075,6 +1075,10 @@ export async function mountTerminalLand(
       for (const t of silTexts) t.mask = null;
       return;
     }
+    // No skyline layers (the undercroft, or a land with no closed wings):
+    // with nothing to adopt it as a mask, the filled hole would render as a
+    // literal scene-sized white rect — the underground white flash.
+    if (silTexts.length === 0) return;
     skylineHole
       .rect(-4 * CW, -40 * CH, (model.width + 8) * CW, (model.height + 80) * CH)
       .fill(0xffffff)
