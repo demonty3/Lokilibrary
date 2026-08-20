@@ -1260,6 +1260,10 @@ addendum loads at the rung whose spec it constrains — and NOT before:
 - **Already parked with named preconditions, no routing needed:** setup
   advisor (Add. 4), lore-to-pack (Add. 3), moddable mechanics (Add. 2),
   aptitude-profiles kernel (Add. 1).
+- **Display rung (when the underground outgrows one wing's undercroft;
+  after rung 2, not part of it):** Addendum 9 — gates + hover-reveal,
+  vertically-scrolling undercroft pane, depth-as-difficulty, ~10-dungeon
+  scale envelope. Loads at that rung's spec-interview and NOT into rung 2.
 
 One near-term engineering consequence outside this entry: Addendum 6 needs
 CLUSTER-scoped conditions, a scope the conditions-vs-content ladder's
@@ -1269,3 +1273,50 @@ weather gets built scopeable once, not twice.
 Kill test for this routing: if the rung-1 spec-interview still ends up
 discussing the pantheon or corruption, the routing failed — physically move
 the addenda out of this entry into per-rung spec docs, don't re-label.
+
+### Addendum 9 — displaying many dungeons: gates, depth, the vertical scroll (added 2026-08-20; riff reopened post-rung-1)
+
+Rung 1 shipped delvers watchable live in one wing's undercroft. This
+addendum is about what the underground looks like when there are many
+dungeons — a future **display rung**, not rung 2. Three pieces,
+disaggregated:
+
+- **Gates, not interiors.** Default render for a dungeon is a closed gate;
+  the interior reveals on mouse-hover. More aligned with the spatial rails
+  than rung 1's open view: the default read is architecture, not activity,
+  and gates are cheap at any count where live interiors are not. Hard
+  constraint (measured, not inferred): the wallpapered desk receives NO
+  mouse input — hover exists only in peek / windowed mode, so on the
+  wallpaper a gate's exterior plus the marginalia trail must carry the
+  whole glance. Composes with rung 1 by keeping the founding wing's
+  undercroft open-view and gating additional dungeons. Verdict: PURSUE at
+  the display rung. First test: can a glancer tell an expedition happened
+  from a closed gate + marginalia alone? If not, the exterior beat is
+  under-cut — fix the gate render, don't fall back to open interiors.
+- **The undercroft pane scrolls independently, VERTICALLY.** The
+  above-ground desk stays fixed; the underground pane scrolls within
+  itself, downward. Vertical is the right axis for three stacking reasons:
+  (1) dungeons descend — "harder over time" becomes literal depth, early
+  dungeons near the surface, nastier ones deeper, difficulty displayed
+  with zero numbers; (2) below-ground vertical space is the one growth
+  direction that renegotiates nothing shipped (wing widths, shared sky,
+  skyline all untouched); (3) scrolling is peek-only anyway, so the
+  wallpaper shows a fixed crop of the shaft top — the deep stuff is out
+  of sight by default, which is the correct register. Wallpaper-mode
+  candidate: an autonomous camera that drifts to where the underground is
+  alive, instead of a static crop. Verdict: PURSUE as the display-rung
+  mechanism.
+- **Scale envelope: ~10, not 100.** Ten dungeons is a place with depth; a
+  hundred is a management surface, and the arc's standing kill condition
+  ("invites optimisation attention") fires on the count itself — a hundred
+  gates down a shaft is a progress bar rotated 90°. Hold "roughly ten,
+  maybe a couple dozen" as the envelope; a count pressure beyond that is
+  the economy's pacing being wrong, not a display problem. Verdict: PARK
+  the beyond-envelope scale; precondition: rungs 2–3 produce evidence the
+  economy genuinely wants more.
+
+Open question, deliberately unverdicted (Harry's own park): whether one
+static side-on view is the right way to display the whole world at all.
+Depends on decisions the archipelago mockups and the dungeon rungs haven't
+made. The autonomous-camera idea above is one concrete candidate when this
+reopens.
