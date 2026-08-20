@@ -13,7 +13,14 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-20** (DUNGEON RUNG 2 shipped — persona directives
+Last updated: **2026-08-20, later** (BOTH dungeon eyeballs PASSED —
+Harry: "both eyeballs pass — the hoard reads as treasure". Rung 1's four
+register kills never fired; rung 2's bar 8 passed in its own words, and
+the stages-1-2 same-glyph flag drew no complaint, so HOARD_GLYPH_ROWS
+stands as shipped. The dungeon ladder's next rung — rung 3,
+monuments/spend, loading Addendum 2 — is UNBLOCKED, as is the
+Addendum-9 display rung's spec-interview.)
+Previously **2026-08-20** (DUNGEON RUNG 2 shipped — persona directives
 + the hoard glyph: the dispatching being's temperament now sets each
 expedition's depth/retreat/party (zero LLM, prng-free, the Addendum-1
 consequentiality kill test is a smoke on identical seed streams — ghost
@@ -181,74 +188,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
-
-### 👁 EYEBALL — dungeon rung 2: the hoard pile, and temperaments you can feel
-
-**Status**: shipped 2026-08-20; spec frozen before implementation
-(`docs/superpowers/specs/2026-08-20-dungeon-rung2-directives-hoard.md`);
-all 7 code-level bars MET (smokes + typecheck + fresh-context spec
-review, zero findings). Bar 8 is yours. Sensible to judge together with
-(or right after) the rung-1 eyeball below — same windows.
-**What to look at**, on a booted desk with the d0 undercroft open:
-1. **The hoard pile.** Near the shaft foot, on the camp side (away from
-   the delve mouth), a small static heap in the delvers' quiet ink. It
-   grows only when the colony banks enough gold — stages, never a
-   number, never animated. Live right now it is stage 2 (`▪▪`).
-   To grow it a stage for the look: in the d0 SURFACE window,
-   `__terminal.debugDelveDispatch()`, wait for the walk + ✦, then
-   `__terminal.debugDelveResolve()` — a few cycles crosses a threshold.
-2. **The frozen bar, verbatim**: the hoard reads as *treasure
-   accumulating*. KILL: reads as clutter/confetti, or as a
-   gauge/progress bar → re-cut shape or thresholds, never add UI,
-   never animate it into legibility.
-3. **Honest flag, named before you look**: at stages 1-2 the pile is
-   `▪`/`▪▪` — the delvers' own glyph; only its stillness distinguishes
-   it until stage 3 mixes in `░▒`. If it reads as a loitering delver
-   rather than a pile, say so — the dial is `HOARD_GLYPH_ROWS` in
-   `src/terminal/delve.ts`.
-4. **Temperament, over days (no action needed now)**: dispatchers now
-   shape expeditions — a bold walker sends fewer, deeper, holds longer;
-   a timid one sends more, shallower, retreats early. The thing to
-   notice over a week of marginalia: losses cluster under bold
-   dispatchers as *temperament*, not as one being reading cursed
-   (the spread is capped at 2.5x by a frozen smoke bar).
-**Unblocks**: rung 3 of the dungeon ladder (monuments/spend); the
-Addendum-9 display rung's spec-interview sequences after this.
-
-### 👁 EYEBALL — dungeon rung 1: delvers, a dispatch, a death, a line above ground
-
-**Status**: shipped 2026-08-19; spec frozen before implementation
-(`docs/superpowers/specs/2026-08-19-dungeon-rung1-delvers.md`); all 8
-code-level bars MET (typecheck + full smoke sweep + fresh-context spec
-review green). What remains is exactly what code review cannot judge —
-the register.
-**What to look at**, on a booted desk (the colony lives under the
-first-sorted wing, i.e. the d0 window):
-1. Tray → **Open undercroft (d0)**. Between expeditions you should see
-   3-5 small `▪` folk drifting unhurried near the shaft — dimmer and
-   smaller-reading than the beings' letters.
-2. The organic dispatch is hours apart; to force one, in the d0
-   SURFACE window's console: `__terminal.debugDelveDispatch()` — a
-   being should visibly walk to the ▾ shaft mouth, a ✦ fires, and in
-   the undercroft the party walks to the far cavern edge and sinks
-   through the floor.
-3. `__terminal.debugDelveResolve()` (surface window) pulls the
-   resolution to now: survivors rise and walk back; the surface gets
-   ONE marginalia line at the shaft mouth in the dispatcher's voice
-   (walk-over reveal reads it). If the dice met the creature, the
-   undercroft shows a dim `▒▚░` disturbance pulse first.
-4. Relaunch the app: the same delvers (and any losses) persist.
-**The frozen kill conditions, verbatim — judge against these:**
-*Reads as an idle game* (grind-ticker feel → re-cut pacing/render,
-never add UI). *Invisible without peeking* (a week of uptime leaving no
-above-ground trace a wallpaper-glancer notices → re-cut the marginalia
-beat). *A number appears* (any numeric readout → remove, never
-restyle). Also worth a word: does the hazard read melancholy rather
-than horror, and do the ▪ folk read as smaller/simpler kin rather than
-letter-noise?
-**Unblocks**: nothing code-side any more — rung 2 shipped 2026-08-20 on
-the assumption this passes (per the approved plan); if a rung-1 kill
-fires here, both rungs re-cut together.
 
 ### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
 
@@ -479,6 +418,21 @@ session if convenient:
 ---
 
 ## Done / skipped (kept for posterity until next slice prunes)
+
+- ✅ **EYEBALL dungeon rung 2 (persona directives + hoard glyph) — PASSED
+  2026-08-20, same day**: "both eyeballs pass — the hoard reads as
+  treasure" — bar 8 in its own words. Neither register kill fired
+  (gauge/confetti, cursed persona); the pre-flagged stages-1-2
+  same-glyph ambiguity drew no complaint, so `HOARD_GLYPH_ROWS` stands
+  as shipped (its dial stays available). Rung 3 (monuments/spend,
+  Addendum 2) and the Addendum-9 display rung's spec-interview are
+  UNBLOCKED.
+- ✅ **EYEBALL dungeon rung 1 (Tier-0 delvers) — PASSED 2026-08-20**
+  ("both eyeballs pass"). None of the four frozen kills fired: no
+  idle-game read, not invisible without peeking, no number appeared,
+  and params provably move odds (smoke-held). The colony, dispatch
+  walk, hazard register, marginalia line and relaunch persistence all
+  stand as shipped.
 
 - ✅ **EYEBALL scale/anchor slice (tall-beside-standard) — PASSED
   2026-08-18, same day** ("the aperture eyeball passes — reads as the same

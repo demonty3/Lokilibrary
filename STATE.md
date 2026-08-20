@@ -3111,9 +3111,9 @@ all 8 bars MET at code level, zero findings. **Frozen kill conditions
 carried verbatim, all eyeball-gated:** reads as an idle game → re-cut
 pacing/render, never add UI; invisible without peeking after a week →
 re-cut the marginalia beat; a number appears → remove, never restyle;
-params do not move odds → smoke-delve already fails. Eyeball queued in
-TODO-USER.md (idle colony read, dispatch walk, hazard register,
-marginalia line, relaunch persistence).
+params do not move odds → smoke-delve already fails. **Eyeball PASSED
+2026-08-20** ("both eyeballs pass", judged together with rung 2's) —
+none of the four kills fired; the rung is CLOSED.
 
 **Dungeon rung 2 SHIPPED 2026-08-20 (eyeball queued) — persona
 directives + the hoard glyph; spec frozen before implementation**
@@ -3168,6 +3168,11 @@ the hoard reads as a gauge or confetti → re-cut shape/thresholds, never
 add UI, never animate. One honest flag for the eyeball: at stages 1-2
 the pile is `▪`/`▪▪`, the delvers' own glyph — only its stillness
 distinguishes it until stage 3's `░▒`; the dial is HOARD_GLYPH_ROWS.
+**Eyeball PASSED 2026-08-20, same day** — Harry: "both eyeballs pass —
+the hoard reads as treasure" (bar 8 in its own words; no kill fired,
+the same-glyph flag drew no complaint, no dial spent). The rung is
+CLOSED; rung 3 (monuments/spend, Addendum 2) and the Addendum-9
+display rung's spec-interview are UNBLOCKED.
 
 ## What this file is NOT
 
