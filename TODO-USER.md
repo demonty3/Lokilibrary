@@ -13,7 +13,18 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-20, later** (BOTH dungeon eyeballs PASSED —
+Last updated: **2026-08-20, night** (DUNGEON RUNG 3 shipped — the
+shrine, the spend, and watchable veneration: gold now leaves the hoard
+in tranches routed by the dispatcher's temperament (timid builds a
+3-stage shrine on the surface near the shaft; bold grows the colony
+past its founding size), and once the shrine is complete every
+expedition walks TWO legs — a held bow at the shrine, then the shaft —
+and descends warded (death odds measurably lower, calibrated inside
+the frozen two-sided bars). Spec frozen before implementation
+(Addendum 2 only); smoke-delve3 58 green, rungs 1-2 smokes
+byte-untouched, live-verified end-to-end incl. a cold-relaunch
+recovery. One eyeball queued below.)
+Previously **2026-08-20, later** (BOTH dungeon eyeballs PASSED —
 Harry: "both eyeballs pass — the hoard reads as treasure". Rung 1's four
 register kills never fired; rung 2's bar 8 passed in its own words, and
 the stages-1-2 same-glyph flag drew no complaint, so HOARD_GLYPH_ROWS
@@ -188,6 +199,35 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — dungeon rung 3: the shrine, the spend, and the veneration walk
+
+**Status**: shipped 2026-08-20 (spec frozen first:
+`docs/superpowers/specs/2026-08-20-dungeon-rung3-monuments.md`; smokes +
+live fingerprint green — the mechanics are proven, this eyeball is bars
+9-10, the taste half).
+**What to look at**: the running desk's delver wing (d0/t1). The gold
+the delvers bank now gets SPENT: timid dispatchers raise a small
+3-column shrine on the surface near the shaft (three construction
+stages: footing `░▒░` → walls → the finished stone gate), bold ones
+grow the colony below instead. Once the shrine is finished, watch a
+dispatch: the being walks to the SHRINE first, holds a ~3 s bow, then
+walks on to the shaft — and that party dies less often below because of
+it. One marginalia line lands at the shrine per completed stage, in the
+spender's voice. (The verification desk already has the shrine at stage
+3; to see a veneration walk live, `debugDelveDispatch()` on t1 or just
+leave the desk running — note occluded windows pause the whole desk
+tick, so it must be on screen.)
+**Judge (bars 9-10, kills verbatim)**:
+- Does the veneration walk read as RITUAL — a deliberate visit, a held
+  beat, then the descent — or as pathing noise? Kill: pathing noise.
+- Does the shrine read as wealth-from-below made architecture, distinct
+  from the mastered-game monument? Kill: idle-game read → re-cut
+  pacing, never add UI; gauge/confetti read → re-cut shape or
+  thresholds, never animate.
+- A number anywhere on the world surface → remove, never restyle.
+**Unblocks**: rung 4 (skill cookbook + the DM proposal loop, Addenda
+2/7/8), and the Addendum-9 display rung's spec-interview.
 
 ### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
 

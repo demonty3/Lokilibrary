@@ -35,6 +35,7 @@ import {
   MONUMENT_BODY, MONUMENT_CROWN, MONUMENT_DOOR, ORE_GLYPH, SIGNPOST_GLYPHS,
 } from '../src/procedural/land.ts';
 import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
+import { SHRINE_GLYPH_ROWS } from '../src/terminal/delve.ts';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
 import { MURAL_RAMP } from '../src/render/muralCells.ts';
 import { THEMES } from '../src/themes/index.ts';
@@ -113,6 +114,10 @@ add(MONUMENT_CROWN, 'land.ts MONUMENT_CROWN (monument architecture)');
 add(MONUMENT_DOOR, 'land.ts MONUMENT_DOOR (monument architecture)');
 add(ORE_GLYPH, 'land.ts ORE_GLYPH (ore veins)');
 add(SIGNPOST_GLYPHS.join(''), 'land.ts SIGNPOST_GLYPHS (sign posts)');
+
+// 4b-v. Dungeon rung 3 — the shrine's construction stages (imported real
+// source; drawn by the surface window as direct BitmapText).
+for (const rows of SHRINE_GLYPH_ROWS) add(rows.join(''), 'delve.ts SHRINE_GLYPH_ROWS (rung-3 shrine)');
 
 // 4c. Tier-2 worn-path crust variant (src/terminal/wear.ts) — imported real source.
 add(WORN_CRUST_GLYPH, 'wear.ts WORN_CRUST_GLYPH (worn crust)');

@@ -295,6 +295,52 @@ export function expeditionVocabLines(): string[] {
   return out;
 }
 
+/** Dungeon rung 3 — one line above ground when the shrine crosses a
+ *  construction stage, in the SPENDING dispatcher's voice (rung-3 spec:
+ *  one marginalia line per completed stage, no numerals). Indexed by
+ *  stage-1 (stages run 1..SHRINE_STAGE_MAX). */
+const SHRINE_VOCAB: Record<string, readonly string[]> = {
+  loki: [
+    'laid a footing above the shaft. the deep is buying something back.',
+    'walls now, waist-high. gold goes down, stone comes up.',
+    'the shrine is finished. the delvers will want to touch it going down.',
+  ],
+  archivist: [
+    'foundation laid. expenditure: recorded. purpose: pending.',
+    'the structure rises. the ledger calls it civic works.',
+    'shrine complete. filed under: things the gold became.',
+  ],
+  cat: [
+    'the tall ones are stacking stones. warm stones, eventually.',
+    'the stone pile is becoming a shape. approving, cautiously.',
+    'the shrine is done. it holds the afternoon heat. acceptable.',
+  ],
+  visitor: [
+    'someone started building by the shaft. left a good flat stone for it.',
+    'the little shrine has walls now. travellers notice these things.',
+    'finished. every road should end at something like this.',
+  ],
+  ghost: [
+    '"stone laid over the shaft. the deep notices what is built above it."',
+    '"the walls rise. some of us remember raising walls."',
+    '"it is done. the living have somewhere to bow. good."',
+  ],
+};
+
+/** The shrine stage's marginalia line. Unknown spender ids fall back to
+ *  the loki table (the DEFAULT_MARK_STYLE philosophy). */
+export function shrineNote(agentId: string, stage: number): string {
+  const lines = SHRINE_VOCAB[agentId] ?? SHRINE_VOCAB.loki;
+  return lines[Math.max(0, Math.min(lines.length - 1, stage - 1))];
+}
+
+/** Every authored shrine line, for the no-numerals smoke. */
+export function shrineVocabLines(): string[] {
+  const out: string[] = [];
+  for (const lines of Object.values(SHRINE_VOCAB)) out.push(...lines);
+  return out;
+}
+
 /** A note for a launch runner. Unknown ids fall back to loki (the
  *  DEFAULT_MARK_STYLE philosophy, as in noteFor). */
 export function launchNote(agentId: string, game: string, rand: () => number): string {

@@ -3174,6 +3174,84 @@ the same-glyph flag drew no complaint, no dial spent). The rung is
 CLOSED; rung 3 (monuments/spend, Addendum 2) and the Addendum-9
 display rung's spec-interview are UNBLOCKED.
 
+**Dungeon rung 3 SHIPPED 2026-08-20 (eyeball queued) — the shrine, the
+spend, and watchable veneration; spec frozen before implementation**
+(`docs/superpowers/specs/2026-08-20-dungeon-rung3-monuments.md`;
+Addendum 2 is the only addendum routed in). Harry's four direction
+calls, made at planning: the spend decision is PERSONA-DERIVED and
+zero-LLM (reflection-driven spending is a later rung); the buff is a
+WARD; the monument stands on the SURFACE in visible construction
+stages; reinvestment buys a BIGGER COLONY. One flagged inference,
+approved with the plan: timid personas fund the monument (civic,
+patient), bold ones reinvest (direct, selfish). The spend: at each
+resolution, once `hoardGold ≥ SPEND_RESERVE(40) + SPEND_TRANCHE(60)`,
+one tranche leaves the hoard, routed by the DISPATCHER's
+`directiveBoldness` — <0.5 grows `monumentFund`, ≥0.5 adds a
+`capRaises` (a full cap ladder routes everything to the shrine); pure
+in (state, boldness), ZERO prng draws, scheduling provably untouched
+by who spent. The rendered hoard pile may now SHRINK by stages when a
+tranche leaves — `hoardStage` the FUNCTION stays monotone (rung-2 bar
+inherited verbatim); the supersession is on the spec's record. The
+ward: `warded` on ExpeditionParams swaps `ROUND_DEATH_CHANCE` 0.1 →
+`WARDED_ROUND_DEATH_CHANCE` 0.055 inside `runExpedition` — same draw
+count, same order, so every unwarded run is BYTE-IDENTICAL to rung 2
+by construction. Calibrated BEFORE tuning was frozen (the rung-2
+order-of-operations, on the spec's record): on the bold-most probe
+over identical streams, 0.055 → gap 1.11pp (bar > 1pp) at ratio 0.562
+(god-mode floor ≥ 0.5×); the first guess 0.07 FAILED the gap bar and
+was re-tuned at calibration, 0.05 crowds the floor. The colony:
+`effectiveTargetPop = min(POPULATION_HARD_CAP=8, targetPop +
+capRaises)` replaces both roster reads; recruits ride the unchanged
+`tickArrival` road. The shrine: `shrineStage` (pure, monotone,
+thresholds 60/180/360; the fund never decrements — the shrine only
+grows) drives `SHRINE_GLYPH_ROWS`, a low 3-wide 3-stage structure
+(`░▒░` → `▌▒▐` walls → `▐▪▌/▌▒▐/█░█`), deliberately unlike the
+mastered-game monument (no crown, no box-drawing), drawn by the
+SURFACE window in the hoard convention (direct BitmapText, quiet ink,
+static), placed by a deterministic scan outward from the shaft over
+flat structure-free ground (side by wing hash; recomputed on
+recompose), one `SHRINE_VOCAB` marginalia line per completed stage in
+the spending dispatcher's voice (re-derived from the fund on boot, so
+a relaunch never re-announces). Veneration: a completed shrine makes
+the dispatch walk TWO LEGS — `delveDispatch` gains
+`phase: toShrine|toShaft` + `warded`; the being holds a 3 s bow at the
+shrine, the walk cap re-stamps per leg, and `beginExpedition` receives
+`warded: true` BECAUSE the walk happened — the buff's cause is a
+scene (Addendum 2's kill condition satisfied by construction). No
+DelveState schema bump (new optional fields default at parse; rung-2
+blobs load clean), zero new AI call sites. Evidence: new
+`smoke-delve3` (58 — the two-sided ward kill test on identical
+streams, unwarded byte-identity, spend routing/determinism/purity,
+fund + shrineStage monotonicity, hoardStage inherited verbatim,
+cap bounds, back-compat parse, numeral-free + allowlisted glyph rows
+and vocab); `smoke-delve` (130) and `smoke-delve2` (41)
+byte-untouched and green; smoke-glyph-coverage grew the
+SHRINE_GLYPH_ROWS import; full 84-script sweep + all three typecheck
+legs green. VERIFIED LIVE (macOS desk, t1/t6/u1): 8 organic
+dispatch/resolve cycles walked the ledger 1129→853 while the fund
+climbed 60→360 (stage 1→2→3 rendered on the surface at the shaft's
+ground line), then the next dispatch ran the two-leg walk — debug
+phases `toShrine → toShaft+warded`, the expedition descended
+`activeWarded: true` — and a COLD APP RELAUNCH recovered fund 420 /
+stage 3 / shrineX from the blob alone. One field lesson: occluded
+desk windows pause the whole tick (the rung-2 "visible not throttled"
+note), which mimicked a dead dispatch until the app was foregrounded.
+debugDelve grew `monumentFund/capRaises/effectiveTargetPop/shrineX/
+shrineStage/shrineGlyphs/shrinePx/dispatch{phase,warded}/activeWarded`
+plus e2e-only `debugDelveGrant(gold)`. Shots (context only):
+`docs/design-reviews/2026-08-20-dungeon-rung3/`. **Frozen kill
+conditions carried verbatim, eyeball-gated:** a number appears →
+remove, never restyle; the ward statistically illegible →
+smoke-delve3 already fails, monuments revert to expression-only; no
+watchable veneration on the desk → monuments revert to
+expression-only; gauge/confetti read → re-cut shape or thresholds,
+never animate; idle-game read → re-cut pacing, never add UI. Eyeball
+(bars 9-10, queued in TODO-USER.md): the veneration walk should read
+as ritual, the shrine as wealth-from-below made architecture. Next on
+the ladder: rung 4 (skill cookbook + the DM proposal loop; Addenda
+2/7/8 route in), and the Addendum-9 display rung's own
+spec-interview.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

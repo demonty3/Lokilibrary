@@ -43,6 +43,9 @@ export const UPTIME_CLAMP_MS = 10_000;
 /** Founding population bounds (spec bar 1: 3 to 5). */
 export const POPULATION_MIN = 3;
 export const POPULATION_MAX = 5;
+/** Rung 3: reinvestment can raise the colony past its founding size, but
+ *  never past this — the camp must stay readable (rung-3 spec bar 6). */
+export const POPULATION_HARD_CAP = 8;
 
 /** What a being's directive will move at rung 2 — engine defaults now. */
 export interface ExpeditionParams {
@@ -52,6 +55,10 @@ export interface ExpeditionParams {
   retreatThreshold: number;
   /** Delvers sent (capped by the living population at dispatch). */
   partySize: number;
+  /** Rung 3: the party venerated the completed shrine before descending.
+   *  A threshold swap on the death die — never an inserted draw, so
+   *  unwarded runs are byte-identical to rung 2 (rung-3 spec bar 4). */
+  warded?: boolean;
 }
 
 export const DEFAULT_EXPEDITION_PARAMS: ExpeditionParams = {
@@ -134,6 +141,50 @@ export const HOARD_GLYPH_ROWS: readonly (readonly string[])[] = [
   [' ▪▪▪ ', '░▒▪▪▒'],
 ];
 
+// ── Rung 3: the spend, and the shrine ──────────────────────────────────────
+// (docs/superpowers/specs/2026-08-20-dungeon-rung3-monuments.md)
+
+/** The hoard keeps this much back — the colony never spends to zero. */
+export const SPEND_RESERVE = 40;
+/** One spend moves exactly this much out of the hoard. */
+export const SPEND_TRANCHE = 60;
+
+export const SHRINE_STAGE_MAX = 3;
+/** Monument-fund thresholds per stage. Tranches arrive one per timid
+ *  resolution, so the shrine rises over weeks of lived-with desk. */
+const SHRINE_THRESHOLDS = [60, 180, 360] as const;
+
+/** 0 = no shrine yet. Pure, monotone non-decreasing in monumentFund
+ *  (rung-3 spec bar 5; the fund itself never decrements). */
+export function shrineStage(monumentFund: number): number {
+  let stage = 0;
+  for (const t of SHRINE_THRESHOLDS) {
+    if (monumentFund >= t) stage += 1;
+  }
+  return stage;
+}
+
+/** Veneration (and the ward) begin only once the shrine is finished. */
+export function shrineComplete(monumentFund: number): boolean {
+  return shrineStage(monumentFund) >= SHRINE_STAGE_MAX;
+}
+
+/** What the surface draws per stage 1..SHRINE_STAGE_MAX, verbatim —
+ *  rows top-to-bottom, a low 3-wide shrine deliberately unlike the
+ *  mastered-game monument (no crown, no box-drawing walls), numeral-free
+ *  and glyph-allowlisted (smoke-asserted). Static by design. */
+export const SHRINE_GLYPH_ROWS: readonly (readonly string[])[] = [
+  ['░▒░'],
+  [' ▪ ', '▌▒▐'],
+  ['▐▪▌', '▌▒▐', '█░█'],
+];
+
+/** The colony the roster refills toward: founding size plus reinvested
+ *  raises, hard-capped (rung-3 spec bar 6). */
+export function effectiveTargetPop(state: DelveState): number {
+  return Math.min(POPULATION_HARD_CAP, state.targetPop + state.capRaises);
+}
+
 // Creature-hazard dice (spec bar 3: ONE creature, dice-driven). The
 // creature lairs at a drawn step; meeting it starts rounds of danger.
 const LAIR_STEP_MIN = 2;
@@ -141,6 +192,12 @@ const LAIR_STEP_MIN = 2;
 const ENCOUNTER_CHANCE = 0.35;
 /** Per-round chance the exposed delver dies. */
 const ROUND_DEATH_CHANCE = 0.1;
+/** Rung 3: the same die when the party walks in warded — the shrine is a
+ *  ward, never god-mode (rung-3 spec bar 2 bounds the gap two-sidedly).
+ *  Calibrated 2026-08-20 on the bold-most probe (20k runs, identical
+ *  streams): 0.055 → gap 1.11pp (bar > 1pp) at ratio 0.562 (bar ≥ 0.5);
+ *  0.07 fails the gap bar, 0.05 crowds the god-mode floor. */
+const WARDED_ROUND_DEATH_CHANCE = 0.055;
 /** Per-round chance the party drives the creature off, plus a hand each. */
 const DRIVE_OFF_BASE = 0.2;
 const DRIVE_OFF_PER_DELVER = 0.08;
@@ -190,7 +247,7 @@ export function runExpedition(params: ExpeditionParams, prng: Prng): ExpeditionO
         rounds += 1;
         // One delver stands exposed this round.
         const exposed = [...alive][prng.range(0, alive.size)];
-        if (prng.next() < ROUND_DEATH_CHANCE) alive.delete(exposed);
+        if (prng.next() < (params.warded ? WARDED_ROUND_DEATH_CHANCE : ROUND_DEATH_CHANCE)) alive.delete(exposed);
         if (alive.size === 0) break;
         if (prng.next() < DRIVE_OFF_BASE + DRIVE_OFF_PER_DELVER * alive.size) break;
         if (rounds >= Math.max(1, params.retreatThreshold)) {
@@ -270,6 +327,11 @@ export interface DelveState {
   /** Wall-ms a replacement delver arrives, when one is on the road. */
   nextArrivalAtMs: number | null;
   active: ActiveExpedition | null;
+  /** Rung 3: gold spent toward the shrine, ever. Never decrements —
+   *  the shrine only grows (spec bar 5). */
+  monumentFund: number;
+  /** Rung 3: reinvested colony-cap raises (see effectiveTargetPop). */
+  capRaises: number;
 }
 
 /** FNV-1a 32-bit (the terminalLand.ts local-copy pattern). */
@@ -316,6 +378,8 @@ export function initialDelveState(wing: string): DelveState {
     nextDispatchAtUptimeMs: prng.range(DISPATCH_GAP_MS[0], DISPATCH_GAP_MS[0] + DISPATCH_GAP_MS[1]),
     nextArrivalAtMs: null,
     active: null,
+    monumentFund: 0,
+    capRaises: 0,
   };
   for (let i = 0; i < state.targetPop; i++) state.delvers.push(recruit(state));
   return state;
@@ -328,6 +392,10 @@ export function parseDelveState(json: string | null, wing: string): DelveState |
   try {
     const s = JSON.parse(json) as DelveState;
     if (s.wing !== wing || !Array.isArray(s.delvers)) return null;
+    // Rung-2-shaped blobs predate the spend — default, never reject
+    // (rung-3 spec bar 6: no schema bump, no migration).
+    if (typeof s.monumentFund !== 'number') s.monumentFund = 0;
+    if (typeof s.capRaises !== 'number') s.capRaises = 0;
     return s;
   } catch {
     return null;
@@ -397,6 +465,10 @@ export interface Resolution {
   deadName: string;
   deadCount: number;
   gold: number;
+  /** Rung 3: where this resolution's tranche went, if one was due. */
+  spent: 'monument' | 'colony' | null;
+  /** Shrine stage after the spend — the caller marks stage crossings. */
+  shrineStageAfter: number;
 }
 
 /**
@@ -405,8 +477,19 @@ export interface Resolution {
  * replacement (at most one on the road at a time) starts the slow walk
  * from elsewhere. Returns what the marginalia needs, or null if nothing
  * was due.
+ *
+ * Rung 3: after the gold banks, one tranche may leave the hoard —
+ * routed by the DISPATCHER's temperament (timid builds the shrine, bold
+ * grows the colony; a full cap ladder routes everything to the shrine).
+ * Pure in (state, boldness): zero prng draws, so no expedition stream
+ * can move (rung-3 spec bar 1). Unknown dispatchers pass 0.5 (bold side
+ * of the split — reinvest — matching DEFAULT_LAND_PERSONA's directive).
  */
-export function resolveExpedition(state: DelveState, nowMs: number): Resolution | null {
+export function resolveExpedition(
+  state: DelveState,
+  nowMs: number,
+  dispatcherBoldness = 0.5,
+): Resolution | null {
   const a = state.active;
   if (!a || nowMs < a.resolveAtMs) return null;
   const deadIds = a.outcome.deadIndices
@@ -415,11 +498,23 @@ export function resolveExpedition(state: DelveState, nowMs: number): Resolution 
   const deadNames = state.delvers.filter((d) => deadIds.includes(d.id)).map((d) => d.name);
   state.delvers = state.delvers.filter((d) => !deadIds.includes(d.id));
   state.hoardGold += a.outcome.gold;
+  let spent: 'monument' | 'colony' | null = null;
+  if (state.hoardGold >= SPEND_RESERVE + SPEND_TRANCHE) {
+    state.hoardGold -= SPEND_TRANCHE;
+    const capFull = state.targetPop + state.capRaises >= POPULATION_HARD_CAP;
+    if (dispatcherBoldness >= 0.5 && !capFull) {
+      state.capRaises += 1;
+      spent = 'colony';
+    } else {
+      state.monumentFund += SPEND_TRANCHE;
+      spent = 'monument';
+    }
+  }
   state.active = null;
   const prng = mulberry32(delveHash(`delve-sched:${state.wing}:${a.seq}`));
   state.uptimeMs = 0;
   state.nextDispatchAtUptimeMs = prng.range(DISPATCH_GAP_MS[0], DISPATCH_GAP_MS[0] + DISPATCH_GAP_MS[1]);
-  if (state.delvers.length < state.targetPop && state.nextArrivalAtMs === null) {
+  if (state.delvers.length < effectiveTargetPop(state) && state.nextArrivalAtMs === null) {
     state.nextArrivalAtMs = nowMs + prng.range(ARRIVAL_GAP_MS[0], ARRIVAL_GAP_MS[0] + ARRIVAL_GAP_MS[1]);
   }
   return {
@@ -428,6 +523,8 @@ export function resolveExpedition(state: DelveState, nowMs: number): Resolution 
     deadName: deadNames[0] ?? '',
     deadCount: deadIds.length,
     gold: a.outcome.gold,
+    spent,
+    shrineStageAfter: shrineStage(state.monumentFund),
   };
 }
 
@@ -437,7 +534,7 @@ export function tickArrival(state: DelveState, nowMs: number): Delver | null {
   if (state.nextArrivalAtMs === null || nowMs < state.nextArrivalAtMs) return null;
   const d = recruit(state);
   state.delvers.push(d);
-  if (state.delvers.length < state.targetPop) {
+  if (state.delvers.length < effectiveTargetPop(state)) {
     const prng = mulberry32(delveHash(`delve-arrive:${state.wing}:${state.recruitSeq}`));
     state.nextArrivalAtMs = nowMs + prng.range(ARRIVAL_GAP_MS[0], ARRIVAL_GAP_MS[0] + ARRIVAL_GAP_MS[1]);
   } else {

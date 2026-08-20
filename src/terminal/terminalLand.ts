@@ -88,6 +88,7 @@ import { bodyHost, chainOffsets, deskChain, sharedWisps, type DeskChainSpec } fr
 import {
   expeditionNote,
   launchNote,
+  shrineNote,
   maybeMark,
   markDisplayRow,
   MARK_DEDUPE_COLS,
@@ -102,13 +103,18 @@ import {
   beginExpedition,
   deferDispatch,
   delverWingOf,
+  directiveBoldness,
   directiveParams,
   dispatchDue,
+  effectiveTargetPop,
   HOARD_GLYPH_ROWS,
   hoardStage,
   initialDelveState,
   parseDelveState,
   resolveExpedition,
+  SHRINE_GLYPH_ROWS,
+  shrineComplete,
+  shrineStage,
   tickArrival,
   type DelveState,
 } from './delve';
@@ -593,12 +599,23 @@ declare global {
             deadCount: number;
           } | null;
         } | null;
-        dispatch: { agentId: string } | null;
+        dispatch: { agentId: string; phase: 'toShrine' | 'toShaft'; warded: boolean } | null;
         views: Array<{ id: string; x: number; below: boolean; visible: boolean }>;
         hazardGlyphs: number;
         /** Rung 2 — derived hoard stage + rendered pile glyph rows. */
         hoardStage: number;
         hoardGlyphs: number;
+        /** Rung 3 — the spend, the shrine, and the ward (harness-facing
+         *  ground truth; nothing here renders). */
+        monumentFund: number;
+        capRaises: number;
+        effectiveTargetPop: number;
+        shrineX: number | null;
+        shrineStage: number;
+        shrineGlyphs: number;
+        shrinePx: Array<[number, number, string]>;
+        worldPx: [number, number];
+        activeWarded: boolean;
       };
       /** e2e only — dungeon rung 1. Make the next dispatch due NOW
        *  (jumps the uptime clock; the walk + everything after runs the
@@ -607,6 +624,11 @@ declare global {
       /** e2e only — dungeon rung 1. Pull a live expedition's resolution
        *  (and hazard beat) to now. Surface owner only. */
       debugDelveResolve(): boolean;
+      /** e2e only — dungeon rung 3. Grant gold straight into the hoard so
+       *  spend/shrine/veneration are observable inside one session; the
+       *  spend itself still runs the REAL resolution path. Surface owner
+       *  only. */
+      debugDelveGrant(gold: number): boolean;
       debugEdgeFrame(): Record<
         'left' | 'right',
         {
@@ -1263,6 +1285,9 @@ export async function mountTerminalLand(
     structureCols = structureColumns(model.role);
     launchHotspots = launchTargets(model);
     doorX = doorColumn(model.role);
+    // Rung 3: the reshaped land may have moved the shrine's flat ground.
+    shrineX = computeShrineX();
+    lastShrineStage = -1; // re-place on the new surface next tick
     // The ground these glyphs sat on no longer exists. Re-anchor NOW rather
     // than on the next tick — the recompose is the event that invalidated
     // them, and a throttled or paused renderer may not tick for a long time.
@@ -2311,8 +2336,15 @@ export async function mountTerminalLand(
   const delveCellId = cellIdFor(seed);
   let delverWing: string | null = null; // resolved from the topology broadcast
   let delveState: DelveState | null = null; // surface owner's live truth
-  /** The live dispatch walk (one at a time — the errand posture). */
-  let delveDispatch: { agentId: string; startedS: number } | null = null;
+  /** The live dispatch walk (one at a time — the errand posture).
+   *  Rung 3: a completed shrine makes it two legs — shrine first (the
+   *  veneration beat, which wards the party), then the shaft mouth. */
+  let delveDispatch: {
+    agentId: string;
+    startedS: number;
+    phase: 'toShrine' | 'toShaft';
+    warded: boolean;
+  } | null = null;
   let delveLastMs = Date.now();
   let delveUptimeFlushAtMs = 0;
   /** A stalled dispatch walk (dispatcher went absent) releases + retries. */
@@ -2349,6 +2381,11 @@ export async function mountTerminalLand(
     if (w === delverWing) return;
     delverWing = w;
     loadDelve();
+    // Rung 3: place the shrine for the (possibly newly) delver-owning
+    // land, and re-derive what the marginalia has already told.
+    shrineX = computeShrineX();
+    shrineMarkedStage = shrineStage(delveState?.monumentFund ?? 0);
+    lastShrineStage = -1;
   };
   /** Resolution's one line above ground, at the shaft mouth, in the
    *  DISPATCHING being's voice (the stepThrough posture: an event
@@ -2365,6 +2402,70 @@ export async function mountTerminalLand(
     markLastAt.set(dispatcherId, elapsedS);
     recordMark(memory, { agentId: dispatcherId, note, col, row: model.surface[col] });
     addMarkView(dispatcherId, note, col);
+  };
+
+  // ── Dungeon rung 3: the shrine (spec 2026-08-20-dungeon-rung3) ─────────
+  // Wealth from below made architecture: the monument fund's stages stand
+  // on the SURFACE near the shaft, drawn by the wing's surface window in
+  // the hoard convention (direct BitmapText, decor.quiet ink, static —
+  // never animated). Placement is a deterministic scan outward from the
+  // shaft over flat, structure-free ground; a land with no such ground
+  // simply has no shrine (and no veneration) until a recompose finds room.
+  let shrineX: number | null = null;
+  const computeShrineX = (): number | null => {
+    if (isUnder || !delversHere()) return null;
+    const firstSide = fnv1a(`shrine:${wing}`) % 2 === 0 ? 1 : -1;
+    for (const side of [firstSide, -firstSide]) {
+      for (let off = 4; off <= 12; off++) {
+        const c = vShaftX + side * off;
+        if (c - 1 < 1 || c + 1 > model.width - 2) continue;
+        const ground = model.surface[c];
+        if (model.surface[c - 1] !== ground || model.surface[c + 1] !== ground) continue;
+        if (structureCols.some((sc) => Math.abs(sc - c) <= 2)) continue;
+        if (doorX !== null && Math.abs(doorX - c) <= 2) continue;
+        return c;
+      }
+    }
+    return null;
+  };
+  const shrineViews: BitmapText[] = [];
+  let lastShrineStage = -1;
+  const rebuildShrine = (): void => {
+    const stage = isUnder ? 0 : shrineStage(delveState?.monumentFund ?? 0);
+    if (stage === lastShrineStage) return;
+    lastShrineStage = stage;
+    for (const t of shrineViews) t.destroy();
+    shrineViews.length = 0;
+    if (stage === 0 || shrineX === null) return;
+    const cx = shrineX;
+    const rows = SHRINE_GLYPH_ROWS[stage - 1];
+    rows.forEach((row, i) => {
+      const t = new BitmapText({
+        text: row,
+        style: { fontFamily: COZETTE_FONT_FAMILY, fontSize: COZETTE_FONT_SIZE, fill: delverInk() },
+      });
+      t.x = (cx - 1) * CW;
+      t.y = surfaceLocalY(cx) - (rows.length - 1 - i) * CH;
+      world.addChild(t);
+      shrineViews.push(t);
+    });
+  };
+  /** Stage the marginalia has already told — re-derived from the loaded
+   *  fund on boot, so a relaunch never re-announces an old stage. */
+  let shrineMarkedStage = 0;
+  const placeShrineMark = (spenderId: string, stage: number): void => {
+    if (shrineX === null) return;
+    const col = Math.min(model.width - 1, Math.max(0, shrineX));
+    for (let i = marks.length - 1; i >= 0; i--) {
+      if (Math.abs(marks[i].col - col) <= MARK_DEDUPE_COLS) {
+        marks[i].text.destroy();
+        marks.splice(i, 1);
+      }
+    }
+    const note = shrineNote(spenderId, stage);
+    markLastAt.set(spenderId, elapsedS);
+    recordMark(memory, { agentId: spenderId, note, col, row: model.surface[col] });
+    addMarkView(spenderId, note, col);
   };
 
   // The undercroft presenter: single-cell ▪ folk on the cavern floor —
@@ -2562,11 +2663,23 @@ export async function mountTerminalLand(
       const dS = delveState;
       accrueUptime(dS, delveDtMs);
       if (tickArrival(dS, nowMs)) saveDelve(); // a replacement walks in
-      const res = resolveExpedition(dS, nowMs);
+      let res = null as ReturnType<typeof resolveExpedition>;
+      if (dS.active && nowMs >= dS.active.resolveAtMs) {
+        // Rung 3: the DISPATCHER's temperament routes the spend — timid
+        // builds the shrine, bold grows the colony (persona-derived,
+        // prng-free; absent dispatchers spend as the default persona).
+        const p = beings.get(dS.active.dispatcherId)?.persona ?? DEFAULT_LAND_PERSONA;
+        res = resolveExpedition(dS, nowMs, directiveBoldness(p));
+      }
       if (res) {
         saveDelve();
         placeExpeditionMark(res.dispatcherId, res.kind, res.deadName);
+        if (res.spent === 'monument' && res.shrineStageAfter > shrineMarkedStage) {
+          shrineMarkedStage = res.shrineStageAfter;
+          placeShrineMark(res.dispatcherId, res.shrineStageAfter);
+        }
       }
+      rebuildShrine(); // early-returns unless the stage moved
       if (delveDispatch && elapsedS - delveDispatch.startedS > DELVE_WALK_CAP_S) {
         // The walk stalled (dispatcher gone absent / off the roster):
         // release them and let the colony ask again in a while.
@@ -2580,12 +2693,21 @@ export async function mountTerminalLand(
         saveDelve();
       }
       if (!delveDispatch && dispatchDue(dS)) {
-        const runner = pickRunner(vShaftX);
+        // Rung 3: a completed shrine makes the walk two legs — the being
+        // venerates first, and the party descends warded because of it.
+        const venerate = shrineX !== null && shrineComplete(dS.monumentFund);
+        const firstLegX = venerate && shrineX !== null ? shrineX : vShaftX;
+        const runner = pickRunner(firstLegX);
         if (runner) {
-          runner.intent = { kind: 'dispatch', targetX: vShaftX };
+          runner.intent = { kind: 'dispatch', targetX: firstLegX };
           runner.pausedUntil = 0; // asked by the colony — no hesitation beat
           runner.nextIntentAt = Infinity; // no re-pick until the mouth
-          delveDispatch = { agentId: runner.id, startedS: elapsedS };
+          delveDispatch = {
+            agentId: runner.id,
+            startedS: elapsedS,
+            phase: venerate ? 'toShrine' : 'toShaft',
+            warded: false,
+          };
         } else {
           deferDispatch(dS); // nobody home — the colony waits
           saveDelve();
@@ -3060,10 +3182,28 @@ export async function mountTerminalLand(
           // shaft mouth FIRES the expedition (the errand posture — the
           // colony asked, so the world may watch the walk).
           if (Math.abs(b.x - it.targetX) <= APPROACH_NEAR) {
+            if (delveState && delveDispatch?.agentId === b.id && delveDispatch.phase === 'toShrine') {
+              // Rung 3: the veneration beat — a held bow at the shrine,
+              // then the second leg to the shaft. The walk cap re-arms
+              // per leg, and the bow is what wards the party (the buff's
+              // cause is a scene — spec bar 3).
+              delveDispatch.phase = 'toShaft';
+              delveDispatch.warded = true;
+              delveDispatch.startedS = elapsedS;
+              b.intent = { kind: 'dispatch', targetX: vShaftX };
+              b.pausedUntil = elapsedS + 3; // the bow
+              continue;
+            }
             if (delveState && delveDispatch?.agentId === b.id) {
               // Rung 2: the dispatcher's temperament shapes the expedition
-              // (persona-derived, prng-free — spec bar 1).
-              beginExpedition(delveState, b.id, directiveParams(b.id, b.persona), Date.now());
+              // (persona-derived, prng-free — spec bar 1). Rung 3: a
+              // venerated walk descends warded.
+              beginExpedition(
+                delveState,
+                b.id,
+                { ...directiveParams(b.id, b.persona), warded: delveDispatch.warded },
+                Date.now(),
+              );
               saveDelve();
               spawnSpark('down'); // the send-off, at the mouth
               delveDispatch = null;
@@ -3595,7 +3735,9 @@ export async function mountTerminalLand(
                 : null,
             }
           : null,
-        dispatch: delveDispatch ? { agentId: delveDispatch.agentId } : null,
+        dispatch: delveDispatch
+          ? { agentId: delveDispatch.agentId, phase: delveDispatch.phase, warded: delveDispatch.warded }
+          : null,
         views: [...delverViews.values()].map((v) => ({
           id: v.id,
           x: Math.round(v.x * 10) / 10,
@@ -3605,7 +3747,25 @@ export async function mountTerminalLand(
         hazardGlyphs: hazardViews.length,
         hoardStage: hoardStage(s?.hoardGold ?? 0),
         hoardGlyphs: hoardViews.length,
+        monumentFund: s?.monumentFund ?? 0,
+        capRaises: s?.capRaises ?? 0,
+        effectiveTargetPop: s ? effectiveTargetPop(s) : 0,
+        shrineX,
+        shrineStage: shrineStage(s?.monumentFund ?? 0),
+        shrineGlyphs: shrineViews.length,
+        shrinePx: shrineViews.map((t) => {
+          const g = t.getGlobalPosition();
+          return [Math.round(g.x), Math.round(g.y), t.text] as [number, number, string];
+        }),
+        worldPx: [Math.round(world.x), Math.round(world.y)],
+        activeWarded: s?.active?.params.warded === true,
       };
+    },
+    debugDelveGrant: (gold) => {
+      if (isUnder || !delveState || !delversHere()) return false;
+      delveState.hoardGold += Math.max(0, Math.floor(gold));
+      saveDelve();
+      return true;
     },
     debugDelveDispatch: () => {
       if (isUnder || !delveState || !delversHere()) return false;
