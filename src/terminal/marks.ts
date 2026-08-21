@@ -341,6 +341,67 @@ export function shrineVocabLines(): string[] {
   return out;
 }
 
+/** Dungeon rung 4 — the craft's paper trail, in the DISPATCHING being's
+ *  voice (rung-4 spec bar 6: proposed, granted under the DM's name,
+ *  refused as beyond the craft — diegetic, no numerals). `{name}` is the
+ *  working's name. `carried` is the skill-in-use beat: the party went
+ *  down holding the colony's craft. Event table like EXPEDITION_VOCAB:
+ *  odds + cooldown bypassed. */
+const CRAFT_VOCAB: Record<string, Record<string, readonly string[]>> = {
+  loki: {
+    proposed: ['asked the craft for {name}. the deep will say what it thinks of that.', 'wrote {name} into the asking-book. now we wait on older judgment.'],
+    granted: ['the craft took {name}. the cookbook is one working heavier.', '{name} is ours now. the deep sold it dear, as it sells everything.'],
+    refused: ['the craft would not hold {name}. beyond it, they say. fine.', 'asked for {name}. the answer came back: beyond the craft.'],
+    carried: ['sent them down carrying {name}. let the deep argue with that.', 'the party took {name} below. workings earn their keep in the dark.'],
+  },
+  archivist: {
+    proposed: ['petition filed: {name}. referred to the craft for adjudication.', '{name}, proposed. the request is in older hands now.'],
+    granted: ['{name}: admitted to the cookbook. priced, paid, entered.', 'the craft admits {name}. the ledger gains a page.'],
+    refused: ['petition returned: {name}. marked beyond the craft. filed anyway.', '{name}, declined. the margin note reads: beyond the craft.'],
+    carried: ['expedition equipped: {name}. noted at the mouth.', 'the party descends with {name}. the record will show whether it mattered.'],
+  },
+  cat: {
+    proposed: ['the tall one wants a new trick called {name}. watching how that goes.', 'someone asked the old ones for {name}. patience, now.'],
+    granted: ['{name} belongs to the colony now. the small ones seem taller.', 'the new trick, {name}, was allowed. good hunting in that.'],
+    refused: ['no {name}, the old ones said. the wanting was the interesting part.', 'the craft said no to {name}. cats understand refusals.'],
+    carried: ['the small ones went down carrying {name}. it smells of intent.', 'watched them take {name} below. tools and teeth.'],
+  },
+  visitor: {
+    proposed: ['heard them ask the craft for {name}. every town wants one more tool.', 'a petition went up for {name}. i have seen these granted, and not.'],
+    granted: ['{name} was granted while i was here. lucky to see a craft grow.', 'the cookbook takes {name}. a place gets richer in ways you can\'t carry.'],
+    refused: ['they asked for {name} and were told: beyond the craft. roads end.', 'no {name} for this colony. the refusal was kindly put.'],
+    carried: ['watched a party shoulder {name} and go down. good luck to them.', 'they took {name} below today. travellers notice new tools.'],
+  },
+  ghost: {
+    proposed: ['"{name}, they ask. we asked for workings once. some were given."', 'a petition rose for {name}. the cold remembers every asking.'],
+    granted: ['"the craft took {name}. what the living learn, the stone keeps."', '"{name} is granted. we paid for ours in other coin."'],
+    refused: ['"beyond the craft, for {name}. some doors are meant to hold."', 'the asking for {name} came back empty. the stone approves of limits.'],
+    carried: ['"they carry {name} below. we went down with less."', 'a party passed, holding {name}. the deep will weigh it honestly.'],
+  },
+};
+
+/** The craft outcome's marginalia line. Unknown dispatcher ids fall back
+ *  to the loki table (the DEFAULT_MARK_STYLE philosophy). */
+export function craftNote(
+  agentId: string,
+  kind: 'proposed' | 'granted' | 'refused' | 'carried',
+  name: string,
+  rand: () => number,
+): string {
+  const table = CRAFT_VOCAB[agentId] ?? CRAFT_VOCAB.loki;
+  const lines = table[kind] ?? table.proposed;
+  return lines[Math.floor(rand() * lines.length)].replace('{name}', name);
+}
+
+/** Every authored craft line, for the no-numerals smoke. */
+export function craftVocabLines(): string[] {
+  const out: string[] = [];
+  for (const table of Object.values(CRAFT_VOCAB)) {
+    for (const lines of Object.values(table)) out.push(...lines);
+  }
+  return out;
+}
+
 /** A note for a launch runner. Unknown ids fall back to loki (the
  *  DEFAULT_MARK_STYLE philosophy, as in noteFor). */
 export function launchNote(agentId: string, game: string, rand: () => number): string {

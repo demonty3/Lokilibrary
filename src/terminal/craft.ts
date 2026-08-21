@@ -273,7 +273,7 @@ export interface CraftProposal {
 }
 
 export type ProposalCheck =
-  | { ok: true; bounds: ProposalBounds }
+  | { ok: true; bounds: ProposalBounds; composition: CraftComposition }
   | { ok: false; reason: string };
 
 /** Schema, grammar membership, magnitude bounds, score cap, death-floor
@@ -296,7 +296,7 @@ export function validateCraftProposal(p: {
   const bounds = proposalBounds(composition);
   if (bounds.score > CRAFT_SCORE_CAP) return { ok: false, reason: 'score over the hard cap' };
   if (!respectsDeathFloor([composition])) return { ok: false, reason: 'crosses the death floor' };
-  return { ok: true, bounds };
+  return { ok: true, bounds, composition };
 }
 
 // ── DM output validation (bar 4: re-validated AFTER, never trusted) ────────

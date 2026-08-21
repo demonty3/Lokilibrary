@@ -73,6 +73,8 @@ import {
   type DmGrant,
 } from '../src/terminal/craft.ts';
 import { craftClause, extractCraftProposal } from '../src/terminal/craftProposal.ts';
+import { craftNote, craftVocabLines } from '../src/terminal/marks.ts';
+import { buildDmPrompt } from '../worker/lib/dm-prompt.ts';
 import { LAND_PERSONAS } from '../src/terminal/beingIntents.ts';
 import type { PlanStep } from '../src/agents/memory/schema.ts';
 
@@ -505,6 +507,54 @@ const step = (target: string, kind: PlanStep['kind'] = 'place_mark'): PlanStep =
     if (!raw || !validateCraftProposal(raw).ok) exemplarsLegal = false;
   }
   check('every rotated exemplar is itself a legal composition', exemplarsLegal);
+}
+
+// 13 · the marginalia rail (bar 6 + inherited kill "a number appears"):
+// the craft vocab covers all four beats in every voice, numeral-free.
+{
+  const lines = craftVocabLines();
+  check('the craft vocab covers five voices x four beats x two lines', lines.length === 40);
+  for (const line of lines) {
+    check(`craft vocab line carries no numeral: "${line.slice(0, 32)}…"`, !/\d/.test(line));
+  }
+  const note = craftNote('loki', 'granted', 'broken-rope', () => 0);
+  check('the {name} slot substitutes', note.includes('broken-rope') && !note.includes('{name}'));
+  check('unknown dispatcher ids fall back to the loki table',
+    craftNote('who-is-this', 'refused', 'broken-rope', () => 0).length > 0);
+}
+
+// 14 · the DM prompt (bar 4 + residues 2 and 4): pure, states what each
+// verb does NOT do, defines the refusal shape, pins the JSON contract.
+{
+  const { system, user } = buildDmPrompt({
+    proposer: { id: 'loki', name: 'loki' },
+    proposal: { name: 'broken-rope', verb: 'salvage', magnitude: 2, modifier: 'when-few', ground: 'the party that would not break died whole' },
+    bounds: { score: 2, floor: 20, cap: 50 },
+    cookbook: [{ id: 'ember-line', verb: 'ward', magnitude: 1, modifier: 'always' }],
+  });
+  for (const verb of CRAFT_VERBS) {
+    check(`the system prompt states what ${verb} does — and does not do`,
+      system.includes(`${verb} `) && new RegExp(`${verb}[^.]*\\. it (does|moves|spares)`).test(system));
+  }
+  check('the refusal shape is defined: line alone, name/price/pacing withheld',
+    system.includes('beyond-the-craft') && system.includes('not yours to give on a refusal'));
+  check('the JSON contract is pinned with both verdicts and all five keys',
+    ['"verdict"', '"name"', '"price"', '"pacing"', '"line"'].every((k) => system.includes(k)));
+  check('digits are forbidden in the name and the line',
+    system.includes('never put a digit in the name or the line'));
+  check('balance is declared out of the DM\'s hands',
+    system.includes('balance is never your call'));
+  check('the user block carries the proposal, its ground and the bounds',
+    user.includes('broken-rope') && user.includes('salvage twice, when-few')
+    && user.includes('died whole') && user.includes('floor 20') && user.includes('cap 50'));
+  check('the user block lists the held cookbook', user.includes('ember-line: ward once, always'));
+  check('the builder is pure and deterministic',
+    JSON.stringify(buildDmPrompt({
+      proposer: { id: 'loki', name: 'loki' },
+      proposal: { name: 'broken-rope', verb: 'salvage', magnitude: 2, modifier: 'when-few', ground: 'the party that would not break died whole' },
+      bounds: { score: 2, floor: 20, cap: 50 },
+      cookbook: [{ id: 'ember-line', verb: 'ward', magnitude: 1, modifier: 'always' }],
+    })) === JSON.stringify({ system, user }));
 }
 
 report();

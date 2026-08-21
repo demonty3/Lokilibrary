@@ -853,7 +853,7 @@ function estimateHaikuCost(tokensIn: number, tokensOut: number): number {
   );
 }
 
-function estimateSonnetCost(tokensIn: number, tokensOut: number): number {
+export function estimateSonnetCost(tokensIn: number, tokensOut: number): number {
   return (
     (tokensIn * PRICE_SONNET_PER_MTOK_IN) / 1_000_000 +
     (tokensOut * PRICE_SONNET_PER_MTOK_OUT) / 1_000_000

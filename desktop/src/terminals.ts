@@ -356,6 +356,15 @@ export function startTerminalsMode(
   // night), on apply, and on dismiss. First writer wins, like agentSpawn.
   let proposal: { wing: string; terminalId: string; agentId: string } | null = null;
 
+  // ── Dungeon rung 4 — the desk-wide DM-call cap ──────────────────────────
+  // Each terminal is its own renderer process, so only the broker can hold
+  // a desk-wide number. Session-scoped like the proposal slot (a restart
+  // forgets the day's count — the cap bounds cost, it is not bookkeeping).
+  // UTC day key per the house convention. Mirrors DM_CALLS_PER_DAY in
+  // src/terminal/craft.ts's ledger (a dial, per the rung-4 spec bar 9).
+  const DM_CALLS_PER_DAY = 5;
+  let dmCalls = { day: '', used: 0 };
+
   const onThrottleState = (state: ThrottleState, isInitial: boolean): void => {
     // Clear BEFORE broadcasting — the broadcast is what triggers the
     // renderers' night sweep, so tonight's candidates must find the slot
@@ -652,6 +661,18 @@ export function startTerminalsMode(
   // The renderer's night sweep asks once per sweep whether the desk is
   // opted in (a pull, like getRoster — sweeps are rare, config is tiny).
   ipcMain.handle('terminal:getOrchestration', () => getOrchestration());
+
+  // Dungeon rung 4 — claim one DM adjudication against the desk-wide
+  // daily cap. Any terminal may claim (the pressure lives on the delve
+  // blob, not with a window); a refusal is the quiet consumed-rejection
+  // path renderer-side, never an error.
+  ipcMain.handle('terminal:claimDmCall', () => {
+    const day = new Date().toISOString().slice(0, 10);
+    if (dmCalls.day !== day) dmCalls = { day, used: 0 };
+    if (dmCalls.used >= DM_CALLS_PER_DAY) return false;
+    dmCalls.used += 1;
+    return true;
+  });
 
   ipcMain.handle('terminal:proposeTopology', (e, payload: { wing: string; agentId: string }) => {
     const t = terminalOf(e.sender);

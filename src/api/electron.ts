@@ -72,6 +72,7 @@ export interface ElectronAPI {
   getTerminalSociety(): Promise<Record<string, string>>;
   getTerminalRoster(): Promise<Record<string, string>>;
   getTerminalOrchestration(): Promise<boolean>;
+  terminalClaimDmCall(): Promise<boolean>;
   terminalProposeTopology(wing: string, agentId: string): Promise<{ accepted: boolean; reason?: string }>;
   terminalApplyProposal(wing: string): Promise<{ applied: boolean; reason?: string; terminalId?: string }>;
   terminalDismissProposal(): Promise<boolean>;
@@ -422,6 +423,31 @@ export async function getTerminalOrchestration(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Dungeon rung 4 — broker-less fallback for the DM cap (web/dev surface):
+// a window-local counter with the broker's own semantics, so callers
+// never branch on availability. Mirrors the broker's DM_CALLS_PER_DAY.
+const DM_CALLS_PER_DAY_LOCAL = 5;
+let localDmCalls = { day: '', used: 0 };
+
+/** Dungeon rung 4 — claim one DM adjudication against the desk-wide daily
+ *  cap. Without a broker the cap is enforced per-window instead (the only
+ *  surface that exists then is a single dev window). */
+export async function terminalClaimDmCall(): Promise<boolean> {
+  const api = getElectronAPI();
+  if (api && typeof api.terminalClaimDmCall === 'function') {
+    try {
+      return await api.terminalClaimDmCall();
+    } catch {
+      return false;
+    }
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  if (localDmCalls.day !== day) localDmCalls = { day, used: 0 };
+  if (localDmCalls.used >= DM_CALLS_PER_DAY_LOCAL) return false;
+  localDmCalls.used += 1;
+  return true;
 }
 
 /** T5 — submit a night-sweep proposal candidate. Broker-less surfaces get a

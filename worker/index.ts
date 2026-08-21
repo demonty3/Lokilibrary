@@ -15,6 +15,8 @@
  *   POST /api/agent/tick           — Tier 1 micro-action call for one agent
  *                                    given its state + perception payload
  *   POST /api/agent/reflect        — Tier 2 reflection (Phase 2D)
+ *   POST /api/agent/adjudicate     — dungeon rung 4's DM: prices/names/paces
+ *                                    a bounds-validated skill proposal
  *   POST /api/embed                — local-Ollama embeddings stub (Phase 2D)
  *   GET  /api/local-model          — local-Ollama presence probe (Phase 6A);
  *                                    cloud / no-Ollama → {present:false}
@@ -27,6 +29,7 @@
 
 import { buildStageOnePrompt } from './lib/prompt';
 import { buildTickPrompt, buildReflectPrompt } from './lib/agent-prompt';
+import { buildDmPrompt } from './lib/dm-prompt';
 import { extractJson, validateManifest } from './lib/manifest';
 import {
   callEmbed,
@@ -846,6 +849,94 @@ export default {
           themes,
           importance,
           ...(plan && { plan }),
+          model: result.model,
+          provider: result.provider,
+          latencyMs,
+          tokensIn: result.tokensIn,
+          tokensOut: result.tokensOut,
+        },
+        { status: 200 },
+        cors,
+      );
+    }
+
+    // --- Dungeon rung 4: the DM (spec 2026-08-21-dungeon-rung4) --------------
+    // POST /api/agent/adjudicate — Sonnet prices, names and paces a skill
+    // proposal the renderer's craft.ts has ALREADY admitted (schema, grammar,
+    // score cap, death floor). The worker is transport + prompt assembly: it
+    // passes the parsed fields through structurally and the desk re-validates
+    // everything (bar 4 — plain code is the balance authority, so a
+    // jailbroken DM can only misprice, never break the game). Same
+    // unauthenticated CORS posture as tick/reflect.
+    if (req.method === 'POST' && url.pathname === '/api/agent/adjudicate') {
+      let body: {
+        proposer?: { id?: string; name?: string };
+        proposal?: { name?: string; verb?: string; magnitude?: number; modifier?: string; ground?: string };
+        bounds?: { score?: number; floor?: number; cap?: number };
+        cookbook?: ReadonlyArray<{ id: string; verb: string; magnitude: number; modifier: string }>;
+      };
+      try {
+        body = (await req.json()) as typeof body;
+      } catch {
+        return json({ error: 'invalid json body' }, { status: 400 }, cors);
+      }
+      const p = body.proposal;
+      const b = body.bounds;
+      if (
+        !body.proposer?.id
+        || !p || typeof p.name !== 'string' || typeof p.verb !== 'string'
+        || typeof p.modifier !== 'string' || typeof p.magnitude !== 'number'
+        || typeof p.ground !== 'string'
+        || !b || typeof b.score !== 'number' || typeof b.floor !== 'number' || typeof b.cap !== 'number'
+      ) {
+        return json({ error: 'proposer + proposal + bounds required' }, { status: 400 }, cors);
+      }
+      const { system, user: userPrompt } = buildDmPrompt({
+        proposer: { id: body.proposer.id, name: body.proposer.name },
+        proposal: {
+          name: p.name.slice(0, 40),
+          verb: p.verb.slice(0, 20),
+          magnitude: p.magnitude,
+          modifier: p.modifier.slice(0, 20),
+          ground: p.ground.slice(0, 600),
+        },
+        bounds: { score: b.score, floor: b.floor, cap: b.cap },
+        cookbook: Array.isArray(body.cookbook) ? body.cookbook.slice(0, 40) : [],
+      });
+
+      const startedAt = Date.now();
+      let result: { text: string; model: string; provider: string; tokensIn: number; tokensOut: number };
+      try {
+        result = await callTier2Reflect(env, system, userPrompt);
+      } catch (e) {
+        if (e instanceof ProviderError) {
+          return json({ error: e.message }, { status: e.status }, cors);
+        }
+        const message = e instanceof Error ? e.message : 'unknown';
+        return json({ error: 'dm', message }, { status: 502 }, cors);
+      }
+      const latencyMs = Date.now() - startedAt;
+
+      let parsed: { verdict?: unknown; name?: unknown; price?: unknown; pacing?: unknown; line?: unknown };
+      try {
+        parsed = JSON.parse(extractJson(result.text)) as typeof parsed;
+      } catch {
+        return json(
+          { error: 'dm returned invalid json', raw: result.text.slice(0, 400) },
+          { status: 502 },
+          cors,
+        );
+      }
+      if (typeof parsed.verdict !== 'string') {
+        return json({ error: 'dm missing verdict', raw: parsed }, { status: 502 }, cors);
+      }
+      return json(
+        {
+          verdict: parsed.verdict,
+          ...(typeof parsed.name === 'string' && { name: parsed.name.slice(0, 40) }),
+          ...(typeof parsed.price === 'number' && { price: parsed.price }),
+          ...(typeof parsed.pacing === 'string' && { pacing: parsed.pacing.slice(0, 40) }),
+          ...(typeof parsed.line === 'string' && { line: parsed.line.slice(0, 300) }),
           model: result.model,
           provider: result.provider,
           latencyMs,

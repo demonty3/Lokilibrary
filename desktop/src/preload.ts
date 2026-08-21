@@ -127,6 +127,9 @@ export interface ElectronAPI {
   /** T5 — is the Depth-3 overnight-proposal opt-in on? Pulled once per
    *  night sweep. */
   getTerminalOrchestration(): Promise<boolean>;
+  /** Dungeon rung 4 — claim one DM adjudication against the desk-wide
+   *  daily cap. False = the cap is spent today. */
+  terminalClaimDmCall(): Promise<boolean>;
   /** T5 — submit a night-sweep proposal candidate. First writer wins. */
   terminalProposeTopology(wing: string, agentId: string): Promise<{ accepted: boolean; reason?: string }>;
   /** T5 — apply the accepted proposal (this window must own it). */
@@ -252,6 +255,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('terminal:getRoster') as Promise<Record<string, string>>,
   getTerminalOrchestration: () =>
     ipcRenderer.invoke('terminal:getOrchestration') as Promise<boolean>,
+  terminalClaimDmCall: () =>
+    ipcRenderer.invoke('terminal:claimDmCall') as Promise<boolean>,
   terminalProposeTopology: (wing, agentId) =>
     ipcRenderer.invoke('terminal:proposeTopology', { wing, agentId }) as Promise<{ accepted: boolean; reason?: string }>,
   terminalApplyProposal: (wing) =>

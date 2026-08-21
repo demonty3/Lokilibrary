@@ -86,6 +86,7 @@ import { arcAlpha, arcY, extractArc, type ArcSpec } from './skyArc';
 import { blockedSpansAt, extractWisps, wispAlpha, wispX, type WispSpec } from './clouds';
 import { bodyHost, chainOffsets, deskChain, sharedWisps, type DeskChainSpec } from './sharedSky';
 import {
+  craftNote,
   expeditionNote,
   launchNote,
   shrineNote,
@@ -118,7 +119,19 @@ import {
   tickArrival,
   type DelveState,
 } from './delve';
-import { effectiveCookbook, pickLoadout, resolveMods } from './craft';
+import {
+  applyGrant,
+  cookbookIds,
+  CRAFT_NAME_RE,
+  effectiveCookbook,
+  pickLoadout,
+  resolveMods,
+  SEED_COOKBOOK,
+  validateCraftProposal,
+  validateDmVerdict,
+} from './craft';
+import { craftClause, extractCraftProposal } from './craftProposal';
+import { adjudicateSkill } from '../api/agent';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
 import { wrapNote } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
@@ -144,6 +157,7 @@ import {
   terminalAgentExit,
   terminalAgentSpawn,
   terminalApplyProposal,
+  terminalClaimDmCall,
   terminalDismissProposal,
   terminalProposeTopology,
   terminalReportNearEdge,
@@ -175,6 +189,7 @@ import { roleKey } from '../themes/roles';
 import { COHORT, filterByTheme, type AgentDef } from '../agents/cohort';
 import { tickPresence } from '../agents/behavior';
 import {
+  estimateSonnetCost,
   nullMemoryWriter,
   REFLECTION_THRESHOLD,
   routeTier1,
@@ -2089,13 +2104,29 @@ export async function mountTerminalLand(
   const reflectFor = async (
     b: Being,
     opts: { sleeping?: boolean; force?: boolean; proposals?: boolean } = {},
-  ): Promise<ReflectRouteResult & { proposal?: { wing: string; accepted: boolean } }> => {
+  ): Promise<ReflectRouteResult & {
+    proposal?: { wing: string; accepted: boolean };
+    craft?: { name: string; outcome: string };
+  }> => {
     const def = COHORT_BY_ID.get(b.id);
     if (!def) return { dispatched: false, skipReason: 'rejected' };
     const t = await deskSnapshot();
+    // Rung 4 — the craft clause rides the TOPOLOGY STRING (bar 3: the
+    // UNCHANGED routeTier2, the T5 pattern): only the pressured
+    // dispatcher, only on the wing that owns the delve blob. A being
+    // reflecting elsewhere leaves the pressure waiting — the craft is
+    // invented at the colony's shaft.
+    const pressure = !isUnder && delveState !== null
+      && delveState.proposalPressure?.dispatcherId === b.id
+      ? delveState.proposalPressure
+      : null;
+    let topologyLine = deskTopologyLine(t, { proposals: opts.proposals === true });
+    if (pressure && delveState) {
+      topologyLine += ` ${craftClause(pressure.kind, effectiveCookbook(delveState), pressure.seq)}`;
+    }
     const result = await routeTier2(def, b.mind, Date.now(), {
       memory,
-      topology: deskTopologyLine(t, { proposals: opts.proposals === true }),
+      topology: topologyLine,
       ...(opts.sleeping && { reflectionMinIntervalMs: 0 }),
       ...(opts.force && { force: true }),
     });
@@ -2124,7 +2155,92 @@ export async function mountTerminalLand(
         }
       }
     }
+    // Rung 4 — the craft proposal rides the same dispatch. Pressure is
+    // consumed by the reflection that CARRIED the clause, proposal or
+    // not (the consume-up-front posture: nothing retries in a loop). A
+    // skipped call never saw the clause, so a skip leaves it standing.
+    // Awaiting the DM round-trip is safe for the same reason the T5
+    // broker await is: every production caller drops this promise.
+    if (pressure && delveState && result.dispatched) {
+      delveState.proposalPressure = null;
+      saveDelve();
+      try {
+        const craft = await runCraftProposal(b, def.name, result.reflection?.text ?? '');
+        if (craft) return { ...result, craft };
+      } catch {
+        // Transport surprises are a consumed rejection — walker never blocks.
+      }
+    }
     return result;
+  };
+
+  /**
+   * Rung 4 — extraction, deterministic validation, the desk-wide cap,
+   * the DM call, post-validation, and the grant (bar 4). Every path is
+   * a consumed outcome: escapes and invalid DM output reject without
+   * retry, the cap defers quietly, and only a validated grant touches
+   * the cookbook. Marginalia is the only surface (bar 6).
+   */
+  const runCraftProposal = async (
+    b: Being,
+    proposerName: string,
+    ground: string,
+  ): Promise<{ name: string; outcome: string } | undefined> => {
+    const dS = delveState;
+    if (!dS) return undefined;
+    const raw = extractCraftProposal(b.mind.activePlan?.steps ?? []);
+    if (!raw) return undefined; // the empty mailbox — no proposal, nothing surfaces
+    const safeName = CRAFT_NAME_RE.test(raw.name) ? raw.name : 'the unnamed working';
+    const checked = validateCraftProposal(raw);
+    if (!checked.ok) {
+      // An ESCAPE — outside the grammar. Recorded diegetically (the
+      // craft could not hold it), never repaired (the go/no-go rule).
+      placeCraftMark(b.id, 'refused', safeName);
+      return { name: safeName, outcome: 'escape' };
+    }
+    placeCraftMark(b.id, 'proposed', raw.name);
+    if (!(await terminalClaimDmCall())) {
+      // The desk-wide daily cap is spent: the asking stands unanswered
+      // today. No call was made, so no verdict is fabricated.
+      return { name: raw.name, outcome: 'capped' };
+    }
+    // The DM sees every held working, paid or pending — duplicate ground
+    // is its judgment to refuse (the go/no-go probe's behaviour).
+    const dmBook = [
+      ...SEED_COOKBOOK.map((s) => ({ id: s.id, ...s.composition })),
+      ...dS.cookbook.map((g) => ({
+        id: g.id,
+        verb: g.composition.verb,
+        magnitude: g.composition.magnitude,
+        modifier: g.composition.modifier,
+      })),
+    ];
+    const outcome = await adjudicateSkill({
+      proposer: { id: b.id, name: proposerName },
+      proposal: { ...raw, ground },
+      bounds: checked.bounds,
+      cookbook: dmBook,
+    });
+    if (!outcome.ok) return { name: raw.name, outcome: 'rejected' };
+    memory.logTier2({
+      agentId: b.id,
+      model: outcome.result.model,
+      provider: outcome.result.provider,
+      tokensIn: outcome.result.tokensIn,
+      tokensOut: outcome.result.tokensOut,
+      latencyMs: outcome.result.latencyMs,
+      costUsdEst: estimateSonnetCost(outcome.result.tokensIn, outcome.result.tokensOut),
+    });
+    const verdict = validateDmVerdict(outcome.result, checked.bounds, cookbookIds(dS));
+    if (!verdict) return { name: raw.name, outcome: 'rejected' };
+    if (verdict.verdict === 'beyond-the-craft') {
+      placeCraftMark(b.id, 'refused', raw.name);
+      return { name: raw.name, outcome: 'refused' };
+    }
+    applyGrant(dS, { name: raw.name, composition: checked.composition }, verdict, b.id);
+    saveDelve();
+    placeCraftMark(b.id, 'granted', verdict.name);
+    return { name: verdict.name, outcome: 'granted' };
   };
 
   /** The mounted banner's on-screen rect, read off the OVERLAY'S OWN
@@ -2411,6 +2527,29 @@ export async function mountTerminalLand(
     markLastAt.set(dispatcherId, elapsedS);
     recordMark(memory, { agentId: dispatcherId, note, col, row: model.surface[col] });
     addMarkView(dispatcherId, note, col);
+  };
+
+  /** Rung 4: the craft's paper trail at the shaft mouth, in the
+   *  dispatching being's voice (the placeExpeditionMark posture —
+   *  same column, so the story advances by replacement: proposed,
+   *  then the DM's answer, then carried when a granted working goes
+   *  below; the full trail persists in the mark record). */
+  const placeCraftMark = (
+    agentId: string,
+    kind: 'proposed' | 'granted' | 'refused' | 'carried',
+    name: string,
+  ): void => {
+    const col = Math.min(model.width - 1, Math.max(0, vShaftX));
+    for (let i = marks.length - 1; i >= 0; i--) {
+      if (Math.abs(marks[i].col - col) <= MARK_DEDUPE_COLS) {
+        marks[i].text.destroy();
+        marks.splice(i, 1);
+      }
+    }
+    const note = craftNote(agentId, kind, name, rng);
+    markLastAt.set(agentId, elapsedS);
+    recordMark(memory, { agentId, note, col, row: model.surface[col] });
+    addMarkView(agentId, note, col);
   };
 
   // ── Dungeon rung 3: the shrine (spec 2026-08-20-dungeon-rung3) ─────────
@@ -3247,6 +3386,15 @@ export async function mountTerminalLand(
                 Date.now(),
               );
               saveDelve();
+              // Rung 4: the skill-in-use beat (bar 10's third panel) —
+              // announced only when an INVENTED working goes below; the
+              // seed craft is ambient and stays quiet.
+              const carried = loadout.filter(
+                (s) => !SEED_COOKBOOK.some((seed) => seed.id === s.id),
+              );
+              if (carried.length > 0) {
+                placeCraftMark(b.id, 'carried', carried.map((s) => s.id).join(' and '));
+              }
               spawnSpark('down'); // the send-off, at the mouth
               delveDispatch = null;
             }

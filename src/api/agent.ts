@@ -171,3 +171,52 @@ export async function reflectAgent(input: ReflectInput): Promise<ReflectOutcome>
   const result = (await res.json()) as ReflectResult;
   return { ok: true, result };
 }
+
+// ── Dungeon rung 4: the DM (spec 2026-08-21-dungeon-rung4) ────────────────
+// POST /api/agent/adjudicate. The caller (terminalLand) pre-validates the
+// proposal and re-validates this result via craft.ts — the transport
+// passes fields through structurally, like reflect's plan.
+
+export interface AdjudicateInput {
+  proposer: { id: string; name?: string };
+  proposal: { name: string; verb: string; magnitude: number; modifier: string; ground: string };
+  bounds: { score: number; floor: number; cap: number };
+  cookbook: ReadonlyArray<{ id: string; verb: string; magnitude: number; modifier: string }>;
+}
+
+export interface AdjudicateResult {
+  verdict: string;
+  name?: string;
+  price?: number;
+  pacing?: string;
+  line?: string;
+  model: string;
+  provider: string;
+  latencyMs: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+export type AdjudicateOutcome =
+  | { ok: true; result: AdjudicateResult }
+  | { ok: false; error: string };
+
+export async function adjudicateSkill(input: AdjudicateInput): Promise<AdjudicateOutcome> {
+  let res: Response;
+  try {
+    res = await fetch('/api/agent/adjudicate', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'network error' };
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, error: `${res.status} ${body.slice(0, 200)}` };
+  }
+  const result = (await res.json()) as AdjudicateResult;
+  return { ok: true, result };
+}
