@@ -13,7 +13,12 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-20, night** (DUNGEON RUNG 3 shipped — the
+Last updated: **2026-08-21** (HEIGHT-ELASTIC SKY probe taken — bars frozen and
+committed first; the glyph-size question answered by measurement (the cell is not
+the cap; The Row Budget artifact measured the prototype preview land, not the
+desk) and the artifact's perf kill measured DEAD (14x the cells, vsync still
+locked). Nothing shipped, WORLD_SCALE still 2. One eyeball queued below.)
+Previously **2026-08-20, night** (DUNGEON RUNG 3 shipped — the
 shrine, the spend, and watchable veneration: gold now leaves the hoard
 in tranches routed by the dispatcher's temperament (timid builds a
 3-stage shrine on the surface near the shaft; bold grows the colony
@@ -199,6 +204,47 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 ---
 
 ## Active
+
+### 👁 EYEBALL — height-elastic sky: does a taller aperture buy a richer world?
+
+**Status**: probe taken 2026-08-21 (bars frozen + committed FIRST, `1c362e2`:
+`docs/design-reviews/2026-08-21-height-elastic-sky.md` §3). Opened from your
+question — "are the glyphs too big to have detail?" Answer, measured: the cell
+is not the cap. Two corrections came out of checking: The Row Budget artifact
+measured `V0_SCENE` (the prototype preview land, 200×55), not the shipped desk
+(`DESK_SURFACE`, 53×20 = 1,060 cells); and its frozen perf kill does NOT fire —
+14× the cells holds a vsync-locked 16.67 ms with CPU flat at 3.8 % of wall.
+**Nothing shipped and `WORLD_SCALE` is still 2** — the 08-17 KEEP verdict is
+untouched.
+**What to look at**: open
+`docs/design-reviews/2026-08-21-height-elastic-sky.html` (or the flattened
+`.../2026-08-21-height-elastic-sky/probe-page.png`) and judge at **wallpaper
+distance**, not at reading distance. Wing d0, phosphor, one seed, midnight; all
+three panels are real composer + real render rules, with beings drawn as
+`addBeing` draws them. Three panels, all at the measured work area 1440×811:
+- **A · today, full-screen** — 120×31, 20 rows of world and 11 rows of bare
+  aperture rock. This is what a full-screen desk actually looks like now.
+- **B · height-elastic sky** — 120×31, same glyph size as A, but all 31 rows
+  composed as world (skyH 17, band 6, underH 7). This is the rung.
+- **C · full-screen at scale 1** — 240×62 = 14,880 cells at 6×13 px. The
+  density ceiling, and the 08-17 question re-asked full-screen (it was judged
+  in a 640×520 window then, never at this size).
+**Judge (bars frozen before generation; K1/K2 inherited verbatim from
+`2026-08-17-cell-density.md` §3)**:
+- **K1** — at wallpaper distance, can you still find and read the beings and
+  the site labels? If you have to lean in, fidelity has beaten the product and
+  fidelity routes to mixed registers only.
+- **K2** — does it read as a more detailed PLACE, or as noise / fabric-in-
+  general? Same routing on a fail.
+- **K3** (the real risk for B) — does B's taller sky read as MORE WORLD, or as
+  a bigger void? A void read kills the height-elastic rung, and the finding
+  becomes "sky detail needs a new density vocabulary, not more rows".
+- **K4** — detailed, or merely busy? Busy → 20 rows was right for a wallpaper.
+**What a pass unblocks**: B alone → the height-elastic engine slice (sky
+extension on a per-global-row salted stream, horizon-aligned joins in the
+broker). C alone → re-opens the scale dial, ships nothing on this document,
+and inherits 08-17's condition that a pass means every salience bar re-measured
+at the new denominator and sub-cell animation re-dialled.
 
 ### 👁 EYEBALL — dungeon rung 3: the shrine, the spend, and the veneration walk
 
