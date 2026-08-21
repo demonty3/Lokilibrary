@@ -3360,7 +3360,13 @@ to the thread. Kills → only the marks get finer while the shapes stay as crude
 as they are, and the content problem is primitives, not resolution (routes back
 to 03/05).
 
-**4 · The unpark check RAN the same day** (`scripts/probe-scale-aware.mts`,
+**4 · The unpark check RAN and was JUDGED the same day — KILLED.** Harry:
+*"I actually prefer the today one."* The frozen kill fires on both halves, the
+measurable and the taste. **Doubling the grid is dead as a route to detail and
+the unpark condition is spent.** With scale 1 judged 2026-08-17 and doubling
+judged now, **the resolution axis is exhausted** — no remaining move on this
+thread is about the lattice; what is left is primitives (directions 03/05) and
+the never-built fine-lattice mural rect. Detail of the check: (`scripts/probe-scale-aware.mts`,
 `docs/design-reviews/2026-08-21-scale-aware.html`). Three panels at identical
 PHYSICAL size (1440×806) — A today 120×31 @ 12×26, **B a CONTROL** (2×, no new
 rules, so no gain can be credited to the lattice), C 2× scale-aware (horizon at

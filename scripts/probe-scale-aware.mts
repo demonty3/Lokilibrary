@@ -370,7 +370,17 @@ ${css}</style>
 </section>
 
 <div class="rule"></div>
-<div class="barbox" style="margin-top:40px">
+<div class="barbox" style="margin-top:40px;border-color:#6b5c14;background:rgba(255,225,77,.05)">
+  <h3>Verdict — 2026-08-21, Harry's eye: KILLED</h3>
+  <p><b>"I actually prefer the today one."</b> The frozen kill fires on both halves: the measurable
+  one (the shapes provably did not change) and the taste one (the finer grain is not worth the
+  legibility it costs). <b>Doubling the grid is dead as a route to detail.</b> The park stands and
+  this unpark condition is now spent — it does not get re-asked by re-judging these panels.</p>
+  <p>What survives is the mechanism below, which is the useful part and is independent of the
+  verdict.</p>
+</div>
+
+<div class="barbox" style="margin-top:20px">
   <h3>What the check actually shows</h3>
   <p><b>A → B: the grid alone buys nothing, and it costs something.</b> This is not a judgement
   call — it is provable from how the panels are built. A block element already encodes a sub-cell

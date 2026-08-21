@@ -962,7 +962,17 @@ constant, and put it beside today's.
   crude as they are now — then doubling is dead and the content problem is
   confirmed to be primitives, not resolution, which routes back to 03/05.
 
-#### The check RAN, same day (2026-08-21) — kill clause met on its measurable half
+#### The check RAN and was JUDGED, same day (2026-08-21) — KILLED
+
+**Harry's eye, verbatim: "I actually prefer the today one."** The frozen kill
+fires on BOTH halves — the measurable one (the shapes provably did not change)
+and the taste one (the finer grain is not worth the legibility it costs).
+**Doubling the grid is dead as a route to detail, and this unpark condition is
+spent** — it is not re-asked by re-judging these panels. With scale 1 judged on
+2026-08-17 and doubling judged now, **the resolution axis is exhausted**: no
+remaining move on this thread is about the lattice.
+
+The evidence below stands as the record of why.
 
 `docs/design-reviews/2026-08-21-scale-aware.html`, generator
 `scripts/probe-scale-aware.mts`. Three panels at identical physical size

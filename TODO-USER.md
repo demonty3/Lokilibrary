@@ -13,7 +13,16 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-21, later** (DETAIL THREAD judged and PARKED. The
+Last updated: **2026-08-21, session close** (DETAIL THREAD CLOSED. The
+"double the grid, same scene finer" check ran and Harry judged it: "I actually
+prefer the today one" — the frozen kill fires on both halves, so doubling is
+DEAD and its unpark condition is spent. With scale 1 judged 08-17 and doubling
+judged now, **the resolution axis is exhausted**: nothing left on this thread is
+about the lattice. What stays open is primitives — bigger-jump directions 01-05,
+none killed — and the fine-lattice mural rect the 08-17 verdict routed to and
+nobody ever built. NOTHING SHIPPED this session; WORLD_SCALE is still 2 and every
+golden is byte-identical. No eyeball is owed on this thread.)
+Previously **2026-08-21, later** (detail thread judged and parked. The
 height-elastic eyeball came back "I like B" (K3 never fired), but the follow-on
 was that the scene INSIDE B needs a bigger jump — so a five-direction round was
 built and none of them jumped out. All five stay OPEN, nothing killed. What
@@ -466,6 +475,19 @@ session if convenient:
 ---
 
 ## Done / skipped (kept for posterity until next slice prunes)
+
+- ✅ **The "double the grid" check — JUDGED 2026-08-21, KILLED**: "I actually
+  prefer the today one." Harry's own idea, tested with a control panel: A today,
+  B 2x with no new rules, C 2x scale-aware, all at identical PHYSICAL size. The
+  kill fires on both halves — A→B is provably shape-identical (block elements
+  encode sub-cell edges, so they expand exactly), and the finer grain in C is not
+  worth the legibility it costs. The unpark condition is spent; the resolution
+  axis is exhausted. Durable finding kept: a glyph grid holds BLOCK matter
+  (tiles, holds screen size, takes a finer edge) and GLYPH matter (beings,
+  labels, stars — cannot tile, halves in size), which is the named mechanism
+  behind the 08-17 glance failure. Probe:
+  `docs/design-reviews/2026-08-21-scale-aware.html`; brain note
+  `a-glyph-grid-holds-two-kinds-of-matter`.
 
 - ✅ **EYEBALL height-elastic sky — JUDGED 2026-08-21, same day**: "I like
   B." B preferred over A (today full-screen: 20 world rows + 11 of bare
