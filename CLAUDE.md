@@ -115,13 +115,16 @@ generated art for it weakens that beat. Same rule applies to non-Steam
 games (itch.io, GOG, filesystem media in the year-2 dream-mode feature):
 user-provided art only. **Amended 2026-08-21 (Claude-authoring
 direction):** the blanket "never generate per-game art" prohibition is
-lifted — a user's own Claude may author *interpretive* art about their
-library (murals, wing art) in their own palace, because the real CDN /
-user-provided art is on-screen anyway and keeps carrying the recognition
-beat. What survives the amendment: the CDN / user-provided art stays the
-recognition anchor and is never *replaced* by generated art, and licence
-hygiene does not relax — generated game-IP art stays local to the user's
-palace; nothing game-IP-generated ships in the repo or in shared packs.
+lifted — the Steam-facing caution behind it is moot now that the project
+does not distribute on Steam (2026-07-11 direction), so a user's own
+Claude may author *interpretive* art about their library (murals, wing
+art) in their own palace. What survives the amendment: the CDN /
+user-provided art stays the recognition anchor and is never *replaced*
+by generated art (the "oh I own that" beat is a design pillar,
+independent of Steam), and licence hygiene does not relax — the repo is
+public regardless of Steam, so generated game-IP art stays local to the
+user's palace; nothing game-IP-generated ships in the repo or in shared
+packs.
 
 **Sprite tiles + agent sprites = pixel-art pipeline** (Phase 3; not in
 v1.0 MVP). Generated at template-build time via local SDXL + the
