@@ -59,6 +59,12 @@ export interface ExpeditionParams {
    *  A threshold swap on the death die — never an inserted draw, so
    *  unwarded runs are byte-identical to rung 2 (rung-3 spec bar 4). */
   warded?: boolean;
+  /** Rung 4: the loadout's resolved lever deltas (craft.ts). Absent or
+   *  empty ⇒ byte-identical to rung 3 by construction. */
+  mods?: readonly CraftMod[];
+  /** Rung 4: the carried skills' ids — engine-inert lore for marginalia
+   *  and the debug fingerprint; the mechanics ride `mods` alone. */
+  loadout?: readonly string[];
 }
 
 export const DEFAULT_EXPEDITION_PARAMS: ExpeditionParams = {
@@ -190,20 +196,93 @@ export function effectiveTargetPop(state: DelveState): number {
 const LAIR_STEP_MIN = 2;
 /** Chance the creature is home when the party passes its lair. */
 const ENCOUNTER_CHANCE = 0.35;
-/** Per-round chance the exposed delver dies. */
-const ROUND_DEATH_CHANCE = 0.1;
+/** Per-round chance the exposed delver dies. Exported for rung 4's
+ *  death-floor guard (craft.ts computes 0.4× this as the hard floor). */
+export const ROUND_DEATH_CHANCE = 0.1;
 /** Rung 3: the same die when the party walks in warded — the shrine is a
  *  ward, never god-mode (rung-3 spec bar 2 bounds the gap two-sidedly).
  *  Calibrated 2026-08-20 on the bold-most probe (20k runs, identical
  *  streams): 0.055 → gap 1.11pp (bar > 1pp) at ratio 0.562 (bar ≥ 0.5);
  *  0.07 fails the gap bar, 0.05 crowds the god-mode floor. */
-const WARDED_ROUND_DEATH_CHANCE = 0.055;
+export const WARDED_ROUND_DEATH_CHANCE = 0.055;
 /** Per-round chance the party drives the creature off, plus a hand each. */
 const DRIVE_OFF_BASE = 0.2;
 const DRIVE_OFF_PER_DELVER = 0.08;
-/** Gold per step cleared: BASE + step (deeper pays more). Halved on a
- *  flight — dropped sacks are part of the melancholy. */
+/** Gold per step cleared: BASE + step (deeper pays more). A flight keeps
+ *  this fraction — dropped sacks are part of the melancholy. */
 const GOLD_STEP_BASE = 2;
+const SALVAGE_BASE_KEPT = 0.5;
+
+// ── Rung 4: craft levers ───────────────────────────────────────────────────
+// (docs/superpowers/specs/2026-08-21-dungeon-rung4-cookbook-dm.md)
+// The engine's half of the grammar: mechanics in dice-language, so
+// delve.ts stays dependency-free. craft.ts owns verbs, scoring and the
+// cookbook, and resolves a loadout down to these levers at dispatch.
+
+/** When a lever delta applies — all checkable from run state in scope
+ *  at the draw site, so no draw is ever inserted (bar 2). */
+export type ModWhen = 'always' | 'when-warded' | 'when-few' | 'below';
+
+export interface CraftMod {
+  lever: 'death' | 'driveOff' | 'encounter' | 'retreat' | 'goldStep' | 'salvageKept';
+  when: ModWhen;
+  /** Signed, in the lever's own units (chance, rounds, gold, fraction). */
+  delta: number;
+}
+
+/** Sum of the active deltas on one lever. Empty/absent mods ⇒ exactly 0
+ *  ⇒ every threshold computes to its rung-3 value ⇒ the no-loadout path
+ *  is byte-identical by construction (smoke-asserted). */
+function modDelta(
+  mods: readonly CraftMod[] | undefined,
+  lever: CraftMod['lever'],
+  ctx: { warded: boolean; few: boolean; below: boolean },
+): number {
+  if (!mods || mods.length === 0) return 0;
+  let d = 0;
+  for (const m of mods) {
+    if (m.lever !== lever) continue;
+    if (m.when === 'when-warded' && !ctx.warded) continue;
+    if (m.when === 'when-few' && !ctx.few) continue;
+    if (m.when === 'below' && !ctx.below) continue;
+    d += m.delta;
+  }
+  return d;
+}
+
+/** A granted working in the colony's cookbook — persisted verbatim in
+ *  the delve blob. Structural (verb as string): the grammar lives in
+ *  craft.ts, which narrows on read; a foreign composition is skipped,
+ *  never a broken tick. */
+export interface GrantedSkill {
+  id: string;
+  composition: { verb: string; modifier: ModWhen; magnitude: number };
+  /** The DM's diegetic line — lore, never rendered with numerals. */
+  line: string;
+  price: number;
+  pacing: 'at-once' | 'after-the-next-return';
+  /** expeditionSeq at grant time — pacing's "next return" boundary. */
+  grantedAtSeq: number;
+  /** The colony buys a working before it is carried. */
+  paid: boolean;
+  proposedBy: string;
+  /** The being's own coined name, when the DM renamed it (lore). */
+  proposedName?: string;
+}
+
+/** Addendum 8: deeds-only aspect counts (war/death/harvest/craft/faith),
+ *  sparse. Accrued ONLY at Tier-0-observable events — never from LLM
+ *  text (the addendum's kill, verbatim). */
+export type AspectTally = Partial<Record<string, number>>;
+
+export function accrueAspect(state: DelveState, agentId: string, aspect: string): void {
+  const t = state.aspects[agentId] ?? (state.aspects[agentId] = {});
+  t[aspect] = (t[aspect] ?? 0) + 1;
+}
+
+/** Notable-delve dials (bar 3): what marks the dispatcher's mind. */
+export const NOTABLE_DEAD_MIN = 2;
+export const NOTABLE_GOLD_MIN = 40;
 
 export type OutcomeKind = 'rich' | 'hollow' | 'loss' | 'lost';
 
@@ -236,21 +315,35 @@ export function runExpedition(params: ExpeditionParams, prng: Prng): ExpeditionO
   const party = Math.max(1, Math.floor(params.partySize));
   const lairStep = Math.min(depth - 1, prng.range(LAIR_STEP_MIN, Math.max(LAIR_STEP_MIN + 1, depth)));
   const alive = new Set<number>(Array.from({ length: party }, (_, i) => i));
+  // Rung 4: lever deltas ride the SAME draws — conditions read run state
+  // already in scope at each draw site, so the draw count and order only
+  // ever change the way the base thresholds could change them.
+  const mods = params.mods;
+  const warded = params.warded === true;
+  const below = lairStep > depth / 2;
   let encountered = false;
   let fled = false;
   let stepsCleared = 0;
   for (let step = 0; step < depth; step++) {
-    if (step === lairStep && prng.next() < ENCOUNTER_CHANCE) {
+    if (
+      step === lairStep
+      && prng.next() < ENCOUNTER_CHANCE + modDelta(mods, 'encounter', { warded, few: alive.size <= 2, below })
+    ) {
       encountered = true;
       let rounds = 0;
       while (alive.size > 0) {
         rounds += 1;
+        const ctx = { warded, few: alive.size <= 2, below };
         // One delver stands exposed this round.
         const exposed = [...alive][prng.range(0, alive.size)];
-        if (prng.next() < (params.warded ? WARDED_ROUND_DEATH_CHANCE : ROUND_DEATH_CHANCE)) alive.delete(exposed);
+        const deathChance = (params.warded ? WARDED_ROUND_DEATH_CHANCE : ROUND_DEATH_CHANCE)
+          + modDelta(mods, 'death', ctx);
+        if (prng.next() < deathChance) alive.delete(exposed);
         if (alive.size === 0) break;
-        if (prng.next() < DRIVE_OFF_BASE + DRIVE_OFF_PER_DELVER * alive.size) break;
-        if (rounds >= Math.max(1, params.retreatThreshold)) {
+        if (prng.next() < DRIVE_OFF_BASE + DRIVE_OFF_PER_DELVER * alive.size + modDelta(mods, 'driveOff', ctx)) break;
+        const retreatAt = params.retreatThreshold
+          + modDelta(mods, 'retreat', { warded, few: alive.size <= 2, below });
+        if (rounds >= Math.max(1, retreatAt)) {
           fled = true;
           break;
         }
@@ -261,8 +354,10 @@ export function runExpedition(params: ExpeditionParams, prng: Prng): ExpeditionO
   }
   let gold = 0;
   if (alive.size > 0) {
-    for (let s = 0; s < stepsCleared; s++) gold += GOLD_STEP_BASE + s;
-    if (fled) gold = Math.floor(gold / 2);
+    const goldCtx = { warded, few: alive.size <= 2, below };
+    const perStep = GOLD_STEP_BASE + modDelta(mods, 'goldStep', goldCtx);
+    for (let s = 0; s < stepsCleared; s++) gold += perStep + s;
+    if (fled) gold = Math.floor(gold * (SALVAGE_BASE_KEPT + modDelta(mods, 'salvageKept', goldCtx)));
   }
   const deadIndices = Array.from({ length: party }, (_, i) => i).filter((i) => !alive.has(i));
   // Timeline AFTER the dice — scheduling jitter must never shift odds.
@@ -332,6 +427,17 @@ export interface DelveState {
   monumentFund: number;
   /** Rung 3: reinvested colony-cap raises (see effectiveTargetPop). */
   capRaises: number;
+  /** Rung 4: granted workings, in grant order (seeds live in craft.ts). */
+  cookbook: GrantedSkill[];
+  /** Rung 4: per-being deed tallies (Addendum 8) — deeds only, ever. */
+  aspects: Record<string, AspectTally>;
+  /** Rung 4: an unconsumed notable delve — the dispatcher's next
+   *  reflection at this wing carries the craft clause. Latest wins. */
+  proposalPressure: { dispatcherId: string; seq: number; kind: OutcomeKind } | null;
+  /** Rung 4: high-water mark of steps cleared — makes "first-clear"
+   *  computable. The founding run sets the baseline quietly; only a
+   *  bettered mark is notable. */
+  deepestCleared: number;
 }
 
 /** FNV-1a 32-bit (the terminalLand.ts local-copy pattern). */
@@ -380,6 +486,10 @@ export function initialDelveState(wing: string): DelveState {
     active: null,
     monumentFund: 0,
     capRaises: 0,
+    cookbook: [],
+    aspects: {},
+    proposalPressure: null,
+    deepestCleared: 0,
   };
   for (let i = 0; i < state.targetPop; i++) state.delvers.push(recruit(state));
   return state;
@@ -396,6 +506,11 @@ export function parseDelveState(json: string | null, wing: string): DelveState |
     // (rung-3 spec bar 6: no schema bump, no migration).
     if (typeof s.monumentFund !== 'number') s.monumentFund = 0;
     if (typeof s.capRaises !== 'number') s.capRaises = 0;
+    // Rung-3-shaped blobs predate the craft (rung-4 spec bar 8).
+    if (!Array.isArray(s.cookbook)) s.cookbook = [];
+    if (typeof s.aspects !== 'object' || s.aspects === null) s.aspects = {};
+    if (typeof s.proposalPressure !== 'object') s.proposalPressure = null;
+    if (typeof s.deepestCleared !== 'number') s.deepestCleared = 0;
     return s;
   } catch {
     return null;
@@ -435,6 +550,9 @@ export function beginExpedition(
   const prng = expeditionPrng(state.wing, seq);
   const size = Math.min(Math.max(1, params.partySize), state.delvers.length);
   const effective: ExpeditionParams = { ...params, partySize: size };
+  // Rung 4: a warded dispatch is a veneration — the dispatcher's faith
+  // deed (Addendum 8: Tier-0-observable, zero draws).
+  if (effective.warded) accrueAspect(state, dispatcherId, 'faith');
   const outcome = runExpedition(effective, prng);
   // Party = the first `size` of the roster, rotated by seq so the same
   // few don't shoulder every delve. Deterministic given the roster.
@@ -469,6 +587,9 @@ export interface Resolution {
   spent: 'monument' | 'colony' | null;
   /** Shrine stage after the spend — the caller marks stage crossings. */
   shrineStageAfter: number;
+  /** Rung 4: this delve marked the dispatcher's mind — the caller
+   *  queues the perception that accrues reflection pressure. */
+  notable: boolean;
 }
 
 /**
@@ -498,6 +619,18 @@ export function resolveExpedition(
   const deadNames = state.delvers.filter((d) => deadIds.includes(d.id)).map((d) => d.name);
   state.delvers = state.delvers.filter((d) => !deadIds.includes(d.id));
   state.hoardGold += a.outcome.gold;
+  // Rung 4: the colony buys granted workings — after the gold banks,
+  // BEFORE the tranche. Pure, zero draws; pacing gates the earliest
+  // payment, the reserve is never spent into, unpaid grants retry at
+  // every resolution until affordable.
+  for (const g of state.cookbook) {
+    if (g.paid) continue;
+    if (g.pacing === 'after-the-next-return' && a.seq < g.grantedAtSeq) continue;
+    if (state.hoardGold >= SPEND_RESERVE + g.price) {
+      state.hoardGold -= g.price;
+      g.paid = true;
+    }
+  }
   let spent: 'monument' | 'colony' | null = null;
   if (state.hoardGold >= SPEND_RESERVE + SPEND_TRANCHE) {
     state.hoardGold -= SPEND_TRANCHE;
@@ -517,14 +650,35 @@ export function resolveExpedition(
   if (state.delvers.length < effectiveTargetPop(state) && state.nextArrivalAtMs === null) {
     state.nextArrivalAtMs = nowMs + prng.range(ARRIVAL_GAP_MS[0], ARRIVAL_GAP_MS[0] + ARRIVAL_GAP_MS[1]);
   }
+  const kind = outcomeKind(a.outcome, a.partyIds.length);
+  // Rung 4: the dispatcher's deeds (Addendum 8 — Tier-0-observable
+  // outcomes only, zero draws). A drive-off survived is a war deed.
+  if (kind === 'rich') accrueAspect(state, a.dispatcherId, 'harvest');
+  if (deadIds.length > 0) accrueAspect(state, a.dispatcherId, 'death');
+  if (a.outcome.encountered && !a.outcome.fled && kind !== 'lost') {
+    accrueAspect(state, a.dispatcherId, 'war');
+  }
+  // Rung 4: a notable delve marks the dispatcher's mind (bar 3). The
+  // founding run sets the depth baseline quietly; only a bettered mark
+  // counts as a first-clear.
+  const firstClear = state.deepestCleared > 0 && a.outcome.stepsCleared > state.deepestCleared;
+  state.deepestCleared = Math.max(state.deepestCleared, a.outcome.stepsCleared);
+  const notable = kind === 'lost'
+    || deadIds.length >= NOTABLE_DEAD_MIN
+    || firstClear
+    || a.outcome.gold >= NOTABLE_GOLD_MIN;
+  if (notable) {
+    state.proposalPressure = { dispatcherId: a.dispatcherId, seq: a.seq, kind };
+  }
   return {
-    kind: outcomeKind(a.outcome, a.partyIds.length),
+    kind,
     dispatcherId: a.dispatcherId,
     deadName: deadNames[0] ?? '',
     deadCount: deadIds.length,
     gold: a.outcome.gold,
     spent,
     shrineStageAfter: shrineStage(state.monumentFund),
+    notable,
   };
 }
 
