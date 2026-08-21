@@ -57,6 +57,10 @@ export interface CraftSkill {
   id: string;
   composition: CraftComposition;
   requires?: { aspect: Aspect; share: number };
+  /** A working the colony INVENTED (vs the seed craft). The pick
+   *  always carries the best granted working — inventions get used,
+   *  or bar 10's skill-in-use beat could never happen. */
+  granted?: true;
 }
 
 interface VerbSpec {
@@ -203,7 +207,7 @@ export function grantedAsSkill(g: GrantedSkill): CraftSkill | null {
   if (!verb || !modifier) return null;
   const magnitude = Math.floor(g.composition.magnitude);
   if (magnitude < 1 || magnitude > VERB_SPECS[verb].magMax) return null;
-  return { id: g.id, composition: { verb, modifier, magnitude } };
+  return { id: g.id, composition: { verb, modifier, magnitude }, granted: true };
 }
 
 /** Every name the cookbook holds (seed + granted, paid or pending) —
@@ -236,6 +240,16 @@ export function pickLoadout(
     if (byScore !== 0) return byScore;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
+  // The colony carries its inventions: the best-ranked GRANTED working
+  // (by the same temperament order) claims the first slot when one
+  // exists — otherwise a granted skill outside the dispatcher's top
+  // verb affinities would never leave the shelf, and the skill-in-use
+  // beat could never land. Pure, deterministic, still temperament-led.
+  const bestGranted = ranked.find((s) => s.granted);
+  if (bestGranted) {
+    ranked.splice(ranked.indexOf(bestGranted), 1);
+    ranked.unshift(bestGranted);
+  }
   const picked: CraftSkill[] = [];
   const verbs = new Set<CraftVerb>();
   for (const s of ranked) {

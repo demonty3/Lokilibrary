@@ -223,6 +223,28 @@ check('the timid pick off the seeds is ward + veil',
   check('requirement arithmetic: share counts only the named aspect',
     aspectShare({ faith: 1, war: 3 }, 'faith') === 0.25
     && requirementMet({ faith: 2, war: 2 }, { aspect: 'faith', share: 0.5 }));
+  // The colony carries its inventions (the live-run finding, 2026-08-21):
+  // a granted working claims a slot even outside the dispatcher's top
+  // verb affinities — otherwise the skill-in-use beat could never land.
+  const invented = {
+    id: 'low-oath',
+    composition: { verb: 'hold', magnitude: 1, modifier: 'when-few' },
+    granted: true,
+  } as const;
+  const boldWith = pickLoadout(directiveBoldness(LAND_PERSONAS.loki), [...seedBook, invented], undefined);
+  const timidWith = pickLoadout(0.2, [...seedBook, invented], undefined);
+  check('a granted working always rides — bold pick',
+    boldWith.some((s) => s.id === 'low-oath') && boldWith.length === CRAFT_LOADOUT_MAX);
+  check('a granted working always rides — timid pick',
+    timidWith.some((s) => s.id === 'low-oath'));
+  const effGranted = effectiveCookbook({
+    cookbook: [{
+      id: 'low-oath', composition: { verb: 'hold', modifier: 'when-few', magnitude: 1 },
+      line: 'x', price: 14, pacing: 'at-once', grantedAtSeq: 11, paid: true, proposedBy: 'loki',
+    }],
+  });
+  check('effectiveCookbook marks paid grants as granted',
+    effGranted.find((s) => s.id === 'low-oath')?.granted === true);
 }
 
 // 6 · proposal validation (bar 4, BEFORE the DM): in-grammar admits with
