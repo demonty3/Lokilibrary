@@ -113,7 +113,15 @@ from `src/data/sampleLibrary.ts` as the recognition surface for each game
 agent dialogue). This triggers the "oh I own that" beat; substituting
 generated art for it weakens that beat. Same rule applies to non-Steam
 games (itch.io, GOG, filesystem media in the year-2 dream-mode feature):
-user-provided art only.
+user-provided art only. **Amended 2026-08-21 (Claude-authoring
+direction):** the blanket "never generate per-game art" prohibition is
+lifted — a user's own Claude may author *interpretive* art about their
+library (murals, wing art) in their own palace, because the real CDN /
+user-provided art is on-screen anyway and keeps carrying the recognition
+beat. What survives the amendment: the CDN / user-provided art stays the
+recognition anchor and is never *replaced* by generated art, and licence
+hygiene does not relax — generated game-IP art stays local to the user's
+palace; nothing game-IP-generated ships in the repo or in shared packs.
 
 **Sprite tiles + agent sprites = pixel-art pipeline** (Phase 3; not in
 v1.0 MVP). Generated at template-build time via local SDXL + the
@@ -160,7 +168,10 @@ toward caution over speed; on trivial tasks, use judgment.
 
 - **Per-game art = Steam CDN, recognition surface only.** See "Asset
   libraries" above. Use `headerImageUrl(appid)` from
-  `src/data/sampleLibrary.ts`. Never generate per-game art.
+  `src/data/sampleLibrary.ts`. Amended 2026-08-21: user-side *interpretive*
+  generated art about the library is allowed (Claude-authoring direction);
+  the CDN art stays the recognition anchor, never replaced, and generated
+  game-IP art never ships in the repo or shared packs.
 - **Pixel-art pipeline assets are baked at template-build time** (Phase 3+)
   with strict curation discipline: generate 5–10 candidates per asset,
   hand-curate the survivor, run through palette quantize + PixelDetector
