@@ -164,3 +164,141 @@ first. Harry re-judges from the raw outputs either way.
 ---
 
 ## Results (appended after the run; nothing above this line edits)
+
+Run 2026-08-21, model `claude-sonnet-4-6`, ten calls (five reflection, five
+DM), all first-attempt — zero transport repairs, zero nulls, zero escapes.
+Raw JSON archived this session; every model-authored word is reproduced
+verbatim below.
+
+### The five, verbatim
+
+**S1 · loki · `lost` → salvage / when-few / two · score 2 · bounds 20–50**
+> *reflection:* i keep sending them past the turn where sense ends, and the
+> shaft gives nothing back but silence; the creature sat on the low stair
+> and outlasted every one of them.
+> *proposed as* **broken-rope** — "when only the last one or two still
+> stood they had no working to loose them from the stair — a party that
+> will not break dies whole, and something must give the remnant leave to
+> run and keep what they carry."
+> *DM:* **grant** as **broken-rope**, 35 gold, after-the-next-return —
+> "when the last few still stand and the stair will not release them,
+> broken-rope cuts the line and lets them carry their salvage home"
+
+**S2 · ghost · `loss`, fled → salvage / when-few / two · score 2 · bounds 20–50**
+> *reflection:* three came back empty-handed, which is the kind of loss
+> that sits quiet but costs the colony just the same; the sacks were full
+> when they turned to run, and that is what stings.
+> *proposed as* **tight-grip** — "when the party broke after losing one,
+> the fear of the open hands undid all the gleaning — a stronger salvage
+> working shaped for that moment of sudden flight might have kept what
+> they earned."
+> *DM:* **grant** as **tight-grip**, 35 gold, after-the-next-return —
+> "born from the sting of open hands — for the moment the party breaks and
+> the harvest must not go with it."
+
+**S3 · moth · `rich` first-clear → glean / below / two · score 3 · bounds 30–75**
+> *reflection:* they went as deep as the rope would allow and found the
+> lair cold and quiet, which is the best kind of lair to find; every
+> cleared step gave back more than the last, and they climbed home with
+> full arms.
+> *proposed as* **deep-dividend** — "the deepest steps, past anything we
+> had cleared before, paid back more than the shallow ones ever did, and
+> that pattern deserves a working of its own."
+> *DM:* **grant** as **deep-dividend**, 52 gold, after-the-next-return —
+> "moth's rope went farthest and came home heaviest, and so the deep steps
+> learn to give back more."
+
+**S4 · loki · `hollow` streak, warded → salvage / when-warded / two · score 3 · bounds 30–75**
+> *reflection:* i keep sending them blessed and they keep coming back
+> breathing but bare-handed, which is a kind of mercy i cannot spend on
+> the colony's hunger.
+> *proposed as* **blessed-carry** — "three flights from a waiting
+> creature, all shrine-venerated, all alive — the devotion that keeps them
+> standing should also keep their hands full on the way out."
+> *DM:* **grant** as **saints-laden**, 52 gold, after-the-next-return —
+> "let the shrine's mercy fill their arms as well as their lungs, and may
+> they come home heavy with both."
+
+**S5 · ghost · `rich`, two standing → glean / when-few / two · score 2 · bounds 20–50**
+> *reflection:* two came back where four went down, and what they carried
+> matched what the whole party had hoped for — the deep steps gave when
+> the numbers were few, and i do not know yet whether to trust that or
+> only to mark it.
+> *proposed as* **lean-harvest** — "when only two remained and pressed on,
+> the cleared steps beneath yielded more than a full party would have
+> expected — the deep gave generously to those who had least."
+> *DM:* **grant** as **lean-harvest**, 35 gold, after-the-next-return —
+> "what the deep gives to the few, let the few carry home with both hands."
+
+### Tally against the frozen readings
+
+- 5/5 DM outputs in-schema first attempt; every price an integer inside its
+  floor..cap (35 ∈ 20–50, 52 ∈ 30–75), sane against the hoard economy. MET.
+- 5/5 proposals in-grammar on first extraction (bar was ≥4/5; escapes
+  observed: zero). MET.
+- Distinct (verb, modifier) cells: **4** of the required ≥4 —
+  salvage|when-few (twice), glean|below, salvage|when-warded,
+  glean|when-few. Unseeded cells among them: **3** of the required ≥2. MET.
+- Grounds trace to their scenarios: all five (S2's condition half-mismatch
+  recorded under residue). Tellable as marginalia without embarrassment:
+  yes — S4's exchange (*blessed-carry* granted as *saints-laden*, keeping
+  the saints-shadow lineage) is the run's best moment and would already
+  read on the desk.
+
+### The strongest reading against GO, stated first
+
+Every proposal is economy-side — three salvage, two glean; not one of five
+scenarios produced ward, press, veil or hold, including a total party
+wipe. If that concentration were the grammar flattening invention, it
+would be the kill in slow motion. The deflating explanation holds instead:
+the seed cookbook already claims most danger-side cells (two wards, two
+presses, a veil, a hold) and the prompt asks for "a working the cookbook
+lacks" — proposals flowed to the open ground, which is the mechanism
+working as designed. The two same-cell landings (S1/S2) are the other
+worry — two different griefs converging on one lattice point smells of a
+small space — but the space they converged in was the *unseeded* part, and
+the post-hoc probe below shows the engine-shaped consequence (the second
+arrival gets refused as duplicate) behaves correctly.
+
+### Verdict: **GO.**
+
+The kill does not fire on any of its concrete triggers or on the
+qualitative wording: novelty arrived inside the grammar (zero escapes, and
+the run's most alive proposals — saints-laden, broken-rope, lean-harvest —
+are legal compositions), and the in-grammar residue did not cluster on
+seeded cells. The DM priced non-absurdly five times out of five. Engine
+work on bars 1–4 and 6–9 is unblocked.
+
+### Post-hoc probe (NOT pre-registered; additional to the frozen five)
+
+The five grants left the DM's rejection path unexercised, and S1/S2's
+same-cell collision is exactly what the sequential engine would produce.
+One extra DM call, labelled as such: S2's tight-grip adjudicated against a
+cookbook already holding S1's granted broken-rope (same cell). The DM
+refused it — **beyond-the-craft**: "broken-rope already holds this ground
+— salvage two, when-few — and a second hand on the same rope pulls nothing
+new from the earth." The rejection path is real craft judgment, not a
+rubber stamp. (Implementation note: the refusal returned an empty name and
+price zero — bar 4's post-validation must scope name/price checks to
+grants.)
+
+### Residue carried into implementation (none blocks GO)
+
+1. **The retreat-side gap.** S1's actual lesson — "a party that will not
+   break dies whole" — is not sayable in the grammar: no verb breaks a
+   party *earlier*. The proposal bent salvage toward it and the granted
+   fiction ("lets them carry their salvage home") promises a release the
+   cell does not mechanically perform. Consider a seventh verb at bar-1
+   implementation (lower the effective retreat threshold by one — a
+   self-preservation working); the grammar widens deliberately, in code,
+   per the spec's constraint.
+2. **Fiction can outrun mechanics.** S2 chose when-few for a delve where
+   three stood (the working would not have fired on its own founding
+   story). Beings being wrong about their own craft is tolerable fiction,
+   but the DM prompt at implementation should state exactly what each verb
+   does and does not do, and bar 10's eyeball owns catching overpromise.
+3. **Anchoring.** All five magnitudes were two; all five pacings
+   after-the-next-return. Watch at implementation; vary exemplars in the
+   craft clause if the engine reproduces the monoculture.
+4. **Rejection schema.** Per the probe: define the beyond-the-craft output
+   shape (name/price unused) in bar 4's contract.
