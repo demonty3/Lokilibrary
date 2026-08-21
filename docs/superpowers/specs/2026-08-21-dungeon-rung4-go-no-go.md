@@ -121,6 +121,13 @@ Output JSON: `{verdict: "grant"|"beyond-the-craft", name, price, pacing:
 enum, integer price inside floor..cap, no digits in name or line, no name
 collision with the cookbook.
 
+**Null rule, pre-committed (added pre-run, before the first call):** the
+contract allows a reflection to propose none. A null is recorded as "no
+proposal pressure" — neither an escape nor an admitted proposal. If more
+than one scenario returns null, the DM leg is topped back up to five with
+hand-authored proposals marked as such, so bar 5's five-through-the-DM
+count survives; nulls are never re-rolled.
+
 **Repair rule, pre-committed:** one transport-repair pass is allowed per
 call for a malformed wrapper (prose around the JSON) — same content,
 format reminder only. Zero content-repair passes: nothing is re-prompted
