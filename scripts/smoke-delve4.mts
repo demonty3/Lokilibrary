@@ -72,7 +72,9 @@ import {
   type CraftComposition,
   type DmGrant,
 } from '../src/terminal/craft.ts';
+import { craftClause, extractCraftProposal } from '../src/terminal/craftProposal.ts';
 import { LAND_PERSONAS } from '../src/terminal/beingIntents.ts';
+import type { PlanStep } from '../src/agents/memory/schema.ts';
 
 const { check, report } = makeChecker('smoke delve4');
 
@@ -450,6 +452,59 @@ const proposal = { name: 'loose-line', composition: { verb: 'salvage', magnitude
       id: 'far-thing', composition: { verb: 'smite', modifier: 'always', magnitude: 1 },
       line: '', price: 10, pacing: 'at-once', grantedAtSeq: 0, paid: true, proposedBy: 'x',
     }) === null);
+}
+
+// 12 · the proposal channel's pure half (bar 3): extraction off plan
+// steps by content whitelist, and the craft clause that asks for it.
+const step = (target: string, kind: PlanStep['kind'] = 'place_mark'): PlanStep =>
+  ({ kind, target, status: 'pending' });
+{
+  const raw = extractCraftProposal([
+    step('walk the shaft line'),
+    step('i will write it down — craft: broken-rope: salvage twice when-few — for the ones after'),
+  ]);
+  check('the craft step parses out of surrounding prose',
+    raw !== null && raw.name === 'broken-rope' && raw.verb === 'salvage'
+    && raw.magnitude === 2 && raw.modifier === 'when-few');
+  if (raw) {
+    check('extraction and validation round-trip', validateCraftProposal(raw).ok);
+  }
+  const cased = extractCraftProposal([step('CRAFT: Broken-Rope: Salvage Thrice Below', 'move_to')]);
+  check('casing is not trusted, and any step kind carries',
+    cased !== null && cased.name === 'broken-rope' && cased.magnitude === 3);
+  const flat = extractCraftProposal([step('craft: loose-line: break when-few')]);
+  check('a flat working may omit its strength',
+    flat !== null && flat.verb === 'break' && flat.magnitude === 1);
+  check('no craft marker, no proposal — the empty mailbox',
+    extractCraftProposal([step('linger at the shrine'), step('watch the west seam')]) === null);
+  check('a stepless plan extracts nothing', extractCraftProposal([]) === null);
+  const escape = extractCraftProposal([step('craft: storm-call: smite twice below')]);
+  check('an out-of-grammar verb still extracts raw — validation names the escape',
+    escape !== null && escape.verb === 'smite' && !validateCraftProposal(escape).ok);
+  const first = extractCraftProposal([
+    step('craft: first-word: ward once always'),
+    step('craft: second-word: press twice always'),
+  ]);
+  check('the first craft step wins', first?.name === 'first-word');
+}
+{
+  const clause = craftClause('lost', seedBook, 7);
+  check('the clause names every held working', seedBook.every((s) => clause.includes(s.id)));
+  check('the clause carries the format marker and the null option',
+    clause.includes('craft: ') && clause.includes('propose none'));
+  check('the clause is numeral-free', !/\d/.test(clause));
+  check('the clause is deterministic per (kind, cookbook, seq)',
+    clause === craftClause('lost', seedBook, 7));
+  check('the exemplar rotates with the seq (residue 3)',
+    clause !== craftClause('lost', seedBook, 8));
+  let exemplarsLegal = true;
+  for (let seq = 0; seq < 24; seq++) {
+    const c = craftClause('rich', seedBook, seq);
+    const quoted = /"(craft:[^"]+)"/.exec(c);
+    const raw = quoted ? extractCraftProposal([step(quoted[1])]) : null;
+    if (!raw || !validateCraftProposal(raw).ok) exemplarsLegal = false;
+  }
+  check('every rotated exemplar is itself a legal composition', exemplarsLegal);
 }
 
 report();

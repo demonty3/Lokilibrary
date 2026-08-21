@@ -118,6 +118,7 @@ import {
   tickArrival,
   type DelveState,
 } from './delve';
+import { effectiveCookbook, pickLoadout, resolveMods } from './craft';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../agents/markStyles';
 import { wrapNote } from '../render/noteBox';
 import { easeLabelAlpha, siteLabelTarget, stepLabelAlpha } from './siteLabels';
@@ -2349,6 +2350,14 @@ export async function mountTerminalLand(
   let delveUptimeFlushAtMs = 0;
   /** A stalled dispatch walk (dispatcher went absent) releases + retries. */
   const DELVE_WALK_CAP_S = 120;
+  /** Rung 4: the notable return as the mind hears it — numeral-free,
+   *  rendered by writer.ts's `the expedition …` memory line. */
+  const DELVE_RETURN_PHRASE: Record<'rich' | 'hollow' | 'loss' | 'lost', string> = {
+    rich: 'came home heavy with gold',
+    hollow: 'came home empty-handed',
+    loss: 'came home short',
+    lost: 'never came back',
+  };
   const delversHere = (): boolean => delverWing === wing;
   const saveDelve = (): void => {
     if (!delveState) return;
@@ -2677,6 +2686,24 @@ export async function mountTerminalLand(
         if (res.spent === 'monument' && res.shrineStageAfter > shrineMarkedStage) {
           shrineMarkedStage = res.shrineStageAfter;
           placeShrineMark(res.dispatcherId, res.shrineStageAfter);
+        }
+        // Rung 4: a notable return is a PERCEPTION on the dispatcher's
+        // mind — it rides the existing Tier-1 drain (the Phase B
+        // pattern, zero new call sites) and presses toward the
+        // reflection that will carry the craft clause. The pressure
+        // itself already persists on the blob, so a dispatcher who is
+        // elsewhere just hears about it later.
+        if (res.notable) {
+          const disp = beings.get(res.dispatcherId);
+          if (disp && disp.mind.present && !disp.away) {
+            const dx = Math.round(disp.x);
+            disp.mind.perceptionQueue.push({
+              kind: 'delve_return',
+              subject: DELVE_RETURN_PHRASE[res.kind],
+              at: { x: dx, y: model.surface[dx] ?? 0 },
+              when: nowMs,
+            });
+          }
         }
       }
       rebuildShrine(); // early-returns unless the stage moved
@@ -3197,11 +3224,26 @@ export async function mountTerminalLand(
             if (delveState && delveDispatch?.agentId === b.id) {
               // Rung 2: the dispatcher's temperament shapes the expedition
               // (persona-derived, prng-free — spec bar 1). Rung 3: a
-              // venerated walk descends warded.
+              // venerated walk descends warded. Rung 4: the same
+              // temperament picks the loadout off the colony's cookbook
+              // (pure, prng-free, aspect-gated); the ids ride along as
+              // lore, the mods are the mechanics.
+              const loadout = pickLoadout(
+                directiveBoldness(b.persona),
+                effectiveCookbook(delveState),
+                delveState.aspects[b.id],
+              );
               beginExpedition(
                 delveState,
                 b.id,
-                { ...directiveParams(b.id, b.persona), warded: delveDispatch.warded },
+                {
+                  ...directiveParams(b.id, b.persona),
+                  warded: delveDispatch.warded,
+                  ...(loadout.length > 0 && {
+                    mods: resolveMods(loadout),
+                    loadout: loadout.map((s) => s.id),
+                  }),
+                },
                 Date.now(),
               );
               saveDelve();

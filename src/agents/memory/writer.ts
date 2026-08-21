@@ -248,6 +248,10 @@ function describeEvent(ev: PerceptionEvent): string {
     }
     case 'terminal_arrival':
       return `arrived in the ${ev.subject ?? '?'} land`;
+    // Dungeon rung 4: the notable return, in the marginalia register —
+    // the subject arrives as a numeral-free phrase from the push site.
+    case 'delve_return':
+      return `the expedition ${ev.subject ?? 'returned'}`;
     default:
       return `${ev.kind}${ev.subject ? `:${ev.subject}` : ''} at (${ev.at.x},${ev.at.y})`;
   }

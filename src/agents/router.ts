@@ -766,6 +766,11 @@ function importanceFor(kind: string): number {
       return 4;
     case 'bookshelf_in_reach':
       return 3;
+    // Dungeon rung 4: a notable expedition marks the dispatcher's mind
+    // (world_event weight — it presses toward the reflection that will
+    // carry the craft clause, but never forces one).
+    case 'delve_return':
+      return 6;
     default:
       return 3;
   }
