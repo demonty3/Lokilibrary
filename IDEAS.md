@@ -962,6 +962,41 @@ constant, and put it beside today's.
   crude as they are now — then doubling is dead and the content problem is
   confirmed to be primitives, not resolution, which routes back to 03/05.
 
+#### The check RAN, same day (2026-08-21) — kill clause met on its measurable half
+
+`docs/design-reviews/2026-08-21-scale-aware.html`, generator
+`scripts/probe-scale-aware.mts`. Three panels at identical physical size
+(1440×806): **A** today (120×31 @ 12×26), **B** 2× with no new rules — a
+CONTROL, so any gain in C cannot be credited to the grid — and **C** 2×
+scale-aware (horizon at half-cell precision, strata re-grained at the same
+patch size, sky marks at sub-cell positions with apparent density held).
+
+- **A → B: the grid alone buys nothing.** Provable rather than judged: a block
+  element already encodes a sub-cell edge, so it expands onto the finer lattice
+  EXACTLY (`▀` → two full cells, `▙` → three). Every shape in B is identical in
+  outline to A.
+- **B → C: a finer rule changes texture, not shape.** Ground grain and horizon
+  precision move; the hills are the same hills and the cottages the same
+  cottages.
+- So the kill clause — *"the extra cells only make the marks finer while the
+  shapes stay as crude as they are now"* — **is met on its measurable half.**
+  The taste half (is the finer grain worth it anyway?) is Harry's eye.
+
+**The finding that outlives the check, and it is new: the scene is two kinds of
+matter.** *Block matter* (terrain, silhouettes, buildings) tiles, holds its
+screen size, and can take a finer edge. *Glyph matter* (every being, every
+label, every star, the ☼) cannot be tiled into four cells at all — on a finer
+lattice it is drawn once and lands at HALF its screen size. That asymmetry is
+the mechanism behind the glance-value failure that ended the scale-1 question on
+2026-08-17: it was observed then, and is named now. **Any future resolution move
+must answer it**, and the answer cannot come from the lattice — it has to come
+from the primitives, which routes back to directions 03 and 05.
+
+Also worth keeping: resolution is **necessary but not sufficient**. This kills
+"doubling buys detail for free"; it does not kill "a finer lattice could ever
+help", because a genuinely finer content rule would still need a finer lattice
+to land on.
+
 ### What stays untouched by all of the above
 
 `WORLD_SCALE` is **2**. The 2026-08-17 KEEP-SCALE-2 verdict

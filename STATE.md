@@ -3360,6 +3360,24 @@ to the thread. Kills → only the marks get finer while the shapes stay as crude
 as they are, and the content problem is primitives, not resolution (routes back
 to 03/05).
 
+**4 · The unpark check RAN the same day** (`scripts/probe-scale-aware.mts`,
+`docs/design-reviews/2026-08-21-scale-aware.html`). Three panels at identical
+PHYSICAL size (1440×806) — A today 120×31 @ 12×26, **B a CONTROL** (2×, no new
+rules, so no gain can be credited to the lattice), C 2× scale-aware (horizon at
+half-cell precision, strata re-grained at the same patch size, sky marks at
+sub-cell positions with apparent density held). Result: **the kill clause is met
+on its measurable half.** A→B is provably shape-identical — a block element
+already encodes a sub-cell edge, so it expands EXACTLY (`▀` → two full cells,
+`▙` → three) — and B→C moves texture only: same hills, same cottages, same crust
+profile. The taste half (is the finer grain worth it anyway?) is Harry's eye.
+**New finding, and the durable one: the scene is two kinds of matter.** Block
+matter (terrain, silhouettes, buildings) tiles, holds screen size, takes a finer
+edge; glyph matter (every being, label, star, the ☼) cannot be tiled into four
+cells and lands at HALF its screen size. That is the named mechanism behind the
+08-17 glance-value failure, and any future resolution move must answer it — from
+the primitives, not the lattice. Written up as
+`brain/learnings/a-glyph-grid-holds-two-kinds-of-matter.md`.
+
 Full record, including the measured facts that survive regardless (the cell is
 not the cap; the perf kill is dead at 14× the cells; braille ships in Cozette;
 the work area is 1440×811): **IDEAS.md § The detail thread**. The oldest live
