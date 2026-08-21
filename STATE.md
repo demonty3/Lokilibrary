@@ -3314,6 +3314,59 @@ condition that a pass requires every salience bar re-measured at the new
 denominator and sub-cell animation re-dialled. **The 08-17 KEEP-SCALE-2 verdict
 is untouched and `WORLD_SCALE` was reverted to 2 after the measurement.**
 
+**Detail thread JUDGED + PARKED 2026-08-21, same day** (commits `1c362e2`
+`72f2cfe` `7a5e078` + this one). Two verdicts and a park.
+
+**1 · Height-elastic sky probe — B preferred.** Harry: *"I like B."* Recorded
+honestly: B was preferred over A (today full-screen: 20 world rows + 11 of bare
+aperture rock) and C (full-screen at scale 1), and **K3 — the taller sky reads
+as a bigger void — did NOT fire**. K1, K2 and K4 were not explicitly spoken to,
+so this is a preference, not a signed-off sweep of the frozen bars; anyone
+reopening this inherits §3 verbatim rather than treating the rung as cleared.
+The height-elastic engine slice is **unblocked but NOT scheduled** — his
+immediate follow-on was that the scene *inside* B needs to be better, which is
+the finding that closed the rung out. `WORLD_SCALE` stays **2**; the 08-17
+KEEP verdict and its mixed-registers routing are untouched.
+
+**2 · The bigger-jump direction round — none taken, none killed.** Five
+directions on the same real `composeLand` output (`scripts/directions-bigger-jump.mts`;
+page `docs/design-reviews/2026-08-21-bigger-jump.html`; artifact
+`5a119016-7b98-43d0-8c31-06f2e3ce6f6f`, favicon 🏙️ — republish the SAME path/URL
+if it reopens): 01 depth planes, 02 a near plane, 03 authored set-pieces, 04 a
+second grammar (procedural night city), 05 architecture generated. Harry: *"none
+of those suggestions really jump out as is."* Per the round protocol **all five
+stay OPEN**; silence never defaults to killed. Prior art scanned at conception
+and recorded on the page: Stone Story RPG's scenes are drawn frame by frame, and
+the repo reached the same verdict at the Terminal Terraria gate in June. The one
+observation running AGAINST that framing: the best-looking panel was 04, the
+fully procedural city, not 03, the drawn set-pieces — one observation on one
+panel, untested.
+
+**3 · The idea that outlived the round — double the grid, same scene.** Harry:
+*"double the grid but just make the same thing more detailed."* NEVER TESTED:
+both prior probes shrank everything, because the composer scales its content
+COUNT with the grid (the 08-17 doc says so outright). His version holds feature
+size constant on screen and spends the extra cells on the feature's own edge,
+which also dodges the K1 glance failure that killed scale 1. Argument against:
+no generator in `src/procedural/land.ts` is scale-aware — relief is a per-column
+sine field, strata hash per cell at a fixed `STRATA_RUN_LEN 6`, sites are
+fixed-size 3–5-row stamps, sky dither is a per-cell density; detail must come
+from a finer rule or from drawn art. **NEEDS-CHECK, and it is the unpark
+condition** (two-sided bars written before any render, in IDEAS.md § The detail
+thread): make the composer scale-aware (amplitudes, run lengths, densities in
+world units not cells), render the same wing at 2× with feature sizes held,
+place it beside today's. Confirms → this, not the five directions, is the answer
+to the thread. Kills → only the marks get finer while the shapes stay as crude
+as they are, and the content problem is primitives, not resolution (routes back
+to 03/05).
+
+Full record, including the measured facts that survive regardless (the cell is
+not the cap; the perf kill is dead at 14× the cells; braille ships in Cozette;
+the work area is 1440×811): **IDEAS.md § The detail thread**. The oldest live
+thread in this area is still the 08-17 verdict's own routed destination — a
+fine-lattice mural rect inside the coarse world — which was never built, and the
+desk still passes `mural: false`.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

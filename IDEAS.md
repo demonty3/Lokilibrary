@@ -856,6 +856,122 @@ which is where the glyph treatment for a floor-into-hall join would live.
 
 ---
 
+## The detail thread — resolution, density, and the bigger jump (parked 2026-08-21)
+
+Opened from Harry's question, "are the glyphs we are using too big to have
+detail?" Parked the same day at his call: *"None of those suggestions really
+jump out as is. We might just park the findings here for a later date."*
+Nothing here is killed; the round below stays open, and the unpark condition at
+the end is specific.
+
+### What was settled by measurement (not taste)
+
+- **The cell is not the cap.** The published `The Row Budget` artifact
+  (2026-08-20) argued from "200×55 cells" — that is `V0_SCENE`
+  (`src/render/levels/land.ts:28`), the prototype preview land. The shipped desk
+  window is `DESK_SURFACE` = **53×20 = 1,060 cells**, read live off the running
+  app. Its two demo panels are approximately a full-screen desk at scale 2 and
+  scale 1, not "today's desk".
+- **Render cost does not bind.** The artifact's own frozen kill — frame time on
+  the wallpaper path — was measured dead: 1,060 cells → 16.67 ms / 4.5 % CPU;
+  3,720 → 16.67 / 4.7 %; **14,880 → 16.67 / 3.8 %**. Fourteen times the cells,
+  vsync still locked, CPU flat. Cost lives in the per-frame animation set, not
+  in static cell geometry. Re-arms only if a slice animates per-cell.
+  Evidence path: `scripts/e2e/frameprobe.mjs`, `scripts/e2e/cpuprobe.mjs`.
+- **The work area is 1440×811 logical** (2560×1600 physical, dpr 2), so
+  full-screen at today's glyph size is 3,720 cells — under a third of the
+  artifact's demo density.
+- **All 256 braille cells, all quadrants and eighth-blocks ship in Cozette.**
+  No font change is needed for a finer-shape vocabulary. Caveat: the artifact's
+  "braille is a free 3 %" used idealised masks (a dot = a filled quarter-cell),
+  so real braille carries far less ink and the contrast gates were calibrated on
+  solid glyphs. Untested; its own slice if ever wanted.
+
+### The height-elastic sky probe (2026-08-21) — B preferred
+
+`docs/design-reviews/2026-08-21-height-elastic-sky.{md,html}`, bars frozen and
+committed first (`1c362e2`), generator `scripts/probe-height-elastic.mts`.
+Three panels: A today full-screen (20 world rows + 11 of bare aperture rock),
+B height-elastic sky (all 31 rows world, same glyph size), C full-screen at
+scale 1. **Harry: "I like B."** Recorded honestly: B was preferred over A and
+C, and **K3 (the taller sky reads as a void) did not fire**; K1, K2 and K4 were
+not explicitly spoken to, so this is a preference, not a signed-off sweep of the
+frozen bars. The height-elastic engine slice is unblocked but **not scheduled**
+— his immediate follow-on was that the scene *inside* B needs to be better,
+which is itself the finding.
+
+The engine shape, if it is ever built: extend sky on a **per-global-row salted
+stream** (the `composeLandExtension` precedent, `SKY_SALT` sibling of
+`EXT_SALT`) — a larger `skyH` in the main stream moves every golden. Then
+horizon anchoring in `layoutWorld`, then ground-aligned joins in the broker
+(windows would align on the horizon, not on window tops). Full blast radius in
+STATE.md's probe entry.
+
+### The direction round — five directions, none taken
+
+`docs/design-reviews/2026-08-21-bigger-jump.html`, artifact
+https://claude.ai/code/artifact/5a119016-7b98-43d0-8c31-06f2e3ce6f6f
+(favicon 🏙️ — republish the SAME file path / URL if the round ever reopens).
+Generator `scripts/directions-bigger-jump.mts`; every panel is the same real
+`composeLand` output with exactly one thing changed.
+
+**01 depth planes · 02 a near plane · 03 authored set-pieces · 04 a second
+grammar (procedural night city) · 05 architecture, generated.** Harry's verdict:
+none jumped out. Per the round protocol, **all five stay OPEN — none is killed**
+and none defaults to killed by silence.
+
+Two things worth keeping from it:
+
+- **Prior art, scanned at conception.** Stone Story RPG — the best-looking ASCII
+  scene work that exists — is drawn frame by frame; its own tutorial is a
+  drawing tutorial (references, concept, primary keyframe, *test size and
+  composition*). Nobody has cracked procedurally composing a beautiful textmode
+  scene. The repo reached the same verdict at the Terminal Terraria gate in June:
+  *"the hall is seeded noise; the splash-mural feeling needs hand-authored
+  assets; knob iteration won't close the gap."*
+- **The observation that ran against that framing:** the panel that looked best
+  was **04, the fully procedural night city**, not 03, the drawn set-pieces. If
+  that holds up, the authorship lesson is about *subjects* (creatures, a specific
+  dragon) rather than *scenes* — a city is a rule-shaped thing, a lighthouse is a
+  drawn thing. Untested; it is one observation on one panel.
+
+### The idea that outlives the park — double the grid, same scene
+
+Harry, 2026-08-21: *"double the grid but just make the same thing more
+detailed."* This has **never been tested**, and neither prior probe tested it:
+both shrank everything, because the composer scales its content COUNT with the
+grid (the 08-17 doc says so outright — "the composer given the extra cells
+genuinely composes more world: more sites, wider relief, denser sky"). Harry's
+version holds feature size constant on screen and spends the extra cells on the
+feature's own edge, which also dodges the K1 glance failure that killed scale 1,
+because nothing gets smaller — only the marks get finer.
+
+**Argument against:** no generator in `src/procedural/land.ts` is scale-aware.
+Relief is a sine field per column, strata hash per cell at a fixed
+`STRATA_RUN_LEN 6`, sites are fixed-size 3-to-5-row stamps, sky dither is a
+per-cell density. Detail has to come from a finer rule or from drawn art, and
+the drawn-art answer is direction 03 again.
+
+**NEEDS-CHECK, and this is the unpark condition.** Make the composer
+scale-aware (amplitudes, run lengths and densities expressed in world units
+rather than cells), render the same wing at 2× with feature sizes held
+constant, and put it beside today's.
+- **Confirms:** it reads as the same place drawn better — then this, not the
+  five directions, is the answer to the whole thread.
+- **Kills:** the extra cells only make the marks finer while the shapes stay as
+  crude as they are now — then doubling is dead and the content problem is
+  confirmed to be primitives, not resolution, which routes back to 03/05.
+
+### What stays untouched by all of the above
+
+`WORLD_SCALE` is **2**. The 2026-08-17 KEEP-SCALE-2 verdict
+(`docs/design-reviews/2026-08-17-cell-density.md`) stands, including its
+pre-frozen routing of fidelity to **mixed registers only**. That routed
+destination — a fine-lattice mural rect inside the coarse world — was never
+built, and the desk still passes `mural: false`. It is the oldest live thread in
+this area.
+
+
 ## The dungeon economy: smart beings above, dumb delvers below (added 2026-08-19)
 
 Riffed 2026-08-19, starting from "agents earn gold and buy skill.md files" and

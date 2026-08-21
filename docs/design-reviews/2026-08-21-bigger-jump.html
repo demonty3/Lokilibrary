@@ -33,11 +33,15 @@ figure{margin:6px 0 0;overflow-x:auto;max-width:100%}
 pre.term{font-family:'Cozette',ui-monospace,Menlo,monospace;letter-spacing:0;background:#0a0a0a;
   font-size:26px;line-height:26px;width:1440px;padding:0}
 figcaption{font:400 12.5px/1.5 'IBM Plex Mono',monospace;color:var(--ink-dim);margin-top:10px}
+.statusbox{border:1px solid #6b5c14;background:rgba(255,225,77,.05);border-radius:3px;
+  padding:22px 24px;display:flex;flex-direction:column;gap:12px;max-width:1440px;margin-top:36px}
+.statusbox p{max-width:70ch;font-size:14.5px}
+.statusbox b{color:var(--ink-bright)}
 .verdictbox{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:22px 24px;
   display:flex;flex-direction:column;gap:12px;max-width:1440px;margin-top:44px}
 .verdictbox h3{font:600 17px/1.2 'IBM Plex Sans',sans-serif;color:var(--ink-bright)}
 .verdictbox p{max-width:70ch;font-size:14.5px}
-.tag{display:inline-block;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;
+.tag{display:inline-block;align-self:flex-start;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;
   padding:5px 7px;border-radius:2px;background:rgba(61,255,140,.10);color:var(--accent);border:1px solid var(--accent-dim)}
 .tag.warn{background:rgba(255,225,77,.09);color:var(--warn);border-color:#6b5c14}
 .k0{color:#343b34}.k1{color:#b8c4b8}.k2{color:#272c27}.k3{color:#ffe14d}.k4{color:#303830}.k5{color:#1c1f1c}.k6{color:#1b888a}.k7{color:#2d342d}.k8{color:#ff9f40}.k9{color:#4a564a}.k10{color:#ff5fd2}.k11{color:#259954}.k12{color:#995f26}.k13{color:#9d6bff}.k14{color:#2de2e6}.k15{color:#4f8cff}.k16{color:#161616}.k17{color:#212621}.k18{color:#121412}.k19{color:#2e352e}.k20{color:#1a1d1a}.k21{color:#171917}.k22{color:#222722}.k23{color:#0e1b13}.k24{color:#112c1c}.k25{color:#424d42}.k26{color:#161816}.k27{color:#6a706a}.k28{color:#181a18}.k29{color:#9ea89e}.k30{color:#191c19}.k31{color:#1b1e1b}.k32{color:#1c201c}.k33{color:#ff4d4d}.k34{color:#1d211d}.k35{color:#181b18}.k36{color:#1f221f}.k37{color:#202420}.k38{color:#f3d64a}.k39{color:#3af386}.k40{color:#f3983d}.k41{color:#2bd7db}.k42{color:#212521}.k43{color:#222622}.k44{color:#2a302a}.k45{color:#232823}.k46{color:#2fba68}.k47{color:#242924}.k48{color:#ba7531}.k49{color:#252a25}.k50{color:#262c26}.k51{color:#3c453c}.k52{color:#784d22}.k53{color:#23a6a8}.k54{color:#786a28}.k55{color:#1a6a6c}.k56{color:#217844}.k57{color:#4e451d}.k58{color:#144547}.k59{color:#4e3319}.k60{color:#1e221e}.k61{color:#241a10}.k62{color:#151715}.k63{color:#2f352f}.k64{color:#384138}.k65{color:#455045}</style>
@@ -50,9 +54,25 @@ figcaption{font:400 12.5px/1.5 'IBM Plex Mono',monospace;color:var(--ink-dim);ma
   wing d0, phosphor, midnight, the exact geometry you kept — and changes exactly one thing.
   Judge them by number: keep, kill, or mutate.</p>
   <p class="note">Baseline is engine output. Only the proposal in each panel is authored, so anything
-  that reads wrong is the direction failing, not the mock. Panels are drawn small so you can judge
-  them the way you will see them — at a glance, across the room.</p>
+  that reads wrong is the direction failing, not the mock. Panels are drawn at the desk's true cell
+  size, 12&times;26 screen pixels, so judge them the way you will see them — at a glance, across the room.</p>
 </header>
+
+<div class="statusbox">
+  <span class="tag warn">Parked · 21 Aug 2026</span>
+  <p><b>None of the five was taken.</b> Harry: <i>"none of those suggestions really jump out as is
+  — we might just park the findings here for a later date."</i> Per the round protocol all five stay
+  <b>open</b>; nothing here is killed, and nothing defaults to killed by silence.</p>
+  <p>What outlived the round is a sixth idea he floated in the same breath: <b>double the grid and
+  draw the same scene more finely</b> — hold feature size constant on screen and spend the extra
+  cells on the feature's own edge. Neither earlier probe tested that; both shrank everything,
+  because the composer scales its content <i>count</i> with the grid. It is <b>NEEDS-CHECK</b>, and
+  the check is the way back in: make the composer scale-aware (amplitudes, run lengths and densities
+  in world units rather than cells), render the same wing at 2× with feature sizes held, and put it
+  beside today's. Confirms if it reads as the same place drawn better; dies if only the marks get
+  finer while the shapes stay as crude as they are now. Full record: <code>IDEAS.md</code> §
+  The detail thread.</p>
+</div>
 
 <div class="rule"></div>
 

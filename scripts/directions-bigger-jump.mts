@@ -378,11 +378,15 @@ figure{margin:6px 0 0;overflow-x:auto;max-width:100%}
 pre.term{font-family:'Cozette',ui-monospace,Menlo,monospace;letter-spacing:0;background:${theme.palette.bg};
   font-size:26px;line-height:26px;width:${COLS * 12}px;padding:0}
 figcaption{font:400 12.5px/1.5 'IBM Plex Mono',monospace;color:var(--ink-dim);margin-top:10px}
+.statusbox{border:1px solid #6b5c14;background:rgba(255,225,77,.05);border-radius:3px;
+  padding:22px 24px;display:flex;flex-direction:column;gap:12px;max-width:${COLS * 12}px;margin-top:36px}
+.statusbox p{max-width:70ch;font-size:14.5px}
+.statusbox b{color:var(--ink-bright)}
 .verdictbox{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:22px 24px;
   display:flex;flex-direction:column;gap:12px;max-width:${COLS * 12}px;margin-top:44px}
 .verdictbox h3{font:600 17px/1.2 'IBM Plex Sans',sans-serif;color:var(--ink-bright)}
 .verdictbox p{max-width:70ch;font-size:14.5px}
-.tag{display:inline-block;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;
+.tag{display:inline-block;align-self:flex-start;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;
   padding:5px 7px;border-radius:2px;background:rgba(61,255,140,.10);color:var(--accent);border:1px solid var(--accent-dim)}
 .tag.warn{background:rgba(255,225,77,.09);color:var(--warn);border-color:#6b5c14}
 ${css}</style>
@@ -395,9 +399,25 @@ ${css}</style>
   wing d0, phosphor, midnight, the exact geometry you kept — and changes exactly one thing.
   Judge them by number: keep, kill, or mutate.</p>
   <p class="note">Baseline is engine output. Only the proposal in each panel is authored, so anything
-  that reads wrong is the direction failing, not the mock. Panels are drawn small so you can judge
-  them the way you will see them — at a glance, across the room.</p>
+  that reads wrong is the direction failing, not the mock. Panels are drawn at the desk's true cell
+  size, 12&times;26 screen pixels, so judge them the way you will see them — at a glance, across the room.</p>
 </header>
+
+<div class="statusbox">
+  <span class="tag warn">Parked · 21 Aug 2026</span>
+  <p><b>None of the five was taken.</b> Harry: <i>"none of those suggestions really jump out as is
+  — we might just park the findings here for a later date."</i> Per the round protocol all five stay
+  <b>open</b>; nothing here is killed, and nothing defaults to killed by silence.</p>
+  <p>What outlived the round is a sixth idea he floated in the same breath: <b>double the grid and
+  draw the same scene more finely</b> — hold feature size constant on screen and spend the extra
+  cells on the feature's own edge. Neither earlier probe tested that; both shrank everything,
+  because the composer scales its content <i>count</i> with the grid. It is <b>NEEDS-CHECK</b>, and
+  the check is the way back in: make the composer scale-aware (amplitudes, run lengths and densities
+  in world units rather than cells), render the same wing at 2× with feature sizes held, and put it
+  beside today's. Confirms if it reads as the same place drawn better; dies if only the marks get
+  finer while the shapes stay as crude as they are now. Full record: <code>IDEAS.md</code> §
+  The detail thread.</p>
+</div>
 
 <div class="rule"></div>
 
