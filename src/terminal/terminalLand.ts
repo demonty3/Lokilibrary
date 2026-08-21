@@ -632,6 +632,12 @@ declare global {
         shrinePx: Array<[number, number, string]>;
         worldPx: [number, number];
         activeWarded: boolean;
+        /** Rung 4 — the craft (harness-facing ground truth). */
+        cookbook: Array<{ id: string; paid: boolean; price: number; pacing: string; proposedBy: string }>;
+        aspects: Record<string, Record<string, number>>;
+        proposalPressure: { dispatcherId: string; seq: number; kind: string } | null;
+        deepestCleared: number;
+        activeLoadout: string[];
       };
       /** e2e only — dungeon rung 1. Make the next dispatch due NOW
        *  (jumps the uptime clock; the walk + everything after runs the
@@ -645,6 +651,16 @@ declare global {
        *  spend itself still runs the REAL resolution path. Surface owner
        *  only. */
       debugDelveGrant(gold: number): boolean;
+      /** e2e only — dungeon rung 4. Stamp proposal pressure for a being
+       *  (as if their last delve had been notable) so the proposal → DM
+       *  chain is observable inside one session; the reflection and the
+       *  pipeline run the REAL path. Surface owner only. */
+      debugDelveNotable(agentId: string, kind?: 'rich' | 'hollow' | 'loss' | 'lost'): boolean;
+      /** e2e only — dungeon rung 4. Fire the being's reflection NOW
+       *  (force) through reflectFor — the pressured dispatcher's craft
+       *  pipeline included — and report the craft outcome, or null when
+       *  no proposal was extracted. */
+      debugCraftProposal(agentId: string): Promise<{ name: string; outcome: string } | null>;
       debugEdgeFrame(): Record<
         'left' | 'right',
         {
@@ -3949,6 +3965,17 @@ export async function mountTerminalLand(
         }),
         worldPx: [Math.round(world.x), Math.round(world.y)],
         activeWarded: s?.active?.params.warded === true,
+        cookbook: (s?.cookbook ?? []).map((g) => ({
+          id: g.id,
+          paid: g.paid,
+          price: g.price,
+          pacing: g.pacing,
+          proposedBy: g.proposedBy,
+        })),
+        aspects: JSON.parse(JSON.stringify(s?.aspects ?? {})) as Record<string, Record<string, number>>,
+        proposalPressure: s?.proposalPressure ? { ...s.proposalPressure } : null,
+        deepestCleared: s?.deepestCleared ?? 0,
+        activeLoadout: [...(s?.active?.params.loadout ?? [])],
       };
     },
     debugDelveGrant: (gold) => {
@@ -3956,6 +3983,22 @@ export async function mountTerminalLand(
       delveState.hoardGold += Math.max(0, Math.floor(gold));
       saveDelve();
       return true;
+    },
+    debugDelveNotable: (agentId, kind = 'rich') => {
+      if (isUnder || !delveState || !delversHere()) return false;
+      delveState.proposalPressure = {
+        dispatcherId: agentId,
+        seq: Math.max(0, delveState.expeditionSeq - 1),
+        kind,
+      };
+      saveDelve();
+      return true;
+    },
+    debugCraftProposal: async (agentId) => {
+      const b = beings.get(agentId);
+      if (!b) return null;
+      const r = await reflectFor(b, { force: true });
+      return r.craft ?? null;
     },
     debugDelveDispatch: () => {
       if (isUnder || !delveState || !delversHere()) return false;

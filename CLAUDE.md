@@ -318,7 +318,27 @@ iteration here uses the Claude API.
   budget line. The undercroft window runs the unchanged Tier-2 pump, but
   reflection budgeting is per-BEING (threshold + rate limit carried in
   the mind), so a being below reflects instead of, not in addition to,
-  reflecting above. New runtime
+  reflecting above. **Dungeon rung 4 (2026-08-21, cookbook + DM) adds
+  the THIRD desk-side runtime AI call: the DM adjudication** — trigger:
+  a bounds-validated skill proposal following a notable delve, extracted
+  from the dispatcher's next reflection through the UNCHANGED routeTier2
+  (the craft clause rides the topology string — the proposal side adds
+  ZERO calls, and the notable-delve `delve_return` perception rides the
+  existing Tier-1 drain, the Phase B pattern). Cost: Sonnet via the
+  Worker (`POST /api/agent/adjudicate`, reusing `callTier2Reflect`'s
+  model pin), under a HARD desk-wide `DM_CALLS_PER_DAY = 5` cap claimed
+  from the main-process broker (`terminal:claimDmCall`; dial) — in
+  practice a few calls per week of active desk, because the
+  notable-delve thresholds and the per-agent 1-per-hour reflection
+  cadence bind long before the cap does; zero idle, zero key-free.
+  Caching: none (each adjudication is a fresh judgment). Fallback:
+  consumed rejection — escapes, cap-denials, transport failures and
+  invalid DM output all consume the proposal, nothing retries in a
+  loop, the walker never blocks (the T4 posture); deterministic
+  validation runs BEFORE the call and grant-scoped re-validation AFTER,
+  so a jailbroken DM can only misprice, never break the game.
+  Telemetry: existing logTier2 rows under the dispatcher's agentId.
+  New runtime
   AI calls require an entry in this file documenting cost model,
   caching strategy, and fallback before shipping.
 - **Don't make local LLM the shipped default.** With BYO-key open source
