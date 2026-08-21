@@ -13,7 +13,17 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-21, session close** (DETAIL THREAD CLOSED. The
+Last updated: **2026-08-21, evening** (BOTH GATING EYEBALLS PASSED, one
+message: dungeon rung 3 — "yea i think one is working" (no kill named on
+bars 9-10; the hedge recorded as spoken; pacing/shape dials stay
+available) — rung CLOSED, rung 4 (cookbook + DM, Addenda 2/7/8) + the
+Addendum-9 display spec-interview UNBLOCKED, rung 4 the lead arc per the
+same-day approved plan; archipelago — "yea 2. looks good" (neither K1 nor
+K2 kill fired; the pre-registered TWO MOONS drew no complaint, so no
+desk-global-sky routing is forced) — engine rungs UNBLOCKED, queued
+behind the dungeon arc. Next move: the rung-4 spec-interview. The five
+non-blocking eyeballs below stay open.)
+Previously **2026-08-21, session close** (DETAIL THREAD CLOSED. The
 "double the grid, same scene finer" check ran and Harry judged it: "I actually
 prefer the today one" — the frozen kill fires on both halves, so doubling is
 DEAD and its unpark condition is spent. With scale 1 judged 08-17 and doubling
@@ -217,66 +227,6 @@ dormant OSS-contributor surface; we don't build, test, or gate on them.)
 
 ## Active
 
-### 👁 EYEBALL — dungeon rung 3: the shrine, the spend, and the veneration walk
-
-**Status**: shipped 2026-08-20 (spec frozen first:
-`docs/superpowers/specs/2026-08-20-dungeon-rung3-monuments.md`; smokes +
-live fingerprint green — the mechanics are proven, this eyeball is bars
-9-10, the taste half).
-**What to look at**: the running desk's delver wing (d0/t1). The gold
-the delvers bank now gets SPENT: timid dispatchers raise a small
-3-column shrine on the surface near the shaft (three construction
-stages: footing `░▒░` → walls → the finished stone gate), bold ones
-grow the colony below instead. Once the shrine is finished, watch a
-dispatch: the being walks to the SHRINE first, holds a ~3 s bow, then
-walks on to the shaft — and that party dies less often below because of
-it. One marginalia line lands at the shrine per completed stage, in the
-spender's voice. (The verification desk already has the shrine at stage
-3; to see a veneration walk live, `debugDelveDispatch()` on t1 or just
-leave the desk running — note occluded windows pause the whole desk
-tick, so it must be on screen.)
-**Judge (bars 9-10, kills verbatim)**:
-- Does the veneration walk read as RITUAL — a deliberate visit, a held
-  beat, then the descent — or as pathing noise? Kill: pathing noise.
-- Does the shrine read as wealth-from-below made architecture, distinct
-  from the mastered-game monument? Kill: idle-game read → re-cut
-  pacing, never add UI; gauge/confetti read → re-cut shape or
-  thresholds, never animate.
-- A number anywhere on the world surface → remove, never restyle.
-**Unblocks**: rung 4 (skill cookbook + the DM proposal loop, Addenda
-2/7/8), and the Addendum-9 display rung's spec-interview.
-
-### 👁 EYEBALL — archipelago full-screen mockup: does the filled desk read as one world?
-
-**Status**: mockup taken 2026-08-18 (bars frozen + committed first:
-`docs/design-reviews/2026-08-18-archipelago.md`). Rung 3 of the
-full-screen-desk ladder — a judgment on the DIRECTION, before any engine
-work (multi-seam, desk-global sky, apartness dialect) is spent on it.
-Both shots are the live desk, honest engine output, real desktop behind.
-**What to look at**: `docs/design-reviews/2026-08-18-archipelago/` —
-`01-continent.png` (an 800×780 aperture joined to a standard window with
-its undercroft docked beneath; 1440×780 of world filling the display) and
-`02-archipelago.png` (mainland island + lone 480 outpost, desktop sea
-between; the app is still running in this arrangement if you want it
-live). Judge two frozen bars:
-**K1 (shot 01)** — does the filled screen read as ONE world seen through
-a wall of differently-sized apertures (continuous ground at the seam,
-basement beneath its parent), or as a pile of app windows that happen to
-touch? Kill: pile-of-windows → the full-screen direction fails at desk
-scale; the ladder ends.
-**K2 (shot 02)** — does the outpost read as deliberately apart (an island
-across a strait), or as a window someone forgot to close? Kill:
-forgotten/broken → the apartness dialect (layout-06's outpost treatment)
-becomes its own rung before any archipelago engine work.
-**Pre-registered observation (named before looking):** shot 02 shows TWO
-MOONS — shared-sky chains are per-island by construction. If the two-suns
-/ two-moons is specifically what grates, that routes to a desk-global sky
-rung and K2 is judged on the apart-read alone; any other failure of the
-outpost read fires K2's kill as written.
-**Unblocks**: the archipelago engine rungs (desk-global sky, apartness
-dialect, mixed-size persistence, eventually multi-seam / L-shape) — each
-its own specced slice.
-
 ### 👁 EYEBALL — caption-backing defect closed: the caption now occludes the skyline
 
 **Status**: shipped 2026-08-17 (close-out queue item 2, logged 2026-08-06).
@@ -476,6 +426,23 @@ session if convenient:
 
 ## Done / skipped (kept for posterity until next slice prunes)
 
+- ✅ **EYEBALL dungeon rung 3 (shrine/spend/veneration) — PASSED
+  2026-08-21**: "yea i think one is working" — an affirmative over the
+  rung as presented (the veneration walk + the shrine); no kill named on
+  bars 9-10 (no pathing-noise read, no idle-game or gauge read, no number
+  sighted). The hedge ("i think") is recorded as spoken; the pacing/shape
+  dials stay available if the ritual read weakens on a longer watch. The
+  rung is CLOSED. Rung 4 (cookbook + DM, Addenda 2/7/8) and the
+  Addendum-9 display spec-interview are UNBLOCKED; rung 4 is the lead
+  arc per the 2026-08-21 plan.
+- ✅ **EYEBALL archipelago full-screen mockup — PASSED 2026-08-21**:
+  "yea 2. looks good" — one affirmative over both shots, K1/K2 not
+  separately spoken to; neither frozen kill fired (no pile-of-windows on
+  K1, no forgotten-window on K2), and the pre-registered TWO MOONS drew
+  no complaint, so no desk-global-sky routing is forced. The engine
+  rungs (desk-global sky, apartness dialect, mixed-size persistence,
+  multi-seam / L-shape) are UNBLOCKED, queued behind the dungeon arc per
+  the 2026-08-21 plan.
 - ✅ **The "double the grid" check — JUDGED 2026-08-21, KILLED**: "I actually
   prefer the today one." Harry's own idea, tested with a control panel: A today,
   B 2x with no new rules, C 2x scale-aware, all at identical PHYSICAL size. The

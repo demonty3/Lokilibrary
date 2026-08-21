@@ -3033,9 +3033,16 @@ Out of scope, recorded: resizable windows, variable-width
 undercrofts, multi-seam edges (IDEAS item 3). Next rung: the archipelago
 full-screen mockup.
 
-**Archipelago full-screen MOCKUP taken 2026-08-18 (eyeball queued) — rung
-3 of the full-screen-desk ladder, a judgment on the direction before any
-engine spend.** Bars frozen + committed before the app was launched
+**Archipelago full-screen MOCKUP taken 2026-08-18, eyeball PASSED
+2026-08-21 — rung 3 of the full-screen-desk ladder, a judgment on the
+direction before any engine spend.** Harry's verdict, verbatim: *"yea 2.
+looks good"* — one affirmative over both shots, K1 and K2 not separately
+spoken to; neither frozen kill fired (no pile-of-windows read on K1, no
+forgotten-window read on K2), and the pre-registered TWO MOONS drew no
+complaint, so no desk-global-sky routing is forced. **The archipelago
+engine rungs (desk-global sky, apartness dialect, mixed-size persistence,
+multi-seam / L-shape) are UNBLOCKED, queued behind the dungeon arc per
+the 2026-08-21 plan.** Bars frozen + committed before the app was launched
 (`docs/design-reviews/2026-08-18-archipelago.md`); unlike the underground
 probe this mockup is entirely LIVE-DESK engine output — the shipped
 height/width clamps + undercroft dock arranged via the debug IPC, whole
@@ -3174,8 +3181,16 @@ the same-glyph flag drew no complaint, no dial spent). The rung is
 CLOSED; rung 3 (monuments/spend, Addendum 2) and the Addendum-9
 display rung's spec-interview are UNBLOCKED.
 
-**Dungeon rung 3 SHIPPED 2026-08-20 (eyeball queued) — the shrine, the
-spend, and watchable veneration; spec frozen before implementation**
+**Dungeon rung 3 SHIPPED 2026-08-20, eyeball PASSED 2026-08-21 — the
+shrine, the spend, and watchable veneration; spec frozen before
+implementation. The rung is CLOSED.** Harry's verdict, verbatim: *"yea i
+think one is working"* — an affirmative over the rung as presented (the
+veneration walk + the shrine); no kill was named on bars 9-10 (no
+pathing-noise read, no idle-game or gauge read, no number sighted). The
+hedge ("i think") is recorded as spoken; the pacing/shape dials stay
+available if the ritual read weakens on a longer watch. **Rung 4
+(cookbook + DM, Addenda 2/7/8) and the Addendum-9 display spec-interview
+are UNBLOCKED — rung 4 is the lead arc per the same-day plan.**
 (`docs/superpowers/specs/2026-08-20-dungeon-rung3-monuments.md`;
 Addendum 2 is the only addendum routed in). Harry's four direction
 calls, made at planning: the spend decision is PERSONA-DERIVED and

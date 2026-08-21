@@ -103,3 +103,17 @@ rather than the 4-window desk that restored at launch. Debug sizes are
 session-only — a restart respawns standard geometry. The app is left
 running in the shot-02 arrangement so the eyeball can be taken live as
 well as from the shots.
+
+## Verdict (2026-08-21, recorded against the bars above, untouched)
+
+**PASSED.** Harry, verbatim: *"yea 2. looks good"* — one affirmative over
+both shots, K1 and K2 not separately spoken to. Neither frozen kill fired:
+no pile-of-windows read on K1 (shot 01), no forgotten-window read on K2
+(shot 02). The pre-registered TWO MOONS observation drew no complaint, so
+per the frozen protocol no desk-global-sky routing is forced — the
+per-chain sky stands as shipped, its rung available if it ever grates.
+
+**Consequence:** the archipelago engine rungs (desk-global sky, apartness
+dialect, mixed-size persistence, multi-seam / L-shape) are UNBLOCKED,
+each as its own specced slice — queued behind the dungeon arc per the
+2026-08-21 plan of record (rung 4 leads).
