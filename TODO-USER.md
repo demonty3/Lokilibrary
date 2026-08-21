@@ -13,7 +13,36 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-21, evening** (BOTH GATING EYEBALLS PASSED, one
+Last updated: **2026-08-21, night** (DUNGEON RUNG 4 SHIPPED — cookbook +
+DM, bars 1-4 + 6-9, spec review SOUND; live chain verified end-to-end.
+NEW EYEBALL below: bars 10-11. Next moves after it: the Addendum-9
+display rung's spec-interview, then the archipelago engine rungs.)
+
+- **EYEBALL dungeon rung 4 (bars 10-11) — PENDING.** The question: is a
+  granted skill's story followable from the MARGINALIA ALONE — the
+  proposal, the DM's answer, the skill in use — and does it read as the
+  society INVENTING, not as a changelog? KILL (frozen): reads as patch
+  notes → re-cut voice and cadence, never add UI; a number appears →
+  remove, never restyle; gauge/confetti → re-cut shape or thresholds.
+  What's already on your desk: the colony (d0/t1) holds **low-oath**
+  (hold once, when-few — loki proposed it after a "lost" pressure, the
+  DM granted it at a fair price, cat later carried it below warded).
+  The trail on the record, in order: "asked the craft for low-oath. the
+  deep will say what it thinks of that." → "the craft took low-oath.
+  the cookbook is one working heavier." → "the small ones went down
+  carrying low-oath. it smells of intent." On screen only the LATEST
+  mark at the shaft shows (same-column replacement — the desk grammar);
+  judge the cadence as it happens live, or re-run the chain:
+  worker on `anthropic` (`worker/.dev.vars` — currently `local` AS
+  FOUND, which quietly disables ALL desk AI on this Mac), then
+  `node scripts/e2e/term-drive.mjs t1 '__terminal.debugDelveNotable("loki","lost")'`
+  and `…t1 '__terminal.debugCraftProposal("loki").then(r=>JSON.stringify(r))'`
+  with the desk frontmost. One residue to judge alongside: loki NAMED
+  its invention after the clause's format exemplar (low-oath) — the
+  composition was original, the name anchored. If that grates, the fix
+  is a placeholder-token exemplar (a dial, not a re-cut).
+
+Previous update: **2026-08-21, evening** (BOTH GATING EYEBALLS PASSED, one
 message: dungeon rung 3 — "yea i think one is working" (no kill named on
 bars 9-10; the hedge recorded as spoken; pacing/shape dials stay
 available) — rung CLOSED, rung 4 (cookbook + DM, Addenda 2/7/8) + the

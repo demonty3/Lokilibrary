@@ -360,8 +360,8 @@ export function startTerminalsMode(
   // Each terminal is its own renderer process, so only the broker can hold
   // a desk-wide number. Session-scoped like the proposal slot (a restart
   // forgets the day's count — the cap bounds cost, it is not bookkeeping).
-  // UTC day key per the house convention. Mirrors DM_CALLS_PER_DAY in
-  // src/terminal/craft.ts's ledger (a dial, per the rung-4 spec bar 9).
+  // UTC day key per the house convention. Mirrors DM_CALLS_PER_DAY_LOCAL
+  // in src/api/electron.ts (a dial, per the rung-4 spec bar 9).
   const DM_CALLS_PER_DAY = 5;
   let dmCalls = { day: '', used: 0 };
 

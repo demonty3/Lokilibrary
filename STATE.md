@@ -3301,6 +3301,88 @@ in bar 4's contract. Next: implement bars 1-4 + 6-9 (grammar, smokes,
 proposal channel, DM through the Worker, marginalia rail, ledger entry
 in CLAUDE.md before ship).**
 
+**Dungeon rung 4 SHIPPED 2026-08-21 (commits f635e45 → 565da74 + a
+comment fix; spec review SOUND, zero findings, bars 1-4 + 6-9 all MET;
+eyeball PENDING — bars 10-11, queued in TODO-USER.md).** The society
+grows its own craft. Grammar v0 as the go/no-go drafted it PLUS the
+residue-1 seventh verb `break` (retreat −1 round — the working the
+five proposals could not say), widened deliberately in code:
+7 mechanical verbs × 4 modifiers in `src/terminal/craft.ts`, every
+verb a threshold/parameter swap on a draw `runExpedition` already
+makes (the ward pattern), so the no-loadout path is byte-identical to
+rung 3 by construction — smoke-asserted over 50 seeds plus the
+zero-draw purity idiom, and delve smokes 1-3 (130/41/58) are
+byte-untouched and green. Deterministic power score (cap 9), price
+floor/cap (10×/25× score), death-floor guard (warded stack never
+below 0.4× unwarded — shrine+ward3 measures ratio 0.413 on the
+identical-stream probe: on the floor, never below). Calibration
+(2026-08-21, 8000 identical streams, bold-most probe, BEFORE the
+smoke froze it): draft deltas kept unchanged — the bold seed pick
+(loud-iron+keen-eye) moves yield +18.8% gold (bar 2's "or yield" arm,
++18pp of base potential), the timid pick (ember-line+soft-step) moves
+death odds 0.55pp at ratio 0.79 (legible, bounded). Seed cookbook 8
+entries, two aspect-gated; aspects accrue from Tier-0 DEEDS only
+(warded dispatch→faith, rich→harvest, deaths→death, survived
+drive-off→war, grant→craft); payment is pure, zero-draw,
+reserve-respecting, pacing-gated, before the tranche. The proposal
+channel: a notable delve (lost / ≥2 dead / first-clear past a quiet
+founding baseline / gold ≥40 — dials) sets `proposalPressure` on the
+blob and pushes a `delve_return` perception through the existing
+Tier-1 drain (importance 6); the craft clause rides the TOPOLOGY
+STRING through the UNCHANGED routeTier2 (the T5 pattern) with a
+seq-rotated exemplar (residue 3); extraction is content-whitelist off
+any plan step (`craft: <name>: <verb> <strength> <modifier>`),
+escapes recorded diegetically, never repaired. The DM: ONE new
+runtime AI call (the third desk-side — CLAUDE.md ledger entry landed
+BEFORE ship, c5bef76), Sonnet via `POST /api/agent/adjudicate`
+reusing callTier2Reflect's pin, prompt in pure
+`worker/lib/dm-prompt.ts` stating what each verb does NOT do
+(residue 2); deterministic validation BEFORE, grant-scoped
+re-validation AFTER (residue 4: beyond-the-craft answers with the
+line alone); a hard desk-wide `DM_CALLS_PER_DAY = 5` cap claimed from
+the main-process broker (`terminal:claimDmCall`, T5 posture;
+window-local fallback); every failure path a consumed rejection, the
+walker never blocks. Marginalia is the only surface: `CRAFT_VOCAB`
+(5 voices × proposed/granted/refused/carried, numeral-free,
+smoke-asserted) at the shaft mouth; `carried` fires only when an
+INVENTED working goes below. One design amendment from the live run:
+the pick reserves its first slot for the best-ranked granted working
+— without it a grant outside the dispatcher's top two verb affinities
+would NEVER be carried and bar 10's skill-in-use beat could never
+land (pure, deterministic, still temperament-led). Persistence rides
+the delve blob with defaulted fields (no schema bump; the live desk's
+rung-3 blob loaded unchanged). Evidence: smoke-delve4 159; full
+84-script sweep green by exit code; all three typecheck legs green.
+VERIFIED LIVE end-to-end (macOS desk, t1/d0, worker on `anthropic`):
+debugDelveNotable('loki','lost') → forced reflection through the
+unchanged routeTier2 → Sonnet proposed hold-once-when-few (an
+UNSEEDED cell) named low-oath → admitted (score 1, bounds 10..25) →
+real DM GRANTED at price 14 with a diegetic numeral-free line → hoard
+paid 807→793 (reserve held), craft deed accrued → marginalia trail in
+loki's voice (proposed + granted rows on the record) → reload +
+mode-flip recovered cookbook/hoard from the blob alone → the next
+organic dispatch (cat, warded, party 4) fingerprinted
+`activeLoadout: ["low-oath","ember-line"]` with the carried mark in
+cat's voice; DM spend on logTier2 (844/78 tokens, ~$0.004).
+debugDelve grew cookbook/aspects/proposalPressure/deepestCleared/
+activeLoadout plus e2e-only debugDelveNotable/debugCraftProposal.
+Residue for the eyeball: the being ADOPTED THE CLAUSE EXEMPLAR'S NAME
+(low-oath) — composition original, name anchored (brain note
+format-exemplars-donate-their-content; a placeholder-token exemplar
+is the fix if it grates). Desk state at close: wallpaper mode
+restored, cookbook holds low-oath (paid), worker stopped,
+`worker/.dev.vars` restored to `LLM_PROVIDER=local` AS FOUND — NOTE
+the desk's whole AI surface (Tier-1/2, DM) fails quietly on this Mac
+under `local` with no Ollama; flip to `anthropic` for any live-magic
+session. **Frozen kill conditions carried verbatim, eyeball-gated:**
+skills statistically illegible → smoke-delve4 already fails, the
+cookbook reverts to lore-only and the DM does not ship; reads as
+patch notes → re-cut voice and cadence, never add UI; a number
+appears → remove, never restyle; gauge/confetti read → re-cut shape
+or thresholds, never animate. Next on the ladder: the Addendum-9
+display rung's spec-interview; then the archipelago engine rungs
+(queued behind the dungeon arc).
+
 **Height-elastic sky PROBE taken 2026-08-21 (bars frozen + committed first,
 `1c362e2`; eyeball queued).** Opened from Harry's question — "are the glyphs
 too big to have detail?" — and from the three artifacts of 2026-08-20. Three
