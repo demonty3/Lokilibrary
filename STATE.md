@@ -3267,6 +3267,40 @@ the ladder: rung 4 (skill cookbook + the DM proposal loop; Addenda
 2/7/8 route in), and the Addendum-9 display rung's own
 spec-interview.
 
+**Dungeon rung 4 spec FROZEN + go/no-go RUN, verdict GO — 2026-08-21;
+engine work is UNBLOCKED, nothing implemented yet.** Spec
+(`docs/superpowers/specs/2026-08-21-dungeon-rung4-cookbook-dm.md`,
+b4b04e4) froze eleven bars before implementation; Harry's four
+interview calls on its record (proposals ride the dispatcher's
+reflection after notable delves; the colony owns the cookbook,
+loadouts temperament-picked; Addendum 8 schema-complete lightly used;
+the DM is Sonnet at proposal time). Bar 5's pre-committed go/no-go ran
+same day, protocol frozen and committed BEFORE the first call
+(`2026-08-21-dungeon-rung4-go-no-go.md`, 9aa7e72 + b059d5c pre-run,
+results 2b94484): draft grammar v0 (six verbs × four modifiers,
+deterministic score, price floor/cap), five hand-authored delve
+scenarios, proposals authored by Sonnet-as-reflection (the shipped
+channel's shape — hand-authoring them would have tested the writer,
+not the mechanism), then five DM adjudications on `claude-sonnet-4-6`.
+Result: zero escapes, zero nulls, zero transport repairs; 5/5 DM
+outputs in-schema with prices inside floor..cap; four distinct cells,
+three of them unseeded; every ground line traces. The kill (novelty
+only by escaping the grammar) did not fire — the run's best proposals
+(saints-laden, broken-rope, lean-harvest) are legal compositions. A
+labelled POST-HOC probe (not pre-registered) exercised the rejection
+path the five grants had left untested: the same-cell S2 proposal
+against a cookbook already holding S1's grant was refused
+beyond-the-craft with a diegetic line — craft judgment, not a rubber
+stamp. Residue carried into implementation, none blocking: the grammar
+cannot say "break earlier" (consider a seventh retreat-side verb at
+bar-1 time, widened in code); granted fiction can outrun the cell's
+mechanics (DM prompt must state what each verb does not do; bar-10
+eyeball owns overpromise); magnitude/pacing monoculture to watch; the
+beyond-the-craft output shape (empty name, zero price) needs defining
+in bar 4's contract. Next: implement bars 1-4 + 6-9 (grammar, smokes,
+proposal channel, DM through the Worker, marginalia rail, ledger entry
+in CLAUDE.md before ship).**
+
 **Height-elastic sky PROBE taken 2026-08-21 (bars frozen + committed first,
 `1c362e2`; eyeball queued).** Opened from Harry's question — "are the glyphs
 too big to have detail?" — and from the three artifacts of 2026-08-20. Three
