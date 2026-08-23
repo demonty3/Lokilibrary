@@ -3590,6 +3590,37 @@ hand-fixes (strong-model run gates; Haiku-floor run informative); (3) the
 blind A/B + matching taste bar. The fine-lattice mural rect stays a
 separately-spec'd engine slice (the resolution-thread routing, above).
 
+**Rung-1 spec review RAN 2026-08-23 (fresh-context spec-reviewer):
+GAPS FOUND (2) — one contradiction ORIGINATING IN THE FROZEN SPEC,
+ruling queued to Harry; one narrow attribution gap discharged by the
+corpus eyeball.** Everything executable the reviewer re-verified
+independently held: smokes re-run green, worked example byte-identical
+to d0.json, the flagship table re-derived from the real fnv1a rotation,
+constraints structurally met (no pack-engine / CLAUDE.md / worker
+touches), bars absolute-valued, both briefs used consistently with the
+choice rule. The findings: **(1)** the seed corpus is generated
+game-IP art (interpretive murals about Stardew/Disco/Hades/Hollow)
+committed to the PUBLIC repo — the amended per-game-art rule forbids
+that unconditionally ("nothing game-IP-generated ships in the repo or
+in shared packs"), and the spec's Constraints import the rule verbatim
+while its OWN Done-means 2 + 4a presuppose a shipped authored corpus
+("every shipped hand-authored mural passes", "shuffled among the
+shipped authored murals"). The contradiction is the frozen spec's; the
+build executed the shipping side. NOT resolved unilaterally — the
+criterion is not softened after the result; the ruling rides Harry's
+corpus eyeball (TODO-USER.md): either a dated CLAUDE.md amendment
+exempting the maintainer glyph seed corpus (the recommendation —
+inference, named as such: abstract box-drawing compositions are a
+qualitatively different licence surface from the image-pipeline art
+the rule was written against, and the spec Harry froze presupposes a
+shipped corpus), or purge the corpus from the repo and re-cut
+Done-means 2/4a (empties the shipped mural surface; the JSONs remain
+in git history either way short of a rewrite). **(2)** Done-means 1's
+"one worked example the maintainer has verified end-to-end": the
+technical claim is true and agent-verified on screen, but Harry's own
+verification is the four PENDING shots — on a corpus-eyeball pass the
+clause is discharged; until then the build's claim runs ahead of it.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
