@@ -124,7 +124,21 @@ by generated art (the "oh I own that" beat is a design pillar,
 independent of Steam), and licence hygiene does not relax — the repo is
 public regardless of Steam, so generated game-IP art stays local to the
 user's palace; nothing game-IP-generated ships in the repo or in shared
-packs.
+packs. **Amended 2026-08-23 (Harry's ruling on the rung-1 spec-review
+finding):** the "nothing game-IP-generated ships in the repo or in
+shared packs" clause is RELAXED — Harry: the rule "doesn't need to be
+too artificially tough"; it drew a bright line far tougher than the
+risk it guarded. The rule now: **original interpretive compositions
+about games (glyph murals, wing art) may ship in the repo and in shared
+packs when the maintainer curates them in** — the four seed-corpus
+murals (`src/murals/`) are the first case. What the relaxation does NOT
+cover: reproducing distinctive protected expression (characters, logos,
+traced or copied game artwork) in any shipped generated asset; asset
+extraction from game files (separate rule below, untouched); replacing
+the CDN recognition anchor (design pillar, untouched). User and
+cold-run murals still don't get PR'd upstream by default — as
+*curation* (shipped repo art is maintainer-curated, and a user's murals
+are about their own library), no longer as an IP bar.
 
 **Sprite tiles + agent sprites = pixel-art pipeline** (Phase 3; not in
 v1.0 MVP). Generated at template-build time via local SDXL + the
@@ -173,8 +187,11 @@ toward caution over speed; on trivial tasks, use judgment.
   libraries" above. Use `headerImageUrl(appid)` from
   `src/data/sampleLibrary.ts`. Amended 2026-08-21: user-side *interpretive*
   generated art about the library is allowed (Claude-authoring direction);
-  the CDN art stays the recognition anchor, never replaced, and generated
-  game-IP art never ships in the repo or shared packs.
+  the CDN art stays the recognition anchor, never replaced. Amended
+  2026-08-23: original interpretive compositions may also ship in the repo
+  / shared packs when maintainer-curated (the seed-corpus murals are the
+  first case); never reproduce distinctive protected expression
+  (characters, logos, traced art) in anything shipped.
 - **Pixel-art pipeline assets are baked at template-build time** (Phase 3+)
   with strict curation discipline: generate 5–10 candidates per asset,
   hand-curate the survivor, run through palette quantize + PixelDetector

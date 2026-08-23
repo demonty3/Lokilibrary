@@ -3621,6 +3621,25 @@ technical claim is true and agent-verified on screen, but Harry's own
 verification is the four PENDING shots — on a corpus-eyeball pass the
 clause is discharged; until then the build's claim runs ahead of it.
 
+**Finding 1 RULED 2026-08-23, same day — Harry relaxed the rule.**
+"I think we can rethink the game ip rule tbh, it doesn't need to be too
+artificialy tough yk." Implemented as a dated CLAUDE.md amendment (the
+08-21 amendment stands verbatim; amendments accrete): original
+interpretive compositions about games may ship in the repo / shared
+packs when maintainer-curated — the seed corpus is the first case and
+is now legal where it sits. Retained, deliberately, as NOT being about
+IP toughness: never reproduce distinctive protected expression
+(characters, logos, traced art) in anything shipped; no asset
+extraction (separate rule, untouched); the CDN recognition anchor
+(design pillar, untouched); and the blueprint's "don't PR your murals
+upstream" rail survives re-grounded as curation, not IP.
+`docs/blueprints/mural.md` §6 re-cut to match. The spec-review
+contradiction is dissolved — the frozen spec's Done-means 2/4a and its
+Constraints clause no longer pull apart, with the spec itself
+untouched. Finding 2 still rides the corpus eyeball. The rung's
+sequence is unchanged: corpus eyeball → freeze bars → cold test →
+blind A/B + matching.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

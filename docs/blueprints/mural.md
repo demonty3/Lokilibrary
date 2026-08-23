@@ -224,11 +224,14 @@ again from the brief.
 - **Never** add randomness anywhere; murals are static data.
 - Murals are frozen assets: no runtime generation, no fetching art, no new
   AI call sites. Authoring is your session, at build time, once.
-- Interpretive art about games you own is allowed in **your own palace**
-  (CLAUDE.md, amended 2026-08-21). Generated game-IP art never ships in this
-  repo or in shared packs — do not open a PR that adds your murals upstream,
-  and the Steam CDN header art remains the recognition anchor wherever it
-  appears; a mural reinterprets, it never replaces that surface.
+- Murals are **original compositions**: never reproduce distinctive
+  protected artwork — no characters, no logos, no traced or copied game
+  art. An abstract scene *about* the game is the medium (CLAUDE.md,
+  amended 2026-08-23). Do not open a PR that adds your murals upstream —
+  shipped repo art is maintainer-curated, and your murals are about *your*
+  library. The Steam CDN header art remains the recognition anchor
+  wherever it appears; a mural reinterprets, it never replaces that
+  surface.
 - One mural per wing, both briefs available, the choice yours — but the
   `why` line is mandatory and must be honest to the data.
 

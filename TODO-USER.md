@@ -33,21 +33,11 @@ The rung-4 eyeball (bars 10-11) stays open below it.)
   pass I freeze the smoke's bars with the corpus values and set up the
   cold test (context-cold agent, ≥3 wings, zero hand-fixes — the rung's
   load-bearing kill). A re-cut mural re-enters under the same bars.
-  **A RULING RIDES THIS EYEBALL (spec review 2026-08-23, finding 1):**
-  the seed corpus is generated game-IP art (murals about
-  stardew/disco/hades/hollow) committed to the PUBLIC repo, which the
-  amended per-game-art rule forbids outright — but the spec you froze
-  presupposes a shipped authored corpus in two Done-means clauses, so
-  the contradiction is the spec's own. Your call, two ways: **(a)**
-  amend CLAUDE.md (dated) to exempt maintainer-authored GLYPH murals
-  about the bundled sample library — my recommendation, on the named
-  inference that abstract box-drawing compositions are a different
-  licence surface from the image-pipeline art the rule was written
-  against; or **(b)** purge the four JSONs from the repo — which
-  empties the shipped mural surface, forces a re-cut of the spec's
-  calibration + A/B clauses, and leaves the files in git history
-  anyway short of a rewrite. Finding 2 is discharged by the eyeball
-  itself: the spec's "worked example the maintainer has verified" is
+  The spec review's game-IP finding was RULED same day (2026-08-23):
+  you relaxed the rule ("doesn't need to be too artificially tough") —
+  CLAUDE.md amended, the seed corpus is legal where it sits, nothing
+  else rides this eyeball but the eyeball. Finding 2 is discharged by
+  it too: the spec's "worked example the maintainer has verified" is
   satisfied the moment you pass d0.
 
 - **EYEBALL dungeon rung 4 (bars 10-11) — PENDING.** The question: is a
