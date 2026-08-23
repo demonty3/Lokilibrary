@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mural seed corpus, the calibration eyeball</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --edge: #30363d;
+    --fg: #c9d1d9; --dim: #8b949e; --accent: #7ee787; --warn: #f0b72f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "Segoe UI", sans-serif;
+    max-width: 1100px; margin-inline: auto;
+  }
+  h1, h2, h3 { font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+  h1 { font-size: 1.5rem; color: var(--accent); }
+  h2 { font-size: 1.1rem; margin-top: 3rem; border-bottom: 1px solid var(--edge); padding-bottom: .4rem; }
+  h3 { font-size: 1rem; color: var(--accent); margin: 2.5rem 0 .2rem; }
+  .sub { color: var(--dim); margin-top: -0.5rem; }
+  .why { color: var(--dim); font-style: italic; margin: .2rem 0 .8rem; }
+  .meta { font-family: ui-monospace, Menlo, monospace; font-size: .85rem; color: var(--dim); margin: .5rem 0 0; }
+  figure { margin: 0; }
+  img {
+    width: 100%; max-width: 100%; display: block;
+    border: 1px solid var(--edge); border-radius: 6px;
+    image-rendering: pixelated;
+  }
+  .bars {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 8px; padding: 1rem 1.4rem; margin-top: 1rem;
+  }
+  .bars b { color: var(--warn); }
+  .bars .kill { color: var(--dim); }
+  ul { padding-left: 1.2rem; }
+  li { margin: .5rem 0; }
+  .note { color: var(--dim); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>Mural seed corpus, the calibration eyeball</h1>
+<p class="sub">2026-08-23 · claude-authoring rung 1 · four authored murals, live compose path, wing per shot.
+This eyeball approves (or re-cuts) the corpus. On a pass the smoke's bars freeze at the values below
+and the cold test unblocks. Full record: <code>2026-08-23-mural-seed-corpus.md</code>.</p>
+
+<div class="bars">
+  <p style="margin-top:0"><strong>Bars, frozen before you look:</strong></p>
+  <ul style="margin-bottom:0">
+    <li><b>B1, a picture.</b> Each mural reads at a glance as a scene or a shape, not as texture, not as UI text.
+      <span class="kill">KILL: any mural you read as noise means that mural is re-authored and the corpus re-eyeballed; no freeze.</span></li>
+    <li><b>B2, the ship bar.</b> None is "would not ship" hanging beside the desk's own art.
+      <span class="kill">KILL: same consequence as B1.</span></li>
+    <li><b>B3, in the hour.</b> The blank cells read as sky showing through; the mural belongs to the window's night or day, not a poster taped over it.
+      <span class="kill">KILL: reads as a pasted poster means density re-cut downward, re-shoot.</span></li>
+  </ul>
+  <p class="note" style="margin-bottom:0">PASS = all three, spoken (per mural or for the corpus as one). Bars never soften after observation;
+  a re-cut mural re-enters under the same bars. One trade on the record, not a bar: the rect's return re-arms the
+  08-08 sky-decoration eviction (the ☼ included) on these four wings only.</p>
+</div>
+
+<h3>d0 · stardew (recent) · brief: the game's world</h3>
+<p class="why">"stardew is this wing's flagship and merely recent, no marked personal arc in the data, so the mural paints the valley itself: sun up, lit window, field rows."</p>
+<figure><img src="2026-08-23-mural-seed-corpus/d0-stardew-world.png" alt="Wing d0, stardew mural"></figure>
+<p class="meta">density 0.500 · letterforms 0.000 · also hangs live on your desk (t1) after a relaunch</p>
+
+<h3>d2 · disco (dusty) · brief: you and the game</h3>
+<p class="why">"disco sits dusty in the data, a whole city bought and never entered, so the mural is the relationship: a skyline under dust with one window still lit for you."</p>
+<figure><img src="2026-08-23-mural-seed-corpus/d2-disco-relationship.png" alt="Wing d2, disco mural"></figure>
+<p class="meta">density 0.509 · letterforms 0.000</p>
+
+<h3>d3 · hades (loved) · brief: the game's world</h3>
+<p class="why">"hades is loved and alive in the data, an ongoing affair rather than a memory, so the mural is the place itself: the pillared hall, braziers lit, embers rising."</p>
+<figure><img src="2026-08-23-mural-seed-corpus/d3-hades-world.png" alt="Wing d3, hades mural"></figure>
+<p class="meta">density 0.464 · letterforms 0.000</p>
+
+<h3>d5 · hollow (mastered) · brief: you and the game</h3>
+<p class="why">"hollow is mastered, the one descent this library finished, so the mural is the relationship: the shaft mapped solid, the stitched path down, the bottom reached."</p>
+<figure><img src="2026-08-23-mural-seed-corpus/d5-hollow-relationship.png" alt="Wing d5, hollow mural"></figure>
+<p class="meta">density 0.827 · letterforms 0.000 · the densest of the four, closest to the 0.92 ceiling; the reviewer flagged it reads near-solid, which is a B3 question and yours to judge</p>
+
+<h2>Evidence, not judgment</h2>
+<p class="note">The same JSONs re-dress under every pack by construction (palette keys, never hex):
+d5 renders amber under its wing's pack, d2's towers grey under the blue night, d0 green under phosphor.
+Provisional machine bars the corpus calibrates: density [0.25, 0.92], letterforms ≤ 0.15.</p>
+
+</body>
+</html>
