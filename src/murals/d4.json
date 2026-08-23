@@ -1,0 +1,19 @@
+{
+  "wing": "d4",
+  "brief": "world",
+  "why": "spire is this wing's flagship and merely recent, ordinary presence, so the mural paints the world: the tower rising floor over floor, the node path climbing.",
+  "rows": [
+    "     ·       ▟▙    ·  ",
+    "  ·     ◦   ▐▪█▌      ",
+    "      ◦    ▐████▌     ",
+    "   ◦      ▐██████▌    ",
+    " ▂▂▂▂▂▂▂▂▟████████▙▂▂ "
+  ],
+  "ink": [
+    ".....d.......vv....d..",
+    "..d.....c...vrvv......",
+    "......c....vvvvvv.....",
+    "...c......vvvvvvvv....",
+    ".ddddddddvvvvvvvvvvdd."
+  ]
+}

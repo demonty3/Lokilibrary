@@ -1,0 +1,19 @@
+{
+  "wing": "d1",
+  "brief": "relationship",
+  "why": "civ sits dusty, an empire paused mid-campaign, so the mural is the relationship: the map half-painted, the capital still lit, the scout trail ending in fog.",
+  "rows": [
+    "  ▗▄▄▄▄▖              ",
+    " ▗▒▒▒▒▒▒▌  ▗▖         ",
+    " ▐▒▒☼▒▒▒▌  ▝▘ · · ·   ",
+    " ▝▒▒▒▒▒▛▘             ",
+    "   ▀▀▀▘               "
+  ],
+  "ink": [
+    "..gggggg..............",
+    ".gggggggg..gg.........",
+    ".gggygggg..gg.d.d.d...",
+    ".gggggggg.............",
+    "...gggg..............."
+  ]
+}
