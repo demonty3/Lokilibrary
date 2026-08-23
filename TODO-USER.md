@@ -19,16 +19,13 @@ murals are shot, and the 4b sheet + sealed key are on disk. ONE eyeball
 gates the whole rung now: the blind pairing below. The rung-4 eyeball
 (bars 10-11) stays open.)
 
-- **EYEBALL the mural MATCHING test (4b — the rung's LAST bar).** Open
-  `docs/design-reviews/2026-08-23-mural-matching.html`, pair each of the
-  four murals (1-4) to one library (A-D), write the four pairs down,
-  THEN open `2026-08-23-mural-matching.key.md`. Frozen before the
-  murals existed: **PASS = ≥2 of 4 correct** (random expectation is 1;
-  a random pairer hits ≥2 ~29% of the time — on the record), **kill at
-  ≤1** (matching at chance → personalisation isn't real → content brief
-  reverts to maintainer-authored murals). A pass CLOSES rung 1 and
-  unblocks the MCP builder's-hand rung's spec-interview. Tell me your
-  four pairs and I'll record the verdict.
+- ✅ **EYEBALL the mural MATCHING test (4b) — PASSED 2026-08-24, 4/4.**
+  Your pairing (1-A, 2-D, 3-C, 4-B; the typed double-B fixed to 2-D
+  with no hints) matched all four, including the not-confident 3-C.
+  Frozen bar was ≥2 of 4; 4/4 clears even the strict reading. No kill
+  fired anywhere on the rung — **claude-authoring rung 1 is CLOSED**,
+  and the MCP builder's-hand rung's spec-interview is UNBLOCKED
+  (say the word and we run it).
 
 - ✅ **EYEBALL the blind mural A/B (taste bar 4a) — PASSED 2026-08-23
   ("four and three are weak, shippble but weak").** Weak picks resolved

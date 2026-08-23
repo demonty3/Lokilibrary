@@ -3755,6 +3755,27 @@ presentation protocol, all recorded pre-observation) and the sealed
 builder's-hand spec-interview; ≤1 correct fires the spec's kill
 (content brief reverts to maintainer-authored murals).
 
+**Matching PASSED 2026-08-24, 4/4 — taste bar 4b MET; RUNG 1 CLOSED.**
+Harry's blind pairing: "2-b, 3c not confident, 4b, 1a by elimination"
+— the typed double-B made an invalid permutation; asked to fix with
+no hints (pure format enforcement, correctness unrevealed), he
+confirmed 2-D → 1-A, 2-D, 3-C, 4-B. All four correct against the
+sealed key, including the not-confident 3-C (collector). The frozen
+bar was ≥2 of 4 (29% false-pass caveat on record); 4/4 clears even
+the strict 4-of-4 reading (~1/24 by chance) — the personalisation
+reads, the confound (DRG in two libraries, opposite engagement) did
+not defeat him, and the kill did not fire. With 4b the rung's four
+Done-means bars are ALL MET: blueprint+gate shipped, corpus eyeball
+passed, cold test zero-hand-fixes, blind A/B passed, matching passed.
+Verdict recorded in the key doc (unsealed post-answer), TODO-USER.md,
+PLAN.md. CONSEQUENCE: the MCP builder's-hand rung's spec-interview is
+UNBLOCKED (the arc's next act; first-run rung queues behind it).
+Loose ends carried: Haiku-floor cold run stays optional/informative;
+blueprint-doc residue (occupied-wing wording, run.sh READY buffering,
+brightest-accents strain) noted 08-23, non-blocking; the pull
+script + fixtures pattern is the likely seed of the MCP rung's
+library intake.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

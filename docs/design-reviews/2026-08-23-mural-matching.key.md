@@ -1,5 +1,13 @@
 # SEALED — the matching answer key (taste bar 4b)
 
+> **VERDICT (recorded 2026-08-24, after Harry answered): PASS, 4 of 4.**
+> Harry's answer as typed: "2-b, 3c not confident, 4b, 1a by elimination"
+> — the double-B made it an invalid permutation; asked to fix with no
+> hints, he confirmed 2-D, giving 1-A, 2-D, 3-C, 4-B. All four correct,
+> including the not-confident 3-C. Frozen bar was ≥2 of 4; 4/4 clears
+> even the strict reading (~1/24 by chance). The kill did not fire.
+> Rung 1 CLOSED; the MCP builder's-hand rung's spec-interview unblocks.
+
 Open only after writing down four pairs against
 `2026-08-23-mural-matching.html`. PASS = 2 or more of 4 correct;
 kill fires at 1 or fewer (frozen 2026-08-23, before the murals existed).
