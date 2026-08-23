@@ -26,10 +26,11 @@ below: the BLIND A/B. The rung-4 eyeball (bars 10-11) stays open.)
   passage replacing the seed hall (the hall is one file-restore away
   at d5feb6f if you ever want it back — a curation dial, no pressure).
 
-- **[A] Worktree cleanup (one-liner, whenever):** the cold-run
-  worktree holds one npm-generated package-lock line the safety net
-  protects from me. From the repo root:
-  `git worktree remove --force .claude/worktrees/agent-a5daf4b1bc94ddd3c && git branch -d worktree-agent-a5daf4b1bc94ddd3c`
+- ✅ **Worktree cleanup — DONE 2026-08-23** (you authorised; the
+  safety net steered it through `git stash` instead of `--force`).
+  Worktree + branch gone; one labelled leftover: `stash@{0}` holds the
+  npm-generated package-lock line — `git stash drop` whenever, or
+  ignore it.
 
 - **INPUT — your real library, for the matching test (4b, the rung's
   LAST bar).** Needs ≥4 mural/library-summary pairs from DISTINCT
