@@ -13,8 +13,10 @@
 import type { MuralCell } from '../render/muralCells';
 import type { PaletteKey } from '../themes/types';
 import d0 from './d0.json';
+import d1 from './d1.json';
 import d2 from './d2.json';
 import d3 from './d3.json';
+import d4 from './d4.json';
 import d5 from './d5.json';
 
 export interface AuthoredMural {
@@ -49,8 +51,10 @@ export const MURAL_INK_LEGEND: Readonly<Record<string, PaletteKey>> = Object.fre
  *  smokes green is done. Wing-keyed: one mural per wing. */
 export const AUTHORED_MURALS: readonly AuthoredMural[] = Object.freeze([
   d0 as AuthoredMural,
+  d1 as AuthoredMural,
   d2 as AuthoredMural,
   d3 as AuthoredMural,
+  d4 as AuthoredMural,
   d5 as AuthoredMural,
 ]);
 

@@ -1,19 +1,19 @@
 {
   "wing": "d3",
   "brief": "world",
-  "why": "hades is loved and alive in the data, an ongoing affair rather than a memory, so the mural is the place itself: the pillared hall, braziers lit, embers rising.",
+  "why": "hades is loved and in play, ordinary presence not a memory, so the mural stays in the world: the river passage, roof teeth, ember drift, one lantern crossing.",
   "rows": [
-    "  ·   ✦    ·    ✦     ",
-    " ▛▜   ▛▜   ▛▜   ▛▜    ",
-    " ▌▐ ▲ ▌▐ ▲ ▌▐ ▲ ▌▐    ",
-    " ▌▐   ▌▐   ▌▐   ▌▐    ",
-    " ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ "
+    " ▀▀█▀▀▀▀██▀▀▀▀▀█▀▀▀▀▀ ",
+    "   ▀    ▀▀ ·   ▀      ",
+    "    ·     ✦      ·    ",
+    " ~≈~~~~~≈▙▄▄▄▟~~≈~~~~ ",
+    " ≈~~~≈~~~~≈~~~≈~~~~≈~ "
   ],
   "ink": [
-    "..o...r....o....r.....",
-    ".dd...dd...dd...dd....",
-    ".dd.o.dd.o.dd.o.dd....",
-    ".dd...dd...dd...dd....",
-    ".rrrrrrrrrrrrrrrrrrrr."
+    ".dddddddddddddddddddd.",
+    "...d....dd.o...d......",
+    "....o.....y......o....",
+    ".rorrrrrodddddrrorrrr.",
+    ".orrrorrrrorrrorrrror."
   ]
 }
