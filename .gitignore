@@ -25,3 +25,7 @@ Thumbs.db
 
 # local agent tooling (graphify knowledge-graph output, not a deliverable)
 graphify-out/
+
+# real personal library pulls + matching-test working files — local only;
+# the durable public artefacts live in docs/design-reviews/
+fixtures/
