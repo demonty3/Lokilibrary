@@ -13,10 +13,26 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-21, night** (DUNGEON RUNG 4 SHIPPED — cookbook +
-DM, bars 1-4 + 6-9, spec review SOUND; live chain verified end-to-end.
-NEW EYEBALL below: bars 10-11. Next moves after it: the Addendum-9
-display rung's spec-interview, then the archipelago engine rungs.)
+Last updated: **2026-08-23** (CLAUDE-AUTHORING RUNG 1 BUILD SHIPPED —
+mural registry + gates + seed corpus + blueprint, 85-smoke sweep green.
+NEW EYEBALL below: the seed corpus (gates the bar freeze → cold test).
+The rung-4 eyeball (bars 10-11) stays open below it.)
+
+- **EYEBALL mural seed corpus (claude-authoring rung 1) — PENDING; gates
+  the bar freeze, which gates the cold test.** The question: do the four
+  seed murals clear the calibration bar — each reads as a PICTURE at a
+  glance (not texture, not UI text), none is "would not ship" beside the
+  desk's own art, and the blanks read as sky showing through (the mural
+  sits in the hour, not a poster taped over it)? Bars B1-B3 + kills
+  frozen in `docs/design-reviews/2026-08-23-mural-seed-corpus.md` BEFORE
+  you look; judge the four shots in
+  `docs/design-reviews/2026-08-23-mural-seed-corpus/` (d0 stardew-world,
+  d2 disco-relationship, d3 hades-world, d5 hollow-relationship — each
+  `why` line is in the doc's table). Wing d0 also hangs live on your
+  desk after a relaunch (your current restore only shows d0/d1). On a
+  pass I freeze the smoke's bars with the corpus values and set up the
+  cold test (context-cold agent, ≥3 wings, zero hand-fixes — the rung's
+  load-bearing kill). A re-cut mural re-enters under the same bars.
 
 - **EYEBALL dungeon rung 4 (bars 10-11) — PENDING.** The question: is a
   granted skill's story followable from the MARGINALIA ALONE — the

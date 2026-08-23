@@ -57,6 +57,7 @@ import {
 import { buildLandContainer, landRoleFill, skyInkOf, strataMaterialGlyph } from '../render/levels/land';
 import { loadMuralPixels, buildQuantizedMural, MURAL_BACKING, type TerminalMuralState } from '../render/mural';
 import { quantizeMural, muralQuantizeTargets } from '../render/muralCells';
+import { authoredMuralFor, authoredMuralCells } from '../murals';
 import { knitGlowCell, vKnitCols } from './knit';
 import {
   holdingsRamp,
@@ -777,12 +778,13 @@ export async function mountTerminalLand(
     { length: 5 },
     (_, i) => SAMPLE_LAND[(rot + i) % SAMPLE_LAND.length],
   );
-  // `mural: false` — Harry's anatomy pass, 2026-08-08: the mural was the one
-  // component marked CUT. The composer keeps the whole mural path (every
-  // mural smoke still drives it with `mural: true`, and the no-mural branch it
-  // now takes is the one smoke-land-mural.mts already pins with a golden
-  // hash); the desk simply stops asking for one. Reversible by this word.
-  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: false };
+  // Mural — Harry's anatomy pass, 2026-08-08, marked the CDN mural CUT (the
+  // rect was evicting the ☼ in 42% of lands); claude-authoring rung 1
+  // (2026-08-21, authored-wings-only ruling) brings the rect back ONLY on
+  // wings carrying a frozen authored mural in src/murals/. Everywhere else
+  // this stays the no-mural branch smoke-land-mural.mts pins with a golden
+  // hash; the CDN fetch+quantise path stays off desk-wide.
+  const composeOpts = { width: cols, skyH, surfaceBand: SURFACE_BAND, underH: UNDER_H, withPlayer: false, mural: authoredMuralFor(wing) !== undefined };
   /** Append the aperture-rock rows a taller-than-canonical window shows below
    *  the model (extraRows ≤ 0 → the model passes through untouched, so shipped
    *  520px windows are byte-identical). `surface` stays in the top 20 rows —
@@ -1234,6 +1236,22 @@ export async function mountTerminalLand(
     const spec = model.mural;
     if (!spec) { muralState = 'idle'; return; }
     if ((theme.landOmit ?? []).includes('mural')) { muralState = 'omitted'; return; }
+    // Authored wing art (claude-authoring rung 1): frozen cells from
+    // src/murals/, mounted synchronously through the same builder. On the
+    // desk this is the ONLY live branch — compose asks for a mural rect
+    // exactly when the wing has an authored one (see composeOpts) — so the
+    // CDN fetch below stays dormant.
+    const authored = authoredMuralFor(wing);
+    if (authored) {
+      const mc = buildQuantizedMural(authoredMuralCells(authored), spec.w, spec.h, theme);
+      mc.x = spec.x * CW;
+      mc.y = spec.y * CH;
+      sceneContainer.addChild(mc);
+      muralBacking = mc.getChildByLabel(MURAL_BACKING) as Graphics | null;
+      if (muralBacking && lastSkyInk !== -1) muralBacking.tint = lastSkyInk;
+      muralState = 'authored';
+      return;
+    }
     const host = sceneContainer; // capture: a recompose swaps this out — the dead-guard
     muralState = 'loading';
     loadMuralPixels(spec.appid)

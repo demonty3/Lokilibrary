@@ -1,0 +1,19 @@
+{
+  "wing": "d3",
+  "brief": "world",
+  "why": "hades is loved and alive in the data, an ongoing affair rather than a memory, so the mural is the place itself: the pillared hall, braziers lit, embers rising.",
+  "rows": [
+    "  ·   ✦    ·    ✦     ",
+    " ▛▜   ▛▜   ▛▜   ▛▜    ",
+    " ▌▐ ▲ ▌▐ ▲ ▌▐ ▲ ▌▐    ",
+    " ▌▐   ▌▐   ▌▐   ▌▐    ",
+    " ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ "
+  ],
+  "ink": [
+    "..o...r....o....r.....",
+    ".dd...dd...dd...dd....",
+    ".dd.o.dd.o.dd.o.dd....",
+    ".dd...dd...dd...dd....",
+    ".rrrrrrrrrrrrrrrrrrrr."
+  ]
+}

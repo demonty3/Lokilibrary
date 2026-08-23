@@ -11,7 +11,7 @@ import { headerImageUrl } from '../data/sampleLibrary';
 import type { MuralCell } from './muralCells';
 import type { Theme } from '../themes/types';
 
-export type TerminalMuralState = 'idle' | 'loading' | 'ready' | 'failed-cors' | 'failed-load' | 'omitted';
+export type TerminalMuralState = 'idle' | 'loading' | 'ready' | 'authored' | 'failed-cors' | 'failed-load' | 'omitted';
 
 const pixelCache = new Map<number, { data: Uint8ClampedArray; w: number; h: number }>();
 

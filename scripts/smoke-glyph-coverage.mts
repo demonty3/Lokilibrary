@@ -38,6 +38,7 @@ import { WORN_CRUST_GLYPH } from '../src/terminal/wear.ts';
 import { SHRINE_GLYPH_ROWS } from '../src/terminal/delve.ts';
 import { MARK_STYLES, DEFAULT_MARK_STYLE } from '../src/agents/markStyles.ts';
 import { MURAL_RAMP } from '../src/render/muralCells.ts';
+import { AUTHORED_MURALS } from '../src/murals/index.ts';
 import { THEMES } from '../src/themes/index.ts';
 
 const { check, report } = makeChecker('smoke glyph-coverage');
@@ -181,6 +182,13 @@ for (const [glyphs, where] of RENDERER_LITERALS) add(glyphs, where);
 for (const g of ['╔', '╗', '╚', '╝', '║', '═', '╡', '╞'])
   emitted.push([g, 'src/procedural/land.ts composeLand mural frame/cartouche']);
 for (const g of MURAL_RAMP) if (g !== ' ') emitted.push([g, 'src/render/muralCells.ts MURAL_RAMP']);
+
+// Authored murals (claude-authoring rung 1) — every drawn glyph in every
+// registered mural grid (imported real source; smoke-mural-blueprint gates
+// them per-mural too, but the whole-app guard enumerates everything drawn).
+for (const m of AUTHORED_MURALS)
+  for (const row of m.rows)
+    for (const g of row) if (g !== ' ') emitted.push([g, `src/murals/${m.wing}.json`]);
 
 // --- assert every emitted codepoint is covered -----------------------------
 // De-dupe by codepoint but remember a provenance for the failure message.

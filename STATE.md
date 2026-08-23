@@ -3522,6 +3522,74 @@ thread in this area is still the 08-17 verdict's own routed destination — a
 fine-lattice mural rect inside the coarse world — which was never built, and the
 desk still passes `mural: false`.
 
+**Claude-authoring rung 1 BUILD SHIPPED 2026-08-23 (blueprint + gates +
+seed corpus + desk wiring; corpus eyeball PENDING — bars stay PROVISIONAL
+until it passes; the cold test and the blind taste bar follow the
+freeze).** Spec frozen before implementation
+(`docs/superpowers/specs/2026-08-21-claude-authoring-rung1-mural-blueprint.md`,
+055d568) and executed per its protocol in fresh contexts reading spec +
+repo only (implementation opened 08-21, completed 08-23 from the working
+tree + spec alone). The pieces:
+
+1. **`src/murals/`** — the authored-mural registry: one JSON per wing
+   (`{wing, brief, why, rows, ink}`), rows = 22×5 codepoint glyph grids,
+   ink = aligned palette-KEY letter codes through `MURAL_INK_LEGEND`
+   (10 letters; `bg`/`bgAlt`/`fgBright` structurally absent — the
+   muralCells EXCLUDED contract held by construction, an authored mural
+   cannot even spell them). Keys-not-hex → every mural legal under every
+   pack; the shots prove it (d5 renders amber under its pack, d2 grey
+   under the blue night). Seed corpus of 4: d0 stardew (world), d2 disco
+   (relationship), d3 hades (world), d5 hollow (relationship) — brief
+   chosen per wing from the flagship's engagement state, one-line `why`
+   on the record per the spec. Measured densities .500/.509/.464/.827,
+   letterforms .000 all.
+2. **Gate: `scripts/smoke-mural-blueprint.mts`** (138 assertions; per-wing
+   authoring-loop mode + `--values` calibration mode): grid shape and
+   rows/ink two-way alignment, legend legality + injectivity, Cozette
+   coverage, wing wiring (desk WINGS roster read from terminals.ts source,
+   one mural per wing, the wing's real slate composes the 22×5 rect),
+   density [0.25, 0.92], letterform ≤ 0.15, why ≤ 160 one line. **Bars
+   PROVISIONAL** pending the corpus eyeball
+   (`docs/design-reviews/2026-08-23-mural-seed-corpus.md` — bars B1-B3
+   frozen there before observation); on a pass the smoke's constants gain
+   the freeze stamp + observed corpus values. smoke-glyph-coverage
+   extended to enumerate every authored-mural glyph (whole-app tofu guard).
+3. **Desk wiring (`terminalLand.ts`)** — `composeOpts.mural =
+   authoredMuralFor(wing) !== undefined`: the mural rect returns ONLY on
+   wings carrying an authored mural, superseding the 08-08 blanket
+   `mural: false` (the ☼-eviction trade re-arms on those four wings only;
+   every other wing keeps the no-mural branch the golden hash pins).
+   Mount is synchronous frozen cells through the UNCHANGED
+   `buildQuantizedMural`; new `muralState: 'authored'`; the CDN
+   fetch+quantise path stays dormant desk-wide.
+4. **Blueprint: `docs/blueprints/mural.md`** — the agent-facing authoring
+   spec (style-pack.md's shape): both content briefs + the choice rule
+   driven by library data, geometry, format + registration, gates,
+   screenshot loop, worked example (d0) verified end-to-end, the
+   exemplar-content guard (brain: format-exemplars-donate-their-content —
+   the example donates shape, never scene), hard rails incl. game-IP art
+   never shipping in repo/shared packs.
+
+Zero new runtime AI call sites — authoring is the user's own session at
+build time; murals land as frozen assets. Evidence: 85-script smoke sweep
+green (0 failures), all typecheck legs green; on-screen d0 mounts frame +
+cartouche + scene with the backing sky-tinted, and d1 (control, no
+authored mural) composes no rect — shots via the scripts/e2e harness,
+which drives the same `mountTerminalLand` the desk runs (the desktop app
+was deliberately NOT relaunched: the launch skill routes pure-visual
+checks to the harness, and a relaunch risks the live rung-4 eyeball
+state; Harry's corpus eyeball is the desk-side look by design). **Frozen
+kill conditions carried verbatim from the spec:** gated output needs
+maintainer hand-fixes → the loop doesn't transfer, the rung dies and the
+MCP/first-run rungs never start; blind A/B fails → same; matching at
+chance → the personalisation is not real, content reverts to
+maintainer-authored. Next, in order: (1) Harry's corpus eyeball
+(TODO-USER.md) → freeze the bars; (2) the cold test — context-cold agent,
+repo + blueprint + library data, ≥3 wings, gate-green with ZERO
+hand-fixes (strong-model run gates; Haiku-floor run informative); (3) the
+blind A/B + matching taste bar. The fine-lattice mural rect stays a
+separately-spec'd engine slice (the resolution-thread routing, above).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
