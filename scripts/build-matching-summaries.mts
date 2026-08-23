@@ -114,7 +114,16 @@ check('flagships distinct across profiles', new Set(flagships).size === flagship
 const by = Object.fromEntries(built.map((b) => [b.id, b.counts]));
 check('finisher pole: ≥4 mastered', by.finisher.mastered >= 4);
 check('cozy pole: ≥1 loved and ≥3 recent', by.cozy.loved >= 1 && by.cozy.recent >= 3);
-check('hoarder pole: ≥3 abandoned and ≥8 dusty', by.hoarder.abandoned >= 3 && by.hoarder.dusty >= 8);
+check('collector pole: ≥15 dusty', by.collector.dusty >= 15);
+// Abandoned is the REAL profile's pole — it must stay unique to it.
+check(
+  'abandoned unique to the real profile: every fake has 0',
+  by.finisher.abandoned === 0 && by.cozy.abandoned === 0 && by.collector.abandoned === 0,
+);
+// Confound strengthener: Deep Rock Galactic must appear in ≥2 summaries
+// (Harry's played copy + the collector's unopened one).
+const drgCount = built.filter((b) => b.summary.includes('Deep Rock Galactic')).length;
+if (harryFixture) check('confound: Deep Rock Galactic in ≥2 summaries', drgCount >= 2);
 for (const b of built) {
   check(`${b.id}: summary is non-trivial`, b.summary.split('\n').length >= 6);
 }

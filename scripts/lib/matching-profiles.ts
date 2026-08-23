@@ -11,10 +11,15 @@
  * cozy → loved + recent cluster, hoarder → abandoned + dusty pile). HLTB
  * hours are embedded statically so tagging is offline-deterministic.
  *
- * Pre-registered confound strengthener (plan, before authoring): after the
- * real pull, ONE fake gains a game Harry also owns with the OPPOSITE
- * engagement, so at least one pair tests relationship-reading rather than
- * game-recognition. Applied as a recorded edit here, post-pull.
+ * Post-pull adjustments (2026-08-23, both pre-registered in the plan before
+ * the pull ran):
+ * - POLE COLLISION: Harry's real library tagged 4 abandoned / 5 games — the
+ *   original third fake ("hoarder", abandoned epics + dusty pile) collided
+ *   with it, so it became "collector" (deep unopened hoard, ZERO abandoned;
+ *   abandoned stays unique to the real profile).
+ * - CONFOUND STRENGTHENER: the collector owns Deep Rock Galactic unopened —
+ *   the opposite of Harry's most-played-yet-brief relationship — so a
+ *   DRG-flavoured mural cannot be paired on game recognition alone.
  */
 import type { AchievementsSummary } from '../../worker/lib/steam';
 import type { HltbResult } from '../../worker/lib/hltb';
@@ -88,24 +93,27 @@ export const FAKE_PROFILES: FakeProfile[] = [
     ],
   },
   {
-    id: 'hoarder',
-    pole: 'abandoned-backlog hoarder — four abandoned epics, a deep dusty pile',
+    id: 'collector',
+    pole: 'the unopened hoard — buys everything, opens almost nothing, zero abandoned',
     games: [
-      { appid: 489830, name: 'The Elder Scrolls V: Skyrim Special Edition', playtime_forever: 900, lastPlayedDaysAgo: 700, achievements: ach(20, 75), hltb: hltb('The Elder Scrolls V: Skyrim Special Edition', 38951, 34, 237) },
-      { appid: 1245620, name: 'ELDEN RING', playtime_forever: 270, lastPlayedDaysAgo: 200, achievements: ach(7, 42), hltb: hltb('ELDEN RING', 68151, 60, 133) },
-      { appid: 292030, name: 'The Witcher 3: Wild Hunt', playtime_forever: 240, lastPlayedDaysAgo: 400, achievements: ach(5, 78), hltb: hltb('The Witcher 3: Wild Hunt', 10270, 51, 173) },
-      { appid: 1091500, name: 'Cyberpunk 2077', playtime_forever: 180, lastPlayedDaysAgo: 300, achievements: ach(9, 57), hltb: hltb('Cyberpunk 2077', 2127, 25.5, 106) },
-      { appid: 1174180, name: 'Red Dead Redemption 2', playtime_forever: 120, lastPlayedDaysAgo: 500, achievements: ach(3, 51), hltb: hltb('Red Dead Redemption 2', 27100, 52, 189) },
+      { appid: 1794680, name: 'Vampire Survivors', playtime_forever: 480, lastPlayedDaysAgo: 60, achievements: ach(21, 191), hltb: hltb('Vampire Survivors', 91163, 19.5, 82) },
+      { appid: 1868140, name: 'DAVE THE DIVER', playtime_forever: 360, lastPlayedDaysAgo: 120, achievements: ach(15, 41), hltb: hltb('DAVE THE DIVER', 114859, 25, 45) },
+      // The confound: Harry's most-played game, owned here and never opened.
+      { appid: 548430, name: 'Deep Rock Galactic', playtime_forever: 0 },
+      { appid: 105600, name: 'Terraria', playtime_forever: 0 },
+      { appid: 294100, name: 'RimWorld', playtime_forever: 0 },
+      { appid: 379720, name: 'DOOM', playtime_forever: 0 },
+      { appid: 261570, name: 'Ori and the Blind Forest', playtime_forever: 0 },
+      { appid: 460950, name: 'Katana ZERO', playtime_forever: 0 },
+      { appid: 881100, name: 'Noita', playtime_forever: 0 },
+      { appid: 1282730, name: 'Loop Hero', playtime_forever: 0 },
+      { appid: 262060, name: 'Darkest Dungeon', playtime_forever: 0 },
+      { appid: 632360, name: 'Risk of Rain 2', playtime_forever: 0 },
+      { appid: 219150, name: 'Hotline Miami', playtime_forever: 0 },
+      { appid: 212680, name: 'FTL: Faster Than Light', playtime_forever: 0 },
+      { appid: 590380, name: 'Into the Breach', playtime_forever: 0 },
+      { appid: 239030, name: 'Papers, Please', playtime_forever: 0 },
       { appid: 1086940, name: "Baldur's Gate 3", playtime_forever: 0 },
-      { appid: 632470, name: 'Disco Elysium', playtime_forever: 0 },
-      { appid: 753640, name: 'Outer Wilds', playtime_forever: 0 },
-      { appid: 264710, name: 'Subnautica', playtime_forever: 0 },
-      { appid: 427520, name: 'Factorio', playtime_forever: 0 },
-      { appid: 620, name: 'Portal 2', playtime_forever: 0 },
-      { appid: 653530, name: 'Return of the Obra Dinn', playtime_forever: 0 },
-      { appid: 553420, name: 'TUNIC', playtime_forever: 0 },
-      { appid: 1092790, name: 'Inscryption', playtime_forever: 0 },
-      { appid: 1332010, name: 'Stray', playtime_forever: 0 },
     ],
   },
 ];
