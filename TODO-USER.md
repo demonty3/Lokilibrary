@@ -13,10 +13,24 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-23** (CLAUDE-AUTHORING RUNG 1 BUILD SHIPPED —
-mural registry + gates + seed corpus + blueprint, 85-smoke sweep green.
-NEW EYEBALL below: the seed corpus (gates the bar freeze → cold test).
-The rung-4 eyeball (bars 10-11) stays open below it.)
+Last updated: **2026-08-23, later** (RUNG-1 COLD TEST RETURNED —
+Done-means 3 MET, zero hand-fixes, kill did not fire. NEW EYEBALL
+below: the BLIND A/B. The rung-4 eyeball (bars 10-11) stays open.)
+
+- **EYEBALL the blind mural A/B (claude-authoring rung 1, taste bar
+  4a) — PENDING; gates the cold branch's merge.** Open
+  `docs/design-reviews/2026-08-23-mural-blind-ab.html` (seven murals,
+  shuffled: the seed corpus + the stranger-agent's cold run mixed).
+  Answer the page's two questions BEFORE opening the sealed key
+  (`…-blind-ab.key.md`): which, if any, read as the weak ones — and
+  are any "would not ship"? PASS (frozen in the spec): the cold-run
+  murals are not reliably singled out as the weak ones, and none is
+  "would not ship". KILL: cold murals reliably picked as weak, or any
+  ruled unshippable → stranger authoring doesn't clear the handcrafted
+  bar; the rung dies and the MCP/first-run rungs never start. ALSO:
+  don't read past the SPOILER GUARD line in STATE.md's newest entry
+  until you've answered. After your verdict: the matching test (4b)
+  still needs your real library at some point.
 
 - ✅ **EYEBALL mural seed corpus (claude-authoring rung 1) — PASSED
   2026-08-23 ("yea these pass, d5 is fine too").** All four seed murals

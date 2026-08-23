@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The blind mural A/B</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --edge: #30363d;
+    --fg: #c9d1d9; --dim: #8b949e; --accent: #7ee787; --warn: #f0b72f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "Segoe UI", sans-serif;
+    max-width: 1100px; margin-inline: auto;
+  }
+  h1, h3 { font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+  h1 { font-size: 1.5rem; color: var(--accent); }
+  h3 { font-size: 1.05rem; color: var(--accent); margin: 2.5rem 0 .4rem; }
+  .sub { color: var(--dim); margin-top: -0.5rem; }
+  img {
+    width: 100%; max-width: 100%; display: block;
+    border: 1px solid var(--edge); border-radius: 6px;
+    image-rendering: pixelated;
+  }
+  .bars {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 8px; padding: 1rem 1.4rem; margin-top: 1rem;
+  }
+  .bars b { color: var(--warn); }
+  ul { padding-left: 1.2rem; }
+  li { margin: .5rem 0; }
+  .note { color: var(--dim); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>The blind mural A/B</h1>
+<p class="sub">2026-08-23 · claude-authoring rung 1, taste bar 4a · seven authored murals, shuffled.
+Some are the shipped seed corpus; some came from the context-cold stranger-agent run. Which is which
+is sealed in <code>2026-08-23-mural-blind-ab.key.md</code>: answer first, open it after.</p>
+
+<div class="bars">
+  <p style="margin-top:0"><strong>Two questions (the spec's frozen bar):</strong></p>
+  <ul>
+    <li><b>1.</b> Which murals, if any, read as the weak ones of the set?</li>
+    <li><b>2.</b> Are any "would not ship"?</li>
+  </ul>
+  <p class="note" style="margin-bottom:0">PASS = the cold-run murals are not reliably singled out as the
+  weak ones, and none is ruled "would not ship". Two of the seven are murals of the same game; that is
+  by design, judge each picture on its own. Answer before opening the key.</p>
+</div>
+
+<h3>mural 1</h3><img src="2026-08-23-mural-blind-ab/mural-1.png" alt="mural 1">
+<h3>mural 2</h3><img src="2026-08-23-mural-blind-ab/mural-2.png" alt="mural 2">
+<h3>mural 3</h3><img src="2026-08-23-mural-blind-ab/mural-3.png" alt="mural 3">
+<h3>mural 4</h3><img src="2026-08-23-mural-blind-ab/mural-4.png" alt="mural 4">
+<h3>mural 5</h3><img src="2026-08-23-mural-blind-ab/mural-5.png" alt="mural 5">
+<h3>mural 6</h3><img src="2026-08-23-mural-blind-ab/mural-6.png" alt="mural 6">
+<h3>mural 7</h3><img src="2026-08-23-mural-blind-ab/mural-7.png" alt="mural 7">
+
+</body>
+</html>

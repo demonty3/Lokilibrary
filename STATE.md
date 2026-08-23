@@ -3663,6 +3663,38 @@ DISTINCT profiles incl. ≥1 real library, which the sample-library
 cold run cannot supply alone; extra profile-driven authorings (and
 Harry's real library) are the known remaining input.
 
+**Cold test RETURNED same day — Done-means 3 MET; blind A/B queued.
+(SPOILER GUARD: if the blind A/B in TODO-USER.md is still pending,
+judge it before reading past this line — the details below identify
+the cold murals.)** The context-cold agent (isolated worktree, fresh
+context, blueprint + checkout only) authored THREE murals — d1 (civ,
+relationship: the half-painted map, fog-of-war blank), d4 (spire,
+world: the tower and the climb), and a REPLACEMENT d3 (hades, world:
+the river passage, exercising the blueprint's occupied-wing rule) —
+all gate-green with ZERO maintainer hand-fixes; the rung's
+load-bearing kill did NOT fire. Independently re-verified, not
+trusted: diff scope exactly src/murals/*.json + two registry rows
+(hard rails held), smoke-mural-blueprint 190 assertions green,
+glyph-coverage green, typecheck clean, all three murals eyeballed
+mounted (frame + cartouche + scene, no tofu). One self-recovered
+iteration on d1 (its own screenshot loop caught a mass/beat problem —
+the acceptance loop working as designed, not a hand-fix). Its work
+sits UNMERGED on branch `worktree-agent-a5daf4b1bc94ddd3c` (commit
+3648407) pending the taste bar. Blueprint ambiguity residue from its
+report, for a future doc pass, not blocking: the occupied-wing
+"replace the import and registry row" line is a no-op for wing-keyed
+files (overwrite the JSON is the real mechanic); run.sh's READY line
+buffers when backgrounded (the curl poll is the reliable signal); the
+"brightest accents land first" bar strains against large single-hue
+masses (it calibrated against seed d0's same regime). All seven
+murals re-shot in ONE harness window (sky-tint drift can't cue
+authorship), shuffled unlabelled into
+docs/design-reviews/2026-08-23-mural-blind-ab.html; the mapping is
+sealed in …-blind-ab.key.md. Remaining on the rung: the A/B verdict
+(4a), then matching (4b — needs distinct profiles incl. one real
+library), then merge-or-kill on the cold branch. A Haiku-floor run
+stays optional and informative-only.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
