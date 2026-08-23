@@ -13,9 +13,22 @@ doesn't get buried in chat messages that scroll out of context.
 unblocks me, and a pointer to where the blocked work lives. Mark
 items DONE / SKIP and I'll prune them on the next slice.
 
-Last updated: **2026-08-23, later** (RUNG-1 COLD TEST RETURNED —
-Done-means 3 MET, zero hand-fixes, kill did not fire. NEW EYEBALL
-below: the BLIND A/B. The rung-4 eyeball (bars 10-11) stays open.)
+Last updated: **2026-08-23, latest** (MATCHING SHEET STAGED — Harry
+supplied his real Steam ID, the library is pulled, four cold-authored
+murals are shot, and the 4b sheet + sealed key are on disk. ONE eyeball
+gates the whole rung now: the blind pairing below. The rung-4 eyeball
+(bars 10-11) stays open.)
+
+- **EYEBALL the mural MATCHING test (4b — the rung's LAST bar).** Open
+  `docs/design-reviews/2026-08-23-mural-matching.html`, pair each of the
+  four murals (1-4) to one library (A-D), write the four pairs down,
+  THEN open `2026-08-23-mural-matching.key.md`. Frozen before the
+  murals existed: **PASS = ≥2 of 4 correct** (random expectation is 1;
+  a random pairer hits ≥2 ~29% of the time — on the record), **kill at
+  ≤1** (matching at chance → personalisation isn't real → content brief
+  reverts to maintainer-authored murals). A pass CLOSES rung 1 and
+  unblocks the MCP builder's-hand rung's spec-interview. Tell me your
+  four pairs and I'll record the verdict.
 
 - ✅ **EYEBALL the blind mural A/B (taste bar 4a) — PASSED 2026-08-23
   ("four and three are weak, shippble but weak").** Weak picks resolved
@@ -32,14 +45,12 @@ below: the BLIND A/B. The rung-4 eyeball (bars 10-11) stays open.)
   npm-generated package-lock line — `git stash drop` whenever, or
   ignore it.
 
-- **INPUT — your real library, for the matching test (4b, the rung's
-  LAST bar).** Needs ≥4 mural/library-summary pairs from DISTINCT
-  profiles, at least one REAL library, you pairing them better than
-  chance (kill: matching at chance → personalisation isn't real).
-  Cheapest form: tell me ~6-10 of your actual games with rough
-  hours/state (loved / recent / mastered / dusty / abandoned), or a
-  public Steam profile ID to pull from. Three fake distinct profiles +
-  yours then each get cold-authored murals and you match blind.
+- ✅ **INPUT — your real library — RESOLVED 2026-08-23.** You supplied
+  steamid 76561198405139364 + a Web API key; `scripts/pull-library.mts`
+  pulled 5 games / 11.9h (the 6th is a never-launched free title, which
+  GetOwnedGames omits; you confirmed the account is new and said keep
+  going). Raw fixture stays local (gitignored `fixtures/`); the summary
+  feeds the matching sheet above.
 
 - ✅ **EYEBALL mural seed corpus (claude-authoring rung 1) — PASSED
   2026-08-23 ("yea these pass, d5 is fine too").** All four seed murals

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The mural matching test</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --edge: #30363d;
+    --fg: #c9d1d9; --dim: #8b949e; --accent: #7ee787; --warn: #f0b72f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "Segoe UI", sans-serif;
+    max-width: 1100px; margin-inline: auto;
+  }
+  h1, h3 { font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+  h1 { font-size: 1.5rem; color: var(--accent); }
+  h3 { font-size: 1.05rem; color: var(--accent); margin: 2.5rem 0 .4rem; }
+  .sub { color: var(--dim); margin-top: -0.5rem; }
+  img {
+    width: 100%; max-width: 100%; display: block;
+    border: 1px solid var(--edge); border-radius: 6px;
+    image-rendering: pixelated;
+  }
+  .bars {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 8px; padding: 1rem 1.4rem; margin-top: 1rem;
+  }
+  .bars b { color: var(--warn); }
+  pre {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 1rem 1.2rem; overflow-x: auto;
+    font: 13px/1.5 "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  ul { padding-left: 1.2rem; }
+  li { margin: .5rem 0; }
+  .note { color: var(--dim); font-size: .9rem; }
+  blockquote {
+    margin: .6rem 0; padding-left: 1rem; border-left: 3px solid var(--edge);
+    color: var(--dim); font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<h1>The mural matching test</h1>
+<p class="sub">2026-08-23 &middot; claude-authoring rung 1, taste bar 4b (the rung's last bar) &middot;
+four murals, four library summaries, shuffled independently. Which mural belongs to which library
+is sealed in <code>2026-08-23-mural-matching.key.md</code>: answer first, open it after.</p>
+
+<div class="bars">
+  <p style="margin-top:0"><strong>The spec's frozen bar, verbatim (2026-08-21 spec, Done-means 4b):</strong></p>
+  <blockquote>(b) Matching: at least 4 mural/library-summary pairs (at least one
+  real library, profiles distinct); PASS = Harry pairs them better than
+  chance. Bars set before observation; never softened after.</blockquote>
+  <blockquote>Matching at chance: the murals are generic and the personalisation is
+  not real. The content brief reverts to maintainer-authored murals; the
+  arc's premise is refuted at this surface.</blockquote>
+  <p><strong>Frozen operationalisation (settled with Harry before the murals existed):</strong></p>
+  <ul>
+    <li><b>The task:</b> pair each mural (1&ndash;4) to one library (A&ndash;D). Each library is used exactly once.</li>
+    <li><b>PASS = 2 or more of 4 correct</b> (random pairing gets 1 right on average). <b>Kill fires at 1 or fewer.</b></li>
+    <li>On the record: a random pairer still scores 2+ about 29% of the time, so a pass is suggestive, not conclusive. 3 of 4 is mathematically impossible; 4 of 4 has a ~4% false-pass rate.</li>
+  </ul>
+  <p class="note" style="margin-bottom:0"><strong>Presentation protocol (recorded before observation):</strong>
+  all four murals were cold-authored by context-cold agents, one per library profile, each given only the
+  blueprint and its own profile; every mural passed the full gate with zero hand-fixes. All four were shot
+  mounted on the same wing (d1) in one headless-Chrome window in a randomised order, so the frame, the land
+  beneath, and the cartouche (which names that wing's sample flagship, unrelated to every profile) are constant
+  across shots and carry no pairing signal. One fake library deliberately owns a game the real library also owns,
+  with the opposite engagement, so game recognition alone cannot settle every pair. The agents' one-line
+  rationales are sealed in the key. You will recognise your own summary; that is expected and fine. The test is
+  which mural goes with which library.</p>
+</div>
+
+<h3>mural 1</h3><img src="2026-08-23-mural-matching/mural-1.png" alt="mural 1">
+<h3>mural 2</h3><img src="2026-08-23-mural-matching/mural-2.png" alt="mural 2">
+<h3>mural 3</h3><img src="2026-08-23-mural-matching/mural-3.png" alt="mural 3">
+<h3>mural 4</h3><img src="2026-08-23-mural-matching/mural-4.png" alt="mural 4">
+
+<h3>library A</h3>
+<pre>Behavioral profile:
+- Total owned games: 9
+- Total playtime: 406.7h
+- Top 9 by playtime:
+  - Hollow Knight — 103.3h played, completion fraction 3.9, (past main, ongoing)
+  - Hades — 96.7h played, completion fraction 4.5, (past main, ongoing)
+  - Sekiro: Shadows Die Twice — 78.3h played, completion fraction 2.6, (past main, ongoing)
+  - Celeste — 48.3h played, completion fraction 6.0, (deeply lived-in)
+  - Dead Cells — 35h played, completion fraction 2.4, (past main, ongoing)
+  - Slay the Spire — 30h played, completion fraction 1.3, (past main, ongoing)
+  - Ori and the Will of the Wisps — 15h played, completion fraction 1.3, (past main, ongoing)
+  - Cuphead — 0h played, (unplayed)
+  - Blasphemous — 0h played, (unplayed)
+- Avg achievement completion (top-N): 81.4% — a finisher
+- Binge ratio: high (top 3 games = 68% of total playtime)
+- Recent activity: none of the top games played in the last week
+- Dusty backlog (owned, never opened): 2 titles
+- Library states: 5 mastered</pre>
+
+<h3>library B</h3>
+<pre>Behavioral profile:
+- Total owned games: 8
+- Total playtime: 100.8h
+- Top 8 by playtime:
+  - Stardew Valley — 56.7h played, completion fraction 1.1, (past main, ongoing), played recently
+  - Spiritfarer — 18.3h played, completion fraction 0.8, (engaged but unfinished), played recently
+  - Dorfromantik — 11.7h played, completion fraction 1.0, (engaged but unfinished)
+  - Coffee Talk — 6.7h played, completion fraction 1.5, (past main, ongoing), played recently
+  - Unpacking — 5h played, completion fraction 1.1, (past main, ongoing), played recently
+  - A Short Hike — 2.5h played, completion fraction 1.7, (past main, ongoing), played recently
+  - Garden Story — 0h played, (unplayed)
+  - Cozy Grove — 0h played, (unplayed)
+- Avg achievement completion (top-N): 44.3% — mixed
+- Binge ratio: very high (top 3 games = 86% of total playtime)
+- Recent activity: 5 of top 8 played in the last week
+- Dusty backlog (owned, never opened): 2 titles
+- Library states: 1 loved, 4 recently played</pre>
+
+<h3>library C</h3>
+<pre>Behavioral profile:
+- Total owned games: 17
+- Total playtime: 14h
+- Top 15 by playtime:
+  - Vampire Survivors — 8h played, completion fraction 0.4, (engaged but unfinished)
+  - DAVE THE DIVER — 6h played, completion fraction 0.2, (tried)
+  - Deep Rock Galactic — 0h played, (unplayed)
+  - Terraria — 0h played, (unplayed)
+  - RimWorld — 0h played, (unplayed)
+  - DOOM — 0h played, (unplayed)
+  - Ori and the Blind Forest — 0h played, (unplayed)
+  - Katana ZERO — 0h played, (unplayed)
+  - Noita — 0h played, (unplayed)
+  - Loop Hero — 0h played, (unplayed)
+  - Darkest Dungeon — 0h played, (unplayed)
+  - Risk of Rain 2 — 0h played, (unplayed)
+  - Hotline Miami — 0h played, (unplayed)
+  - FTL: Faster Than Light — 0h played, (unplayed)
+  - Into the Breach — 0h played, (unplayed)
+- Avg achievement completion (top-N): 18% — a sampler
+- Binge ratio: very high (top 3 games = 100% of total playtime)
+- Recent activity: none of the top games played in the last week
+- Dusty backlog (owned, never opened): 15 titles</pre>
+
+<h3>library D</h3>
+<pre>Behavioral profile:
+- Total owned games: 5
+- Total playtime: 11.9h
+- Top 5 by playtime:
+  - Deep Rock Galactic — 4.5h played, (tried)
+  - No Man's Sky — 4.3h played, (tried)
+  - Counter-Strike 2 — 1.3h played, (just opened)
+  - Apex Legends — 1h played, (just opened)
+  - Call of Duty® — 0.8h played, (just opened)
+- Binge ratio: very high (top 3 games = 85% of total playtime)
+- Recent activity: none of the top games played in the last week
+- Dusty backlog (owned, never opened): 0 titles
+- Library states: 4 abandoned partway</pre>
+
+<p><strong>Answer with four pairs</strong> (for example: 1-A, 2-B, 3-C, 4-D), then open the key.</p>
+
+</body>
+</html>

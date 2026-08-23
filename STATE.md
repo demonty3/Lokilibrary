@@ -3722,6 +3722,39 @@ a Haiku-floor cold run. The brain note
 executable-gates-turn-blueprints-into-apis carries the transfer
 evidence (palettes → art, two surfaces).
 
+**Matching sheet STAGED 2026-08-23, same day — 4b awaits Harry's blind
+pairing, the rung's ONLY remaining act.** Harry supplied his real
+steamid (76561198405139364) + Web API key; `scripts/pull-library.mts`
+(new) mirrors the worker's assembleLibrary pipeline keylessly-gated
+into gitignored `fixtures/` — the pull: 5 games, 11.9h, 4 abandoned
+(Deep Rock Galactic 4.5h at the top; Harry confirmed the account is
+new; a 6th never-launched free title is invisible to GetOwnedGames;
+HLTB was down both attempts so tags are playtime+recency — accepted
+degradation). Three fake profiles (`scripts/lib/matching-profiles.ts`)
++ Harry's real one all summarised through the IDENTICAL
+tagLibrary+buildProfile path (`scripts/build-matching-summaries.mts`,
+all asserts green). Two pre-registered contingencies fired post-pull:
+the third fake's pole swapped abandoned-hoarder → unopened-collector
+(Harry's real pole IS abandoned; it stays unique to him), and the
+collector owns Deep Rock Galactic unopened — the game-recognition
+confound. Four murals cold-authored in parallel isolated worktrees
+(one per profile, production framing, nothing about a test), ALL
+gate-green zero hand-fixes, all four independently choosing the
+relationship brief; provenance on kept branches
+worktree-agent-{a2e4…@c74ea5a finisher, abefdd…@4d34aab harry,
+acc32…@fb8ad54 collector, a9cc3…@1802e0c cozy}. Shots: all four
+mounted on d1 by the recorded lowest-qualifying-wing rule (constant
+frame + civ cartouche = zero pairing signal; Civ VI/Disco/Outer Wilds
+swapped out of the collector's filler to free the wing), one Chrome
+window, randomised order, per-candidate full-gate re-runs, shipped d1
+restored byte-identical after (gate + tree clean). Artefacts:
+docs/design-reviews/2026-08-23-mural-matching.html (bars verbatim +
+frozen ≥2-of-4 operationalisation with the 29%-false-pass caveat +
+presentation protocol, all recorded pre-observation) and the sealed
+…-matching.key.md. PASS closes rung 1 and unblocks the MCP
+builder's-hand spec-interview; ≤1 correct fires the spec's kill
+(content brief reverts to maintainer-authored murals).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)
