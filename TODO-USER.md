@@ -18,27 +18,19 @@ mural registry + gates + seed corpus + blueprint, 85-smoke sweep green.
 NEW EYEBALL below: the seed corpus (gates the bar freeze → cold test).
 The rung-4 eyeball (bars 10-11) stays open below it.)
 
-- **EYEBALL mural seed corpus (claude-authoring rung 1) — PENDING; gates
-  the bar freeze, which gates the cold test.** The question: do the four
-  seed murals clear the calibration bar — each reads as a PICTURE at a
-  glance (not texture, not UI text), none is "would not ship" beside the
-  desk's own art, and the blanks read as sky showing through (the mural
-  sits in the hour, not a poster taped over it)? Bars B1-B3 + kills
-  frozen in `docs/design-reviews/2026-08-23-mural-seed-corpus.md` BEFORE
-  you look; judge the four shots in
-  `docs/design-reviews/2026-08-23-mural-seed-corpus/` (d0 stardew-world,
-  d2 disco-relationship, d3 hades-world, d5 hollow-relationship — each
-  `why` line is in the doc's table). Wing d0 also hangs live on your
-  desk after a relaunch (your current restore only shows d0/d1). On a
-  pass I freeze the smoke's bars with the corpus values and set up the
-  cold test (context-cold agent, ≥3 wings, zero hand-fixes — the rung's
-  load-bearing kill). A re-cut mural re-enters under the same bars.
-  The spec review's game-IP finding was RULED same day (2026-08-23):
-  you relaxed the rule ("doesn't need to be too artificially tough") —
-  CLAUDE.md amended, the seed corpus is legal where it sits, nothing
-  else rides this eyeball but the eyeball. Finding 2 is discharged by
-  it too: the spec's "worked example the maintainer has verified" is
-  satisfied the moment you pass d0.
+- ✅ **EYEBALL mural seed corpus (claude-authoring rung 1) — PASSED
+  2026-08-23 ("yea these pass, d5 is fine too").** All four seed murals
+  cleared B1-B3 (`docs/design-reviews/2026-08-23-mural-seed-corpus.md`),
+  d5's near-ceiling density passed explicitly, no kill fired. Bars
+  FROZEN in smoke-mural-blueprint with the corpus values; the spec
+  review's finding 2 discharged (d0 = the maintainer-verified worked
+  example). The game-IP finding was RULED the same day: rule relaxed
+  ("doesn't need to be too artificially tough"), CLAUDE.md amended, the
+  seed corpus legal where it sits. Cold test now RUNNING (context-cold
+  agent, ≥3 wings, zero hand-fixes — the rung's load-bearing kill);
+  next on your desk after it: the blind A/B + matching taste bar, and
+  the matching half will eventually want your REAL library data (≥1
+  real profile among the ≥4 pairs).
 
 - **EYEBALL dungeon rung 4 (bars 10-11) — PENDING.** The question: is a
   granted skill's story followable from the MARGINALIA ALONE — the

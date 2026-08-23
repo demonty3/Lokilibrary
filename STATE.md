@@ -3640,6 +3640,29 @@ untouched. Finding 2 still rides the corpus eyeball. The rung's
 sequence is unchanged: corpus eyeball → freeze bars → cold test →
 blind A/B + matching.
 
+**Corpus eyeball PASSED 2026-08-23 ("yea these pass, d5 is fine too")
+— bars FROZEN, cold test LAUNCHED.** All four seed murals passed
+B1-B3 as a corpus, with d5 (the 0.827-density outlier the reviewer
+flagged) passed explicitly, so no re-cut and no kill fired.
+Consequences, in the spec's order: smoke-mural-blueprint's bars carry
+the freeze stamp + observed corpus values (density [0.25, 0.92] vs
+corpus 0.464-0.827; letterforms ≤0.15 vs 0.000; why ≤160 vs 157-160)
+and are now off-limits absolute values per Done-means 2; the review's
+finding 2 is discharged (the d0 worked example is maintainer-verified
+— blueprint §5 updated); Done-means 3's cold test is RUNNING — a
+context-cold agent (fresh context, never the implementing
+conversation) in an isolated worktree, given only the checkout + the
+blueprint + the ask, authoring murals for ≥3 wings of its choice with
+all gates + the screenshot loop; zero maintainer hand-fixes is the
+bar, and the rung's kill ("gated output needs hand-fixes → the loop
+does not transfer, the MCP/first-run rungs never start") stays armed.
+On its return: independent gate re-verification, then the blind A/B
+(cold murals shuffled unlabelled among the four shipped) and the
+matching test — matching needs ≥4 mural/library-summary pairs with
+DISTINCT profiles incl. ≥1 real library, which the sample-library
+cold run cannot supply alone; extra profile-driven authorings (and
+Harry's real library) are the known remaining input.
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

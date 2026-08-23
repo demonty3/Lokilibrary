@@ -27,9 +27,12 @@
  *   mural rect (flagship with an appid) — an authored mural for a wing whose
  *   compose skips the rect would silently never mount.
  *
- * Bars: PROVISIONAL 2026-08-21 (pre-corpus). Calibrate on the approved seed
- * corpus via --values, then FREEZE after Harry's corpus eyeball; record the
- * date + observed corpus values beside each constant when freezing.
+ * Bars: FROZEN 2026-08-23 — the corpus eyeball PASSED on all four seed
+ * murals, d5 explicitly included (Harry: "yea these pass, d5 is fine too";
+ * bars B1-B3 in docs/design-reviews/2026-08-23-mural-seed-corpus.md were
+ * frozen before observation). Observed corpus values recorded beside each
+ * constant. The bars are off-limits to authors; widening them is an engine
+ * decision, never an authoring one.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -44,17 +47,17 @@ const args = process.argv.slice(2);
 const wantValues = args.includes('--values');
 const onlyWing = args.find((a) => !a.startsWith('--'));
 
-// --- Bars (PROVISIONAL — see header) ---------------------------------------
+// --- Bars (FROZEN 2026-08-23 — see header) ---------------------------------
 /** Non-blank fraction of the 22×5 interior. Floor: below this the rect reads
  *  as a failed load, not art. Ceiling: a fully solid slab buries the sky
  *  backing that makes the mural sit IN the hour. */
-const DENSITY_MIN = 0.25;
-const DENSITY_MAX = 0.92;
+const DENSITY_MIN = 0.25; // frozen 2026-08-23 · corpus min 0.464 (d3)
+const DENSITY_MAX = 0.92; // frozen 2026-08-23 · corpus max 0.827 (d5, passed explicitly)
 /** Letterform glyphs ([A-Za-z0-9]) as a fraction of DRAWN cells. Murals are
  *  pictures, not captions — the cartouche below the frame carries the name. */
-const LETTER_MAX = 0.15;
+const LETTER_MAX = 0.15; // frozen 2026-08-23 · corpus 0.000 on all four
 /** `why` is one line, on the record — not an essay. */
-const WHY_MAX = 160;
+const WHY_MAX = 160; // frozen 2026-08-23 · corpus 157-160 (they use the room)
 
 // --- Fixed knowledge --------------------------------------------------------
 const BRIEFS = ['world', 'relationship'] as const;

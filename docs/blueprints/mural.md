@@ -174,9 +174,10 @@ reshoot.
 
 ## 5 · Worked example
 
-This exact mural passes every gate and has been verified on screen
-(2026-08-23: frame + cartouche mounted on wing d0, backing sky-tinted, no
-tofu). It ships as the seed corpus's `d0`:
+This exact mural passes every gate, has been verified on screen (frame +
+cartouche mounted on wing d0, backing sky-tinted, no tofu), and passed the
+maintainer's corpus eyeball (2026-08-23). It ships as the seed corpus's
+`d0`:
 
 ```json
 {
