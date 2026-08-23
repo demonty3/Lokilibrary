@@ -3695,6 +3695,33 @@ sealed in …-blind-ab.key.md. Remaining on the rung: the A/B verdict
 library), then merge-or-kill on the cold branch. A Haiku-floor run
 stays optional and informative-only.
 
+**Blind A/B PASSED 2026-08-23, same day — taste bar 4a MET; cold
+murals MERGED (806cb20).** Harry's verdict on the shuffled seven:
+"four and three are weak, shippble but weak" — the key resolves that
+to mural 4 = SEED d2 (disco) and mural 3 = COLD d1 (civ). Applied to
+the frozen bar: weak-picks split one seed / one cold (one of four
+seeds vs one of three colds — no reliable singling-out of the cold
+set), and none ruled "would not ship"; both halves met, the A/B kill
+did not fire. Consequence: unedited stranger output merged, the pack
+cold-test pattern — the desk now carries SIX murals (seed d0/d2/d5 +
+cold d1/d4, and cold d3's river passage replacing the seed hall via
+the blueprint's occupied-wing rule; the hall survives in history at
+d5feb6f, restorable as a one-file curation call if Harry ever prefers
+it). Post-merge gates on main: 190 assertions + glyph-coverage +
+both typecheck legs green. Housekeeping residue: the cold worktree
+(.claude/worktrees/agent-a5daf4b1bc94ddd3c) holds one npm-generated
+package-lock line the safety net protects — removal is Harry's [A]
+one-liner in TODO-USER.md; the branch deletes with it (its commit is
+in main's DAG via the merge). REMAINING on the rung, the LAST bar:
+matching (4b) — ≥4 mural/library-summary pairs, distinct profiles,
+≥1 REAL library, Harry pairs better than chance; kill = matching at
+chance → the personalisation is not real, content reverts to
+maintainer-authored. Blocked on Harry's real library data (a summary
+or public Steam profile suffices). Optional, informative-only:
+a Haiku-floor cold run. The brain note
+executable-gates-turn-blueprints-into-apis carries the transfer
+evidence (palettes → art, two surfaces).
+
 ## What this file is NOT
 
 - Not the architecture doc (that's SPEC.md)

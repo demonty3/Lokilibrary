@@ -17,20 +17,28 @@ Last updated: **2026-08-23, later** (RUNG-1 COLD TEST RETURNED —
 Done-means 3 MET, zero hand-fixes, kill did not fire. NEW EYEBALL
 below: the BLIND A/B. The rung-4 eyeball (bars 10-11) stays open.)
 
-- **EYEBALL the blind mural A/B (claude-authoring rung 1, taste bar
-  4a) — PENDING; gates the cold branch's merge.** Open
-  `docs/design-reviews/2026-08-23-mural-blind-ab.html` (seven murals,
-  shuffled: the seed corpus + the stranger-agent's cold run mixed).
-  Answer the page's two questions BEFORE opening the sealed key
-  (`…-blind-ab.key.md`): which, if any, read as the weak ones — and
-  are any "would not ship"? PASS (frozen in the spec): the cold-run
-  murals are not reliably singled out as the weak ones, and none is
-  "would not ship". KILL: cold murals reliably picked as weak, or any
-  ruled unshippable → stranger authoring doesn't clear the handcrafted
-  bar; the rung dies and the MCP/first-run rungs never start. ALSO:
-  don't read past the SPOILER GUARD line in STATE.md's newest entry
-  until you've answered. After your verdict: the matching test (4b)
-  still needs your real library at some point.
+- ✅ **EYEBALL the blind mural A/B (taste bar 4a) — PASSED 2026-08-23
+  ("four and three are weak, shippble but weak").** Weak picks resolved
+  to one SEED (d2 disco) + one COLD (d1 civ) — no reliable
+  singling-out of the cold set, none unshippable; both halves of the
+  frozen bar met, kill did not fire. Cold murals MERGED unedited
+  (806cb20): the desk now carries six murals, incl. cold d3's river
+  passage replacing the seed hall (the hall is one file-restore away
+  at d5feb6f if you ever want it back — a curation dial, no pressure).
+
+- **[A] Worktree cleanup (one-liner, whenever):** the cold-run
+  worktree holds one npm-generated package-lock line the safety net
+  protects from me. From the repo root:
+  `git worktree remove --force .claude/worktrees/agent-a5daf4b1bc94ddd3c && git branch -d worktree-agent-a5daf4b1bc94ddd3c`
+
+- **INPUT — your real library, for the matching test (4b, the rung's
+  LAST bar).** Needs ≥4 mural/library-summary pairs from DISTINCT
+  profiles, at least one REAL library, you pairing them better than
+  chance (kill: matching at chance → personalisation isn't real).
+  Cheapest form: tell me ~6-10 of your actual games with rough
+  hours/state (loved / recent / mastered / dusty / abandoned), or a
+  public Steam profile ID to pull from. Three fake distinct profiles +
+  yours then each get cold-authored murals and you match blind.
 
 - ✅ **EYEBALL mural seed corpus (claude-authoring rung 1) — PASSED
   2026-08-23 ("yea these pass, d5 is fine too").** All four seed murals
